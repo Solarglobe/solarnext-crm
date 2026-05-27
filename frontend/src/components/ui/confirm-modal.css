@@ -1,4 +1,4 @@
-/* Confirmations CRM — compact, icône discrète, aligné modales SaaS */
+/* Confirmations CRM - compact, icône discrète, aligné modales SaaS */
 
 :root {
   --sn-z-confirm: 1000;
@@ -176,7 +176,7 @@
   cursor: not-allowed;
 }
 
-/* Annuler — secondaire bordure (+ alias .sn-confirm-modal-btn--ghost) */
+/* Annuler - secondaire bordure (+ alias .sn-confirm-modal-btn--ghost) */
 .sn-confirm-modal-btn--secondary,
 .sn-confirm-modal-btn--ghost {
   background: var(--sn-confirm-panel-bg);
@@ -189,7 +189,7 @@
   background: color-mix(in srgb, var(--sn-confirm-text) 5%, var(--sn-confirm-panel-bg));
 }
 
-/* Confirmer — défaut (action positive) */
+/* Confirmer - défaut (action positive) */
 .sn-confirm-modal-btn--default {
   background: color-mix(in srgb, var(--primary, #7c3aed) 92%, #1e1b4b);
   color: var(--text-on-dark);
@@ -233,7 +233,7 @@ html.theme-dark .sn-confirm-modal-btn--danger {
   color: var(--text-on-dark);
 }
 
-/* ── DeleteConfirmModal — extensions spécifiques ───────────────────────── */
+/* ── DeleteConfirmModal - extensions spécifiques ───────────────────────── */
 
 .sn-delete-modal-panel {
   width: min(480px, 100%);

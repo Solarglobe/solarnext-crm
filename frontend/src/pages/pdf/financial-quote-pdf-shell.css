@@ -15,7 +15,7 @@ body {
   print-color-adjust: exact;
 }
 
-/* Zone montage React — preview écran type « feuille sur bureau » */
+/* Zone montage React - preview écran type « feuille sur bureau » */
 #financial-quote-pdf-app {
   box-sizing: border-box;
   min-height: 100vh;

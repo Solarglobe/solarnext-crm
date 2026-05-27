@@ -1,4 +1,4 @@
-/* Builder facture — prolonge le workbench devis (qb-*) avec variantes ib-* */
+/* Builder facture - prolonge le workbench devis (qb-*) avec variantes ib-* */
 
 .ib-quote-billing-hint {
   margin: 0 0 12px;
@@ -213,7 +213,7 @@
   padding: 24px;
 }
 
-/* ——— En-tête & cartes premium (builder facture) ——— */
+/* --- En-tête & cartes premium (builder facture) --- */
 .ib-page-hero-stack {
   display: flex;
   flex-direction: column;
@@ -776,5 +776,4 @@
 .ib-billing-combo-empty {
   padding: 10px 12px;
   font-size: 13px;
-  color: var(--text-muted, #64748b);
-}
+  color: var(--

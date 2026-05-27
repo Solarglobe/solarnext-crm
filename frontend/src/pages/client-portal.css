@@ -1,4 +1,4 @@
-/* SolarGlobe — Espace client (aligné sur solarglobe-client-avant, données CRM) */
+/* SolarGlobe - Espace client (aligné sur solarglobe-client-avant, données CRM) */
 @import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap");
 
 :root {
@@ -58,7 +58,7 @@
   color: var(--cp-gold);
 }
 
-/* ——— Chargement / erreur ——— */
+/* --- Chargement / erreur --- */
 .client-portal--center {
   min-height: 100vh;
   display: flex;
@@ -80,7 +80,7 @@
   max-width: 420px;
 }
 
-/* ——— Hero ——— */
+/* --- Hero --- */
 .cp-hero {
   position: relative;
   height: 420px;
@@ -228,7 +228,7 @@
   }
 }
 
-/* ——— Corps : conteneur large ——— */
+/* --- Corps : conteneur large --- */
 .cp-body {
   background: var(--cp-bg2);
   padding: 64px 0 96px;
@@ -241,7 +241,7 @@
   padding: 0 36px;
 }
 
-/* Grille synthèse + storytelling — flex pour alignement vertical premium des deux colonnes */
+/* Grille synthèse + storytelling - flex pour alignement vertical premium des deux colonnes */
 .cp-grid {
   display: flex;
   flex-direction: row;
@@ -507,7 +507,7 @@
   }
 }
 
-/* ——— Pipeline horizontal ——— */
+/* --- Pipeline horizontal --- */
 .cp-pipeline-wrap {
   margin-bottom: 64px;
   padding: 28px 24px 32px;
@@ -663,7 +663,7 @@
   }
 }
 
-/* ——— Documents ——— */
+/* --- Documents --- */
 .cp-docs-section {
   margin-top: 48px;
 }
@@ -823,7 +823,7 @@
   }
 }
 
-/* ——— Conseiller ——— */
+/* --- Conseiller --- */
 .cp-advisor {
   margin-top: 88px;
 }
@@ -988,7 +988,7 @@
   }
 }
 
-/* ——— Footer ——— */
+/* --- Footer --- */
 .cp-footer {
   margin-top: 48px;
   padding: 16px 36px;

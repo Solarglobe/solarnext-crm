@@ -1,5 +1,5 @@
 /**
- * CP-DSM-016 — DSM Visual Overlay Premium
+ * CP-DSM-016 - DSM Visual Overlay Premium
  * Pure visualisation, non destructif, pointer-events: none.
  */
 
@@ -150,7 +150,7 @@
   pointer-events: none;
 }
 
-/* CP-DSM-UX — Carte synthèse ombrage (lisibilité prioritaire) */
+/* CP-DSM-UX - Carte synthèse ombrage (lisibilité prioritaire) */
 .dsm-shading-summary {
   position: absolute;
   left: 14px;
@@ -534,8 +534,8 @@
   border-color: var(--sg-brand, #6366F1);
 }
 
-/* CP-DSM-UI-002 — Interaction layer + tooltip panneau */
-/* CP-DSM-FIX-006 — z-index 40 pour ne pas recouvrir contrôles (80) et radar (90) */
+/* CP-DSM-UI-002 - Interaction layer + tooltip panneau */
+/* CP-DSM-FIX-006 - z-index 40 pour ne pas recouvrir contrôles (80) et radar (90) */
 .dsm-interaction-layer {
   position: absolute;
   top: 0;

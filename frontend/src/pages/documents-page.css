@@ -1,4 +1,4 @@
-/* ─── Document Center — redesign premium SaaS ──────────────────────────── */
+/* ─── Document Center - redesign premium SaaS ──────────────────────────── */
 
 .dp-page {
   width: 100%;
@@ -494,7 +494,7 @@
 .dp-skel--date  { width: 90%; }
 .dp-skel--acts  { width: 60px; height: 28px; border-radius: 7px; margin-left: auto; }
 
-/* @keyframes dp-shimmer supprimé — remplacé par sn-shimmer (crm-foundation.css) */
+/* @keyframes dp-shimmer supprimé - remplacé par sn-shimmer (crm-foundation.css) */
 
 /* ── Empty state ────────────────────────────────────────────────────────── */
 .dp-empty {
@@ -594,33 +594,3 @@
   }
 
   .dp-contact::before {
-    content: "Contact : ";
-    color: var(--text-muted);
-  }
-
-  .dp-date::before {
-    content: "Date : ";
-    color: var(--text-muted);
-  }
-
-  .dp-actions {
-    opacity: 1;
-    justify-content: flex-start;
-    padding-top: 2px;
-  }
-
-  .dp-search,
-  .dp-filter-toggle,
-  .dp-select-wrap,
-  .dp-select,
-  .dp-chip,
-  .dp-reset,
-  .dp-action-btn {
-    min-height: 44px;
-  }
-
-  .dp-action-btn {
-    width: 44px;
-    height: 44px;
-  }
-}

@@ -1,5 +1,5 @@
-/* Devis A4 portrait — PDF (renderer /financial-quote-pdf-render) + page Présenter CRM.
- * Racine PDF : #financial-quote-pdf-root.fq-root — pas #pdf-root (étude).
+/* Devis A4 portrait - PDF (renderer /financial-quote-pdf-render) + page Présenter CRM.
+ * Racine PDF : #financial-quote-pdf-root.fq-root - pas #pdf-root (étude).
  * Source de vérité marges PDF Playwright devis : @page sn-financial-quote (preferCSSPageSize côté backend). */
 
 @page {
@@ -433,7 +433,7 @@
   white-space: pre-wrap;
 }
 
-/* Modalités de paiement — titre or */
+/* Modalités de paiement - titre or */
 .fq-erp-gold-heading {
   margin: 0 0 3mm;
   font-size: 10pt;
@@ -696,7 +696,7 @@ button.fq-signature-canvas-area.fq-signature-touch-target {
   }
 }
 
-/* CGV — fin de devis (QuoteDocumentView) */
+/* CGV - fin de devis (QuoteDocumentView) */
 .fq-root .pdf-cgv {
   page-break-before: always;
   font-size: 10px;

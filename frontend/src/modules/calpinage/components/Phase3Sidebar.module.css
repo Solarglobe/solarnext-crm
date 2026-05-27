@@ -1,4 +1,4 @@
-/* Phase3Sidebar — fond clair, texte noir pour lisibilité (contraste WCAG) */
+/* Phase3Sidebar - fond clair, texte noir pour lisibilité (contraste WCAG) */
 
 .sidebar {
   display: flex;
@@ -12,7 +12,7 @@
   color: var(--text, #111827);
 }
 
-/* —— ZONE 1 Header —— */
+/* -- ZONE 1 Header -- */
 .zoneHeader {
   margin-bottom: 14px;
   padding-bottom: 12px;
@@ -43,7 +43,7 @@
   color: var(--text-secondary, #475569);
 }
 
-/* —— ZONE 2 Action —— */
+/* -- ZONE 2 Action -- */
 .zoneAction {
   display: flex;
   flex-direction: column;
@@ -182,7 +182,7 @@
   color: var(--brand-accent-hover, #4F46E5);
 }
 
-/* —— ZONE 3 État —— */
+/* -- ZONE 3 État -- */
 .zoneState {
   margin-bottom: 12px;
   padding-bottom: 12px;
@@ -212,8 +212,8 @@
   -webkit-text-size-adjust: 100%;
 }
 
-/* Badge générique — cible WCAG 2.5.5 + iOS text-size-adjust.
-   Couleurs et border-radius NON définis ici — hérités des classes sémantiques. */
+/* Badge générique - cible WCAG 2.5.5 + iOS text-size-adjust.
+   Couleurs et border-radius NON définis ici - hérités des classes sémantiques. */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -285,15 +285,15 @@
 }
 
 /*
- * .metricOk / .metricWarn — !important intentionnel.
+ * .metricOk / .metricWarn - !important intentionnel.
  *
  * Ces classes s'appliquent sur les <dd> à l'intérieur de .stateDlRow.
  * La règle générique `.stateDlRow dd { color: var(--text, #0F172A); }` (ligne ~251)
- * a la même spécificité — sans !important la cascade CSS prendrait la couleur neutre
+ * a la même spécificité - sans !important la cascade CSS prendrait la couleur neutre
  * en fonction de l'ordre source, ce qui rendrait les indicateurs rouge/vert invisibles.
  *
  * Alternative si on veut éliminer !important : augmenter la spécificité via
- * `.stateDlRow .metricOk {}` — mais ce serait une modification fonctionnelle,
+ * `.stateDlRow .metricOk {}` - mais ce serait une modification fonctionnelle,
  * pas uniquement documentaire. AUDIT 2026-05-18 : laisser en l'état.
  */
 .metricOk {
@@ -304,7 +304,7 @@
   color: #b45309 !important;
 }
 
-/* —— ZONE 4 Validation —— */
+/* -- ZONE 4 Validation -- */
 .zoneValidation {
   display: flex;
   flex-direction: column;
@@ -313,12 +313,12 @@
 }
 
 /*
- * .checklistEmbed — !important intentionnel.
+ * .checklistEmbed - !important intentionnel.
  *
  * Phase3ChecklistPanel.module.css définit `.panel { margin-bottom: 12px; }`.
  * Quand le panel est intégré en mode complet (non-compact) dans la sidebar,
  * ce margin-bottom crée un espace indésirable. Le !important est nécessaire
- * parce que la règle source `.panel` est dans un autre CSS Module — sa spécificité
+ * parce que la règle source `.panel` est dans un autre CSS Module - sa spécificité
  * ne peut pas être battue par un sélecteur local de même niveau.
  *
  * Alternative clean : passer `compact` prop qui active `.panelCompact`
@@ -430,7 +430,7 @@
   color: var(--brand-accent, #6366F1);
 }
 
-/* —— ZONE 5 Outils —— */
+/* -- ZONE 5 Outils -- */
 .zoneTools {
   margin-top: auto;
   padding-top: 12px;
@@ -536,7 +536,7 @@
   cursor: pointer;
 }
 
-/* —— Section Bifaciale —— */
+/* -- Section Bifaciale -- */
 .bifacialSection {
   margin-bottom: 12px;
   padding: 10px 12px 12px;

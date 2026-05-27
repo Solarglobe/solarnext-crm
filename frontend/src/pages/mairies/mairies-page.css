@@ -1,4 +1,4 @@
-/* Mairies / Portails DP — aligné charte SolarGlobe (violet + or), pas de bleu utilitaire */
+/* Mairies / Portails DP - aligné charte SolarGlobe (violet + or), pas de bleu utilitaire */
 
 .mairies-page {
   padding: var(--spacing-16, 16px);
@@ -6,7 +6,7 @@
   margin: 0 auto;
 }
 
-/* Bandeau titre — carte légère, accent doré + fond dégradé discret */
+/* Bandeau titre - carte légère, accent doré + fond dégradé discret */
 .mairies-page__hero {
   display: flex;
   flex-wrap: wrap;
@@ -62,7 +62,7 @@ html.theme-dark .mairies-page__title {
   color: transparent;
 }
 
-/* Filtres — même famille que le hero, moins imposant */
+/* Filtres - même famille que le hero, moins imposant */
 .mairies-page__filters {
   display: flex;
   flex-wrap: wrap;
@@ -113,7 +113,7 @@ html.theme-dark .mairies-page__filters {
   color: var(--text-muted, #64748b);
 }
 
-/* Tableau liste — cadre neutre type SaaS (pas de halo violet) */
+/* Tableau liste - cadre neutre type SaaS (pas de halo violet) */
 .mairies-page .mairies-page__table-wrap.qb-table-wrap--list-saas,
 .mairies-page .mairies-page__skeleton-wrap .qb-table-wrap--list-saas {
   border: 1px solid var(--border-soft, #e5e7eb);
@@ -171,7 +171,7 @@ html.theme-light .mairies-page .qb-table.qb-table--list-saas tbody tr:hover {
   transition: background 0.12s ease;
 }
 
-/* Ligne sélectionnée clavier — discret */
+/* Ligne sélectionnée clavier - discret */
 .mairies-page tr.mairies-page__row--kbd {
   outline: 1px solid rgba(15, 23, 42, 0.12);
   outline-offset: -1px;
@@ -252,7 +252,7 @@ html.theme-dark .mairie-recent-dot {
   cursor: wait;
 }
 
-/* Liste — skeleton */
+/* Liste - skeleton */
 .mairies-page__skeleton-wrap {
   overflow-x: auto;
   margin-bottom: var(--spacing-8, 8px);
@@ -343,7 +343,7 @@ html.theme-dark .mairie-recent-dot {
   gap: 10px 14px;
 }
 
-/* Bouton « Ouvrir » — outline discret */
+/* Bouton « Ouvrir » - outline discret */
 .mairies-page__open-portal-btn {
   display: inline-flex;
   align-items: center;
@@ -397,7 +397,7 @@ html.theme-dark .mairies-page__open-portal-btn:hover:not(:disabled) {
   transform: translateY(-0.5px);
 }
 
-/* Modifier / Supprimer — liens discrets */
+/* Modifier / Supprimer - liens discrets */
 .mairies-page__action-link {
   margin: 0;
   padding: 0;

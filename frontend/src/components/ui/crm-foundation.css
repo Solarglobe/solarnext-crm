@@ -31,7 +31,7 @@
 .sn-page-header__title {
   margin: 0;
   color: var(--text-primary);
-  font-size: 16px;  /* fixe — fluid sizing banni en product UI (DPI constant, sidebar fixe) */
+  font-size: 16px;  /* fixe - fluid sizing banni en product UI (DPI constant, sidebar fixe) */
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.01em;
@@ -175,7 +175,7 @@
 }
 
 /*
- * KPI strip — cockpit opérationnel premium (pas hero-metric SaaS).
+ * KPI strip - cockpit opérationnel premium (pas hero-metric SaaS).
  * Emphase réduite : lecture rapide répétée > mise en scène de la donnée.
  * 22px/800 → 17px/600 ; trend badge pill → badge discret 3px radius.
  */
@@ -220,7 +220,7 @@
   line-height: 1.35;
 }
 
-/* Badge trend — discret, pas pill. Informe sans décorer. */
+/* Badge trend - discret, pas pill. Informe sans décorer. */
 .sn-kpi-strip__trend {
   width: fit-content;
   min-height: 18px;
@@ -328,7 +328,7 @@
 }
 
 /*
- * ── SKELETON SYSTEM — animation partagée ─────────────────────────────────
+ * ── SKELETON SYSTEM - animation partagée ─────────────────────────────────
  * Utilisation : ajouter la classe .sn-sk sur n'importe quel élément placeholder.
  * Les classes spécialisées (sn-skeleton-line, sn-leads-skeleton-*…) en héritent.
  */
@@ -337,7 +337,7 @@
   100% { background-position: -200% center; }
 }
 
-/* Base shimmer — applicable à tout élément placeholder */
+/* Base shimmer - applicable à tout élément placeholder */
 .sn-sk {
   background: linear-gradient(
     90deg,
@@ -421,7 +421,7 @@
 .sn-leads-skeleton__cell:nth-child(6) { max-width: 65%; }
 .sn-leads-skeleton__cell:nth-child(7) { max-width: 55%; }
 
-/* Délais progressifs — vague de gauche à droite entre les lignes */
+/* Délais progressifs - vague de gauche à droite entre les lignes */
 .sn-leads-skeleton__row:nth-child(2)  { animation-delay: 0.04s; }
 .sn-leads-skeleton__row:nth-child(3)  { animation-delay: 0.08s; }
 .sn-leads-skeleton__row:nth-child(4)  { animation-delay: 0.12s; }
@@ -430,7 +430,7 @@
 .sn-leads-skeleton__row:nth-child(7)  { animation-delay: 0.24s; }
 .sn-leads-skeleton__row:nth-child(8)  { animation-delay: 0.28s; }
 
-/* Lignes légèrement opaques en alternance — comme les zebra rows */
+/* Lignes légèrement opaques en alternance - comme les zebra rows */
 .sn-leads-skeleton__row:nth-child(odd) {
   background: color-mix(in srgb, var(--text-primary) 2.5%, transparent);
 }
@@ -559,7 +559,7 @@
   animation: sn-shimmer 1.6s ease-in-out infinite;
 }
 
-/* ── Empty State — composant global ──────────────────────────────────────── */
+/* ── Empty State - composant global ──────────────────────────────────────── */
 .sn-empty-state {
   display: flex;
   flex-direction: column;

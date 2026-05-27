@@ -1,6 +1,6 @@
 /**
- * Page 8 PDF — gains cumulés premium SolarGlobe (beige / ivoire / doré).
- * Zone utile ~1047×603.56 px — charte page inchangée ; le graph SVG est stylé dans engine-p9.js.
+ * Page 8 PDF - gains cumulés premium SolarGlobe (beige / ivoire / doré).
+ * Zone utile ~1047×603.56 px - charte page inchangée ; le graph SVG est stylé dans engine-p9.js.
  */
 
 .pdf-legacy-port #p8 .p8-body {
@@ -34,7 +34,7 @@
   --p8-paper-deep: #f3ede4;
   --p8-gold: #b8923f;
   --p8-gold-deep: #8a6a2f;
-  /** Chiffres clés — doré signature (aligné P7 / SolarGlobe) */
+  /** Chiffres clés - doré signature (aligné P7 / SolarGlobe) */
   --p8-gold-figures: #C39847;
   --p8-gold-glow: rgba(184, 146, 63, 0.14);
 
@@ -72,7 +72,7 @@
   box-sizing: border-box;
 }
 
-/* ---------- A — Hero impact ---------- */
+/* ---------- A - Hero impact ---------- */
 .p8-zone--hero {
   flex: 0 0 var(--p8-h-hero);
   height: var(--p8-h-hero);
@@ -129,7 +129,7 @@
   max-width: 58em;
 }
 
-/* ---------- B — Central : chart + cartes ---------- */
+/* ---------- B - Central : chart + cartes ---------- */
 .p8-zone--central {
   flex: 0 0 var(--p8-h-central);
   height: var(--p8-h-central);
@@ -236,7 +236,7 @@
   color: rgba(210, 200, 180, 0.75);
 }
 
-/* ---------- C — KPI bas ---------- */
+/* ---------- C - KPI bas ---------- */
 .p8-zone--kpi {
   flex: 0 0 var(--p8-h-kpi);
   height: var(--p8-h-kpi);
@@ -282,7 +282,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- D — Signature ---------- */
+/* ---------- D - Signature ---------- */
 .p8-signature {
   flex: 0 0 var(--p8-h-sig);
   height: var(--p8-h-sig);

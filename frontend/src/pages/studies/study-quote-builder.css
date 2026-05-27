@@ -1,8 +1,8 @@
 /**
- * Préparation devis technique — layout dense, une carte travail, tokens solarnext.
+ * Préparation devis technique - layout dense, une carte travail, tokens solarnext.
  */
 
-/* ——— Page ——— */
+/* --- Page --- */
 .study-quote-page {
   width: 100%;
   max-width: none;
@@ -40,7 +40,7 @@
   font-weight: 600;
 }
 
-/* ——— Carte travail unique ——— */
+/* --- Carte travail unique --- */
 .sqb-workbench {
   width: 100%;
   max-width: 1400px;
@@ -66,7 +66,7 @@
   margin-bottom: 8px;
 }
 
-/* Bloc prix — dominant sans carte supplémentaire */
+/* Bloc prix - dominant sans carte supplémentaire */
 .sqb-section--pricing {
   padding-top: 14px;
   padding-bottom: 6px;
@@ -93,7 +93,7 @@
   background: var(--border-soft);
 }
 
-/* ——— Typo ——— */
+/* --- Typo --- */
 .study-quote-page .sqb-h1 {
   margin: 0;
   font-size: 1.05rem;
@@ -250,7 +250,7 @@
   font-size: 12px;
 }
 
-/* KPI — résumé technique (grille équilibrée, cartes type SaaS) */
+/* KPI - résumé technique (grille équilibrée, cartes type SaaS) */
 .study-quote-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -492,7 +492,7 @@
   justify-self: end;
 }
 
-/* Options scénario — une colonne, flux vertical dense */
+/* Options scénario - une colonne, flux vertical dense */
 .sqb-scenarios-section {
   display: flex;
   flex-direction: column;
@@ -733,14 +733,14 @@ html.theme-dark .sqb-battery-capacity-hint {
 .sqb-battery-power {
   color: var(--text-secondary, #6b7280);
 }
-/* Puissance système capée — légèrement mis en avant */
+/* Puissance système capée - légèrement mis en avant */
 .sqb-battery-power--capped {
   color: var(--warning-text, #92400e);
 }
 html.theme-dark .sqb-battery-power--capped {
   color: var(--warning-text, #fbbf24);
 }
-/* Badge "⚠ limitée" — inline, discret, avec tooltip */
+/* Badge "⚠ limitée" - inline, discret, avec tooltip */
 .sqb-battery-cap-warn {
   margin-left: 3px;
   font-size: 11px;
@@ -748,7 +748,7 @@ html.theme-dark .sqb-battery-power--capped {
   opacity: 0.85;
 }
 
-/* Batterie virtuelle — compact */
+/* Batterie virtuelle - compact */
 .sqb-vb--compact {
   margin-top: 10px;
   padding-top: 10px;
@@ -1377,6 +1377,4 @@ html.theme-dark .sqb-battery-power--capped {
 
 .sqb-study-meter-modal-item__meta {
   margin: 4px 0 0;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
+ 

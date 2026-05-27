@@ -1,10 +1,10 @@
-/* SolarGlobe CRM v2 — Design System — Premium Dark Principal, Login inchangé */
+/* SolarGlobe CRM v2 - Design System - Premium Dark Principal, Login inchangé */
 
 /* ========== :root = DARK (default) ========== */
 :root,
 .theme-dark,
 html.theme-dark {
-  /* Backgrounds — AUTH vs APP (Login inchangé : --bg-auth strictement identique) */
+  /* Backgrounds - AUTH vs APP (Login inchangé : --bg-auth strictement identique) */
   --bg-app: var(--color-bg-page);
   --bg-auth: linear-gradient(180deg, #050914 0%, #05060f 60%, #04060f 100%);
   --bg: var(--bg-app);
@@ -14,7 +14,7 @@ html.theme-dark {
   --bg-card: var(--color-bg-card);
   --bg-elevated: var(--color-bg-elevated);
 
-  /* Background hierarchy — dark profond (sn-*) */
+  /* Background hierarchy - dark profond (sn-*) */
   --sn-bg-main: var(--color-bg-page);
   --sn-bg-elevated: var(--color-bg-elevated);
   --sn-bg-surface: var(--color-bg-card);
@@ -36,7 +36,7 @@ html.theme-dark {
   --sn-accent-gold: var(--brand-gold);
   --sn-accent-gold-soft: var(--brand-gold-soft);
 
-  /* Halos — tokens (Auth + App) */
+  /* Halos - tokens (Auth + App) */
   --halo-1: radial-gradient(circle, rgba(124, 58, 237, 0.25) 0%, rgba(124, 58, 237, 0.12) 40%, transparent 70%);
   --halo-2: radial-gradient(circle, rgba(168, 85, 247, 0.18) 0%, rgba(168, 85, 247, 0.08) 40%, transparent 75%);
   --halo-app-1: radial-gradient(circle, rgba(124, 58, 237, 0.15) 0%, rgba(124, 58, 237, 0.06) 40%, transparent 70%);
@@ -48,7 +48,7 @@ html.theme-dark {
   --surface-app: var(--color-bg-muted);
   --surface-card: var(--bg-card);
   --surface-elevated: var(--bg-elevated);
-  /* Lignes / bandeaux secondaires (listes finance, tags) — évite le fallback #0f172a hors thème */
+  /* Lignes / bandeaux secondaires (listes finance, tags) - évite le fallback #0f172a hors thème */
   --surface-soft: #0f172a;
 
   /* Borders */
@@ -72,7 +72,7 @@ html.theme-dark {
   --muted-on-dark: #9CA8C6;
   --muted-on-light: #64748B;
 
-  /* Accents — SolarGlobe v2 (Login inchangé : primary/gold identiques) */
+  /* Accents - SolarGlobe v2 (Login inchangé : primary/gold identiques) */
   --primary: #7C3AED;
   --violet-strong: #7C3AED;
   --violet-glow: rgba(124, 58, 237, 0.35);
@@ -129,7 +129,7 @@ html.theme-dark {
   --warning: #F59E0B;
   --info: #38BDF8;
 
-  /* SolarGlobe sg-* — alignés sur le thème (dark) pour lisibilité */
+  /* SolarGlobe sg-* - alignés sur le thème (dark) pour lisibilité */
   --sg-text: var(--text-primary);
   --sg-text-muted: var(--text-muted);
   --sg-surface-alt: var(--surface-2);
@@ -152,7 +152,7 @@ html.theme-dark {
   --spacing-24: 24px;
   --spacing-32: 32px;
 
-  /* Kanban dark — progression violet froid → indigo profond */
+  /* Kanban dark - progression violet froid → indigo profond */
   --kanban-col-1-start: #1e1b2e;
   --kanban-col-1-end: #13111f;
   --kanban-col-2-start: #221e38;
@@ -168,7 +168,7 @@ html.theme-dark {
   --kanban-col-border-strong: rgba(99, 102, 241, 0.4);
   --kanban-col-glow: rgba(99, 102, 241, 0.12);
 
-  /* Kanban — cartes pipeline (réflexion / relance / perdu) */
+  /* Kanban - cartes pipeline (réflexion / relance / perdu) */
   --card-reflection-bg: linear-gradient(135deg, #1e1b2e, #2d2a50);
   --card-reflection-border: #818cf8;
   --card-followup-bg: linear-gradient(135deg, #1e293b, #312e81);
@@ -177,7 +177,7 @@ html.theme-dark {
   --card-lost-border: #4b5563;
 }
 
-/* Fond dark profond — override app (Login inchangé) */
+/* Fond dark profond - override app (Login inchangé) */
 /* Fix: utiliser --color-bg-page directement pour éviter la référence circulaire
    --sn-bg-main → --bg-page → --sn-bg-main (cycle → valeur vide → fond blanc) */
 .theme-dark.sn-app-page,
@@ -272,7 +272,7 @@ html.theme-dark .sn-app-bg {
   --bg: var(--bg-app);
 }
 
-/* CRM (AppLayout) : hauteur limitée au viewport — scroll dans la sidebar et la colonne principale, pas sur le body */
+/* CRM (AppLayout) : hauteur limitée au viewport - scroll dans la sidebar et la colonne principale, pas sur le body */
 html.sn-app-page.crm-app,
 html.sn-app-page.crm-app body {
   height: 100%;
@@ -369,14 +369,14 @@ html.sn-app-page.crm-app #root {
   --sidebar-hover: rgba(15, 23, 42, 0.04);
   --sidebar-active: rgba(109, 40, 217, 0.1);
 
-  /* SolarGlobe sg-* — alignés sur le thème (light) */
+  /* SolarGlobe sg-* - alignés sur le thème (light) */
   --sg-text: var(--text-primary);
   --sg-text-muted: var(--text-muted);
   --sg-surface-alt: var(--surface-2);
   --sg-bg-soft: #F9FAFB;
   --sg-border: rgba(15, 23, 42, 0.08);
 
-  /* Kanban light — progression neutre → indigo */
+  /* Kanban light - progression neutre → indigo */
   --kanban-col-1-start: #F8F9FF;
   --kanban-col-1-end: #EEF2FF;
   --kanban-col-2-start: #E8EDFF;
@@ -391,7 +391,7 @@ html.sn-app-page.crm-app #root {
   --kanban-col-border-strong: rgba(99, 102, 241, 0.3);
   --kanban-col-glow: rgba(99, 102, 241, 0.12);
 
-  /* Kanban — cartes pipeline (réflexion / relance / perdu) */
+  /* Kanban - cartes pipeline (réflexion / relance / perdu) */
   --card-reflection-bg: linear-gradient(135deg, #EEF2FF, #E0E7FF);
   --card-reflection-border: #818CF8;
   --card-followup-bg: linear-gradient(135deg, #eef2ff, #dbeafe);
@@ -400,7 +400,7 @@ html.sn-app-page.crm-app #root {
   --card-lost-border: #d1d5db;
 }
 
-/* ========== sg-btn-ghost — états thème (fix blanc sur blanc dark) ========== */
+/* ========== sg-btn-ghost - états thème (fix blanc sur blanc dark) ========== */
 .theme-dark .sg-btn-ghost:hover,
 html.theme-dark .sg-btn-ghost:hover {
   background: var(--sn-bg-hover);
@@ -451,7 +451,7 @@ body {
   position: relative;
 }
 
-/* ========== sn-auth-bg — Login : fond clair premium + halos discrets ========== */
+/* ========== sn-auth-bg - Login : fond clair premium + halos discrets ========== */
 .sn-auth-bg {
   position: relative;
   isolation: isolate;
@@ -494,7 +494,7 @@ body {
   opacity: 0.9;
 }
 
-/* Filigrane logo — asset /logo.png (référence AppLayout) */
+/* Filigrane logo - asset /logo.png (référence AppLayout) */
 .sn-auth-watermark {
   position: absolute;
   inset: 0;
@@ -749,7 +749,7 @@ body {
   box-shadow: 0 8px 22px rgba(109, 40, 217, 0.32), 0 1px 0 rgba(255, 255, 255, 0.14) inset;
 }
 
-/* Page auth : toujours theme-light — sélecteur org lisible sur fond clair */
+/* Page auth : toujours theme-light - sélecteur org lisible sur fond clair */
 html.sn-auth-page select {
   background: var(--input-bg) !important;
   color: var(--text-primary) !important;
@@ -834,7 +834,7 @@ html:not(.sn-app-page) .sn-card-elevated:hover {
   box-shadow: var(--shadow-2);
 }
 
-/* sn-card-app — variante CRM (tokens uniquement) */
+/* sn-card-app - variante CRM (tokens uniquement) */
 .sn-card-app {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -844,7 +844,7 @@ html:not(.sn-app-page) .sn-card-elevated:hover {
   background: var(--surface-card);
 }
 
-/* sn-card-premium — tokens (Login + CRM, Login inchangé) */
+/* sn-card-premium - tokens (Login + CRM, Login inchangé) */
 .sn-card-premium {
   position: relative;
   padding: unset;
@@ -950,7 +950,7 @@ html.theme-dark .sn-select:focus {
   box-shadow: var(--shadow-1);
 }
 
-/* CRM badges — modificateurs sn-badge-* (couleurs = variables --sn-badge-* définies dans primitives) */
+/* CRM badges - modificateurs sn-badge-* (couleurs = variables --sn-badge-* définies dans primitives) */
 html.sn-app-page .sn-badge.sn-badge-neutral {
   background: var(--sn-badge-neutral-bg);
   border-color: var(--sn-badge-neutral-border);
@@ -986,7 +986,7 @@ html.sn-app-page .sn-badge.crm-status-badge--in-header {
   padding: 3px 8px;
 }
 
-/* ========== Doré STRUCTUREL — Page titles (SolarGlobe signature) ========== */
+/* ========== Doré STRUCTUREL - Page titles (SolarGlobe signature) ========== */
 .sn-page-title,
 .sn-main h1,
 .sn-main h2,
@@ -1001,7 +1001,7 @@ html.sn-app-page .sn-badge.crm-status-badge--in-header {
   display: inline-block;
 }
 
-/* Trait doré réutilisable — identique pour titres de page ET bloc SolarNext sidebar */
+/* Trait doré réutilisable - identique pour titres de page ET bloc SolarNext sidebar */
 .sn-page-title::after,
 .sn-main h1::after,
 .sn-main h2::after,
@@ -1050,7 +1050,7 @@ html.sn-app-page .sn-badge.crm-status-badge--in-header {
   margin-bottom: var(--spacing-4);
 }
 
-/* ========== Sidebar nav — style "cards / boutons" premium ========== */
+/* ========== Sidebar nav - style "cards / boutons" premium ========== */
 .sn-sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -1256,7 +1256,7 @@ html.sn-app-page .sn-badge.crm-status-badge--in-header {
   border-radius: 0 2px 2px 0;
 }
 
-/* Sidebar actif dark — gold micro accent */
+/* Sidebar actif dark - gold micro accent */
 .theme-dark .sn-sidebar-item.active,
 .theme-dark .sn-sidebar-link-active,
 html.theme-dark .sn-sidebar-item.active,
@@ -1308,7 +1308,7 @@ html.theme-dark .sn-sidebar-link-active::before {
   border-color: var(--primary);
 }
 
-/* ========== Button variants (hors CRM : html sans .sn-app-page — CRM = design-system/primitives.css) ========== */
+/* ========== Button variants (hors CRM : html sans .sn-app-page - CRM = design-system/primitives.css) ========== */
 html:not(.sn-app-page) .sn-btn {
   display: inline-flex;
   align-items: center;
@@ -1398,7 +1398,7 @@ html.theme-light:not(.sn-app-page) .sn-btn-ghost:hover:not(:disabled) {
   background: var(--gold-soft);
 }
 
-/* secondary — action peu dominante (listes, filtres) */
+/* secondary - action peu dominante (listes, filtres) */
 html:not(.sn-app-page) .sn-btn-secondary {
   background: color-mix(in srgb, var(--surface-2) 92%, var(--text-primary) 4%);
   color: var(--text-primary);
@@ -1488,7 +1488,7 @@ html.sn-app-page.crm-app .sn-app-root.sn-app-bg {
   display: flex;
   flex-direction: column;
   /* RESPONSIVE FIX: width passe par la custom property définie dans primitives.css
-     (--sn-ui-shell-sidebar-w: 200px) — suppression du 280px hardcodé qui créait un conflit.
+     (--sn-ui-shell-sidebar-w: 200px) - suppression du 280px hardcodé qui créait un conflit.
      La règle html.sn-app-page aside.sn-sidebar dans primitives.css gagne en spécificité
      et reste la seule source de vérité pour la largeur. */
   width: var(--sn-ui-shell-sidebar-w, 200px);
@@ -1507,7 +1507,7 @@ html.sn-app-page.crm-app .sn-app-root.sn-app-bg {
 }
 
 /* Colonne recherche + .sn-main : scroll vertical propre (complément de la sidebar) */
-/* RESPONSIVE FIX: overflow-x:hidden supprimé — il empêchait le scroll horizontal des tables
+/* RESPONSIVE FIX: overflow-x:hidden supprimé - il empêchait le scroll horizontal des tables
    (leads, devis, factures…). Le scroll horizontal est géré par les wrappers .qb-table-wrap
    et les conteneurs de modules individuels (overflow-x:auto). */
 .sn-app-shell > aside.sn-sidebar + div {
@@ -1540,7 +1540,7 @@ html.sn-app-page.crm-app .sn-app-root.sn-app-bg {
   border-right-color: rgba(154, 115, 72, 0.36);
 }
 
-/* Header : logo + barre outils — colonne structurée */
+/* Header : logo + barre outils - colonne structurée */
 .sn-sidebar-header {
   display: flex;
   flex-direction: column;
@@ -1708,7 +1708,7 @@ html.theme-dark .sn-topbar {
   color: var(--text);
 }
 
-/* ——— Recherche globale CRM (AppLayout, au-dessus du main) ——— */
+/* --- Recherche globale CRM (AppLayout, au-dessus du main) --- */
 .sn-global-search {
   position: relative;
   flex: 0 0 auto;
@@ -1918,13 +1918,13 @@ html.theme-dark .sn-topbar {
   background: var(--bg-page);
 }
 
-/* Tableau de bord : éviter double couche 32px + wrap — densité premium */
+/* Tableau de bord : éviter double couche 32px + wrap - densité premium */
 .sn-main:has(.sn-dashboard-wrap) {
   padding: 8px 12px 12px;
 }
 
 /* =====================================================
-   HALOS : Auth (Login) + App (dark only) — JAMAIS sur body
+   HALOS : Auth (Login) + App (dark only) - JAMAIS sur body
    ===================================================== */
 
 html {
@@ -1937,7 +1937,7 @@ html {
   min-height: 100%;
 }
 
-/* sn-app-bg — Halos App (plus discrets que Login) */
+/* sn-app-bg - Halos App (plus discrets que Login) */
 .sn-app-bg {
   position: relative;
   min-height: 100%;
@@ -1989,14 +1989,14 @@ html {
   z-index: 1;
 }
 
-/* ========== Page Leads — shell outil unifié (Kanban + liste) ========== */
+/* ========== Page Leads - shell outil unifié (Kanban + liste) ========== */
 
 .sn-leads-page {
   width: 100%;
   max-width: 100%;
 }
 
-/* Bandeau titre + toggle — compact (outil CRM, pas landing) */
+/* Bandeau titre + toggle - compact (outil CRM, pas landing) */
 .sn-leads-page__header {
   display: flex;
   flex-wrap: nowrap;
@@ -2107,7 +2107,7 @@ html {
   line-height: 1.3;
 }
 
-/* Barre sélection liste — visible uniquement si sélection ; sticky, sobre */
+/* Barre sélection liste - visible uniquement si sélection ; sticky, sobre */
 .sn-bulk-selection-bar--floating {
   position: sticky;
   bottom: 12px;
@@ -2228,7 +2228,7 @@ html.theme-dark .sn-bulk-selection-bar--floating {
   border-color: var(--border);
 }
 
-/* ——— Filtres Leads — toolbar SaaS (2 niveaux) ——— */
+/* --- Filtres Leads - toolbar SaaS (2 niveaux) --- */
 .sn-leads-toolbar-wrap {
   display: flex;
   flex-direction: column;
@@ -2281,7 +2281,7 @@ html.theme-dark .sn-leads-filters-card {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-/* Ligne 1 — principale */
+/* Ligne 1 - principale */
 .sn-leads-filters-primary {
   display: flex;
   flex-direction: row;
@@ -2520,7 +2520,7 @@ html.theme-dark .sn-leads-filters-input:focus-visible {
   box-shadow: 0 0 0 2px var(--violet-glow);
 }
 
-/* Ligne 2 — secondaire */
+/* Ligne 2 - secondaire */
 .sn-leads-filters-secondary {
   display: flex;
   flex-direction: row;
@@ -2584,7 +2584,7 @@ html.theme-dark .sn-leads-filters-select--subtle {
   }
 }
 
-/* RESPONSIVE: sous 640px — tous les champs de filtre passent en pleine largeur */
+/* RESPONSIVE: sous 640px - tous les champs de filtre passent en pleine largeur */
 @media (max-width: 639px) {
   .sn-leads-filters-primary,
   .sn-leads-filters-secondary {
@@ -2612,7 +2612,7 @@ html.theme-dark .sn-leads-filters-select--subtle {
   }
 }
 
-/* ——— Toolbar filtres Clients (même peau que Leads, champs métier) ——— */
+/* --- Toolbar filtres Clients (même peau que Leads, champs métier) --- */
 .sn-clients-toolbar {
   display: flex;
   flex-direction: column;
@@ -2681,7 +2681,7 @@ html.theme-dark .sn-leads-filters-select--subtle {
   padding: 0;
 }
 
-/* Shell : Kanban + Liste — flux document, sans cage scroll interne */
+/* Shell : Kanban + Liste - flux document, sans cage scroll interne */
 .sn-leads-page--shell {
   display: flex;
   flex-direction: column;
@@ -2712,7 +2712,7 @@ html.theme-dark .sn-leads-filters-select--subtle {
   }
 }
 
-/* gradients décoratifs supprimés — fond neutre CRM */
+/* gradients décoratifs supprimés - fond neutre CRM */
 
 .sn-leads-page__loading-card .sn-leads-page__hero {
   margin-bottom: var(--spacing-16);
@@ -2740,16 +2740,16 @@ html.theme-dark .sn-leads-filters-select--subtle {
   margin-top: var(--spacing-8);
 }
 
-/* sn-leads-skeleton__line + @keyframes sn-leads-shimmer supprimés — remplacés par .sn-sk dans crm-foundation.css */
+/* sn-leads-skeleton__line + @keyframes sn-leads-shimmer supprimés - remplacés par .sn-sk dans crm-foundation.css */
 
-/* ——— Kanban — pipeline visuel fort ——— */
+/* --- Kanban - pipeline visuel fort --- */
 .sn-leads-kanban-host {
   display: flex;
   flex-direction: column;
   width: 100%;
 }
 
-/* Scrollbars discrets — Kanban H, tableaux larges (liste) */
+/* Scrollbars discrets - Kanban H, tableaux larges (liste) */
 .sn-leads-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
@@ -2781,7 +2781,7 @@ html.theme-dark .sn-leads-filters-select--subtle {
   background: rgba(15, 23, 42, 0.26);
 }
 
-/* RESPONSIVE FIX #7: scroll horizontal Kanban — le overflow-x:auto ici est
+/* RESPONSIVE FIX #7: scroll horizontal Kanban - le overflow-x:auto ici est
    fonctionnel uniquement si le parent .sn-app-shell > aside + div ne force pas
    overflow-x:hidden. Ce bug a été corrigé dans Fix #1 (shell column). */
 .sn-leads-kanban-scroll {
@@ -2921,7 +2921,7 @@ html.theme-dark .sn-leads-filters-select--subtle {
     inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 36px rgba(0, 0, 0, 0.22);
 }
 
-/* Dark : pas de halo doré/blanc en haut — sinon la colonne signé paraît plus claire que le reste */
+/* Dark : pas de halo doré/blanc en haut - sinon la colonne signé paraît plus claire que le reste */
 .theme-dark .sn-leads-kanban-col-signed,
 html.theme-dark .sn-leads-kanban-col-signed {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04),
@@ -2933,7 +2933,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
     0 8px 28px rgba(138, 101, 16, 0.12);
 }
 
-/* Colonnes En réflexion / Relance / Perdu — dégradé inversé (droite → gauche, « fermeture » pipeline) */
+/* Colonnes En réflexion / Relance / Perdu - dégradé inversé (droite → gauche, « fermeture » pipeline) */
 .sn-leads-kanban-col.kanban-column-reflection::before,
 .sn-leads-kanban-col.kanban-column-followup::before,
 .sn-leads-kanban-col.kanban-column-lost::before {
@@ -3139,7 +3139,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
   border-radius: var(--radius-16);
 }
 
-/* ——— Cartes lead v3 — business ——— */
+/* --- Cartes lead v3 - business --- */
 .lead-card {
   position: relative;
   border-radius: 14px;
@@ -3355,7 +3355,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
 }
 
 /*
- * Cartes Kanban — style ERPNext : bandeau coloré en haut, dégradé vers blanc en bas.
+ * Cartes Kanban - style ERPNext : bandeau coloré en haut, dégradé vers blanc en bas.
  * Light : stops imposés. Dark : même logique, bas neutre foncé opaque.
  */
 .theme-light .lead-card.stage-1.sn-leads-card-v3 {
@@ -3460,7 +3460,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
 }
 
-/* Cartes — codes pipeline (priorité sur .stage-N) */
+/* Cartes - codes pipeline (priorité sur .stage-N) */
 .theme-light .lead-card.lead-card--pipeline-reflection.sn-leads-card-v3 {
   background: var(--card-reflection-bg);
   border: 1px solid var(--card-reflection-border);
@@ -3540,7 +3540,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
   border-radius: 12px;
 }
 
-/* ——— Liste premium (grille, pas tableau générique) ——— */
+/* --- Liste premium (grille, pas tableau générique) --- */
 .sn-leads-list-host {
   display: flex;
   flex-direction: column;
@@ -3589,7 +3589,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
   min-width: 1108px;
 }
 
-/* Liste clients — suivi PV (9 colonnes) */
+/* Liste clients - suivi PV (9 colonnes) */
 .sn-leads-premium--clients.sn-leads-premium--clients-pv {
   min-width: 1180px;
 }
@@ -3675,7 +3675,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
   color: var(--danger);
 }
 
-/* Nom | Adresse | Tél | Score | Stage | Inact. | Commercial | Création | Actions — une ligne */
+/* Nom | Adresse | Tél | Score | Stage | Inact. | Commercial | Création | Actions - une ligne */
 .sn-leads-premium__row--header,
 .sn-leads-premium__row--data {
   display: grid;
@@ -3712,7 +3712,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
   left: 52px;
 }
 
-/* ——— Liste leads v2 (dense, une ligne, badges sobres) ——— */
+/* --- Liste leads v2 (dense, une ligne, badges sobres) --- */
 .sn-leads-premium--list-v2 {
   min-width: 1020px;
 }
@@ -3819,7 +3819,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
   width: 100%;
 }
 
-/* CP-MAIRIES-004 — contrainte largeur liste (couleurs via sn-badge) */
+/* CP-MAIRIES-004 - contrainte largeur liste (couleurs via sn-badge) */
 html.sn-app-page .lead-mairie-list-badge-slot {
   max-width: 118px;
   overflow: hidden;
@@ -4480,7 +4480,7 @@ html.theme-dark .sn-leads-table tbody tr:hover td {
   cursor: pointer;
 }
 
-/* CP-036 — Clients liste filtres (refonte 3 lignes compactes) */
+/* CP-036 - Clients liste filtres (refonte 3 lignes compactes) */
 .crm-clients-page { padding: 0; }
 
 .clients-filters {
@@ -4536,7 +4536,7 @@ html.theme-dark .sn-leads-table tbody tr:hover td {
   margin-left: auto;
 }
 
-/* CP-036 — Hub Client progress bar */
+/* CP-036 - Hub Client progress bar */
 .crm-hub-progress {
   display: flex;
   align-items: center;
@@ -4564,7 +4564,7 @@ html.theme-dark .sn-leads-table tbody tr:hover td {
 }
 .crm-hub-progress-arrow { color: var(--text-muted); font-size: 10px; }
 
-/* CP-036 — Hub list items */
+/* CP-036 - Hub list items */
 .crm-lead-list { list-style: none; margin: 0; padding: 0; }
 .crm-lead-list-item {
   display: flex;
@@ -4585,9 +4585,9 @@ html.theme-dark .sn-leads-table tbody tr:hover td {
   --mui-palette-text-secondary: rgba(255,255,255,0.7) !important;
 }
 
-/* ===== CP-ADMIN-UI-03 — Admin tabs : préférer .sn-saas-tab (saas-crm.css) ===== */
+/* ===== CP-ADMIN-UI-03 - Admin tabs : préférer .sn-saas-tab (saas-crm.css) ===== */
 
-/* ===== CP-ADMIN-ORG-04 — Tab Entreprise (cards premium) ===== */
+/* ===== CP-ADMIN-ORG-04 - Tab Entreprise (cards premium) ===== */
 .admin-tab-org {
   max-width: 100%;
 }
@@ -4698,7 +4698,7 @@ html.theme-dark .sn-leads-table tbody tr:hover td {
 }
 /* Trait doré : réutilise .sidebar-brand::after (défini avec les titres de page, section Doré STRUCTUREL) */
 
-/* Économie nationale — layout 4+3 colonnes */
+/* Économie nationale - layout 4+3 colonnes */
 .sn-helper {
   min-height: 36px;
   font-size: var(--font-size-label);
@@ -4727,14 +4727,14 @@ html.theme-dark .sn-leads-table tbody tr:hover td {
 }
 
 /* =====================================================
-   MICRO-INTERACTIONS PREMIUM — Boutons UI CRM uniquement
-   CSS only — aucun impact calpinage / canvas / handles
+   MICRO-INTERACTIONS PREMIUM - Boutons UI CRM uniquement
+   CSS only - aucun impact calpinage / canvas / handles
    ===================================================== */
 
 /* Cible : .btn, .btn-primary, .btn-secondary, .sn-btn*, toolbar, modals, nav */
 /* Exclut : disabled, .is-disabled, pointer-events: none */
 
-/* 1) Transition douce — base */
+/* 1) Transition douce - base */
 .btn:not([disabled]):not(.is-disabled),
 .btn-primary:not([disabled]):not(.is-disabled),
 .btn-secondary:not([disabled]):not(.is-disabled),
@@ -4758,7 +4758,7 @@ html.theme-dark .sn-leads-table tbody tr:hover td {
     border-color 120ms ease;
 }
 
-/* 2) Hover — léger, discret, premium */
+/* 2) Hover - léger, discret, premium */
 .btn:not([disabled]):not(.is-disabled):hover,
 .btn-primary:not([disabled]):not(.is-disabled):hover,
 .btn-secondary:not([disabled]):not(.is-disabled):hover,
@@ -4788,7 +4788,7 @@ html.theme-dark .sn-leads-table tbody tr:hover td {
   box-shadow: none !important;
 }
 
-/* 3) Active — effet tactile subtil */
+/* 3) Active - effet tactile subtil */
 .btn:not([disabled]):not(.is-disabled):active,
 .btn-primary:not([disabled]):not(.is-disabled):active,
 .btn-secondary:not([disabled]):not(.is-disabled):active,
@@ -4809,7 +4809,7 @@ html.theme-dark .sn-leads-table tbody tr:hover td {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
-/* 4) Focus — accessibilité propre */
+/* 4) Focus - accessibilité propre */
 .btn:not([disabled]):not(.is-disabled):focus-visible,
 .btn-primary:not([disabled]):not(.is-disabled):focus-visible,
 .btn-secondary:not([disabled]):not(.is-disabled):focus-visible,
@@ -4872,7 +4872,7 @@ html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
   }
 }
 
-/* ——— Cartes études (onglet Lead / Client) — SolarGlobe ——— */
+/* --- Cartes études (onglet Lead / Client) - SolarGlobe --- */
 .studies-tab-section .studies-tab-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -5186,7 +5186,7 @@ html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
   transform: none;
 }
 
-/* ——— ScenariosPage — overlay génération PDF / fork (dark + light) ——— */
+/* --- ScenariosPage - overlay génération PDF / fork (dark + light) --- */
 .scenarios-pdf-overlay {
   position: fixed;
   inset: 0;
@@ -5239,7 +5239,7 @@ html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
   }
 }
 
-/* ========== FORCE OVERRIDE SIDEBAR (logo + header — dernier mot sur la cascade) ========== */
+/* ========== FORCE OVERRIDE SIDEBAR (logo + header - dernier mot sur la cascade) ========== */
 
 /* Logo sidebar : contrainte de taille (écrase tout, y compris taille naturelle PNG/SVG) */
 .sn-logo img,
@@ -5322,8 +5322,3 @@ html.theme-dark  .logo-dark  { opacity: 1 !important; }
 }
 
 @media (max-width: 768px) {
-  .logo-solarnext {
-    width: min(240px, calc(100vw - 32px)) !important;
-    max-width: none !important;
-  }
-}

@@ -1,5 +1,5 @@
 /**
- * Page /login — SolarNext split-panel
+ * Page /login - SolarNext split-panel
  * Gauche : brand violet #2E1A47 | Droite : fond clair, formulaire centré
  */
 
@@ -35,7 +35,7 @@ html.sn-auth-page #root {
   overflow: hidden;
 }
 
-/* ─── Panneau gauche — brand ─────────────────────────────── */
+/* ─── Panneau gauche - brand ─────────────────────────────── */
 
 .login-panel-left {
   width: 42%;
@@ -129,7 +129,7 @@ html.sn-auth-page #root {
   line-height: 1.5;
 }
 
-/* ─── Panneau droit — formulaire ─────────────────────────── */
+/* ─── Panneau droit - formulaire ─────────────────────────── */
 
 .login-panel-right {
   flex: 1;

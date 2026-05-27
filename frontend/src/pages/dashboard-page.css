@@ -1,13 +1,13 @@
-/* Tableau de bord SolarNext — v2 (surfaces plates, respiration, hiérarchie propre) */
+/* Tableau de bord SolarNext - v2 (surfaces plates, respiration, hiérarchie propre) */
 
 /*
  * ── TOKENS LOCAUX DASHBOARD ──────────────────────────────────────────────────
  * Ces tokens centralisent les couleurs propres au dashboard.
  * Phase 1 : valeurs statiques. Phase 2 : dériver depuis --primary via color-mix.
- * NE PAS copier ces valeurs inline dans les règles — toujours passer par le token.
+ * NE PAS copier ces valeurs inline dans les règles - toujours passer par le token.
  */
 :root {
-  /* Palette pipeline — progression claire → foncée (stades 1→n) */
+  /* Palette pipeline - progression claire → foncée (stades 1→n) */
   --sn-pipeline-base:  #7a5aaf;
   --sn-pipeline-1:     #9b7fd4;
   --sn-pipeline-2:     #8a6ec2;
@@ -17,24 +17,24 @@
   --sn-pipeline-6:     #3a2068;
 
   /*
-   * Palette data-viz — sémantique, désaturée (Linear / Stripe analytics aesthetic).
+   * Palette data-viz - sémantique, désaturée (Linear / Stripe analytics aesthetic).
    *
    * Règles de design :
-   *   – Primaire (#7c3aed) reste dominant — une seule couleur "hot" par vue.
+   *   – Primaire (#7c3aed) reste dominant - une seule couleur "hot" par vue.
    *   – Les autres séries sont des Tailwind *-700 (pas *-400 / *-500) : visibles
    *     mais non criards. Pas de rose, pas de lime, pas de néon.
    *   – Modifier ici suffit : le JS lit ces tokens via getComputedStyle (useChartColors).
    *
    * Séries timeline (5 métriques métier) :
    */
-  --sn-chart-leads:    #7c3aed;   /* violet primary — dominant */
-  --sn-chart-sent:     #a78bfa;   /* violet-400 — hiérarchie inférieure à leads */
-  --sn-chart-signed:   #16a34a;   /* green-700 — signal positif, désaturé */
-  --sn-chart-invoices: #b45309;   /* amber-700 — attention, non criard */
-  --sn-chart-cash:     #0369a1;   /* sky-700 — financier, posé */
+  --sn-chart-leads:    #7c3aed;   /* violet primary - dominant */
+  --sn-chart-sent:     #a78bfa;   /* violet-400 - hiérarchie inférieure à leads */
+  --sn-chart-signed:   #16a34a;   /* green-700 - signal positif, désaturé */
+  --sn-chart-invoices: #b45309;   /* amber-700 - attention, non criard */
+  --sn-chart-cash:     #0369a1;   /* sky-700 - financier, posé */
 
   /*
-   * Donut sources d'acquisition — 6 slots, ordonnés par fréquence attendue.
+   * Donut sources d'acquisition - 6 slots, ordonnés par fréquence attendue.
    * Le slot 1 est réservé à la source dominante.
    * Palette cohérente avec les séries : pas de rose, pas de citron.
    */
@@ -46,7 +46,7 @@
   --sn-chart-donut-6: #0f766e;   /* teal-700 */
 
   /*
-   * Rythme vertical du dashboard — une seule valeur, partout.
+   * Rythme vertical du dashboard - une seule valeur, partout.
    * Modifier ici suffit pour réajuster l'espacement global du cockpit.
    */
   --sn-dash-gap: 16px;
@@ -89,7 +89,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ——— Header ——— */
+/* --- Header --- */
 
 .sn-dashboard-header {
   margin-bottom: var(--sn-dash-gap);
@@ -201,10 +201,10 @@
   color: var(--text-on-dark);
 }
 
-/* ——— Insight bandeau ——— */
+/* --- Insight bandeau --- */
 
 /*
- * Insight bandeau — surface neutre sobre.
+ * Insight bandeau - surface neutre sobre.
  * Le fond indigo a été intentionnellement supprimé : trop "AI widget SaaS template".
  * La valeur vient du contenu (texte + métriques), pas de la couleur de fond.
  */
@@ -270,7 +270,7 @@ html.theme-dark .sn-dashboard-insight {
   color: var(--text-primary);
 }
 
-/* ——— Raccourcis ——— */
+/* --- Raccourcis --- */
 
 .sn-dashboard-actions {
   display: flex;
@@ -301,7 +301,7 @@ html.theme-dark .sn-dashboard-insight {
   border-color: rgba(0, 0, 0, 0.14);
 }
 
-/* ——— Sections ——— */
+/* --- Sections --- */
 
 .sn-dashboard-cockpit {
   margin-bottom: var(--sn-dash-gap);
@@ -508,7 +508,7 @@ html.theme-dark .sn-dashboard-insight {
 }
 
 /*
- * Séparateurs entre sections d'analyse — ligne subtile + espace.
+ * Séparateurs entre sections d'analyse - ligne subtile + espace.
  * Permet la lecture en 2 secondes : chaque section est visuellement délimitée.
  * N'affecte pas cockpit/insight (ceux-ci utilisent des classes différentes).
  */
@@ -578,7 +578,7 @@ html.theme-dark .sn-dashboard-insight {
   color: var(--text-primary);
 }
 
-/* ——— Hero KPI ——— */
+/* --- Hero KPI --- */
 
 .sn-dashboard-hero-layout {
   display: grid;
@@ -606,7 +606,7 @@ html.theme-dark .sn-dashboard-insight {
   align-items: stretch;
 }
 
-/* KPI cards — surfaces plates, pas de gradient */
+/* KPI cards - surfaces plates, pas de gradient */
 .sn-dashboard-kpi-card {
   position: relative;
   display: flex;
@@ -717,7 +717,7 @@ html.theme-dark .sn-dashboard-insight {
 }
 
 /* =========================================================
-   KPI GRID — alignement par ligne (même hauteur de carte)
+   KPI GRID - alignement par ligne (même hauteur de carte)
    ========================================================= */
 
 .sn-dashboard-kpi-grid {
@@ -758,7 +758,7 @@ html.theme-dark .sn-dashboard-insight {
   opacity: 0.3;
 }
 
-/* ——— Pipeline ——— */
+/* --- Pipeline --- */
 
 .sn-dashboard-pipeline-summary {
   margin: 0 0 12px;
@@ -848,7 +848,7 @@ html.theme-dark .sn-dashboard-insight {
   color: var(--text-on-dark);
 }
 
-/* ——— Tables ——— */
+/* --- Tables --- */
 
 .sn-dashboard-table-wrap {
   overflow-x: auto;
@@ -900,7 +900,7 @@ html.theme-dark .sn-dashboard-insight {
   background: rgba(0, 0, 0, 0.02);
 }
 
-/* Primitives CRM : --sn-ui-table-row-min-h 44px — compact uniquement dashboard */
+/* Primitives CRM : --sn-ui-table-row-min-h 44px - compact uniquement dashboard */
 html.sn-app-page .sn-dashboard-table tbody tr {
   height: auto !important;
 }
@@ -965,7 +965,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   background: color-mix(in srgb, var(--primary) 55%, transparent);
 }
 
-/* ——— Micro notes ——— */
+/* --- Micro notes --- */
 
 .sn-dashboard-micro-note {
   font-size: 11px;
@@ -974,7 +974,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   margin: 8px 0 0;
 }
 
-/* ——— Loading skeleton — structure mimique du dashboard ——— */
+/* --- Loading skeleton - structure mimique du dashboard --- */
 
 .sn-dashboard-loading {
   display: flex;
@@ -989,7 +989,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   100% { background-position: -200% center; }
 }
 
-/* Mixin shimmer — appliqué à toutes les cartes placeholder */
+/* Mixin shimmer - appliqué à toutes les cartes placeholder */
 .sn-dashboard-loading__card {
   border-radius: var(--radius-lg, 12px);
   background: linear-gradient(
@@ -1039,7 +1039,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   height: 180px;
 }
 
-/* Délais progressifs — vague douce sur la page */
+/* Délais progressifs - vague douce sur la page */
 .sn-dashboard-loading__cockpit .sn-dashboard-loading__card:nth-child(2) { animation-delay: 0.1s; }
 .sn-dashboard-loading__kpi-row .sn-dashboard-loading__card:nth-child(2) { animation-delay: 0.05s; }
 .sn-dashboard-loading__kpi-row .sn-dashboard-loading__card:nth-child(3) { animation-delay: 0.10s; }
@@ -1074,7 +1074,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   margin-top: 10px;
 }
 
-/* ——— Erreur ——— */
+/* --- Erreur --- */
 
 .sn-dashboard-error {
   border: 1px solid rgba(220, 38, 38, 0.22);
@@ -1099,7 +1099,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   color: var(--text-secondary);
 }
 
-/* ——— Empty state ——— */
+/* --- Empty state --- */
 
 .sn-dashboard-empty-banner {
   padding: 12px 16px;
@@ -1110,7 +1110,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   font-size: 13px;
 }
 
-/* ——— Formulas ——— */
+/* --- Formulas --- */
 
 .sn-dashboard-formulas {
   font-size: 12px;
@@ -1133,7 +1133,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   margin-bottom: 6px;
 }
 
-/* ——— Summary badges pipeline ——— */
+/* --- Summary badges pipeline --- */
 
 .sn-dashboard-summary-sn-row {
   display: flex;
@@ -1155,7 +1155,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   font-size: 13px;
 }
 
-/* ——— Stage grid ——— */
+/* --- Stage grid --- */
 
 .sn-dashboard-stage-grid {
   display: flex;
@@ -1242,7 +1242,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   background: rgba(150, 150, 165, 0.3);
 }
 
-/* ——— Conversion details ——— */
+/* --- Conversion details --- */
 
 .sn-dashboard-conv-details {
   margin-top: 12px;
@@ -1289,7 +1289,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   margin: 0 0 4px;
 }
 
-/* ——— Table misc ——— */
+/* --- Table misc --- */
 
 .sn-dashboard-th-narrow {
   width: 40px;
@@ -1315,7 +1315,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   color: var(--text-secondary);
 }
 
-/* ——— Margin ——— */
+/* --- Margin --- */
 
 .sn-dashboard-margin-lead {
   display: flex;
@@ -1372,7 +1372,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   color: var(--text-on-dark);
 }
 
-/* ——— Callout ——— */
+/* --- Callout --- */
 
 .sn-dashboard-callout {
   margin-bottom: 16px;
@@ -1392,7 +1392,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   color: var(--text-on-dark);
 }
 
-/* ——— Activité ——— */
+/* --- Activité --- */
 
 .sn-dashboard-activity-card {
   margin-bottom: 16px;
@@ -1498,7 +1498,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   font-weight: 500;
 }
 
-/* ——— Prévisionnel ——— */
+/* --- Prévisionnel --- */
 
 .sn-dashboard-forecast-grid {
   display: grid;
@@ -1524,7 +1524,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   background: var(--bg-card, #ffffff);
 }
 
-/* forecast-item--emphasis: tint sobre (était fond indigo opaque — trop "SaaS template") */
+/* forecast-item--emphasis: tint sobre (était fond indigo opaque - trop "SaaS template") */
 .sn-dashboard-forecast-item--emphasis {
   border-color: color-mix(in srgb, var(--primary) 20%, transparent);
   background: color-mix(in srgb, var(--primary) 6%, transparent);
@@ -1595,7 +1595,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-forecast-item--muted {
   color: var(--danger, #b91c1c);
 }
 
-/* ——— Responsive ——— */
+/* --- Responsive --- */
 
 @media (max-width: 1100px) {
   .sn-dashboard-hero-secondary {
@@ -1619,7 +1619,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-forecast-item--muted {
 }
 
 /* =============================================================================
-   THÈME SOMBRE — tokens locaux + couverture complète
+   THÈME SOMBRE - tokens locaux + couverture complète
    ============================================================================= */
 
 html.theme-dark .sn-dashboard-wrap {
@@ -1629,8 +1629,8 @@ html.theme-dark .sn-dashboard-wrap {
   --sn-d-card:   #16203a;
   --sn-d-surf:   rgba(255, 255, 255, 0.04);
   --sn-d-border: rgba(255, 255, 255, 0.08);
-  --sn-d-accent: var(--primary, #7c3aed);  /* était #6366F1 — ancien indigo */
-  --sn-d-violet: #9b7fd4;                  /* violet pipeline — conservé */
+  --sn-d-accent: var(--primary, #7c3aed);  /* était #6366F1 - ancien indigo */
+  --sn-d-violet: #9b7fd4;                  /* violet pipeline - conservé */
 }
 
 /* Texte principal */
@@ -1682,7 +1682,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-td-rank {
   color: var(--sn-d-muted);
 }
 
-/* ——— Cards KPI ——— */
+/* --- Cards KPI --- */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-kpi-card {
   background: var(--sn-d-card);
@@ -1703,7 +1703,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-kpi-card__accent--subtle {
   background: color-mix(in srgb, var(--primary) 40%, transparent);
 }
 
-/* ——— Insight banner ——— */
+/* --- Insight banner --- */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-insight {
   background: rgba(255, 255, 255, 0.04);
@@ -1714,14 +1714,14 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-insight__metrics {
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
-/* ——— Period badge ——— */
+/* --- Period badge --- */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-header__period {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.09);
 }
 
-/* ——— Filters ——— */
+/* --- Filters --- */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-filters--compact {
   border-top-color: rgba(255, 255, 255, 0.08);
@@ -1734,7 +1734,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-filters input[type="date"] {
   color: var(--sn-d-text);
 }
 
-/* ——— Action links ——— */
+/* --- Action links --- */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-actions {
   border-bottom-color: rgba(255, 255, 255, 0.08);
@@ -1750,7 +1750,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-action-link:hover {
   border-color: rgba(255, 255, 255, 0.16);
 }
 
-/* ——— Hero strip ——— */
+/* --- Hero strip --- */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-hero-strip {
   background: rgba(255, 255, 255, 0.04);
@@ -1762,7 +1762,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-hero-strip strong {
   color: var(--sn-d-text);
 }
 
-/* ——— Tables ——— */
+/* --- Tables --- */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-table-wrap,
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-timeline-wrap {
@@ -1816,7 +1816,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-table a:focus-visible {
   border-radius: 3px;
 }
 
-/* ——— Table toggle ——— */
+/* --- Table toggle --- */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-table-toggle {
   border-color: rgba(255, 255, 255, 0.1);
@@ -1827,7 +1827,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-table-toggle:hover {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* ——— Stage tiles ——— */
+/* --- Stage tiles --- */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-stage-tile {
   background: rgba(255, 255, 255, 0.04);
@@ -1843,7 +1843,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-stage-tile__bar--open {
   background: var(--sn-d-accent);
 }
 
-/* ——— Callout ——— */
+/* --- Callout --- */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-callout--accent {
   border-color: rgba(155, 127, 212, 0.25);
@@ -1851,7 +1851,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-callout--accent {
   color: var(--sn-d-text);
 }
 
-/* ——— Timeline ——— */
+/* --- Timeline --- */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-timeline-table th,
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-timeline-table td {
@@ -1859,12 +1859,12 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-timeline-table td {
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   AMÉLIORATIONS VISUELLES — CHARTS, GAUGE, INSIGHT PREMIUM
+   AMÉLIORATIONS VISUELLES - CHARTS, GAUGE, INSIGHT PREMIUM
    ════════════════════════════════════════════════════════════════════ */
 
 /* ─── Insight premium ────────────────────────────────────────────── */
 /*
- * Background : tint plat — gradient banni (pattern AI slop).
+ * Background : tint plat - gradient banni (pattern AI slop).
  * La barre 2px ::before suffit comme signal premium sobre.
  */
 .sn-dashboard-wrap .sn-dashboard-insight--premium {
@@ -2028,200 +2028,4 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-trend--down {
   width: 100%;
 }
 
-/* Toggles séries — avec dot coloré */
-.sn-dashboard-wrap .sn-dashboard-timeline-toggles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 16px 0 4px;
-}
-.sn-dashboard-wrap .sn-dashboard-timeline-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border, rgba(148,163,184,0.2));
-  background: var(--surface, #fff);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  transition:
-    background-color var(--duration-micro, 120ms) var(--ease-subtle, ease),
-    border-color     var(--duration-micro, 120ms) var(--ease-subtle, ease),
-    color            var(--duration-micro, 120ms) var(--ease-subtle, ease);
-  user-select: none;
-}
-.sn-dashboard-wrap .sn-dashboard-timeline-toggle:has(input:checked) {
-  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
-  background: color-mix(in srgb, var(--primary) 6%, transparent);
-}
-.sn-dashboard-wrap .sn-dashboard-timeline-toggle input {
-  display: none;
-}
-.sn-dashboard-wrap .sn-dashboard-timeline-toggle__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-html.theme-dark .sn-dashboard-wrap .sn-dashboard-timeline-toggle {
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.08);
-}
-html.theme-dark .sn-dashboard-wrap .sn-dashboard-timeline-toggle:has(input:checked) {
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
-}
-
-/* Détail timeline replié */
-.sn-dashboard-wrap .sn-dashboard-timeline-details {
-  margin-top: 12px;
-}
-.sn-dashboard-wrap .sn-dashboard-timeline-details__toggle {
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--text-secondary, #64748b);
-  padding: 6px 0;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  user-select: none;
-}
-.sn-dashboard-wrap .sn-dashboard-timeline-details__toggle::before {
-  content: "▶";
-  font-size: 9px;
-  transition: transform 0.15s;
-}
-.sn-dashboard-wrap .sn-dashboard-timeline-details[open] .sn-dashboard-timeline-details__toggle::before {
-  transform: rotate(90deg);
-}
-.sn-dashboard-wrap .sn-dashboard-timeline-details summary::-webkit-details-marker { display: none; }
-
-/* ─── Donut / Sources layout ──────────────────────────────────────── */
-.sn-dashboard-wrap .sn-dashboard-sources-layout {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 24px;
-  align-items: start;
-}
-.sn-dashboard-wrap .sn-dashboard-donut-wrap {
-  padding: 8px 0;
-}
-.sn-dashboard-wrap .sn-dashboard-sources-table-wrap {
-  min-width: 0;
-}
-@media (max-width: 768px) {
-  .sn-dashboard-wrap .sn-dashboard-sources-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* recharts legend text */
-.sn-dashboard-wrap .recharts-legend-item-text {
-  color: var(--text-secondary, #64748b) !important;
-  font-size: 12px !important;
-}
-html.theme-dark .sn-dashboard-wrap .recharts-legend-item-text {
-  color: var(--sn-d-muted, #9FA8C7) !important;
-}
-.sn-dashboard-wrap .recharts-cartesian-axis-tick-value {
-  fill: var(--text-secondary, #64748b);
-}
-html.theme-dark .sn-dashboard-wrap .recharts-cartesian-axis-tick-value {
-  fill: var(--sn-d-muted, #9FA8C7);
-}
-
-/* Section alternance visuelle supprimée — pattern AI slop (violet zebra + negative margins) */
-
-/* ─── Chart card fond dark ────────────────────────────────────────── */
-html.theme-dark .sn-dashboard-wrap .sn-dashboard-chart-card {
-  background: rgba(255,255,255,0.02);
-  border-color: rgba(255,255,255,0.06);
-}
-
-/* ── RESPONSIVE FIX #6 : breakpoints dashboard grids ─────────────────────── */
-
-/* 1100px — tablette paysage : grilles fixes → 2 colonnes */
-@media (max-width: 1099px) {
-  /* KPI material (3 colonnes fixes → 2) */
-  .sn-dashboard-kpi-grid--material {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  /* Forecast priority (2 colonnes → conservé, ok) */
-
-  /* Conv grid : minmax(240px) déjà responsive — force 2 col min pour lisibilité */
-  .sn-dashboard-conv-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  }
-}
-
-/* 900px — tablette portrait : 1 colonne partout */
-@media (max-width: 899px) {
-  .sn-dashboard-kpi-grid--material {
-    grid-template-columns: 1fr;
-  }
-
-  .sn-dashboard-forecast-grid--priority {
-    grid-template-columns: 1fr;
-  }
-
-  /* KPI auto-fit : minmax réduit pour mobile */
-  .sn-dashboard-kpi-grid {
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  }
-
-  /* Conv grid 1 colonne */
-  .sn-dashboard-conv-grid {
-    grid-template-columns: 1fr;
-  }
-
-  /* Forecast grid 1 colonne */
-  .sn-dashboard-forecast-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-
-/* ── RESPONSIVE FIX #6 : breakpoints dashboard grids ─────────────────────── */
-
-/* 1100px — tablette paysage : grilles fixes → 2 colonnes */
-@media (max-width: 1099px) {
-  /* KPI material (3 colonnes fixes → 2) */
-  .sn-dashboard-kpi-grid--material {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  /* Conv grid : minmax(240px) déjà responsive — force minmax réduit */
-  .sn-dashboard-conv-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  }
-}
-
-/* 900px — tablette portrait : 1 colonne partout */
-@media (max-width: 899px) {
-  .sn-dashboard-kpi-grid--material {
-    grid-template-columns: 1fr;
-  }
-
-  .sn-dashboard-forecast-grid--priority {
-    grid-template-columns: 1fr;
-  }
-
-  /* KPI auto-fit : minmax réduit pour mobile */
-  .sn-dashboard-kpi-grid {
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  }
-
-  /* Conv grid 1 colonne */
-  .sn-dashboard-conv-grid {
-    grid-template-columns: 1fr;
-  }
-
-  /* Forecast grid 1 colonne */
-  .sn-dashboard-forecast-grid {
-    grid-template-columns: 1fr;
-  }
-}
+/* Toggles séries - avec dot coloré

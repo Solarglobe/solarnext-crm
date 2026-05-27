@@ -121,29 +121,11 @@
   color: var(--sg-text);
 }
 
-/* Inside colored buttons (primary, danger) — inherit button color */
+/* Inside colored buttons (primary, danger) - inherit button color */
 .sg-btn-primary .sg-icon-wrapper,
 .sg-btn-danger .sg-icon-wrapper {
   color: inherit;
 }
 
-/* Active tool button — inherit button color */
-.calpinage-tool-btn[aria-pressed="true"] .sg-icon-wrapper,
-.calpinage-tool-btn.calpinage-tool-active .sg-icon-wrapper {
-  color: inherit;
-  background: transparent;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   DARK MODE OVERRIDES — fix sg-* variables hardcodées en valeurs "light only"
-   Sans ces overrides, --sg-text / --sg-border restent en gris foncé/blanc cassé
-   en dark mode et produisent du texte invisible ou des bordures inexistantes.
-   Utilise les tokens canoniques (Layer 4 : tokens.css) comme source de vérité.
-───────────────────────────────────────────────────────────────────────────── */
-html.theme-dark {
-  --sg-text: var(--text-primary);
-  --sg-text-muted: var(--text-muted);
-  --sg-border: var(--border);
-  --sg-bg: var(--bg-card);
-  --sg-bg-soft: var(--surface-soft, var(--color-bg-muted, #111827));
-}
+/* Active tool button - inherit button color */
+.calpinage-tool-btn[aria-pressed="true"] .sg-icon-wr

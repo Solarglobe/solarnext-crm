@@ -165,7 +165,7 @@ html.theme-dark .booleanRow {
   grid-column: 1 / -1;
 }
 
-/* ——— Analyse automatique ——— */
+/* --- Analyse automatique --- */
 
 .analysisBlock {
   display: flex;
@@ -252,7 +252,7 @@ html.theme-dark .booleanRow {
 }
 
 /*
- * Phase 3 — références tokens CRM (scan scripts/check-design-system-phase3.mjs) :
+ * Phase 3 - références tokens CRM (scan scripts/check-design-system-phase3.mjs) :
  * var(--sn-badge-neutral-bg)
  * var(--sn-badge-success-bg)
  * var(--sn-badge-warn-bg)

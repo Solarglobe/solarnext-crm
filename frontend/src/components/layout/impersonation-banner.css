@@ -1,5 +1,5 @@
 /*
- * ImpersonationBanner — bandeau de sécurité mode admin.
+ * ImpersonationBanner - bandeau de sécurité mode admin.
  *
  * La couleur rouge (#b91c1c) est INTENTIONNELLEMENT fixe et ne suit PAS le thème.
  * C'est une alerte de sécurité critique : elle doit être visible et universellement
@@ -16,7 +16,7 @@
   gap: 10px;
   width: 100%;
   padding: 10px 16px;
-  background: #b91c1c;  /* sémantique danger — fixe par design */
+  background: #b91c1c;  /* sémantique danger - fixe par design */
   color: #fef2f2;
   font-size: 13px;
   flex-shrink: 0;
@@ -32,7 +32,7 @@
   min-width: 0;
 }
 
-/* Label "MODE ADMIN" — uppercase discret */
+/* Label "MODE ADMIN" - uppercase discret */
 .sn-impersonation-banner__mode {
   font-size: 10px;
   font-weight: 700;
@@ -59,7 +59,7 @@
   text-overflow: ellipsis;
 }
 
-/* Bouton Quitter — ghost sur fond rouge */
+/* Bouton Quitter - ghost sur fond rouge */
 .sn-impersonation-banner__exit {
   display: inline-flex;
   align-items: center;

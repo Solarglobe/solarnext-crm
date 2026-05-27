@@ -1,4 +1,4 @@
-/* Hub financier — fiche lead / client */
+/* Hub financier - fiche lead / client */
 
 .fin-hub {
   display: flex;
@@ -334,7 +334,7 @@
   font-size: 13px;
 }
 
-/* ——— Cockpit Financier (lead) ——— */
+/* --- Cockpit Financier (lead) --- */
 
 .fin-cockpit {
   display: flex;
@@ -760,7 +760,7 @@
   line-height: 1.25;
 }
 
-/* Hub Financier — aperçu premium */
+/* Hub Financier - aperçu premium */
 .fin-hub-premium {
   gap: 16px;
 }

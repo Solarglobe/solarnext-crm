@@ -1,9 +1,9 @@
 /**
- * Refonte visible — page /organization/structure
+ * Refonte visible - page /organization/structure
  * Onglets segmentés, en-têtes d'onglet, tableaux type "database SaaS", modales formulaire.
  */
 
-/* ——— Onglets page : segmented control ——— */
+/* --- Onglets page : segmented control --- */
 .org-structure-tabs-segmented.sn-saas-tabs {
   gap: 4px;
   padding: 5px;
@@ -68,7 +68,7 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   }
 }
 
-/* ——— En-tête d'onglet ——— */
+/* --- En-tête d'onglet --- */
 .org-tab-hero {
   display: flex;
   flex-wrap: wrap;
@@ -134,7 +134,7 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   gap: 10px;
 }
 
-/* ——— Alertes ——— */
+/* --- Alertes --- */
 .org-tab-alert {
   margin: 0 0 16px;
   padding: 12px 14px;
@@ -146,7 +146,7 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   color: var(--text-primary);
 }
 
-/* ——— Tableau liste SaaS ——— */
+/* --- Tableau liste SaaS --- */
 .org-tab-table-wrap {
   border-radius: 12px;
   border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.1));
@@ -210,7 +210,7 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   text-align: right;
 }
 
-/* ——— Empty state enrichi ——— */
+/* --- Empty state enrichi --- */
 .org-tab-table__empty {
   text-align: center;
   padding: 48px 20px !important;
@@ -266,7 +266,7 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   line-height: 1.5;
 }
 
-/* ——— Actions ligne — hover reveal ——— */
+/* --- Actions ligne - hover reveal --- */
 .org-tab-row-actions {
   display: inline-flex;
   align-items: center;
@@ -323,12 +323,12 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   color: var(--danger, #dc2626);
 }
 
-/* Action cell — assurer que le bouton reste visible pendant le focus */
+/* Action cell - assurer que le bouton reste visible pendant le focus */
 td:has(.org-tab-row-actions:focus-within) .org-tab-row-actions {
   opacity: 1;
 }
 
-/* ——— Toolbar secondaire (recherche + actions) ——— */
+/* --- Toolbar secondaire (recherche + actions) --- */
 .org-tab-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -369,7 +369,7 @@ td:has(.org-tab-row-actions:focus-within) .org-tab-row-actions {
   color: var(--text-muted);
 }
 
-/* ——— Modales formulaire (équipe / agence) ——— */
+/* --- Modales formulaire (équipe / agence) --- */
 .org-tab-modal-fields {
   display: flex;
   flex-direction: column;
@@ -392,7 +392,7 @@ td:has(.org-tab-row-actions:focus-within) .org-tab-row-actions {
   box-sizing: border-box;
 }
 
-/* ——— Form section premium dans les modales ——— */
+/* --- Form section premium dans les modales --- */
 .org-modal-section {
   margin-bottom: 0;
 }
@@ -464,7 +464,7 @@ td:has(.org-tab-row-actions:focus-within) .org-tab-row-actions {
   font-size: 13.5px;
 }
 
-/* ——— Code badge rôle ——— */
+/* --- Code badge rôle --- */
 .org-role-code {
   display: inline-flex;
   align-items: center;
@@ -479,7 +479,7 @@ td:has(.org-tab-row-actions:focus-within) .org-tab-row-actions {
   border: 1px solid var(--border-soft);
 }
 
-/* ——— Entreprise : page unique SaaS (sections plates, pas de cartes) ——— */
+/* --- Entreprise : page unique SaaS (sections plates, pas de cartes) --- */
 .org-org-page-intro {
   margin: 0 0 20px;
   max-width: 640px;
@@ -598,7 +598,7 @@ td:has(.org-tab-row-actions:focus-within) .org-tab-row-actions {
   border-top: 1px solid var(--border-soft);
 }
 
-/* ——— Documents légaux : page sobre (sections plates) ——— */
+/* --- Documents légaux : page sobre (sections plates) --- */
 .org-legal-page {
   max-width: 760px;
 }
@@ -816,12 +816,12 @@ html.theme-dark .org-legal-mode-switch__btn--active {
   border: none;
 }
 
-/* ——— Rôles : carte tableau + toolbar ——— */
+/* --- Rôles : carte tableau + toolbar --- */
 .org-tab-roles-toolbar {
   margin-bottom: 14px;
 }
 
-/* ——— Archives : toolbar search premium ——— */
+/* --- Archives : toolbar search premium --- */
 .org-tab-toolbar__search-wrap {
   flex: 1 1 220px;
   min-width: 180px;

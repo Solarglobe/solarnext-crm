@@ -1,5 +1,5 @@
 /**
- * CRM sidebar — rendu SaaS premium (Stripe / Linear / Notion).
+ * CRM sidebar - rendu SaaS premium (Stripe / Linear / Notion).
  * Uniquement sous html.sn-app-page. Sans !important.
  * Espacements : mini système local (--sb-space-*), sans toucher tokens/primitives.
  */
@@ -31,7 +31,7 @@ html.sn-app-page .sn-sidebar-brand.sidebar-brand::after {
   display: none;
 }
 
-/* Nav : rythme vertical — gap supprimé, séparation via padding + border-top entre groupes */
+/* Nav : rythme vertical - gap supprimé, séparation via padding + border-top entre groupes */
 html.sn-app-page .sn-sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -169,7 +169,7 @@ html.sn-app-page .sn-sidebar-link:hover {
   box-shadow: none;
 }
 
-/* Press feedback : la surface confirme physiquement le clic — 80ms, sobre */
+/* Press feedback : la surface confirme physiquement le clic - 80ms, sobre */
 @media (hover: hover) and (pointer: fine) {
   html.sn-app-page .sn-sidebar-link:active {
     transform: scale(0.97);
@@ -186,15 +186,15 @@ html.sn-app-page .sn-sidebar-item.active {
   font-weight: 500;
 }
 
-/* Pas de ::before stripe gauche — pattern banni. Signal actif = fond tint + icône colorée. */
+/* Pas de ::before stripe gauche - pattern banni. Signal actif = fond tint + icône colorée. */
 
-/* Icône non-active — hérite de la couleur du lien */
+/* Icône non-active - hérite de la couleur du lien */
 html.sn-app-page .sn-sidebar-link .sn-sidebar-link-icon {
   opacity: 1;
   color: inherit;
 }
 
-/* Icône active — colorée en --primary (Raycast-style) */
+/* Icône active - colorée en --primary (Raycast-style) */
 html.sn-app-page .sn-sidebar-link-active .sn-sidebar-link-icon,
 html.sn-app-page .sn-sidebar-item.active .sn-sidebar-link-icon {
   color: var(--primary);
@@ -206,7 +206,7 @@ html.sn-app-page .sn-sidebar-link-icon svg {
 }
 
 /* Indent unifié : suppression du décalage arbitraire entre sections "nested" et "flat".
- * Tous les liens ont le même padding horizontal (--sb-space-8) — cohérence visuelle Linear-style.
+ * Tous les liens ont le même padding horizontal (--sb-space-8) - cohérence visuelle Linear-style.
  * Si une vraie hiérarchie sous-niveau est nécessaire, utiliser padding-left: 28px (icône + gap).
  */
 html.sn-app-page .sn-sidebar-link-nested,
@@ -223,7 +223,7 @@ html.sn-app-page .sn-sidebar-link-icon {
   flex: 0 0 15px;
 }
 
-/* Forcer le rendu SVG à 15px — outrepasse les attributs width/height inline du TSX */
+/* Forcer le rendu SVG à 15px - outrepasse les attributs width/height inline du TSX */
 html.sn-app-page .sn-sidebar-link-icon svg {
   width: 15px;
   height: 15px;
@@ -251,9 +251,9 @@ html.sn-app-page .sn-sidebar-action-btn:hover {
   }
 }
 
-/* ——— Dark mode overrides sidebar ——— */
+/* --- Dark mode overrides sidebar --- */
 
-/* Liens : en dark mode, 400 peut paraître trop fade — on remonte à 450 et on éclaircit légèrement */
+/* Liens : en dark mode, 400 peut paraître trop fade - on remonte à 450 et on éclaircit légèrement */
 html.theme-dark html.sn-app-page .sn-sidebar-link {
   color: var(--text-primary);
   font-weight: 450;
@@ -271,12 +271,12 @@ html.theme-dark html.sn-app-page .sn-sidebar-section-toggle:hover {
   background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
-/* Séparateur entre groupes en dark mode — encore plus discret */
+/* Séparateur entre groupes en dark mode - encore plus discret */
 html.theme-dark html.sn-app-page .sn-sidebar-nav > .sn-sidebar-nav-group + .sn-sidebar-nav-group {
   border-top-color: var(--border);
 }
 
-/* Dropdown utilisateur — positionné en absolu sous le bouton avatar */
+/* Dropdown utilisateur - positionné en absolu sous le bouton avatar */
 html.sn-app-page .sn-user-dropdown {
   position: absolute;
   top: calc(100% + var(--sb-space-8));

@@ -1,4 +1,4 @@
-/* Page Clients — split liste + détail, suivi projet PV */
+/* Page Clients - split liste + détail, suivi projet PV */
 
 .clients-page-header--split {
   flex: 0 0 auto;
@@ -16,7 +16,7 @@
   font-size: 15px;
 }
 
-/* Ligne discrète — échantillon page uniquement */
+/* Ligne discrète - échantillon page uniquement */
 .clients-kpi-strip {
   margin: 0;
   font-size: 12px;
@@ -66,7 +66,7 @@
   flex-direction: column;
 }
 
-/* Barre filtres Clients — une ligne (2 max en wrap) */
+/* Barre filtres Clients - une ligne (2 max en wrap) */
 .clients-filters-bar {
   display: flex;
   align-items: center;
@@ -179,7 +179,7 @@
   background: rgba(15, 23, 42, 0.06);
 }
 
-/* Split — chaîne hauteur explicite pour liste scrollable */
+/* Split - chaîne hauteur explicite pour liste scrollable */
 /* Surcharge .sn-leads-page__data-pane { overflow: hidden } qui peut masquer le contenu si hauteur mal propagée */
 .sn-leads-page--shell.clients-page .clients-page__split-main.sn-leads-page__data-pane {
   overflow: auto;
@@ -226,7 +226,7 @@
   border-right: 1px solid var(--border-subtle);
 }
 
-/* Panneau détail — apparaît avec slide */
+/* Panneau détail - apparaît avec slide */
 .clients-split-detail-pane {
   flex: 0 0 44%;
   max-width: 520px;
@@ -613,7 +613,7 @@ html.theme-dark .clients-detail.clients-detail-panel {
   );
 }
 
-/* Synthèse chiffrée — fiche client (panneau latéral) */
+/* Synthèse chiffrée - fiche client (panneau latéral) */
 .clients-detail-quick-stats {
   display: flex;
   flex-wrap: wrap;
@@ -773,7 +773,7 @@ html.theme-dark .clients-detail.clients-detail-panel {
   color: var(--text-muted);
 }
 
-/* Bloc statut projet — stepper (source : LeadDetail CYCLE_PROJECT_SELECT_OPTIONS) */
+/* Bloc statut projet - stepper (source : LeadDetail CYCLE_PROJECT_SELECT_OPTIONS) */
 .project-status-container {
   background: rgba(0, 0, 0, 0.04);
   border: 1px solid var(--border-soft);
@@ -996,10 +996,4 @@ html.theme-dark .project-status-container {
 
   .clients-filters-bar__search {
     min-width: 100%;
-    flex: 1 1 100%;
-  }
-
-  .filter-reset {
-    margin-left: 0;
-  }
-}
+    f

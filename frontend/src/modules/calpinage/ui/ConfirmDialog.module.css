@@ -1,4 +1,4 @@
-/* ConfirmDialog — Design SolarGlobe, dark glass, premium */
+/* ConfirmDialog - Design SolarGlobe, dark glass, premium */
 
 .overlay {
   position: fixed;
@@ -31,7 +31,7 @@
 }
 
 .card:hover {
-  /* transform: scale(1.02) supprimé — une modale ne doit pas bouger au survol */
+  /* transform: scale(1.02) supprimé - une modale ne doit pas bouger au survol */
   box-shadow:
     0 28px 56px rgba(0, 0, 0, 0.45),
     0 0 0 1px rgba(99, 102, 241, 0.25),

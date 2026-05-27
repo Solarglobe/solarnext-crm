@@ -1,5 +1,5 @@
 /**
- * Coquille visuelle commune — pôle financier (hub, listes, respiration).
+ * Coquille visuelle commune - pôle financier (hub, listes, respiration).
  * Les builders gardent .qb-page (largeur workbench) ; ce fichier aligne listes + hub.
  */
 
@@ -162,7 +162,7 @@
   margin: 0;
 }
 
-/* ── Toolbar — supprimer le fond dégradé ────────────────────────────────── */
+/* ── Toolbar - supprimer le fond dégradé ────────────────────────────────── */
 .fin-hub.fin-hub-premium .fin-hub-toolbar {
   background: transparent;
   border: none;
@@ -238,7 +238,7 @@
   color: #d97706;
 }
 
-/* ── Doc row v2 — compact sans labels DATE/MONTANT ─────────────────────── */
+/* ── Doc row v2 - compact sans labels DATE/MONTANT ─────────────────────── */
 .fin-doc-row-v2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto;
@@ -371,16 +371,4 @@
 }
 
 .fin-chip--active:hover {
-  background: color-mix(in srgb, var(--primary) 88%, #000);
-  border-color: color-mix(in srgb, var(--primary) 88%, #000);
-  color: #fff;
-}
-
-.fin-chip__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.75;
-  flex-shrink: 0;
-}
+  backgrou

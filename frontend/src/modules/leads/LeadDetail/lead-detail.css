@@ -1,5 +1,5 @@
 /**
- * CP-LEAD-V3 — Fiche Lead premium (tokens SolarNext)
+ * CP-LEAD-V3 - Fiche Lead premium (tokens SolarNext)
  */
 
 .crm-lead-page {
@@ -41,7 +41,7 @@
   margin-bottom: 2px;
 }
 
-/* ——— Header principal (v4) — défile avec la page ; bandeau compact reprend le relais ——— */
+/* --- Header principal (v4) - défile avec la page ; bandeau compact reprend le relais --- */
 .crm-lead-header-v4 {
   position: relative;
   z-index: 2;
@@ -54,7 +54,7 @@
   max-width: 100%;
 }
 
-/* ——— Bandeau compact fixe (hors zone header) ——— */
+/* --- Bandeau compact fixe (hors zone header) --- */
 /* RESPONSIVE FIX: left décalé de la largeur sidebar pour ne pas la recouvrir.
    Revient à 0 sous 1100px quand la sidebar passe en drawer (fix #4). */
 .crm-lead-sticky-bar {
@@ -231,7 +231,7 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
 }
 
-/* Ligne principale : retour + identité + synchro | pipeline + type — sans wrap */
+/* Ligne principale : retour + identité + synchro | pipeline + type - sans wrap */
 .crm-lead-header-v4-main {
   display: flex;
   flex-wrap: nowrap;
@@ -284,7 +284,7 @@
   transform: translateY(0);
 }
 
-/* Même gabarit que Retour — variante destructive (Supprimer) */
+/* Même gabarit que Retour - variante destructive (Supprimer) */
 .crm-lead-header-v4-back--danger.sn-btn {
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
@@ -446,7 +446,7 @@
   cursor: not-allowed;
 }
 
-/* Bouton "Convertir en client" — lead uniquement, remplace le <select> type */
+/* Bouton "Convertir en client" - lead uniquement, remplace le <select> type */
 .crm-lead-header-convert-btn {
   height: 32px;
   padding: 0 14px;
@@ -584,7 +584,7 @@
   flex-shrink: 0;
 }
 
-/* ——— Cockpit : pipeline horizontal + actions ——— */
+/* --- Cockpit : pipeline horizontal + actions --- */
 .crm-lead-cockpit {
   display: flex;
   flex-direction: column;
@@ -756,7 +756,7 @@
   font-weight: 600;
 }
 
-/* ——— Tabs ——— */
+/* --- Tabs --- */
 .crm-lead-tabs-wrap {
   margin-top: 4px;
 }
@@ -833,7 +833,7 @@
   padding-top: 6px;
 }
 
-/* ——— Cartes LeadDetail — base (tous onglets) ——— */
+/* --- Cartes LeadDetail - base (tous onglets) --- */
 .crm-lead-card {
   display: flex;
   flex-direction: column;
@@ -896,7 +896,7 @@
   align-items: end;
 }
 
-/** Conseiller commercial + source acquisition — deux colonnes égales, alignées comme Email / téléphone */
+/** Conseiller commercial + source acquisition - deux colonnes égales, alignées comme Email / téléphone */
 .crm-lead-identity-row--advisor-source {
   grid-template-columns: 1fr 1fr;
 }
@@ -915,7 +915,7 @@
   grid-column: 1 / -1;
 }
 
-/* ——— Toggle Particulier / Professionnel ——— */
+/* --- Toggle Particulier / Professionnel --- */
 .crm-lead-type-toggle {
   display: flex;
   gap: 0;
@@ -957,7 +957,7 @@
   margin-bottom: 5px;
 }
 
-/* ——— Vue générale : surface unique + sections plates (pas de cartes imbriquées) ——— */
+/* --- Vue générale : surface unique + sections plates (pas de cartes imbriquées) --- */
 .crm-lead-overview {
   display: flex;
   flex-direction: column;
@@ -1075,7 +1075,7 @@
   white-space: nowrap;
 }
 
-/* Sous-groupe textuel (ex-résumé <details>) — trait léger, pas de carte */
+/* Sous-groupe textuel (ex-résumé <details>) - trait léger, pas de carte */
 .crm-lead-overview-subblock {
   margin-top: 4px;
   padding-top: 10px;
@@ -1215,7 +1215,7 @@
   color: var(--text-muted);
 }
 
-/* ——— Empty state ——— */
+/* --- Empty state --- */
 .crm-lead-empty-state {
   padding: 28px 20px;
   border-radius: var(--radius-12, 12px);
@@ -1250,7 +1250,7 @@
   opacity: 0.9;
 }
 
-/* ——— Tab section headers (notes / history) ——— */
+/* --- Tab section headers (notes / history) --- */
 .crm-lead-tab-intro {
   margin: -4px 0 14px;
   padding: 10px 14px;
@@ -1774,7 +1774,7 @@
   color: var(--text-muted);
 }
 
-/* ——— Vue générale : bandeau résumé compact + grille 2 colonnes ——— */
+/* --- Vue générale : bandeau résumé compact + grille 2 colonnes --- */
 .crm-lead-overview-top {
   display: flex;
   flex-direction: column;
@@ -2178,7 +2178,7 @@
   }
 }
 
-/* Équipements (pilotage charge) — Vue générale */
+/* Équipements (pilotage charge) - Vue générale */
 .crm-lead-hint-muted {
   font-size: 0.875rem;
   color: color-mix(in srgb, var(--text-primary) 62%, transparent);
@@ -2203,7 +2203,7 @@
   margin: 0;
 }
 
-/* ——— Équipements V2 (cartes multi-instances) ——— */
+/* --- Équipements V2 (cartes multi-instances) --- */
 .crm-lead-equipment-section-lede {
   margin: 0 0 1.1rem;
   max-width: 52rem;
@@ -2296,7 +2296,7 @@
   background: color-mix(in srgb, var(--surface-soft, var(--surface)) 96%, var(--violet-strong));
 }
 
-/* Choix VE / PAC / Ballon — même rendu fiche lead et modal compteur (portail hors .crm-lead-overview) */
+/* Choix VE / PAC / Ballon - même rendu fiche lead et modal compteur (portail hors .crm-lead-overview) */
 .crm-lead-overview .crm-lead-equipment-kind-btn,
 .crm-lead-meter-modal-panel .crm-lead-equipment-kind-btn {
   appearance: none;
@@ -2514,7 +2514,7 @@
   border-top: 1px dashed color-mix(in srgb, var(--border) 70%, transparent);
 }
 
-/* ——— Custom Select (remplace <select> natif pour listes dynamiques) ——— */
+/* --- Custom Select (remplace <select> natif pour listes dynamiques) --- */
 .crm-custom-select {
   position: relative;
   width: 100%;
@@ -2608,7 +2608,7 @@
   background: color-mix(in srgb, var(--violet-strong) 10%, transparent);
 }
 
-/* ——— Pill picker (remplace <select> pour options simples) ——— */
+/* --- Pill picker (remplace <select> pour options simples) --- */
 .crm-pill-picker {
   display: flex;
   flex-wrap: wrap;
@@ -2642,7 +2642,7 @@
   cursor: default;
 }
 
-/* ——— Chip compact "Client / Lead associé" ——— */
+/* --- Chip compact "Client / Lead associé" --- */
 .crm-lead-assoc-chip {
   display: inline-flex;
   align-items: center;
@@ -2749,7 +2749,7 @@
   font-style: italic;
 }
 
-/* ——— Multi-compteurs (liste compacte) ——— */
+/* --- Multi-compteurs (liste compacte) --- */
 .crm-lead-meters {
   margin: 0 0 14px;
   padding: 10px 12px;
@@ -3000,7 +3000,7 @@
   background: color-mix(in srgb, var(--border) 22%, transparent);
 }
 
-/* ——— Modal compteur (création / édition) ——— */
+/* --- Modal compteur (création / édition) --- */
 .crm-lead-meter-modal-panel.sn-modal-shell-panel {
   max-width: min(920px, 96vw);
 }
@@ -3044,7 +3044,7 @@
   padding-bottom: 4px;
 }
 
-/* CP-MAIRIES-004-CLEAN — bloc mairie fiche lead (compact, consultation) */
+/* CP-MAIRIES-004-CLEAN - bloc mairie fiche lead (compact, consultation) */
 .lead-mairie-section {
   padding: 10px 12px;
   margin-bottom: 10px;
