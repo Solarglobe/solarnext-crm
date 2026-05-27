@@ -105,7 +105,7 @@
 }
 
 .sn-dashboard-page-title {
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 600;
   margin: 0;
   letter-spacing: -0.01em;
@@ -265,7 +265,7 @@ html.theme-dark .sn-dashboard-insight {
 }
 
 .sn-dashboard-insight__metric-value {
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -332,7 +332,7 @@ html.theme-dark .sn-dashboard-insight {
 .sn-dashboard-cockpit-head h2 {
   margin: 8px 0 4px;
   padding: 0;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 650;
   color: var(--text-primary);
 }
@@ -431,7 +431,7 @@ html.theme-dark .sn-dashboard-insight {
 }
 
 .sn-dashboard-cockpit-action strong {
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.1;
   font-weight: 650;
   letter-spacing: -0.01em;
@@ -664,14 +664,14 @@ html.theme-dark .sn-dashboard-insight {
 }
 
 .sn-dashboard-kpi-value {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.2;
 }
 
 .sn-dashboard-kpi-value--xl {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -1144,7 +1144,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
 }
 
 .sn-dashboard-stage-tile__count {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.1;
   margin-top: 4px;
@@ -1228,7 +1228,7 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
 }
 
 .sn-dashboard-conv-big {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
   margin: 0 0 4px;
@@ -1497,7 +1497,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-forecast-item--muted {
 }
 
 .sn-dashboard-forecast-item strong {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--text-primary);
@@ -1833,7 +1833,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-timeline-table td {
   border-radius: 14px 14px 0 0;
 }
 .sn-dashboard-wrap .sn-dashboard-insight__icon {
-  font-size: 22px;
+  font-size: 16px;
   line-height: 1;
   color: var(--primary);
   flex-shrink: 0;
@@ -1870,7 +1870,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-timeline-table td {
   white-space: nowrap;
 }
 .sn-dashboard-wrap .sn-dashboard-insight__metric-value {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-primary, #0f172a);
   letter-spacing: -0.02em;
@@ -1901,7 +1901,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-insight__metric-value {
   color: rgba(148, 163, 184, 0.15);
 }
 .sn-dashboard-wrap .sn-dashboard-gauge__value {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
   font-family: var(--font-mono, monospace);
 }
