@@ -80,7 +80,7 @@ export function normalizeEnedisLoadCurve(response) {
     const raw = parseWhValue(r.value);
     if (raw == null) continue;
 
-    const consumption_kwh = raw > 10000 ? raw / 1000 : raw;
+    const consumption_kwh = raw / 1000; // Enedis API toujours en Wh → kWh
     data.push({ timestamp, consumption_kwh });
   }
 

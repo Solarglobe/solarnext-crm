@@ -225,7 +225,8 @@ export function buildOfficialQuoteDocumentSnapshot(opts) {
   const mappedLines = (lineRows || []).map(mapQuoteLine);
   const computedTotals = computeQuoteTotalsFromSnapshotLines(mappedLines);
   const computedDiscountHt = computeDocumentDiscountHtFromSnapshotLines(mappedLines);
-  const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, computedTotals.total_ttc);
+  const effectiveTtc = computedTotals.total_ttc > 0 ? computedTotals.total_ttc : (Number(quoteRow.total_ttc) || 0);
+  const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, effectiveTtc);
   const showLinePricing = meta.pdf_show_line_pricing !== false;
   const legal_documents = parseLegalDocumentsFromMeta(meta);
 
@@ -543,7 +544,8 @@ export function buildQuotePdfPayloadForLivePreview(
   const mappedLines = (lineRows || []).map(mapQuoteLine);
   const computedTotals = computeQuoteTotalsFromSnapshotLines(mappedLines);
   const computedDiscountHt = computeDocumentDiscountHtFromSnapshotLines(mappedLines);
-  const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, computedTotals.total_ttc);
+  const effectiveTtc = computedTotals.total_ttc > 0 ? computedTotals.total_ttc : (Number(quoteRow.total_ttc) || 0);
+  const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, effectiveTtc);
   const showLinePricing = meta.pdf_show_line_pricing !== false;
   const legal_documents = parseLegalDocumentsFromMeta(meta);
 

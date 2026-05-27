@@ -68,8 +68,13 @@ test("applyPanelPowerFromCatalog : ligne absente → inchangé (legacy)", async 
   assert.equal(out.power_wc, 430);
 });
 
+// Tableaux 8760h nuls requis par buildScenarioBaseV2 (validation stricte du profil)
+const ZEROS_8760 = Array(8760).fill(0);
+const MOCK_CTX_8760 = { pv: { hourly: ZEROS_8760 }, conso: { hourly: ZEROS_8760 } };
+
 test("Scénario V2 fallback : 61 × 500 Wc → 30,5 kWc (2 déc.)", () => {
   const scen = buildScenarioBaseV2({
+    ...MOCK_CTX_8760,
     form: {
       maison: { panneaux_max: 61 },
       panel_input: { panel_id: row500.id, power_wc: 500 },
@@ -86,6 +91,7 @@ test("Quote-prep équation : 61 × 485 Wc → 29,585 kWc (3 déc.)", () => {
 
 test("Scénario V2 fallback : 61 × 485 Wc (arrondi moteur 2 déc.)", () => {
   const scen = buildScenarioBaseV2({
+    ...MOCK_CTX_8760,
     form: {
       maison: { panneaux_max: 61 },
       panel_input: { panel_id: row500.id, power_wc: 485 },

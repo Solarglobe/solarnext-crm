@@ -175,6 +175,7 @@
     ],
     "panelSpec": {
       "id": "mod-1",
+      "panel_id": "mod-1",
       "brand": "Longi",
       "model": "Hi-MO 5",
       "reference": null,
@@ -200,6 +201,7 @@
       "totalLossPct": 5,
       "confidence": "HIGH",
       "source": "IGN_RGE_ALTI",
+      "farHorizonKind": "SYNTHETIC",
       "computedAt": "<ISO>",
       "perPanel": [
         {
@@ -254,6 +256,7 @@
   "hardware": {
     "panel": {
       "id": "mod-1",
+      "panel_id": "mod-1",
       "brand": "Longi",
       "model": "Hi-MO 5",
       "reference": null,
@@ -289,6 +292,7 @@
     "totalLossPct": 5,
     "confidence": "HIGH",
     "source": "IGN_RGE_ALTI",
+    "farHorizonKind": "SYNTHETIC",
     "computedAt": "<ISO>",
     "perPanel": [
       {
@@ -391,7 +395,7 @@
   "calcSummary": {
     "annual_kwh": 12000,
     "capex_ttc": 25000,
-    "roi": 8.2,
+    "roi_years": null,
     "scenarios": {
       "A1": {
         "capex_ttc": 25000,
