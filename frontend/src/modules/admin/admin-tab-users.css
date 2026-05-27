@@ -521,11 +521,10 @@ html.theme-dark .admin-users-modal-shell-body.sn-modal-shell-body::-webkit-scrol
 
 .admin-users-modal-label {
   display: block;
-  margin-bottom: 8px;
-  font-size: 0.8125rem;
+  margin-bottom: 5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-muted);
-  opacity: 0.7;
 }
 
 .admin-users-modal-input {
@@ -674,11 +673,10 @@ html.theme-dark .admin-users-modal-select {
 
 .admin-users-modal-subsection-label {
   display: block;
-  margin-bottom: 10px;
-  font-size: 0.8125rem;
+  margin-bottom: 8px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text-primary);
-  opacity: 0.85;
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .admin-users-checkbox-grid {

@@ -20,6 +20,7 @@ export interface DataTableProps<T> {
   loadingRows?: number;
   emptyTitle?: ReactNode;
   emptyDescription?: ReactNode;
+  emptyActions?: ReactNode;
   dense?: boolean;
   className?: string;
 }
@@ -34,6 +35,7 @@ export function DataTable<T>({
   loadingRows = 5,
   emptyTitle = "Aucune donnée",
   emptyDescription,
+  emptyActions,
   dense = false,
   className = "",
 }: DataTableProps<T>) {
@@ -89,7 +91,7 @@ export function DataTable<T>({
             {!loading && rows.length === 0 ? (
               <tr>
                 <td className="sn-data-table__empty-cell" colSpan={colSpan}>
-                  <EmptyState title={emptyTitle} description={emptyDescription} />
+                  <EmptyState title={emptyTitle} description={emptyDescription} actions={emptyActions} />
                 </td>
               </tr>
             ) : null}

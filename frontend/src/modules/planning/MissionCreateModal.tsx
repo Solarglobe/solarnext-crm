@@ -19,10 +19,6 @@ import { apiFetch } from "../../services/api";
 import { getCurrentUser } from "../../services/auth.service";
 import UserMultiSelect from "./UserMultiSelect";
 import SearchableDropdown, { type DropdownOption } from "./SearchableDropdown";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import dayjs from "dayjs";
-import "dayjs/locale/fr";
 import PlanningDateTimeField from "./PlanningDateTimeField";
 import { snapToQuarter } from "./planningDateTime.utils";
 import { getCrmApiBase } from "@/config/crmApiBase";
@@ -58,10 +54,6 @@ export default function MissionCreateModal({
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
   const [assignments, setAssignments] = useState<string[]>([]);
-
-  useEffect(() => {
-    dayjs.locale("fr");
-  }, []);
 
   useEffect(() => {
     getCurrentUser()
@@ -216,7 +208,6 @@ export default function MissionCreateModal({
         </>
       }
     >
-      <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="fr">
       <form id={formId} onSubmit={handleSubmit}>
           <div className="planning-modal-field">
             <label>Type mission</label>
@@ -317,7 +308,6 @@ export default function MissionCreateModal({
           </div>
           {err && <p className="planning-modal-error">{err}</p>}
         </form>
-      </LocalizationProvider>
     </ModalShell>
   );
 }

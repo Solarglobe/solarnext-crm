@@ -221,12 +221,14 @@ html.theme-dark .sn-saas-tab--active {
   }
 }
 
+/* Alias de .sn-form-label — valeurs identiques, conservé pour compatibilité */
 .sn-saas-label {
   display: block;
-  margin-bottom: 6px;
-  font-size: 0.8125rem;
+  margin-bottom: 5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-muted);
+  line-height: 1.3;
 }
 
 .sn-saas-input {

@@ -407,9 +407,9 @@
 .qc-modal-label {
   display: block;
   margin-bottom: 5px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #475569;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
   letter-spacing: 0.02em;
 }
 

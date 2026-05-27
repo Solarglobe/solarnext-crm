@@ -21,10 +21,6 @@ import { getUserPermissions, getCurrentUser } from "../../services/auth.service"
 import { apiFetch } from "../../services/api";
 import UserMultiSelect from "./UserMultiSelect";
 import SearchableDropdown, { type DropdownOption } from "./SearchableDropdown";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import dayjs from "dayjs";
-import "dayjs/locale/fr";
 import PlanningDateTimeField from "./PlanningDateTimeField";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { getCrmApiBase } from "@/config/crmApiBase";
@@ -102,9 +98,6 @@ export default function MissionEditModal({
     onClose();
   }, [showDeleteConfirm, deleting, loading, saving, onClose]);
 
-  useEffect(() => {
-    dayjs.locale("fr");
-  }, []);
 
   useEffect(() => {
     (async () => {
@@ -330,7 +323,6 @@ export default function MissionEditModal({
           </div>
         }
       >
-        <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="fr">
         <form id={formId} onSubmit={handleSubmit}>
           <div className="planning-modal-field">
             <label>Type mission</label>
@@ -447,7 +439,6 @@ export default function MissionEditModal({
           </div>
           {err && <p className="planning-modal-error">{err}</p>}
         </form>
-        </LocalizationProvider>
       </ModalShell>
 
       <ConfirmModal

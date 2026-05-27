@@ -1,15 +1,14 @@
 /**
- * LOT B — Champ date/heure mission (MUI X) : comportement métier unique, styles centralisés.
+ * Champ date/heure mission — input natif (datetime-local).
+ * Snap automatique au quart d'heure le plus proche au blur.
+ * Format interne : YYYY-MM-DDTHH:mm (identique à la valeur ISO slice).
  */
 
-import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
-import dayjs from "dayjs";
-import { buildPlanningDateTimePickerSlotProps } from "./planningDateTimePicker.theme";
 import { snapToQuarter } from "./planningDateTime.utils";
 
 export interface PlanningDateTimeFieldProps {
   label: string;
-  /** Chaîne locale `YYYY-MM-DDTHH:mm` (slice ISO), comme avant LOT B */
+  /** Chaîne locale `YYYY-MM-DDTHH:mm` (slice ISO) */
   value: string;
   onChange: (nextLocalSlice: string) => void;
   disabled?: boolean;
@@ -21,36 +20,33 @@ export default function PlanningDateTimeField({
   onChange,
   disabled = false,
 }: PlanningDateTimeFieldProps) {
-  const isDark =
-    typeof document !== "undefined" &&
-    document.documentElement.classList.contains("theme-dark");
-  const slotProps = buildPlanningDateTimePickerSlotProps(isDark);
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value; // YYYY-MM-DDTHH:mm
+    if (!raw) return;
+    const snapped = snapToQuarter(new Date(raw));
+    onChange(snapped.toISOString().slice(0, 16));
+  }
+
+  /** Snap supplémentaire au blur pour capturer la saisie clavier libre */
+  function handleBlur(e: React.FocusEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    if (!raw) return;
+    const snapped = snapToQuarter(new Date(raw));
+    const snappedSlice = snapped.toISOString().slice(0, 16);
+    if (snappedSlice !== value) onChange(snappedSlice);
+  }
 
   return (
     <div className="planning-modal-field">
-      <label>{label}</label>
-      <DateTimePicker
-        value={value ? dayjs(value) : null}
-        onChange={(newValue) => {
-          if (newValue) {
-            const snapped = snapToQuarter(newValue.toDate());
-            onChange(snapped.toISOString().slice(0, 16));
-          }
-        }}
+      <label className="sn-form-label">{label}</label>
+      <input
+        type="datetime-local"
+        className="planning-datetime-input"
+        value={value}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        step={900}
         disabled={disabled}
-        ampm={false}
-        format="DD/MM/YYYY HH:mm"
-        timeSteps={{ minutes: 15 }}
-        minutesStep={15}
-        shouldDisableTime={(tv, view) => {
-          if (view === "minutes") {
-            const minute = tv.minute();
-            return ![0, 15, 30, 45].includes(minute);
-          }
-          return false;
-        }}
-        views={["year", "month", "day", "hours", "minutes"]}
-        slotProps={slotProps}
       />
     </div>
   );

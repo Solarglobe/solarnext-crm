@@ -872,7 +872,7 @@ html:not(.sn-app-page) .sn-input {
   border: 1px solid var(--border-soft);
   background: var(--input-bg);
   outline: none;
-  transition: all 0.2s ease;
+  transition: border-color 0.15s var(--ease-out, ease-out), box-shadow 0.15s var(--ease-out, ease-out);
   box-sizing: border-box;
 }
 
@@ -2195,8 +2195,8 @@ html.theme-dark .sn-bulk-selection-bar--floating {
 
 .sn-leads-page__title {
   margin: 0;
-  font-size: 1.125rem;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--text-primary);
   line-height: 1.25;
@@ -2712,33 +2712,7 @@ html.theme-dark .sn-leads-filters-select--subtle {
   }
 }
 
-.theme-dark .sn-leads-page__main,
-html.theme-dark .sn-leads-page__main {
-  background: radial-gradient(
-      ellipse 120% 90% at 50% -15%,
-      rgba(124, 58, 237, 0.12),
-      transparent 52%
-    ),
-    radial-gradient(
-      ellipse 90% 70% at 100% 5%,
-      rgba(200, 155, 80, 0.1),
-      transparent 48%
-    ),
-    radial-gradient(
-      ellipse 70% 50% at 0% 40%,
-      rgba(80, 60, 110, 0.09),
-      transparent 50%
-    );
-}
-
-.theme-light .sn-leads-page__main {
-  background: radial-gradient(
-      ellipse 110% 80% at 50% -25%,
-      rgba(184, 134, 11, 0.09),
-      transparent 55%
-    ),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, transparent 100%);
-}
+/* gradients décoratifs supprimés — fond neutre CRM */
 
 .sn-leads-page__loading-card .sn-leads-page__hero {
   margin-bottom: var(--spacing-16);
@@ -2766,41 +2740,7 @@ html.theme-dark .sn-leads-page__main {
   margin-top: var(--spacing-8);
 }
 
-.sn-leads-skeleton__line {
-  height: 10px;
-  border-radius: 6px;
-  background: linear-gradient(
-    90deg,
-    var(--surface-2) 0%,
-    rgba(255, 255, 255, 0.08) 50%,
-    var(--surface-2) 100%
-  );
-  background-size: 200% 100%;
-  animation: sn-leads-shimmer 1.2s ease-in-out infinite;
-}
-
-.theme-light .sn-leads-skeleton__line {
-  background: linear-gradient(
-    90deg,
-    rgba(15, 23, 42, 0.06) 0%,
-    rgba(15, 23, 42, 0.12) 50%,
-    rgba(15, 23, 42, 0.06) 100%
-  );
-  background-size: 200% 100%;
-}
-
-.sn-leads-skeleton__line--short {
-  width: 55%;
-}
-
-@keyframes sn-leads-shimmer {
-  0% {
-    background-position: 100% 0;
-  }
-  100% {
-    background-position: -100% 0;
-  }
-}
+/* sn-leads-skeleton__line + @keyframes sn-leads-shimmer supprimés — remplacés par .sn-sk dans crm-foundation.css */
 
 /* ——— Kanban — pipeline visuel fort ——— */
 .sn-leads-kanban-host {
@@ -3116,7 +3056,8 @@ html.theme-dark .sn-leads-kanban-col-signed {
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   border-radius: var(--radius-pill);
   background: rgba(0, 0, 0, 0.28);
   color: var(--text-primary);
@@ -3259,7 +3200,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
   list-style: none;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.06em;
   line-height: 1;
   padding: 2px 6px;
@@ -3352,7 +3293,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
   min-width: 2rem;
   justify-content: center;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 /* Source lead (valeur seule, sans libellé « Origine ») */
@@ -4977,7 +4918,7 @@ html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
 }
 .study-card-sg-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
@@ -4986,7 +4927,7 @@ html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
 }
 .study-card-sg-subtitle {
   margin: 0.15rem 0 0 0;
-  font-size: 0.875rem;
+  font-size: 12px;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;

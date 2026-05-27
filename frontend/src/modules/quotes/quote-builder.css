@@ -3,7 +3,7 @@
 .qb-page {
   max-width: min(1680px, 100%);
   margin: 0 auto;
-  padding: 20px 24px 48px;
+  padding: 20px 24px 24px;
 }
 
 /* Champs number + champs texte localisés (même rendu visuel) */
@@ -649,7 +649,7 @@
 
 .qb-lines-empty {
   text-align: center;
-  padding: 36px 20px 40px;
+  padding: 24px 16px 28px;
   border-radius: 12px;
   border: 1px dashed rgba(148, 163, 184, 0.35);
   background: rgba(148, 163, 184, 0.05);

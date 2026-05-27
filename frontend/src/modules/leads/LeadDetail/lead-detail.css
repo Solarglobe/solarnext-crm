@@ -327,8 +327,8 @@
 }
 
 .crm-lead-title {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--text-primary);
   margin: 0;
@@ -337,9 +337,9 @@
 
 /* Ancre visuelle : dominant sur la ligne */
 .crm-lead-title--compact {
-  font-size: 21px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
   min-width: 0;
   flex: 1 1 auto;

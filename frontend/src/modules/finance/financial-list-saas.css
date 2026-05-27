@@ -207,7 +207,7 @@ tr:hover .fin-actions-cell,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.1s;
+  transition: background-color 0.1s var(--ease-out, ease-out), color 0.1s var(--ease-out, ease-out);
   text-decoration: none;
   flex-shrink: 0;
   padding: 0;
@@ -243,13 +243,13 @@ tr:hover .fin-actions-cell,
 /* Pleine largeur pour les listes */
 .qb-page.fin-pole-shell {
   max-width: 100%;
-  padding: 28px 32px 48px;
+  padding: 20px 24px 24px;
 }
 
 /* Foundation UI standardisation - finance lists and hub */
 .fin-standard-page {
   max-width: 100%;
-  padding: 28px 32px 48px;
+  padding: 20px 24px 24px;
 }
 
 .fin-standard-page .sn-page-header a,
@@ -423,6 +423,7 @@ tr:hover .fin-actions-cell,
   margin-left: auto;
   font-size: 12px;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .fin-standard-metrics {
@@ -462,6 +463,7 @@ tr:hover .fin-actions-cell,
   color: var(--text-primary);
   font-size: 22px;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .fin-standard-alert {

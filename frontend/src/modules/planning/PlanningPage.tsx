@@ -53,7 +53,7 @@ export default function PlanningPage() {
   const [dayDate, setDayDate] = useState(() => new Date());
   const [monthStart, setMonthStart] = useState(() => getMonthStart(new Date()));
   const [missions, setMissions] = useState<Mission[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<MissionsFilters>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -411,7 +411,42 @@ export default function PlanningPage() {
 
       {error && <p className="planning-error">{error}</p>}
 
-      {viewMode === "day" && (
+      {loading && (
+        <div className="sn-planning-skeleton" aria-busy="true" aria-label="Chargement du planning">
+          <div className="sn-planning-skeleton__toolbar">
+            <div className="sn-planning-skeleton__nav" />
+            <div className="sn-planning-skeleton__period" />
+            <div className="sn-planning-skeleton__nav" />
+            <div className="sn-planning-skeleton__btn" />
+          </div>
+          <div className="sn-planning-skeleton__grid">
+            {/* Colonne horaires */}
+            <div className="sn-planning-skeleton__time-col">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="sn-planning-skeleton__time-slot">
+                  <div className="sn-planning-skeleton__time-label" />
+                </div>
+              ))}
+            </div>
+            {/* 7 colonnes jours */}
+            {Array.from({ length: 7 }).map((_, d) => (
+              <div key={d} className="sn-planning-skeleton__day-col">
+                <div className="sn-planning-skeleton__day-header" />
+                {Array.from({ length: 9 }).map((_, s) => (
+                  <div key={s} className="sn-planning-skeleton__day-slot">
+                    {/* Bloc mission simulé : 1 colonne sur 3, 2e slot */}
+                    {d === 1 && s === 1 && <div className="sn-planning-skeleton__event" />}
+                    {d === 3 && s === 3 && <div className="sn-planning-skeleton__event" />}
+                    {d === 5 && s === 2 && <div className="sn-planning-skeleton__event" />}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && viewMode === "day" && (
         <DayView
           date={dayDate}
           missions={missions}
@@ -423,7 +458,7 @@ export default function PlanningPage() {
           onResizeEnd={handleResizeEnd}
         />
       )}
-      {viewMode === "week" && (
+      {!loading && viewMode === "week" && (
         <WeekView
           weekStart={weekStart}
           missions={missions}
@@ -435,7 +470,7 @@ export default function PlanningPage() {
           onResizeEnd={handleResizeEnd}
         />
       )}
-      {viewMode === "month" && (
+      {!loading && viewMode === "month" && (
         <MonthView
           monthStart={monthStart}
           missions={missions}

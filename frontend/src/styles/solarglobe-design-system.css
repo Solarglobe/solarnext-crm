@@ -42,7 +42,7 @@
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s var(--ease-out, ease-out), border-color 0.15s var(--ease-out, ease-out), color 0.15s var(--ease-out, ease-out);
 }
 
 .sg-btn-primary {

@@ -291,7 +291,11 @@ export default function FinancialHubPage() {
 
       <div className="fin-standard-grid">
         {latestQuotes.length === 0 && !loading ? (
-          <EmptyState title="Aucun devis recent" description="Les derniers mouvements apparaitront ici." />
+          <EmptyState
+            title="Aucun devis récent"
+            description="Les devis créés depuis les fiches lead apparaîtront ici."
+            actions={<Link to="/quotes" className="sn-btn sn-btn-outline sn-btn-sm">Voir tous les devis</Link>}
+          />
         ) : (
           <DataTable
             dense
@@ -307,7 +311,11 @@ export default function FinancialHubPage() {
         )}
 
         {highlightedInvoices.length === 0 && !loading ? (
-          <EmptyState title="Aucune facture a suivre" description="Les factures en retard, partielles ou recentes apparaitront ici." />
+          <EmptyState
+            title="Aucune facture à suivre"
+            description="Les factures en retard, partielles ou récentes apparaîtront ici."
+            actions={<Link to="/invoices" className="sn-btn sn-btn-outline sn-btn-sm">Voir toutes les factures</Link>}
+          />
         ) : (
           <DataTable
             dense
@@ -315,9 +323,9 @@ export default function FinancialHubPage() {
             columns={invoiceColumns}
             rows={highlightedInvoices}
             getRowKey={(row) => row.id}
-            title="Factures a suivre"
-            actions={<Link to="/invoices" className="sn-btn sn-btn-ghost sn-btn-sm">Liste complete</Link>}
-            emptyTitle="Aucune facture a suivre"
+            title="Factures à suivre"
+            actions={<Link to="/invoices" className="sn-btn sn-btn-ghost sn-btn-sm">Liste complète</Link>}
+            emptyTitle="Aucune facture à suivre"
             className="fin-standard-table"
           />
         )}

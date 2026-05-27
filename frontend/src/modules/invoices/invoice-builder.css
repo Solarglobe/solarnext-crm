@@ -259,8 +259,8 @@
 
 .ib-header-card__number {
   margin: 0;
-  font-size: 1.35rem;
-  font-weight: 800;
+  font-size: 16px;
+  font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
 }

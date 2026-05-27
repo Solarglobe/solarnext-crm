@@ -29,6 +29,7 @@ import { CSS as DndCss } from "@dnd-kit/utilities";
 import { LeadCard } from "./LeadCard";
 import { getLeadName, updateLeadStage, type Lead } from "../../services/leads.service";
 import { ConfirmModal } from "../ui/ConfirmModal";
+import { EmptyState } from "../ui/EmptyState";
 import { UndoToast } from "../ui/UndoToast";
 import { useUndoAction } from "../../hooks/useUndoAction";
 import {
@@ -868,10 +869,18 @@ export function LeadsKanbanView({
         </div>
 
         {isEmpty ? (
-          <p className="sn-leads-empty" role="status">
-            Aucun lead actif dans le pipeline. Créez un lead ou vérifiez les
-            filtres en vue liste.
-          </p>
+          <EmptyState
+            icon={
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+            }
+            title="Pipeline vide"
+            description="Aucun lead actif. Utilisez le bouton + en haut à gauche pour créer votre premier lead."
+          />
         ) : null}
       </div>
 
