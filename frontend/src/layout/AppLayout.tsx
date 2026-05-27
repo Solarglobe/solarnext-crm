@@ -1,10 +1,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { getUserPermissions, logout } from "../services/auth.service";
-import {
-  exitAdminImpersonationSession,
-  wasImpersonationTokenExpiredAndCleared,
-} from "../services/organizations.service";
+import { wasImpersonationTokenExpiredAndCleared } from "../services/organizations.service";
 import {
   IMPERSONATION_BANNER_KEY,
   IMPERSONATION_META_KEY,
@@ -14,12 +11,12 @@ import { OrganizationSwitcher } from "../components/organization/OrganizationSwi
 import { SuperAdminSupportBanner } from "../components/support/SuperAdminSupportBanner";
 import { EmailVerificationBanner } from "../components/EmailVerificationBanner";
 import { GlobalSearchBar } from "../components/layout/GlobalSearchBar";
+import { ImpersonationBanner, type ImpersonationMetaState } from "../components/layout/ImpersonationBanner";
 import { useOrganization, useSuperAdminReadOnly } from "../contexts/OrganizationContext";
 import { applyTheme, persistTheme, readStoredTheme, type ThemeMode } from "../theme/themeApply";
 
-export type ImpersonationMetaState =
-  | { type: "ORG"; organizationName: string; organizationId: string }
-  | { type: "USER"; userName: string; organizationName: string; userId?: string; organizationId?: string };
+/* ImpersonationMetaState est défini et exporté depuis ImpersonationBanner.tsx */
+export type { ImpersonationMetaState };
 
 function readImpersonationMetaState(): ImpersonationMetaState | null {
   if (typeof window === "undefined") return null;
@@ -505,12 +502,12 @@ function SidebarSectionChevron({ expanded }: { expanded: boolean }) {
   return (
     <svg
       className={`sn-sidebar-section-chevron${expanded ? " sn-sidebar-section-chevron--open" : ""}`}
-      width="16"
-      height="16"
+      width="14"
+      height="14"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
@@ -718,51 +715,7 @@ export function AppLayout() {
   return (
     <div className="sn-app-root sn-app-bg" style={{ flexDirection: "column" }}>
       {impersonationMeta && (
-        <div
-          role="status"
-          className="sn-impersonation-banner"
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            background: "#b91c1c",
-            color: "#fef2f2",
-            padding: "10px 16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 10,
-            fontSize: 14,
-            zIndex: 200,
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span>
-              <strong>MODE ADMIN</strong>
-            </span>
-            {impersonationMeta.type === "USER" ? (
-              <>
-                <span>Utilisateur : {impersonationMeta.userName}</span>
-                <span>Organisation : {impersonationMeta.organizationName}</span>
-              </>
-            ) : (
-              <span>Organisation : {impersonationMeta.organizationName}</span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => exitAdminImpersonationSession()}
-            className="sn-btn sn-btn-sm"
-            style={{
-                        background: "var(--bg-card)",
-              color: "#991b1b",
-              border: "none",
-              fontWeight: 600,
-            }}
-          >
-            Quitter
-          </button>
-        </div>
+        <ImpersonationBanner meta={impersonationMeta} />
       )}
       <SuperAdminSupportBanner />
       <EmailVerificationBanner />
@@ -842,18 +795,7 @@ export function AppLayout() {
                 </svg>
               </button>
               {dropdownOpen && (
-                <div
-                  className="sn-card"
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    right: 0,
-                    marginTop: "var(--spacing-8)",
-                    minWidth: 160,
-                    zIndex: 100,
-                    padding: "var(--spacing-8)",
-                  }}
-                >
+                <div className="sn-user-dropdown">
                   <button
                     type="button"
                     onClick={() => {
@@ -874,7 +816,7 @@ export function AppLayout() {
         <nav className="sn-sidebar-nav" aria-label="Navigation principale">
           <SidebarCollapsibleSection
             sectionId="principal"
-            title="Operations"
+            title="Opérations"
             expanded={sectionOpen.principal}
             onToggle={() => toggleSection("principal")}
             navLinks={visiblePrincipalModules}
@@ -911,7 +853,7 @@ export function AppLayout() {
           />
           <SidebarCollapsibleSection
             sectionId="settings"
-            title="Parametres"
+            title="Paramètres"
             expanded={sectionOpen.settings}
             onToggle={() => toggleSection("settings")}
             navLinks={visibleSettingsModules}

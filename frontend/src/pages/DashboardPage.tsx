@@ -240,7 +240,58 @@ function buildTimelineTrendSentence(rows: DashboardOverview["activity_timeline"]
   return parts.slice(0, 2).join(" Â· ");
 }
 
-function KpiSparkline({ values, color = "#7c3aed" }: { values: number[]; color?: string }) {
+/**
+ * Résout les tokens CSS data-viz au runtime via getComputedStyle.
+ * Re-résout à chaque toggle de thème (MutationObserver sur html[class]).
+ * Cela permet à Recharts (qui reçoit des chaînes dans des attributs SVG)
+ * d'obtenir des valeurs hex/rgb réelles plutôt que des CSS vars non supportées.
+ */
+function useChartColors() {
+  function resolve() {
+    const cs = getComputedStyle(document.documentElement);
+    const v = (name: string, fb: string) => cs.getPropertyValue(name).trim() || fb;
+    return {
+      chart: {
+        leads:    v("--sn-chart-leads",    "#7c3aed"),
+        sent:     v("--sn-chart-sent",     "#a78bfa"),
+        signed:   v("--sn-chart-signed",   "#16a34a"),
+        invoices: v("--sn-chart-invoices", "#b45309"),
+        cash:     v("--sn-chart-cash",     "#0369a1"),
+      } as Record<SeriesKey, string>,
+      donut: [
+        v("--sn-chart-donut-1", "#7c3aed"),
+        v("--sn-chart-donut-2", "#0369a1"),
+        v("--sn-chart-donut-3", "#16a34a"),
+        v("--sn-chart-donut-4", "#b45309"),
+        v("--sn-chart-donut-5", "#7e22ce"),
+        v("--sn-chart-donut-6", "#0f766e"),
+      ],
+    };
+  }
+
+  const [colors, setColors] = useState(resolve);
+
+  useEffect(() => {
+    setColors(resolve());
+    const obs = new MutationObserver(() => setColors(resolve()));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+
+  return colors;
+}
+
+/**
+ * Mini sparkline SVG — piloté par currentColor pour supporter les CSS vars.
+ *
+ * `color` accepte toute valeur CSS valide : hex, rgb, ou var(--token).
+ * L'astuce : on pose `color` sur le SVG via `style`, et le SVG utilise
+ * `currentColor` dans ses attributs — les CSS vars sont supportées dans `style`
+ * mais PAS dans les attributs SVG de présentation (stroke, fill).
+ *
+ * gradId : basé sur color sanitisé → stable par instance (pas de flash).
+ */
+function KpiSparkline({ values, color = "var(--primary)" }: { values: number[]; color?: string }) {
   if (!values.length || values.every((v) => v === 0)) return null;
   const max = Math.max(...values, 1);
   const w = 80;
@@ -250,37 +301,36 @@ function KpiSparkline({ values, color = "#7c3aed" }: { values: number[]; color?:
     const y = h - 2 - ((v / max) * (h - 4));
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
-  // Aire de remplissage
   const areaPoints = `0,${h} ${pts.join(" ")} ${w},${h}`;
+  // ID stable : on sanitise la valeur color (supporte var(--token) et hex)
+  const gradId = useMemo(
+    () => `kpi-grad-${color.replace(/[^a-z0-9]/gi, "")}`,
+    [color]
+  );
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="sn-dashboard-kpi-sparkline" aria-hidden>
+    // style={{ color }} : seul moyen de passer une CSS var à currentColor dans SVG
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ color }} className="sn-dashboard-kpi-sparkline" aria-hidden>
       <defs>
-        <linearGradient id={`kpi-grad-${color.replace("#","")}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0.02" />
         </linearGradient>
       </defs>
-      <polygon points={areaPoints} fill={`url(#kpi-grad-${color.replace("#","")})`} />
-      <polyline fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" points={pts.join(" ")} />
+      <polygon points={areaPoints} fill={`url(#${gradId})`} />
+      <polyline fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" points={pts.join(" ")} />
     </svg>
   );
 }
 
 /* ─── Area Chart timeline (remplace la table) ───────────────────────────────*/
-const CHART_COLORS: Record<SeriesKey, string> = {
-  leads: "#7c3aed",
-  sent: "#a78bfa",
-  signed: "#22c55e",
-  invoices: "#f59e0b",
-  cash: "#0ea5e9",
-};
-
 function TimelineAreaChart({
   rows,
   seriesVis,
+  chartColors,
 }: {
   rows: DashboardOverview["activity_timeline"];
   seriesVis: Record<SeriesKey, boolean>;
+  chartColors: Record<SeriesKey, string>;
 }) {
   if (!rows.length) return null;
 
@@ -301,10 +351,10 @@ function TimelineAreaChart({
       <ResponsiveContainer width="100%" height={220}>
         <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
           <defs>
-            {(Object.keys(CHART_COLORS) as SeriesKey[]).map((k) => (
+            {(Object.keys(chartColors) as SeriesKey[]).map((k) => (
               <linearGradient key={k} id={`grad-${k}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={CHART_COLORS[k]} stopOpacity={0.22} />
-                <stop offset="95%" stopColor={CHART_COLORS[k]} stopOpacity={0.02} />
+                <stop offset="5%" stopColor={chartColors[k]} stopOpacity={0.22} />
+                <stop offset="95%" stopColor={chartColors[k]} stopOpacity={0.02} />
               </linearGradient>
             ))}
           </defs>
@@ -364,7 +414,7 @@ function TimelineAreaChart({
                 type="monotone"
                 dataKey={k}
                 yAxisId={isCash ? "cash" : "count"}
-                stroke={CHART_COLORS[k]}
+                stroke={chartColors[k]}
                 strokeWidth={2}
                 fill={`url(#grad-${k})`}
                 dot={false}
@@ -380,15 +430,19 @@ function TimelineAreaChart({
 }
 
 /* ─── Donut Chart sources ────────────────────────────────────────────────── */
-const DONUT_COLORS = ["#7c3aed", "#0ea5e9", "#22c55e", "#f59e0b", "#ec4899", "#14b8a6"];
-
-function SourceDonutChart({ rows }: { rows: DashboardOverview["acquisition_performance"] }) {
+function SourceDonutChart({
+  rows,
+  donutPalette,
+}: {
+  rows: DashboardOverview["acquisition_performance"];
+  donutPalette: string[];
+}) {
   if (!rows.length) return null;
   const data = rows.map((r, i) => ({
     name: r.source_name,
     value: safeNum(r.leads_count),
     signed: safeNum(r.quotes_signed_count),
-    color: DONUT_COLORS[i % DONUT_COLORS.length],
+    color: donutPalette[i % donutPalette.length],
   })).filter((d) => d.value > 0);
 
   if (!data.length) return null;
@@ -450,6 +504,7 @@ export default function DashboardPage() {
     invoices: false,
     cash: true,
   });
+  const chartColors = useChartColors();
 
   const range = (searchParams.get("range") as DashboardRange) || "30d";
   const dateFrom = searchParams.get("date_from") || "";
@@ -852,7 +907,7 @@ export default function DashboardPage() {
                   <div className="sn-dashboard-kpi-card__accent sn-dashboard-kpi-card__accent--subtle" aria-hidden />
                   <div className="sn-dashboard-kpi-label">Encaissé</div>
                   <div className="sn-dashboard-kpi-value sn-dashboard-num">{eur(kpis.cash_collected_ttc)}</div>
-                  <KpiSparkline values={timelineTail.map((r) => safeNum(r.cash_collected))} color="#0ea5e9" />
+                  <KpiSparkline values={timelineTail.map((r) => safeNum(r.cash_collected))} color="var(--sn-chart-cash)" />
                   <p className="sn-dashboard-kpi-sub">TTC · encaissements sur la période</p>
                 </article>
                 )}
@@ -875,7 +930,7 @@ export default function DashboardPage() {
                   <div className="sn-dashboard-kpi-card__accent sn-dashboard-kpi-card__accent--subtle" aria-hidden />
                   <div className="sn-dashboard-kpi-label">Pipeline à signer</div>
                   <div className="sn-dashboard-kpi-value sn-dashboard-num">{eur(fc.pipeline_quotes_to_sign_ttc)}</div>
-                  <KpiSparkline values={timelineTail.map((r) => safeNum(r.quotes_signed))} color="#7c3aed" />
+                  <KpiSparkline values={timelineTail.map((r) => safeNum(r.quotes_signed))} color="var(--sn-chart-leads)" />
                   <p className="sn-dashboard-kpi-sub">Instantané · non signés</p>
                 </article>
                 )}
@@ -1130,7 +1185,7 @@ export default function DashboardPage() {
 
           {/* Layout donut + tableau côte à côte */}
           <div className="sn-dashboard-sources-layout">
-            <SourceDonutChart rows={data.acquisition_performance} />
+            <SourceDonutChart rows={data.acquisition_performance} donutPalette={chartColors.donut} />
             <div className="sn-dashboard-sources-table-wrap">
               <div className="sn-dashboard-table-wrap">
                 <table
@@ -1322,9 +1377,9 @@ export default function DashboardPage() {
               {/* Toggles séries */}
               <div className="sn-dashboard-timeline-toggles" role="group" aria-label="Séries affichées">
                 {(Object.keys(SERIES_LABELS) as SeriesKey[]).map((k) => (
-                  <label key={k} className="sn-dashboard-timeline-toggle" style={{ "--toggle-color": CHART_COLORS[k] } as React.CSSProperties}>
+                  <label key={k} className="sn-dashboard-timeline-toggle" style={{ "--toggle-color": chartColors.chart[k] } as React.CSSProperties}>
                     <input type="checkbox" checked={seriesVis[k]} onChange={() => toggleSeries(k)} />
-                    <span className="sn-dashboard-timeline-toggle__dot" style={{ background: CHART_COLORS[k] }} aria-hidden />
+                    <span className="sn-dashboard-timeline-toggle__dot" style={{ background: chartColors.chart[k] }} aria-hidden />
                     {SERIES_LABELS[k]}
                   </label>
                 ))}
@@ -1332,7 +1387,7 @@ export default function DashboardPage() {
 
               {/* Area Chart principal */}
               <Card variant="app" padding="none" className="sn-dashboard-chart-card">
-                <TimelineAreaChart rows={timelineTail} seriesVis={seriesVis} />
+                <TimelineAreaChart rows={timelineTail} seriesVis={seriesVis} chartColors={chartColors.chart} />
               </Card>
 
               {timelineRows.length > 31 && (
@@ -1409,7 +1464,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <p className="sn-dashboard-forecast-foot">
-              Pondération : READY_TO_SEND 50 % · SENT 65 % — hypothèse explicite, non probabiliste avancée.
+              Pondération : READY_TO_SEND 50 % · SENT 65 % — hypothèse explicite, non probabiliste avancée.
             </p>
           </Card>
         </section>

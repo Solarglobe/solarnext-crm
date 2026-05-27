@@ -31,13 +31,20 @@ html.sn-app-page .sn-sidebar-brand.sidebar-brand::after {
   display: none;
 }
 
-/* Nav : rythme vertical — espacement UNIQUEMENT entre groupes (gap) */
+/* Nav : rythme vertical — gap supprimé, séparation via padding + border-top entre groupes */
 html.sn-app-page .sn-sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: var(--sb-space-16);
+  gap: 0;
   padding: 0 0 var(--sb-space-12);
   margin-top: 0;
+}
+
+/* Séparateur subtil entre chaque groupe (sauf le premier) */
+html.sn-app-page .sn-sidebar-nav > .sn-sidebar-nav-group + .sn-sidebar-nav-group {
+  margin-top: var(--sb-space-4);
+  padding-top: var(--sb-space-12);
+  border-top: 1px solid var(--border);
 }
 
 /* Supprime les traits dorés entre sections (::before du thème) */
@@ -74,11 +81,11 @@ html.sn-app-page .sn-sidebar-section-panel {
 /* Labels de section (si présents hors repliable) */
 html.sn-app-page .sn-sidebar-nav-group-label {
   margin: 0 0 var(--sb-space-6) 0;
-  padding: 0;
+  padding: 0 var(--sb-space-8);
   font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0.03em;
   color: var(--text-muted);
   opacity: 0.92;
 }
@@ -90,16 +97,16 @@ html.sn-app-page .sn-sidebar-section-toggle {
   justify-content: space-between;
   width: 100%;
   margin: 0;
-  padding: 0;
-  min-height: 32px;
+  padding: 0 var(--sb-space-8);
+  min-height: 28px;
   border: none;
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-muted);
   font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0.03em;
   box-shadow: none;
   cursor: pointer;
   text-align: left;
@@ -121,26 +128,34 @@ html.sn-app-page .sn-sidebar-section-toggle:focus-visible {
 }
 
 html.sn-app-page .sn-sidebar-section-chevron {
-  opacity: 0.65;
+  flex-shrink: 0;
+  opacity: 0.5;
   color: var(--text-muted);
+  transform: rotate(0deg);
+  transition: transform 0.15s ease, opacity 0.12s ease;
 }
 
-/* Liens : 36px, spacing = gap du panel uniquement */
+html.sn-app-page .sn-sidebar-section-chevron.sn-sidebar-section-chevron--open {
+  transform: rotate(-180deg);
+  opacity: 0.7;
+}
+
+/* Liens : 32px, padding horizontal aligné avec les toggles */
 html.sn-app-page .sn-sidebar-link {
   position: relative;
   display: flex;
   align-items: center;
   gap: var(--sb-space-8);
   margin: 0;
-  padding: 0;
-  min-height: 36px;
-  height: 36px;
+  padding: 0 var(--sb-space-8);
+  min-height: 32px;
+  height: 32px;
   border: none;
   border-radius: var(--radius-control);
   background: transparent;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font-size: var(--font-size-body);
-  font-weight: 500;
+  font-weight: 400;
   text-decoration: none;
   box-shadow: none;
   transition:
@@ -151,36 +166,32 @@ html.sn-app-page .sn-sidebar-link {
 html.sn-app-page .sn-sidebar-link:hover {
   background: var(--sn-ui-hover-bg);
   color: var(--text-primary);
+  font-weight: 500;
   border: none;
   box-shadow: none;
 }
 
 html.sn-app-page .sn-sidebar-link-active,
 html.sn-app-page .sn-sidebar-item.active {
-  background: color-mix(in srgb, var(--brand-gold, var(--gold)) 12%, transparent);
-  color: var(--text-primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: color-mix(in srgb, var(--primary) 85%, var(--text-primary));
   border: none;
   box-shadow: none;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-html.sn-app-page .sn-sidebar-link-active::before,
-html.sn-app-page .sn-sidebar-item.active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 2px;
-  height: 20px;
-  border-radius: 1px;
-  background: var(--brand-gold, var(--gold));
-}
+/* Pas de ::before stripe gauche — pattern banni. Signal actif = fond tint + icône colorée. */
 
-html.sn-app-page .sn-sidebar-link .sn-sidebar-link-icon,
-html.sn-app-page .sn-sidebar-link-active .sn-sidebar-link-icon {
+/* Icône non-active — hérite de la couleur du lien */
+html.sn-app-page .sn-sidebar-link .sn-sidebar-link-icon {
   opacity: 1;
   color: inherit;
+}
+
+/* Icône active — colorée en --primary (Raycast-style) */
+html.sn-app-page .sn-sidebar-link-active .sn-sidebar-link-icon,
+html.sn-app-page .sn-sidebar-item.active .sn-sidebar-link-icon {
+  color: var(--primary);
 }
 
 html.sn-app-page .sn-sidebar-link-icon svg {
@@ -188,9 +199,13 @@ html.sn-app-page .sn-sidebar-link-icon svg {
   stroke: currentColor;
 }
 
+/* Indent unifié : suppression du décalage arbitraire entre sections "nested" et "flat".
+ * Tous les liens ont le même padding horizontal (--sb-space-8) — cohérence visuelle Linear-style.
+ * Si une vraie hiérarchie sous-niveau est nécessaire, utiliser padding-left: 28px (icône + gap).
+ */
 html.sn-app-page .sn-sidebar-link-nested,
 html.sn-app-page .sn-sidebar-link-org {
-  padding-left: var(--sb-space-12);
+  padding-left: var(--sb-space-8);
 }
 
 html.sn-app-page .sn-sidebar-link-icon {
@@ -212,4 +227,43 @@ html.sn-app-page .sn-sidebar-action-btn {
 html.sn-app-page .sn-sidebar-action-btn:hover {
   background: var(--sn-ui-hover-bg);
   color: var(--text-primary);
+}
+
+/* ——— Dark mode overrides sidebar ——— */
+
+/* Liens : en dark mode, 400 peut paraître trop fade — on remonte à 450 et on éclaircit légèrement */
+html.theme-dark html.sn-app-page .sn-sidebar-link {
+  color: var(--text-primary);
+  font-weight: 450;
+}
+
+/* État actif : fond plus visible sur fond sombre */
+html.theme-dark html.sn-app-page .sn-sidebar-link-active,
+html.theme-dark html.sn-app-page .sn-sidebar-item.active {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  color: color-mix(in srgb, var(--primary) 80%, #fff);
+}
+
+/* Toggle section hover en dark mode */
+html.theme-dark html.sn-app-page .sn-sidebar-section-toggle:hover {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+/* Séparateur entre groupes en dark mode — encore plus discret */
+html.theme-dark html.sn-app-page .sn-sidebar-nav > .sn-sidebar-nav-group + .sn-sidebar-nav-group {
+  border-top-color: var(--border);
+}
+
+/* Dropdown utilisateur — positionné en absolu sous le bouton avatar */
+html.sn-app-page .sn-user-dropdown {
+  position: absolute;
+  top: calc(100% + var(--sb-space-8));
+  right: 0;
+  z-index: 100;
+  min-width: 160px;
+  padding: var(--sb-space-8);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
 }
