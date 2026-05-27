@@ -39,6 +39,32 @@
   --radius-control: var(--radius-sm);
   --radius-card-default: var(--radius-lg);
   --control-height-sm: 32px;
+
+  /*
+   * ── EASING TOKENS ────────────────────────────────────────────────────────
+   * Source unique pour toutes les courbes d'animation SolarNext.
+   * Basées sur Emil Kowalski / animations.dev — adaptées au contexte cockpit.
+   *
+   * Règle : ease-out pour entrées/press (départ fort → ralentit = réactivité perçue immédiate)
+   *         ease-in-out pour mouvements sur scène (naturel, accélère puis ralentit)
+   *         linear pour loaders/spinners uniquement
+   */
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);     /* fort ease-out — press, entrées */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);    /* fort ease-in-out — modals, drawers */
+  --ease-subtle: cubic-bezier(0.4, 0, 0.2, 1);       /* Material-like — hover colors, subtle */
+
+  /*
+   * ── DURATION TOKENS ──────────────────────────────────────────────────────
+   * Références (Emil framework) :
+   *   press/micro   : 80-100ms
+   *   hover/tooltip : 120-150ms
+   *   dropdown      : 150-200ms
+   *   modal/drawer  : 200-300ms
+   */
+  --duration-press:   80ms;
+  --duration-micro:   120ms;
+  --duration-default: 150ms;
+  --duration-enter:   200ms;
 }
 
 html.theme-light {

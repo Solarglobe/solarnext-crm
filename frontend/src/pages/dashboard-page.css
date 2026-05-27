@@ -1991,7 +1991,10 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-trend--down {
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  transition: all 0.15s;
+  transition:
+    background-color var(--duration-micro, 120ms) var(--ease-subtle, ease),
+    border-color     var(--duration-micro, 120ms) var(--ease-subtle, ease),
+    color            var(--duration-micro, 120ms) var(--ease-subtle, ease);
   user-select: none;
 }
 .sn-dashboard-wrap .sn-dashboard-timeline-toggle:has(input:checked) {

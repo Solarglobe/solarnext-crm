@@ -69,9 +69,7 @@ html.sn-app-page .sn-sidebar-nav > .sn-sidebar-nav-group:first-child {
   border-top: none;
 }
 
-/* Plus de bordure entre groupes : le rythme vient du gap du nav (16px) */
-
-/* Liste d’items : gap uniquement, pas de margin sur les liens */
+/* Liste d'items : gap uniquement, pas de margin sur les liens */
 html.sn-app-page .sn-sidebar-section-panel {
   display: flex;
   flex-direction: column;
@@ -140,7 +138,7 @@ html.sn-app-page .sn-sidebar-section-chevron.sn-sidebar-section-chevron--open {
   opacity: 0.7;
 }
 
-/* Liens : 32px, padding horizontal aligné avec les toggles */
+/* Liens : 28px, padding horizontal aligné avec les toggles */
 html.sn-app-page .sn-sidebar-link {
   position: relative;
   display: flex;
@@ -148,13 +146,13 @@ html.sn-app-page .sn-sidebar-link {
   gap: var(--sb-space-8);
   margin: 0;
   padding: 0 var(--sb-space-8);
-  min-height: 32px;
-  height: 32px;
+  min-height: 28px;
+  height: 28px;
   border: none;
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-secondary);
-  font-size: var(--font-size-body);
+  font-size: 12.5px;
   font-weight: 400;
   text-decoration: none;
   box-shadow: none;
@@ -169,6 +167,14 @@ html.sn-app-page .sn-sidebar-link:hover {
   font-weight: 500;
   border: none;
   box-shadow: none;
+}
+
+/* Press feedback : la surface confirme physiquement le clic — 80ms, sobre */
+@media (hover: hover) and (pointer: fine) {
+  html.sn-app-page .sn-sidebar-link:active {
+    transform: scale(0.97);
+    transition: transform var(--duration-press, 80ms) var(--ease-out, ease-out);
+  }
 }
 
 html.sn-app-page .sn-sidebar-link-active,
@@ -209,12 +215,19 @@ html.sn-app-page .sn-sidebar-link-org {
 }
 
 html.sn-app-page .sn-sidebar-link-icon {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 18px;
+  flex: 0 0 15px;
+}
+
+/* Forcer le rendu SVG à 15px — outrepasse les attributs width/height inline du TSX */
+html.sn-app-page .sn-sidebar-link-icon svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
 }
 
 html.sn-app-page .sn-sidebar-action-btn {
@@ -227,6 +240,15 @@ html.sn-app-page .sn-sidebar-action-btn {
 html.sn-app-page .sn-sidebar-action-btn:hover {
   background: var(--sn-ui-hover-bg);
   color: var(--text-primary);
+}
+
+/* Les 3 boutons header (nouveau lead, thème, user) répondent au clic */
+@media (hover: hover) and (pointer: fine) {
+  html.sn-app-page .sn-sidebar-action-btn:active {
+    transform: scale(0.92);
+    transition: transform var(--duration-press, 80ms) var(--ease-out, ease-out);
+    background: var(--sn-ui-hover-bg);
+  }
 }
 
 /* ——— Dark mode overrides sidebar ——— */

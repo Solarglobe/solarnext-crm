@@ -421,3 +421,81 @@ select.sn-saas-input {
   background: color-mix(in srgb, var(--success, #22c55e) 8%, var(--surface-card));
   color: var(--text-primary);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOTION LAYER — touch guards + press feedback
+   Surcharge saas-crm.css (après primitives.css dans la cascade).
+   Source : Emil Kowalski / animations.dev — adapté au contexte cockpit.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * LOT 1 — Touch guard : neutralise les hover transforms sur appareils tactiles.
+ *
+ * Sur iOS/Android, :hover se déclenche au tap et reste actif (pas d'un vrai "hover").
+ * Le translateY(-1px) des boutons se retrouve alors bloqué visuellement après le tap.
+ * Ce bloc reset transform et box-shadow sur (hover: none) = appareils sans pointeur précis.
+ *
+ * Note : les changements de couleur hover (background, border-color) sont maintenus —
+ * ils aident à la compréhension de l'état même sur tactile.
+ */
+/*
+ * LOT 2 — Press feedback : scale(0.97) sur :active.
+ *
+ * translateY(0) dans primitives.css ne donne aucun signal physique de pression.
+ * scale(0.97) simule un clic réel — la surface "s'enfonce" sous le doigt/clic.
+ * Duration 80ms : assez rapide pour ne pas bloquer l'interaction, assez visible
+ * pour confirmer que l'interface a "entendu" l'utilisateur.
+ *
+ * Ces règles surchargent le translateY(0) de primitives.css avec une spécificité égale.
+ * L'ordre cascade garantit la victoire (saas-crm.css chargé après primitives.css).
+ */
+html.sn-app-page .sn-btn:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-saas-btn:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .btn:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .btn-primary:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .btn-secondary:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-primary:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-premium:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-danger:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-secondary:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-outline:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-ghost:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn-primary:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn-secondary:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn-danger:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn-ghost:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .qb-btn-ghost:active:not(:disabled):not(.is-disabled) {
+  transform: scale(0.97);
+  transition-duration: var(--duration-press, 80ms);
+}
+
+/*
+ * LOT 1 — Touch guard : neutralise les hover transforms sur appareils tactiles.
+ *
+ * Sur iOS/Android, :hover se déclenche au tap et reste actif (pas d'un vrai "hover").
+ * Le translateY(-1px) des boutons se retrouve alors bloqué visuellement après le tap.
+ * Ce bloc reset transform et box-shadow sur (hover: none) = appareils sans pointeur précis.
+ *
+ * Note : les changements de couleur hover (background, border-color) sont maintenus —
+ * ils aident à la compréhension de l'état même sur tactile.
+ */
+@media (hover: none), (pointer: coarse) {
+  html.sn-app-page .sn-btn:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .sg-btn:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .sn-saas-btn:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .btn:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .btn-primary:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .btn-secondary:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .sn-btn-primary:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .sn-btn-premium:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .sn-btn-danger:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .sn-btn-secondary:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .sn-btn-outline:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .sg-btn-primary:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .sg-btn-secondary:not(:disabled):not(.is-disabled):hover,
+  html.sn-app-page .sg-btn-danger:not(:disabled):not(.is-disabled):hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
