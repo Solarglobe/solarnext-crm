@@ -87,8 +87,8 @@ export async function createSeedContext(): Promise<SeedContext> {
 
   const pwdHash = await hashPassword(password);
   const userRes = await pool.query(
-    `INSERT INTO users (organization_id, email, password_hash, status, email_verified_at)
-     VALUES ($1, $2, $3, 'active', now())
+    `INSERT INTO users (organization_id, email, password_hash, status, email_verified)
+     VALUES ($1, $2, $3, 'active', true)
      RETURNING id`,
     [orgId, email, pwdHash]
   );

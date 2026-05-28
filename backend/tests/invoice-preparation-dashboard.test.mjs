@@ -15,13 +15,17 @@ const quoteIds = [];
 const invoiceIds = [];
 
 before(async () => {
-  const org = await pool.query("SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1");
+  const org = await pool.query("INSERT INTO organizations (name) VALUES ($1) RETURNING id", [
+    `${PREFIX}-org`,
+  ]);
   orgId = org.rows[0]?.id;
   assert.ok(orgId, "organization requise pour les tests");
 
   const user = await pool.query(
-    "SELECT id FROM users WHERE organization_id = $1 ORDER BY created_at ASC LIMIT 1",
-    [orgId]
+    `INSERT INTO users (organization_id, email, password_hash, status, email_verified)
+     VALUES ($1, $2, 'test-hash', 'active', true)
+     RETURNING id`,
+    [orgId, `${PREFIX}@dashboard.test.local`]
   );
   userId = user.rows[0]?.id;
   assert.ok(userId, "user requis pour les tests dashboard");
