@@ -40,7 +40,7 @@ before(async () => {
 
   const stRes = await pool.query(
     `INSERT INTO pipeline_stages (organization_id, name, position, is_closed)
-     VALUES ($1, 'Test Stage', 1, false) RETURNING id`,
+     VALUES ($1, 'Test Stage', 999, false) RETURNING id`,
     [orgId]
   );
   stageId = stRes.rows[0].id;

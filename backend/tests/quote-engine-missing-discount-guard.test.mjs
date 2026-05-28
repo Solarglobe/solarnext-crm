@@ -89,7 +89,12 @@ test("presence d'une ligne DOCUMENT_DISCOUNT => comportement normal conserve", a
       -5,
       -30,
       999,
-      JSON.stringify({ line_kind: "DOCUMENT_DISCOUNT" }),
+      JSON.stringify({
+        name: "Remise document",
+        category: "DISCOUNT",
+        source: {},
+        line_kind: "DOCUMENT_DISCOUNT",
+      }),
     ]
   );
 

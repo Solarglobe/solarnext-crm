@@ -14,6 +14,7 @@ export const up = (pgm) => {
     ALTER TABLE invoices
       ADD COLUMN IF NOT EXISTS lead_id uuid REFERENCES leads(id) ON DELETE SET NULL;
     ALTER TABLE invoices ALTER COLUMN client_id DROP NOT NULL;
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_terms text;
     CREATE INDEX IF NOT EXISTS idx_invoices_lead_id ON invoices (lead_id);
   `);
 
@@ -22,7 +23,40 @@ export const up = (pgm) => {
       ADD COLUMN IF NOT EXISTS global_discount_percent numeric,
       ADD COLUMN IF NOT EXISTS global_discount_amount_ht numeric,
       ADD COLUMN IF NOT EXISTS deposit_percent numeric,
-      ADD COLUMN IF NOT EXISTS deposit jsonb;
+      ADD COLUMN IF NOT EXISTS deposit jsonb,
+      ADD COLUMN IF NOT EXISTS payment_terms text;
+  `);
+
+  pgm.sql(`
+    CREATE TABLE IF NOT EXISTS lead_meters (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      lead_id uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+      name varchar(255) NOT NULL DEFAULT 'Compteur principal',
+      is_default boolean NOT NULL DEFAULT false,
+      sort_order integer NOT NULL DEFAULT 0,
+      consumption_pdl varchar(50),
+      meter_power_kva integer,
+      grid_type varchar(20),
+      consumption_mode varchar(50),
+      consumption_annual_kwh numeric,
+      consumption_annual_calculated_kwh numeric,
+      consumption_profile jsonb,
+      hp_hc boolean NOT NULL DEFAULT false,
+      supplier_name varchar(255),
+      tariff_type varchar(50),
+      energy_profile jsonb,
+      equipement_actuel text,
+      equipement_actuel_params jsonb,
+      equipements_a_venir jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_lead_meters_org_lead ON lead_meters (organization_id, lead_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_lead_meters_one_default
+      ON lead_meters (organization_id, lead_id)
+      WHERE is_default = true;
   `);
 
   pgm.sql(`
@@ -96,12 +130,14 @@ export const down = (pgm) => {
     ALTER TABLE lead_sources ALTER COLUMN sort_order DROP DEFAULT;
 
     ALTER TABLE quotes
+      DROP COLUMN IF EXISTS payment_terms,
       DROP COLUMN IF EXISTS deposit,
       DROP COLUMN IF EXISTS deposit_percent,
       DROP COLUMN IF EXISTS global_discount_amount_ht,
       DROP COLUMN IF EXISTS global_discount_percent;
 
     DROP INDEX IF EXISTS idx_invoices_lead_id;
+    ALTER TABLE invoices DROP COLUMN IF EXISTS payment_terms;
     ALTER TABLE invoices DROP COLUMN IF EXISTS lead_id;
     ALTER TABLE invoices ALTER COLUMN client_id SET NOT NULL;
   `);

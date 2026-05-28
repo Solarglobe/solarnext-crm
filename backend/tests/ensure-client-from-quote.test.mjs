@@ -263,7 +263,7 @@ test("ensureClientForQuote: quote.client_id + quote.lead_id => lead.status passe
 
   const lr = await pool.query(
     `INSERT INTO leads (organization_id, stage_id, status, full_name, first_name, last_name, email, source_id, customer_type)
-     VALUES ($1, $2, 'PROSPECT', 'Lead Client', 'Lead', 'Client', $3, $4, 'PERSON') RETURNING id`,
+     VALUES ($1, $2, 'LEAD', 'Lead Client', 'Lead', 'Client', $3, $4, 'PERSON') RETURNING id`,
     [orgId, stageId, email, sourceId]
   );
   const leadId = lr.rows[0].id;
