@@ -30,6 +30,16 @@ before(async () => {
   userId = user.rows[0]?.id;
   assert.ok(userId, "user requis pour les tests dashboard");
 
+  const adminRole = await pool.query(
+    "SELECT id FROM rbac_roles WHERE code = 'ADMIN' AND (organization_id = $1 OR organization_id IS NULL) ORDER BY organization_id NULLS LAST LIMIT 1",
+    [orgId]
+  );
+  assert.ok(adminRole.rows[0]?.id, "role ADMIN requis pour les tests dashboard");
+  await pool.query(
+    "INSERT INTO rbac_user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+    [userId, adminRole.rows[0].id]
+  );
+
   const client = await pool.query(
     `INSERT INTO clients (organization_id, client_number, first_name, last_name, email)
      VALUES ($1, $2, 'Prep', 'Client', $3) RETURNING id`,

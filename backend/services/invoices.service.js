@@ -757,9 +757,9 @@ function readLockedBillingTotals(quote) {
 }
 
 /**
- * Fige / met à jour la base globale de facturation sur le devis.
- * Si une préparation complète est fournie (HT/TVA/TTC), elle fait foi — même si un verrou
- * existait déjà (ex. ancien total catalogue). Sinon : renvoie le verrou existant ou fige depuis le live devis.
+ * Fige la base globale de facturation sur le devis.
+ * Une fois un total déjà verrouillé, il reste la source de vérité pour éviter
+ * qu'une préparation ultérieure ne modifie le plafond contractuel du dossier.
  * @param {import("pg").PoolClient} client
  */
 async function resolveOrLockQuoteBillingTotals(client, quote, preparedTotals = null) {
@@ -777,6 +777,7 @@ async function resolveOrLockQuoteBillingTotals(client, quote, preparedTotals = n
     preparedVat >= 0;
 
   const existing = readLockedBillingTotals(quote);
+  if (existing) return { ...existing, was_locked_before: true };
 
   if (hasFullPreparation) {
     const total_ttc = roundMoney2(preparedTtc);
@@ -802,8 +803,6 @@ async function resolveOrLockQuoteBillingTotals(client, quote, preparedTotals = n
       was_locked_before: Boolean(existing),
     };
   }
-
-  if (existing) return { ...existing, was_locked_before: true };
 
   const liveTtc = roundMoney2(Number(quote.total_ttc) || 0);
   const total_ttc = liveTtc;
