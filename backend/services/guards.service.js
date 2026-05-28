@@ -47,7 +47,7 @@ export async function assertOrgEntity(client, table, id, orgId, opts = {}) {
   if (table === "studies") cols.push("deleted_at");
   if (table === "leads") cols.push("status", "assigned_user_id", "stage_id");
   if (table === "quotes") cols.push("status");
-  if (table === "invoices") cols.push("status", "client_id", "quote_id", "total_paid", "total_credited", "total_ttc", "amount_due");
+  if (table === "invoices") cols.push("status", "client_id", "lead_id", "quote_id", "total_paid", "total_credited", "total_ttc", "amount_due");
   let whereClause = "id = $1 AND organization_id = $2";
   if (table === "studies") whereClause += " AND (deleted_at IS NULL)";
   const res = await client.query(
