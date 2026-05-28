@@ -1,11 +1,13 @@
 /**
- * Test d'intégration : génération des 3 scénarios (BASE, BATTERY_PHYSICAL, BATTERY_VIRTUAL)
+ * Test d'intégration : génération des 4 scénarios
+ * (BASE, BATTERY_PHYSICAL, BATTERY_VIRTUAL, BATTERY_HYBRID)
  * à partir de la config quote-prep (economic_snapshot.config_json au format frontend : batteries.physical, batteries.virtual).
  *
  * 1) Crée org + lead + study + version + calpinage + economic_snapshot avec config batteries (physical + virtual enabled).
  * 2) Appelle validate-devis-technique.
  * 3) Lit study_versions.data_json.scenarios_v2.
- * 4) Assert : ids contiennent BASE, BATTERY_PHYSICAL, BATTERY_VIRTUAL et length === 3.
+ * 4) Assert : ids contiennent BASE, BATTERY_PHYSICAL, BATTERY_VIRTUAL,
+ *    BATTERY_HYBRID et length === 4.
  *
  * Usage: cd backend && node tests/scenariosGenerationFromQuoteConfig.test.js
  */
@@ -179,7 +181,7 @@ function mockRes() {
   };
 }
 
-const EXPECTED_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL"];
+const EXPECTED_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -224,11 +226,11 @@ async function main() {
 
   assert(Array.isArray(scenariosV2), "scenarios_v2 doit être un tableau");
   const actualIds = scenariosV2.map((s) => s?.id ?? s?.name).filter(Boolean);
-  const hasAllThree = EXPECTED_IDS.every((id) => actualIds.includes(id));
-  const countOk = scenariosV2.length === 3;
+  const hasAllExpected = EXPECTED_IDS.every((id) => actualIds.includes(id));
+  const countOk = scenariosV2.length === EXPECTED_IDS.length;
 
-  if (!countOk || !hasAllThree) {
-    console.error("FAIL: expected 3 scenarios with ids BASE, BATTERY_PHYSICAL, BATTERY_VIRTUAL");
+  if (!countOk || !hasAllExpected) {
+    console.error("FAIL: expected 4 scenarios with ids BASE, BATTERY_PHYSICAL, BATTERY_VIRTUAL, BATTERY_HYBRID");
     console.error("  got length:", scenariosV2.length, "ids:", actualIds);
     await cleanup(ids);
     process.exit(1);
@@ -268,7 +270,7 @@ async function main() {
     }
   }
 
-  console.log("PASS: scenarios_v2 contient 3 ids (BASE, BATTERY_PHYSICAL, BATTERY_VIRTUAL) depuis config quote-prep");
+  console.log("PASS: scenarios_v2 contient 4 ids (BASE, BATTERY_PHYSICAL, BATTERY_VIRTUAL, BATTERY_HYBRID) depuis config quote-prep");
   await cleanup(ids);
   process.exit(0);
 }
