@@ -172,7 +172,13 @@ test("CAS 4 — DEPOSIT sans montant ni structuration → erreur claire", async 
     await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
 
     await assert.rejects(
-      () => invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "DEPOSIT" }),
+      () =>
+        invoiceService.createInvoiceFromQuote(qid, orgId, {
+          billingRole: "DEPOSIT",
+          preparedTotalTtc: 500,
+          preparedTotalHt: 500,
+          preparedTotalVat: 0,
+        }),
       /Veuillez saisir un montant d'acompte/i
     );
   } finally {
