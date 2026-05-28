@@ -1,4 +1,5 @@
 import { test as base, expect, request } from "../../frontend/node_modules/@playwright/test";
+import type { Page } from "../../frontend/node_modules/@playwright/test";
 
 export { expect, request };
 
@@ -158,6 +159,14 @@ export async function completeOnboarding(seed: SeedContext) {
   });
   expect(res.status, JSON.stringify(res.data)).toBe(200);
   return res.data;
+}
+
+export async function loginViaUi(page: Page, seed: SeedContext, expectedPath: RegExp = /\/dashboard/) {
+  await page.goto("/login");
+  await page.locator("#email").fill(seed.email);
+  await page.locator("#password").fill(seed.password);
+  await page.getByRole("button", { name: /se connecter/i }).click();
+  await expect(page).toHaveURL(expectedPath);
 }
 
 export function coherentQuotePayload(ids: Awaited<ReturnType<typeof seedLockedFinancialScenario>>) {

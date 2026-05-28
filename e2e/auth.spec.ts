@@ -1,4 +1,4 @@
-import { API_URL, completeOnboarding, expect, test } from "./support/e2eTest";
+import { API_URL, completeOnboarding, expect, loginViaUi, test } from "./support/e2eTest";
 
 test.describe("auth critical flow", () => {
   test("login with a verified account opens the dashboard", async ({ page, seed }) => {
@@ -9,12 +9,7 @@ test.describe("auth critical flow", () => {
     });
     expect(me.status).toBe(200);
 
-    await page.addInitScript((token) => {
-      window.localStorage.setItem("solarnext_token", token);
-    }, seed.token);
-
-    await page.goto("/dashboard");
-    await expect(page).toHaveURL(/\/dashboard/);
+    await loginViaUi(page, seed);
     await expect(page.locator("body")).toContainText(/dashboard|tableau|solarnext/i);
   });
 

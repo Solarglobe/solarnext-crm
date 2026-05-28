@@ -1,4 +1,4 @@
-import { completeOnboarding, expect, test } from "./support/e2eTest";
+import { completeOnboarding, expect, loginViaUi, test } from "./support/e2eTest";
 import type { Page } from "../frontend/node_modules/@playwright/test";
 
 const ESSENTIAL_PAGES = [
@@ -10,12 +10,6 @@ const ESSENTIAL_PAGES = [
   { path: "/settings", label: /parametres|param.tres/i },
 ] as const;
 
-async function loginWithToken(page: Page, token: string) {
-  await page.addInitScript((authToken) => {
-    window.localStorage.setItem("solarnext_token", authToken);
-  }, token);
-}
-
 async function assertUsableCrmPage(page: Page, label: RegExp) {
   await expect(page.locator("body")).toContainText(label);
   await expect(page.locator("body")).not.toContainText(/access denied|acces refuse|acc.s refus.|page introuvable/i);
@@ -24,9 +18,7 @@ async function assertUsableCrmPage(page: Page, label: RegExp) {
 
 test.describe("release go/no-go CRM smoke", () => {
   test("onboarding guard blocks the CRM until mandatory setup is completed", async ({ page, seed }) => {
-    await loginWithToken(page, seed.token);
-
-    await page.goto("/dashboard");
+    await loginViaUi(page, seed, /\/onboarding/);
     await expect(page).toHaveURL(/\/onboarding/);
     await expect(page.locator("body")).toContainText(/bienvenue|configuration|onboarding|organisation/i);
 
@@ -38,8 +30,8 @@ test.describe("release go/no-go CRM smoke", () => {
 
   test("essential CRM pages are reachable and readable on desktop", async ({ page, seed }, testInfo) => {
     await completeOnboarding(seed);
-    await loginWithToken(page, seed.token);
     await page.setViewportSize({ width: 1440, height: 900 });
+    await loginViaUi(page, seed);
 
     for (const route of ESSENTIAL_PAGES) {
       await page.goto(route.path);
@@ -55,8 +47,8 @@ test.describe("release go/no-go CRM smoke", () => {
 
   test("mobile navigation keeps core CRM entries accessible", async ({ page, seed }, testInfo) => {
     await completeOnboarding(seed);
-    await loginWithToken(page, seed.token);
     await page.setViewportSize({ width: 390, height: 844 });
+    await loginViaUi(page, seed);
 
     await page.goto("/dashboard");
     await assertUsableCrmPage(page, /tableau|dashboard/i);
