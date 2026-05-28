@@ -76,10 +76,24 @@ const INTEGRATION_TEST_FILES = [
 
 console.log(`▶  test:integration — ${INTEGRATION_TEST_FILES.length} fichiers (DB requise)\n`);
 
-const proc = spawn(
-  process.execPath,
-  ['--test', '--test-concurrency=1', ...INTEGRATION_TEST_FILES],
-  { cwd: backendRoot, stdio: 'inherit' },
-);
+function runOne(file) {
+  return new Promise((resolve) => {
+    console.log(`\n▶  ${file}`);
+    const proc = spawn(
+      process.execPath,
+      ['--test', file],
+      { cwd: backendRoot, stdio: 'inherit' },
+    );
+    proc.on('exit', (code) => resolve(code ?? 1));
+  });
+}
 
-proc.on('exit', (code) => process.exit(code ?? 1));
+for (const file of INTEGRATION_TEST_FILES) {
+  const code = await runOne(file);
+  if (code !== 0) {
+    console.error(`\n✗  test:integration failed in ${file}`);
+    process.exit(code);
+  }
+}
+
+console.log('\n✓  test:integration passed');
