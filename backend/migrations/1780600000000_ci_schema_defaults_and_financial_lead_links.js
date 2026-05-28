@@ -41,7 +41,7 @@ export const up = (pgm) => {
       consumption_mode varchar(50),
       consumption_annual_kwh numeric,
       consumption_annual_calculated_kwh numeric,
-      consumption_profile jsonb,
+      consumption_profile varchar(20),
       hp_hc boolean NOT NULL DEFAULT false,
       supplier_name varchar(255),
       tariff_type varchar(50),
