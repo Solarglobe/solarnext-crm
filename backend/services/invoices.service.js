@@ -295,17 +295,19 @@ export async function getInvoiceDetail(invoiceId, organizationId) {
 }
 
 async function assertClientInOrg(clientId, organizationId) {
+  const normalizedClientId = normalizeId(clientId);
   const r = await pool.query(
     "SELECT id FROM clients WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)",
-    [clientId, organizationId]
+    [normalizedClientId, organizationId]
   );
   if (r.rows.length === 0) throw new Error("Client non trouvé ou hors organisation");
 }
 
 async function assertLeadInOrg(leadId, organizationId) {
+  const normalizedLeadId = normalizeId(leadId);
   const r = await pool.query(
     "SELECT id FROM leads WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)",
-    [leadId, organizationId]
+    [normalizedLeadId, organizationId]
   );
   if (r.rows.length === 0) throw new Error("Lead non trouvé ou hors organisation");
 }
@@ -503,12 +505,14 @@ export async function updateInvoice(invoiceId, organizationId, body) {
     }
 
     if (client_id !== undefined) {
-      if (client_id) await assertClientInOrg(client_id, organizationId);
-      await client.query(`UPDATE invoices SET client_id = $1, updated_at = now() WHERE id = $2`, [client_id || null, invoiceId]);
+      const normalizedClientId = normalizeId(client_id);
+      if (normalizedClientId) await assertClientInOrg(normalizedClientId, organizationId);
+      await client.query(`UPDATE invoices SET client_id = $1, updated_at = now() WHERE id = $2`, [normalizedClientId, invoiceId]);
     }
     if (lead_id !== undefined) {
-      if (lead_id) await assertLeadInOrg(lead_id, organizationId);
-      await client.query(`UPDATE invoices SET lead_id = $1, updated_at = now() WHERE id = $2`, [lead_id || null, invoiceId]);
+      const normalizedLeadId = normalizeId(lead_id);
+      if (normalizedLeadId) await assertLeadInOrg(normalizedLeadId, organizationId);
+      await client.query(`UPDATE invoices SET lead_id = $1, updated_at = now() WHERE id = $2`, [normalizedLeadId, invoiceId]);
     }
     if (quote_id !== undefined) {
       if (quote_id) {
@@ -776,13 +780,16 @@ async function resolveOrLockQuoteBillingTotals(client, quote, preparedTotals = n
     Number.isFinite(preparedVat) &&
     preparedVat >= 0;
 
-  const existing = readLockedBillingTotals(quote);
-  if (existing) return { ...existing, was_locked_before: true };
-
   if (hasFullPreparation) {
     const total_ttc = roundMoney2(preparedTtc);
     const total_ht = roundMoney2(preparedHt);
     const total_vat = roundMoney2(preparedVat);
+    const existing = readLockedBillingTotals(quote);
+
+    if (existing) {
+      const alreadyReservedTtc = await sumQuoteInvoiceTtcNonCancelled(client, quote.id, quote.organization_id);
+      if (alreadyReservedTtc > 0.02) return { ...existing, was_locked_before: true };
+    }
 
     await client.query(
       `UPDATE quotes
@@ -803,6 +810,9 @@ async function resolveOrLockQuoteBillingTotals(client, quote, preparedTotals = n
       was_locked_before: Boolean(existing),
     };
   }
+
+  const existing = readLockedBillingTotals(quote);
+  if (existing) return { ...existing, was_locked_before: true };
 
   const liveTtc = roundMoney2(Number(quote.total_ttc) || 0);
   const total_ttc = liveTtc;
