@@ -7,12 +7,15 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import "../config/register-local-env.js";
 import { pool } from "../config/db.js";
 import * as quoteService from "../routes/quotes/service.js";
 
 const execFileAsync = promisify(execFile);
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const backendCwd = resolve(__dirname, "..");
 const PREFIX = `BCL-${Date.now()}`;
 let orgId;
 let stageId;
@@ -21,7 +24,6 @@ const toDelete = { quoteIds: [], leadIds: [], clientIds: [], orgIds: [], stageId
 
 async function runScript(args = []) {
   const scriptPath = "scripts/backfill-client-ids-for-client-leads.mjs";
-  const backendCwd = resolve(process.cwd(), "backend");
   const { stdout, stderr } = await execFileAsync(process.execPath, [scriptPath, ...args], {
     cwd: backendCwd,
     env: process.env,
