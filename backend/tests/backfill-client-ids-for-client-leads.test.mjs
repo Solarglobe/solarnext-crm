@@ -17,7 +17,7 @@ const PREFIX = `BCL-${Date.now()}`;
 let orgId;
 let stageId;
 let sourceId;
-const toDelete = { quoteIds: [], leadIds: [], clientIds: [] };
+const toDelete = { quoteIds: [], leadIds: [], clientIds: [], orgIds: [], stageIds: [], sourceIds: [] };
 
 async function runScript(args = []) {
   const scriptPath = "scripts/backfill-client-ids-for-client-leads.mjs";
@@ -30,21 +30,29 @@ async function runScript(args = []) {
 }
 
 before(async () => {
-  const r = await pool.query("SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1");
-  assert.ok(r.rows.length, "organization requise");
-  orgId = r.rows[0].id;
-  const st = await pool.query(
-    `SELECT id FROM pipeline_stages WHERE organization_id = $1 ORDER BY position ASC LIMIT 1`,
+  // Create isolated test fixtures — no dependency on pre-existing seed data (CI starts empty).
+  const orgRes = await pool.query(
+    `INSERT INTO organizations (name) VALUES ($1) RETURNING id`,
+    [`${PREFIX}-org`]
+  );
+  orgId = orgRes.rows[0].id;
+  toDelete.orgIds.push(orgId);
+
+  const stRes = await pool.query(
+    `INSERT INTO pipeline_stages (organization_id, name, position, is_closed)
+     VALUES ($1, 'Test Stage', 1, false) RETURNING id`,
     [orgId]
   );
-  assert.ok(st.rows.length, "pipeline_stages requis");
-  stageId = st.rows[0].id;
-  const src = await pool.query(
-    `SELECT id FROM lead_sources WHERE organization_id = $1 ORDER BY slug LIMIT 1`,
+  stageId = stRes.rows[0].id;
+  toDelete.stageIds.push(stageId);
+
+  const srcRes = await pool.query(
+    `INSERT INTO lead_sources (organization_id, name, slug, sort_order)
+     VALUES ($1, 'Autre', 'autre', 99) RETURNING id`,
     [orgId]
   );
-  assert.ok(src.rows.length, "lead_sources requis");
-  sourceId = src.rows[0].id;
+  sourceId = srcRes.rows[0].id;
+  toDelete.sourceIds.push(sourceId);
 });
 
 after(async () => {
@@ -57,6 +65,15 @@ after(async () => {
   }
   for (const cid of toDelete.clientIds) {
     await pool.query("DELETE FROM clients WHERE id = $1", [cid]).catch(() => {});
+  }
+  for (const sid of toDelete.sourceIds) {
+    await pool.query("DELETE FROM lead_sources WHERE id = $1", [sid]).catch(() => {});
+  }
+  for (const sid of toDelete.stageIds) {
+    await pool.query("DELETE FROM pipeline_stages WHERE id = $1", [sid]).catch(() => {});
+  }
+  for (const oid of toDelete.orgIds) {
+    await pool.query("DELETE FROM organizations WHERE id = $1", [oid]).catch(() => {});
   }
   await pool.end();
 });

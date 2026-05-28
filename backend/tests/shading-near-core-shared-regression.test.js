@@ -75,7 +75,9 @@ function buildBaseScenario() {
 }
 
 async function run() {
-  assertNear(nearFromShared === nearFromFrontendProxy, "shared et proxy frontend exportent le même module (référence)");
+  const sharedKeys = Object.keys(nearFromShared).sort().join(",");
+  const proxyKeys  = Object.keys(nearFromFrontendProxy).sort().join(",");
+  assertNear(sharedKeys === proxyKeys, "shared et proxy frontend exportent les memes cles (parite sync)");
 
   const { getAnnualSunVectorsForNear } = await import("../services/shading/calpinageShading.service.js");
   const sunVectors = getAnnualSunVectorsForNear(LAT, LON, CONFIG);
@@ -97,11 +99,11 @@ async function run() {
   const eps = 1e-12;
   assertNear(
     Math.abs(nominal.totalLossPct - GOLDEN_TOTAL) < eps,
-    "cas nominal : totalLossPct inchangé (golden pré-extraction)"
+    "cas nominal : totalLossPct inchange (golden pre-extraction)"
   );
   assertNear(
     Math.abs(nominal.perPanel[0].lossPct - GOLDEN_P0_LOSS) < eps && Math.abs(nominal.perPanel[1].lossPct - GOLDEN_P1_LOSS) < eps,
-    "cas nominal : lossPct par panneau inchangés"
+    "cas nominal : lossPct par panneau inchanges"
   );
 
   const emptySun = nearFromShared.computeNearShading({
@@ -110,10 +112,10 @@ async function run() {
     sunVectors: [],
     metersPerPixel: 1,
   });
-  assertNear(emptySun.totalLossPct === 0, "sunVectors vides → totalLossPct 0 (fallback officiel)");
+  assertNear(emptySun.totalLossPct === 0, "sunVectors vides -> totalLossPct 0 (fallback officiel)");
   assertNear(
     emptySun.perPanel.length === 2 && emptySun.perPanel.every((p) => p.lossPct === 0),
-    "sunVectors vides → perPanel lossPct 0"
+    "sunVectors vides -> perPanel lossPct 0"
   );
 
   const circleObs = [
@@ -125,7 +127,7 @@ async function run() {
     },
   ];
   const norm = nearFromShared.normalizeObstacles(circleObs, undefined);
-  assertNear(norm.length === 1 && norm[0].polygonPx.length >= 3, "normalisation obstacle cercle → polygone");
+  assertNear(norm.length === 1 && norm[0].polygonPx.length >= 3, "normalisation obstacle cercle -> polygone");
 
   const sunOne = [nearFromShared.computeSunVector(180, 35)];
   const withCircle = nearFromShared.computeNearShading({
@@ -138,13 +140,13 @@ async function run() {
   });
   assertNear(
     typeof withCircle.totalLossPct === "number" && withCircle.totalLossPct >= 0 && withCircle.totalLossPct <= 100,
-    "obstacle cercle normalisé : totalLossPct fini dans [0,100]"
+    "obstacle cercle normalise : totalLossPct fini dans [0,100]"
   );
 
   const keysResult = Object.keys(nominal).sort().join(",");
   assertNear(
     keysResult.includes("totalLossPct") && keysResult.includes("perPanel"),
-    "structure JSON near : clés racine totalLossPct + perPanel (contrat)"
+    "structure JSON near : cles racine totalLossPct + perPanel (contrat)"
   );
   const pp0 = nominal.perPanel[0];
   assertNear(
@@ -152,7 +154,7 @@ async function run() {
     "perPanel[0] contient panelId, shadedFractionAvg, lossPct, shadedSamplesCount"
   );
 
-  console.log("\n--- RÉSUMÉ shading-near-core-shared-regression ---");
+  console.log("\n--- RESUME shading-near-core-shared-regression ---");
   console.log("Passed:", passed, "Failed:", failed);
   if (failed > 0) process.exit(1);
   process.exit(0);

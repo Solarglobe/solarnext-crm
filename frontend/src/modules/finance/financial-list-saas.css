@@ -522,4 +522,8 @@ tr:hover .fin-actions-cell,
     table-layout: auto;
   }
 
-  .fin-standard-table .sn-data-table__table td:
+  .fin-standard-table .sn-data-table__table th,
+  .fin-standard-table .sn-data-table__table td {
+    white-space: normal;
+  }
+}

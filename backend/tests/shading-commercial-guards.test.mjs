@@ -65,7 +65,7 @@ test("auditMultiPanShadingMismatch : valeurs alignées → OK", () => {
   assert.equal(m.status, "OK");
 });
 
-test("calculation_confidence : audit commercial bloque le PDF", () => {
+test("calculation_confidence : audit commercial FAR degrade la confiance sans bloquer le PDF", () => {
   const ctx = {
     meta: {
       shading_commercial_audit: {
@@ -80,8 +80,9 @@ test("calculation_confidence : audit commercial bloque le PDF", () => {
     virtual_battery_input: { enabled: false },
   };
   const cc = buildCalculationConfidenceFromCalc(ctx, {});
-  assert.ok(cc.blocking_warnings.includes("FAR_SHADING_UNAVAILABLE_BLOCK_PDF"));
-  assert.ok(isPdfBlockedByConfidence(cc));
+  assert.ok(!cc.blocking_warnings.includes("FAR_SHADING_UNAVAILABLE_BLOCK_PDF"));
+  assert.ok(cc.non_blocking_warnings.includes("FAR_SHADING_UNAVAILABLE_BLOCK_PDF"));
+  assert.equal(isPdfBlockedByConfidence(cc), false);
   assert.equal(cc.assumptions.far_shading_unavailable, true);
 });
 
