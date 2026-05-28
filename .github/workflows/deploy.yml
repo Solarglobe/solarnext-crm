@@ -31,15 +31,14 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Vercel CLI and deploy
-        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          npm ci
+          npm ci --prefix frontend
           npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-          npm run build
+          npm run --prefix frontend build
           npx vercel deploy --prod --yes --token="$VERCEL_TOKEN"
 
   deploy-vps:
