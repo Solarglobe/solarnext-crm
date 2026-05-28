@@ -1,7 +1,9 @@
-import { API_URL, expect, test } from "./support/e2eTest";
+import { API_URL, completeOnboarding, expect, test } from "./support/e2eTest";
 
 test.describe("auth critical flow", () => {
   test("login with a verified account opens the dashboard", async ({ page, seed }) => {
+    await completeOnboarding(seed);
+
     const me = await fetch(`${API_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${seed.token}` },
     });

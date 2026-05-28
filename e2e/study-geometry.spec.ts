@@ -4,7 +4,7 @@ test.describe("study geometry critical guards", () => {
   test("rejects an incomplete calepinage snapshot with a precise business error", async ({ seed }) => {
     const ids = await createLeadStudyVersion(seed);
 
-    const res = await api(seed, "POST", `/api/studies/${ids.studyId}/versions/${ids.versionId}/calpinage`, {
+    const res = await api(seed, "POST", `/api/studies/${ids.studyId}/versions/1/calpinage`, {
       geometry_json: {
         panels: [{ id: "outside-roof", x: 999999, y: 999999 }],
       },
