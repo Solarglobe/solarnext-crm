@@ -39,8 +39,8 @@ jobs:
         run: |
           npm ci
           npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-          npx vercel build --prod --token="$VERCEL_TOKEN"
-          npx vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+          npm run build
+          npx vercel deploy --prod --yes --token="$VERCEL_TOKEN"
 
   deploy-vps:
     name: Deploy Backend to VPS
