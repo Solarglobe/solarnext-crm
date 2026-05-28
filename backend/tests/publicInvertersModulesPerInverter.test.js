@@ -12,16 +12,15 @@
 import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import fetch from "node-fetch";
+import request from "supertest";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const ROOT = resolve(__dirname, "../..");
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
-
-
+const { buildHttpApp } = await import("../httpApp.js");
 const { pool } = await import("../config/db.js");
+const app = buildHttpApp();
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -36,20 +35,15 @@ function isMicro(inv) {
 async function main() {
   console.log("=== Test publicInvertersModulesPerInverter ===\n");
 
-  const health = await fetch(`${BASE_URL}/`).catch(() => null);
-  if (!health?.ok) {
-    console.error("❌ Serveur non accessible. Lancez: npm run dev");
-    process.exit(1);
-  }
-  console.log("1. Serveur OK\n");
+  console.log("1. App Express OK\n");
 
   let list = [];
 
   // GET /api/public/pv/inverters (sans auth)
   console.log("2. GET /api/public/pv/inverters...");
-  let res = await fetch(`${BASE_URL}/api/public/pv/inverters`);
+  let res = await request(app).get("/api/public/pv/inverters");
   assert(res.ok, `Attendu 200, reçu ${res.status}`);
-  list = await res.json();
+  list = res.body;
   assert(Array.isArray(list), "Réponse doit être un tableau");
 
   let micros = list.filter(isMicro);
@@ -75,9 +69,9 @@ async function main() {
     );
     insertedMicroId = rows[0].id;
 
-    res = await fetch(`${BASE_URL}/api/public/pv/inverters`);
+    res = await request(app).get("/api/public/pv/inverters");
     assert(res.ok, "GET après insert doit être OK");
-    list = await res.json();
+    list = res.body;
     micros = list.filter(isMicro);
     assert(micros.length > 0, "Le micro inséré doit apparaître dans la liste publique");
   }
@@ -114,8 +108,11 @@ async function main() {
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(async () => {
+    await pool.end();
+    process.exit(0);
+  })
   .catch((e) => {
     console.error("\n❌", e.message || e);
-    process.exit(1);
+    pool.end().finally(() => process.exit(1));
   });
