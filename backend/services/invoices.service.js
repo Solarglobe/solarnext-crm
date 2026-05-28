@@ -1413,8 +1413,9 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
       };
     } else if (billingRole === "BALANCE") {
       const depositsIssued = await sumQuoteDepositTtcIssued(client, quoteId, organizationId);
-      const balanceDue = roundMoney2(Math.max(0, quoteTtc - depositsIssued));
-      if (balanceDue <= 0.02) {
+      const balanceAfterIssuedDeposits = roundMoney2(Math.max(0, quoteTtc - depositsIssued));
+      const balanceDue = roundMoney2(Math.max(0, Math.min(balanceAfterIssuedDeposits, remainingBefore)));
+      if (remainingBefore <= 0.02 || balanceDue <= 0.02) {
         throw new Error("Rien à facturer : la base de facturation préparée est déjà couverte par les factures existantes.");
       }
       const sliceTtc = balanceDue;
@@ -1432,6 +1433,7 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         ...buildMetadataQuoteBilling("BALANCE", billingBase, {
           balance_ttc: sliceTtc,
           deposits_issued_ttc: depositsIssued,
+          already_reserved_ttc: reservedTtc,
           prepared_total_ttc: preparedTotalOpt,
           billing_total_locked_at: billingTotals.locked_at ?? null,
           billing_total_was_locked_before: Boolean(billingTotals.was_locked_before),
