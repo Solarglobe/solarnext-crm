@@ -1,15 +1,15 @@
 /**
  * CP-ENERGY-001 — Tests unitaires normaliseur Enedis Load Curve
  *
- * Garde-fou : value > 10000 → traité en Wh (kWh = value/1000).
- * value <= 10000 → laissé tel quel pour détection par le builder.
+ * Comportement : API Enedis envoie toujours des Wh → toujours ÷ 1000 pour obtenir kWh.
+ * Pas de seuil conditionnel — la division est systématique quelle que soit la valeur.
  *
- * 1) meter_reading objet (valeurs ≤10000 → pass-through)
+ * 1) meter_reading objet
  * 2) meter_reading tableau
  * 3) value null (ignorer)
  * 4) tri chronologique
- * 5) valeurs ≤10000 pass-through
- * 6) value > 10000 → conversion Wh → kWh
+ * 5) valeurs Wh → kWh (÷1000)
+ * 6) grandes valeurs Wh → kWh (÷1000)
  *
  * Usage: node tests/enedisNormalizer.test.js
  */
@@ -48,8 +48,8 @@ function main() {
     assert(out.unit === "kWh", "1) unit");
     assert(out.data.length === 2, "1) data length");
     assert(out.data[0].timestamp === "2024-03-01T00:00:00+01:00", "1) timestamp conservé");
-    assertApprox(out.data[0].consumption_kwh, 420, "1) 420 ≤10000 → pass-through");
-    assertApprox(out.data[1].consumption_kwh, 380, "1) 380 ≤10000 → pass-through");
+    assertApprox(out.data[0].consumption_kwh, 0.42, "1) 420 Wh ÷ 1000 = 0.42 kWh");
+    assertApprox(out.data[1].consumption_kwh, 0.38, "1) 380 Wh ÷ 1000 = 0.38 kWh");
     console.log("✅ 1) meter_reading objet");
   }
 
@@ -69,8 +69,8 @@ function main() {
     const out = normalizeEnedisLoadCurve(enedis);
     assert(out.pdl === "14295234567890", "2) pdl");
     assert(out.data.length === 2, "2) data length");
-    assertApprox(out.data[0].consumption_kwh, 100, "2) 100 ≤10000 → pass-through");
-    assertApprox(out.data[1].consumption_kwh, 200, "2) 200 ≤10000 → pass-through");
+    assertApprox(out.data[0].consumption_kwh, 0.1, "2) 100 Wh ÷ 1000 = 0.1 kWh");
+    assertApprox(out.data[1].consumption_kwh, 0.2, "2) 200 Wh ÷ 1000 = 0.2 kWh");
     console.log("✅ 2) meter_reading tableau");
   }
 
@@ -88,8 +88,8 @@ function main() {
     };
     const out = normalizeEnedisLoadCurve(enedis);
     assert(out.data.length === 2, "3) null ignoré, 2 points");
-    assertApprox(out.data[0].consumption_kwh, 500, "3) 500 ≤10000 → pass-through");
-    assertApprox(out.data[1].consumption_kwh, 600, "3) 600 ≤10000 → pass-through");
+    assertApprox(out.data[0].consumption_kwh, 0.5, "3) 500 Wh ÷ 1000 = 0.5 kWh");
+    assertApprox(out.data[1].consumption_kwh, 0.6, "3) 600 Wh ÷ 1000 = 0.6 kWh");
     console.log("✅ 3) value null ignoré");
   }
 
@@ -109,13 +109,13 @@ function main() {
     assert(out.data[0].timestamp === "2024-03-01T00:00:00+01:00", "4) premier = 00:00");
     assert(out.data[1].timestamp === "2024-03-01T01:00:00+01:00", "4) deuxième = 01:00");
     assert(out.data[2].timestamp === "2024-03-01T02:00:00+01:00", "4) troisième = 02:00");
-    assertApprox(out.data[0].consumption_kwh, 2, "4) valeur 2 ≤10000 → pass-through");
-    assertApprox(out.data[1].consumption_kwh, 3, "4) valeur 3 ≤10000 → pass-through");
-    assertApprox(out.data[2].consumption_kwh, 1, "4) valeur 1 ≤10000 → pass-through");
+    assertApprox(out.data[0].consumption_kwh, 0.002, "4) valeur 2 Wh ÷ 1000 = 0.002 kWh");
+    assertApprox(out.data[1].consumption_kwh, 0.003, "4) valeur 3 Wh ÷ 1000 = 0.003 kWh");
+    assertApprox(out.data[2].consumption_kwh, 0.001, "4) valeur 1 Wh ÷ 1000 = 0.001 kWh");
     console.log("✅ 4) tri chronologique");
   }
 
-  // 5) valeurs ≤10000 → pass-through (builder fera la détection)
+  // 5) valeurs Wh → kWh (÷ 1000, même pour petites valeurs)
   {
     const enedis = {
       usage_point_id: "X",
@@ -127,9 +127,9 @@ function main() {
       },
     };
     const out = normalizeEnedisLoadCurve(enedis);
-    assertApprox(out.data[0].consumption_kwh, 1000, "5) 1000 ≤10000 → pass-through");
-    assertApprox(out.data[1].consumption_kwh, 2500, "5) 2500 ≤10000 → pass-through");
-    console.log("✅ 5) pass-through ≤10000");
+    assertApprox(out.data[0].consumption_kwh, 1.0, "5) 1000 Wh ÷ 1000 = 1.0 kWh");
+    assertApprox(out.data[1].consumption_kwh, 2.5, "5) 2500 Wh ÷ 1000 = 2.5 kWh");
+    console.log("✅ 5) Wh → kWh (÷1000)");
   }
 
   // 6) value > 10000 → conversion Wh → kWh

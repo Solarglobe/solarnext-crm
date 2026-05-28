@@ -150,7 +150,7 @@ export const up = (pgm) => {
       SELECT ls.id AS old_id, keeper.keep_id
       FROM lead_sources ls
       INNER JOIN (
-        SELECT organization_id, slug, min(id) AS keep_id
+        SELECT organization_id, slug, min(id::text)::uuid AS keep_id
         FROM lead_sources
         GROUP BY organization_id, slug
       ) keeper ON keeper.organization_id = ls.organization_id AND keeper.slug = ls.slug
@@ -162,7 +162,7 @@ export const up = (pgm) => {
   pgm.sql(`
     DELETE FROM lead_sources ls
     USING (
-      SELECT organization_id, slug, min(id) AS keep_id
+      SELECT organization_id, slug, min(id::text)::uuid AS keep_id
       FROM lead_sources
       GROUP BY organization_id, slug
     ) keeper
