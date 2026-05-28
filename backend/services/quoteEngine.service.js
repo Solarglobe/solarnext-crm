@@ -96,6 +96,33 @@ export function computeQuoteTotals(items) {
  */
 export async function computeQuoteTotalsFromLines({ quoteId, orgId, client = null }) {
   const q = client || pool;
+  const headerRes = await q.query(
+    `SELECT COALESCE(discount_ht, 0)::float8 AS discount_ht
+     FROM quotes
+     WHERE id = $1 AND organization_id = $2`,
+    [quoteId, orgId]
+  );
+  const headerDiscountHt = Number(headerRes.rows[0]?.discount_ht) || 0;
+  if (Math.abs(headerDiscountHt) > 0.01) {
+    const discountLineRes = await q.query(
+      `SELECT 1
+       FROM quote_lines
+       WHERE quote_id = $1
+         AND organization_id = $2
+         AND is_active IS DISTINCT FROM false
+         AND UPPER(COALESCE(snapshot_json->>'line_kind', '')) = 'DOCUMENT_DISCOUNT'
+       LIMIT 1`,
+      [quoteId, orgId]
+    );
+    if (discountLineRes.rows.length === 0) {
+      const err = new Error(
+        "Devis avec remise en en-tete sans ligne DOCUMENT_DISCOUNT: recalcul refuse pour eviter un ecrasement silencieux."
+      );
+      err.code = "MISSING_DOCUMENT_DISCOUNT_LINE";
+      err.quote_id = quoteId;
+      throw err;
+    }
+  }
   /** Source de vérité : montants persistés par ligne (incl. remise ligne discount_ht → total_line_*). */
   const res = await q.query(
     `SELECT
@@ -113,7 +140,7 @@ export async function computeQuoteTotalsFromLines({ quoteId, orgId, client = nul
 
   await q.query(
     `UPDATE quotes
-     SET total_ht = $1, total_vat = $2, total_ttc = $3, updated_at = now()
+     SET total_ht = $1, total_vat = $2, total_ttc = $3, discount_ht = 0, updated_at = now()
      WHERE id = $4 AND organization_id = $5`,
     [th, tv, ttc, quoteId, orgId]
   );

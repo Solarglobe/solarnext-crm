@@ -35,6 +35,8 @@ function minimalGeometryWithPanels() {
       scale: 1,
       north: 0,
     },
+    panelSpec: { power_wc: 500 },
+    panel: { power_wc: 500 },
     pvParams: { panelSpec: { powerWc: 500 } },
     frozenBlocks: [
       {
