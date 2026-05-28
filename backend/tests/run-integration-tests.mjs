@@ -78,7 +78,7 @@ console.log(`▶  test:integration — ${INTEGRATION_TEST_FILES.length} fichiers
 
 const proc = spawn(
   process.execPath,
-  ['--test', ...INTEGRATION_TEST_FILES],
+  ['--test', '--test-concurrency=1', ...INTEGRATION_TEST_FILES],
   { cwd: backendRoot, stdio: 'inherit' },
 );
 
