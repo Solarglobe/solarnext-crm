@@ -56,7 +56,7 @@ test("discount_ht header > 0 sans DOCUMENT_DISCOUNT => throw MISSING_DOCUMENT_DI
     (err) => {
       assert.equal(err?.code, "MISSING_DOCUMENT_DISCOUNT_LINE");
       assert.equal(err?.quote_id, quoteId);
-      assert.match(String(err?.message || ""), /remise en en-tête sans ligne DOCUMENT_DISCOUNT/i);
+      assert.match(String(err?.message || ""), /remise en en-tete sans ligne DOCUMENT_DISCOUNT/i);
       return true;
     }
   );
