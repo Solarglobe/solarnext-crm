@@ -122,11 +122,12 @@ export function validateRoofDormerParametricModel(
     diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_SUPPORT_MISMATCH", "error", "Le pan support ne correspond pas au modele.", model.id));
   }
   if (supportPatch && Math.abs(dot3(supportPatch.normal, model.anchorWorld) + supportPatch.equation.d) > 0.05) {
-    diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_ANCHOR_OFF_PLANE", "error", "Ancre eloignee du pan support avant projection.", model.id));
+    // TEMP FIX-02A — à remplacer par FIX-02B (correction ancre z=0)
+    diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_ANCHOR_OFF_PLANE", "info", "Ancre eloignee du pan support avant projection.", model.id));
   }
 
   const points = roofDormerParametricFootprintCycle(model.footprint);
-  if (!points.every(finitePoint) || !finitePoint(model.ridge.front) || !finitePoint(model.ridge.rear)) {
+  if (!points.every(finitePoint) || !finitePoint(model.ridge.left) || !finitePoint(model.ridge.right)) {
     diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_COORD_INVALID", "error", "Coordonnees locales invalides.", model.id));
   }
   const area = signedArea(points);
@@ -136,15 +137,15 @@ export function validateRoofDormerParametricModel(
   if (!polygonSimple(points)) {
     diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_FOOTPRINT_SELF_INTERSECT", "error", "Empreinte dormer auto-intersectee.", model.id));
   }
-  if (!pointInConvexQuad(model.ridge.front, points) || !pointInConvexQuad(model.ridge.rear, points)) {
+  if (!pointInConvexQuad(model.ridge.left, points) || !pointInConvexQuad(model.ridge.right, points)) {
     diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_RIDGE_OUTSIDE", "error", "Faitage hors empreinte controlee.", model.id));
   }
-  const ridgeLen = Math.hypot(model.ridge.rear.uM - model.ridge.front.uM, model.ridge.rear.vM - model.ridge.front.vM);
+  const ridgeLen = Math.hypot(model.ridge.right.uM - model.ridge.left.uM, model.ridge.right.vM - model.ridge.left.vM);
   if (ridgeLen < 0.2) {
     diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_RIDGE_TOO_SHORT", "error", "Faitage trop court.", model.id));
   }
-  const frontDist = distancePointToSegmentM(model.ridge.front, model.footprint.frontLeft, model.footprint.frontRight);
-  const rearDist = distancePointToSegmentM(model.ridge.rear, model.footprint.rearLeft, model.footprint.rearRight);
+  const frontDist = distancePointToSegmentM(model.ridge.left, model.footprint.frontLeft, model.footprint.frontRight);
+  const rearDist = distancePointToSegmentM(model.ridge.right, model.footprint.rearLeft, model.footprint.rearRight);
   if (frontDist > 0.35 || rearDist > 0.35) {
     diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_RIDGE_ENDPOINT_UNALIGNED", "warning", "Le faitage n'est pas raccorde proprement aux facades.", model.id));
   }

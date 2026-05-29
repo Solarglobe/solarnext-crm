@@ -402,4 +402,77 @@ describe("junctionPropagationPhase2", () => {
     fixContourVertexInsertAttaches([c], [tChien], [], "c1", 1, 0.5);
     expect(tChien.a.attach.pointIndex).toBe(1);  // chienAssis ignoré
   });
+
+  it("E13 — roof_contour_edge → T1 → T2 : cascade vers traits aliasant le trait modifie", () => {
+    // Setup: contour C1 with 4 points forming a square.
+    var c1 = {
+      id: "c1",
+      points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+    };
+    // T1: endpoint a is attached via roof_contour_edge on segment 0 (from (0,0) to (100,0)), t=0.5 => x=50, y=0.
+    var t1 = {
+      id: "t1",
+      a: { x: 50, y: 0, attach: { type: "roof_contour_edge", contourId: "c1", segmentIndex: 0, t: 0.5 } },
+      b: { x: 50, y: 50, attach: null },
+    };
+    // T2: endpoint a aliases T1 endpoint a via attach.type="trait".
+    var t2 = {
+      id: "t2",
+      a: { x: 50, y: 0, attach: { type: "trait", id: "t1", pointIndex: 0 } },
+      b: { x: 80, y: 30, attach: null },
+    };
+
+    // Move contour C1 segment 0 so that midpoint is now (50, 20) instead of (50, 0).
+    c1.points[0] = { x: 0, y: 20 };
+    c1.points[1] = { x: 100, y: 20 };
+
+    propagateRoofContourEdgeJunctionAfterContourEdit([c1], [t1, t2], [], "c1");
+
+    // T1.a must be recalculated to midpoint of new segment 0: (50, 20).
+    expect(t1.a.x).toBeCloseTo(50, 6);
+    expect(t1.a.y).toBeCloseTo(20, 6);
+
+    // T2.a must cascade via propagateExplicitTraitJunction to (50, 20) as well.
+    expect(t2.a.x).toBeCloseTo(50, 6);
+    expect(t2.a.y).toBeCloseTo(20, 6);
+  });
+
+  it("E13b — cascade a deux niveaux : roof_contour_edge → T1 → T2 → T3", () => {
+    var c1 = {
+      id: "c1",
+      points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+    };
+    // T1 attached to contour edge at t=0.25 => initial x=25, y=0.
+    var t1 = {
+      id: "t1",
+      a: { x: 25, y: 0, attach: { type: "roof_contour_edge", contourId: "c1", segmentIndex: 0, t: 0.25 } },
+      b: { x: 50, y: 50 },
+    };
+    // T2 aliases T1.a.
+    var t2 = {
+      id: "t2",
+      a: { x: 25, y: 0, attach: { type: "trait", id: "t1", pointIndex: 0 } },
+      b: { x: 60, y: 60 },
+    };
+    // T3 aliases T2.a (depth 2).
+    var t3 = {
+      id: "t3",
+      a: { x: 25, y: 0, attach: { type: "trait", id: "t2", pointIndex: 0 } },
+      b: { x: 70, y: 70 },
+    };
+
+    // Shift segment 0 upward by 10.
+    c1.points[0] = { x: 0, y: 10 };
+    c1.points[1] = { x: 100, y: 10 };
+
+    propagateRoofContourEdgeJunctionAfterContourEdit([c1], [t1, t2, t3], [], "c1");
+
+    // t=0.25 of new segment: x=25, y=10.
+    expect(t1.a.x).toBeCloseTo(25, 6);
+    expect(t1.a.y).toBeCloseTo(10, 6);
+    expect(t2.a.x).toBeCloseTo(25, 6);
+    expect(t2.a.y).toBeCloseTo(10, 6);
+    expect(t3.a.x).toBeCloseTo(25, 6);
+    expect(t3.a.y).toBeCloseTo(10, 6);
+  });
 });

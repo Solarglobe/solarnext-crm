@@ -93,6 +93,7 @@ export function extractStructuralRuntimeSnapshot(runtime: unknown): Record<strin
     obstacles: r.obstacles ?? null,
     shadowVolumes: r.shadowVolumes ?? null,
     roofExtensions: r.roofExtensions ?? null,
+    parametricDormers: r.parametricDormers ?? null,
     roof: pickRoofStructural(roof),
   };
 }

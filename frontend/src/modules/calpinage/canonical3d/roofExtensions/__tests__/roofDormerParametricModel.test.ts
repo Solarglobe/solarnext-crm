@@ -19,8 +19,8 @@ function draft(overrides: Partial<RoofDormerParametric2DDraft> = {}): RoofDormer
       rearLeft: { uM: -1.0, vM: 1.4 },
     },
     ridge: {
-      front: { uM: 0, vM: -1.4 },
-      rear: { uM: 0, vM: 1.4 },
+      left: { uM: 0, vM: -1.4 },
+      right: { uM: 0, vM: 1.4 },
     },
     facadeHeightM: 0.45,
     ridgeHeightM: 1.15,
@@ -113,15 +113,15 @@ describe("RoofDormerParametricModel", () => {
     expect(signedDistanceToPlane(ridgeLeft.position, patch.equation)).toBeCloseTo(1.15, 6);
   });
 
-  it("C1 ridge vertices use ridge.front and ridge.rear coords, not footprint averages", () => {
+  it("C1 ridge vertices use ridge.left and ridge.right coords, not footprint averages", () => {
     // Asymmetric dormer: ridge is NOT centered in the footprint.
-    // ridge.front.uM = -0.3 (offset left) vs footprint mean = (-1.2 + -1.0)/2 = -1.1
+    // ridge.left.uM = -0.3 (offset left) vs footprint mean = (-1.2 + -1.0)/2 = -1.1
     // Before C1, ridgeLeftU was calculated from fp averages => 0.8m error in 3D.
     const patch = makeSupportPatch("pan-param", 0);
     const asymDraft = draft({
       ridge: {
-        front: { uM: -0.3, vM: -0.5 },
-        rear:  { uM:  0.8, vM:  0.5 },
+        left:  { uM: -0.3, vM: -0.5 },
+        right: { uM:  0.8, vM:  0.5 },
       },
     });
     const model = createRoofDormerParametricModelFromDraft(asymDraft);
@@ -159,6 +159,25 @@ describe("RoofDormerParametricModel", () => {
     expect(res.geometries[0]!.preparedUses.shading).toBe("parametric_mesh");
     expect(res.geometries[0]!.preparedUses.raycast).toBe("parametric_mesh");
     expect(res.diagnostics.some((d) => d.code === "ROOF_DORMER_PARAMETRIC_RUNTIME_PARALLEL_READY")).toBe(true);
+  });
+
+  it("relit les anciens parametricDormers[] runtime avec champs ridge historiques", () => {
+    const patch = makeSupportPatch("pan-param", 0);
+    const model = createRoofDormerParametricModelFromDraft(draft());
+    const legacySaved = JSON.parse(JSON.stringify({ parametricDormers: [model] }));
+    legacySaved.parametricDormers[0].ridge = {
+      front: { uM: -0.2, vM: -1.2 },
+      rear: { uM: 0.7, vM: 1.2 },
+    };
+    const res = buildRoofDormerParametric3DFromRuntime({
+      runtime: legacySaved,
+      roofPlanePatches: [patch],
+    });
+    expect(res.geometries).toHaveLength(1);
+    const ridgeLeftVertex = res.geometries[0]!.vertices.find((v) => v.id.endsWith(":ridge:left"))!;
+    const ridgeRightVertex = res.geometries[0]!.vertices.find((v) => v.id.endsWith(":ridge:right"))!;
+    expect(ridgeLeftVertex.position.x).toBeCloseTo(2 + (-0.2), 5);
+    expect(ridgeRightVertex.position.x).toBeCloseTo(2 + 0.7, 5);
   });
 });
 describe("C4 — roofRiseM guard et try/catch normalize", () => {
@@ -246,7 +265,7 @@ describe("E9 -- baseElevationM = min Z du footprint (pas mean)", () => {
   });
 });
 
-describe("M21 -- ANCHOR_OFF_PLANE seuil 5 cm, severite error", () => {
+describe("M21 -- ANCHOR_OFF_PLANE seuil 5 cm, severite info temporaire", () => {
   // makeSupportPatch(id, 0) => plan plat z=10, normale=(0,0,1), d=-10
   // Distance signee = anchor.z - 10
 
@@ -264,12 +283,12 @@ describe("M21 -- ANCHOR_OFF_PLANE seuil 5 cm, severite error", () => {
     expect(diags.some((d) => d.code === "ROOF_DORMER_PARAMETRIC_ANCHOR_OFF_PLANE")).toBe(false);
   });
 
-  it("ancre a 6 cm du plan (> 5 cm) => diagnostic ANCHOR_OFF_PLANE de severite error (M21)", () => {
+  it("ancre a 6 cm du plan (> 5 cm) => diagnostic ANCHOR_OFF_PLANE de severite info temporaire (FIX-02A)", () => {
     const patch = makeSupportPatch("pan-param", 0);
     const model = createRoofDormerParametricModelFromDraft(draft({ anchorWorld: { x: 2, y: -6, z: 10.06 } }));
     const diags = validateRoofDormerParametricModel(model, patch);
     const d = diags.find((d) => d.code === "ROOF_DORMER_PARAMETRIC_ANCHOR_OFF_PLANE");
     expect(d).toBeDefined();
-    expect(d!.severity).toBe("error");
+    expect(d!.severity).toBe("info");
   });
 });

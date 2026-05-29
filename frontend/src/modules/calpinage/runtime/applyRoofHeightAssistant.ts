@@ -38,6 +38,8 @@ export type ApplyRoofHeightAssistantResult =
       readonly appliedCount: number;
       readonly targets: readonly RoofHeightAssistantTarget[];
       readonly summary: RoofHeightAssistantSummary;
+      /** Present uniquement si le rollback lui-meme a echoue. */
+      readonly rollbackFailed?: true;
     };
 
 function filterNonChienAssis<T extends { readonly roofRole?: string }>(arr: readonly T[] | undefined): T[] {
@@ -152,15 +154,57 @@ export function applyRoofHeightAssistant(
     }
   }
 
+  /* M17: snapshot des portions mutables du runtime avant la boucle.
+   * applyStructuralHeightEdit mute window.CALPINAGE_STATE via la fn legacy ;
+   * le parametre runtime est la meme reference que CALPINAGE_STATE. */
+  const runtimeObj = (runtime && typeof runtime === "object") ? runtime as Record<string, unknown> : null;
+  let snapshot: string | null = null;
+  if (runtimeObj) {
+    try {
+      snapshot = JSON.stringify({
+        contours: runtimeObj["contours"],
+        ridges: runtimeObj["ridges"],
+        traits: runtimeObj["traits"],
+      });
+    } catch {
+      snapshot = null; /* serialisation impossible : rollback ne pourra pas restaurer */
+    }
+  }
+
+  function rollback(): boolean {
+    if (snapshot == null || !runtimeObj) return true; /* rien a restaurer, consideré ok */
+    try {
+      const restored = JSON.parse(snapshot) as { contours?: unknown; ridges?: unknown; traits?: unknown };
+      runtimeObj["contours"] = restored.contours;
+      runtimeObj["ridges"] = restored.ridges;
+      runtimeObj["traits"] = restored.traits;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   let appliedCount = 0;
   for (const target of targets) {
     const r = applyStructuralHeightEdit(runtime, target);
     if (!r.ok) {
+      const rolledBack = rollback();
+      if (!rolledBack) {
+        return {
+          ok: false,
+          code: "APPLY_HEIGHT_ROLLBACK_FAILED",
+          message: "L'application partielle des hauteurs a echoue ET le rollback n'a pas pu restaurer l'etat initial.",
+          appliedCount,
+          targets,
+          summary,
+          rollbackFailed: true,
+        };
+      }
       return {
         ok: false,
         code: r.code,
         message: r.message,
-        appliedCount,
+        appliedCount: 0, /* rollback reussi : aucune mutation persistee */
         targets,
         summary,
       };

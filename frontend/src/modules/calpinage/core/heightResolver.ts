@@ -12,10 +12,11 @@
  *   - Ne casse aucun flux existant (additive uniquement).
  *
  * ORDRE DE PRIORITÉ OFFICIEL (immuable) :
- *   P1 — Hauteur explicite sur un vertex source (contour / ridge / trait) dans l'état
- *   P2 — fitPlane via getHeightAtXY avec panId connu (le plus fiable géométriquement)
- *   P3 — hitTest pan automatique + fitPlane (panId déduit par position)
- *   P4 — Fallback contrôlé (`defaultHeightM` explicite) ou `insufficient_height_signal` sans cote (pas de 0 implicite)
+ *   P1   — Hauteur explicite sur un vertex source (contour / ridge / trait) dans l'état
+ *   P1.5 — Interpolation sur la surface du mini-toit d'un chien assis (empreinte image)
+ *   P2   — fitPlane via getHeightAtXY avec panId connu (le plus fiable géométriquement)
+ *   P3   — hitTest pan automatique + fitPlane (panId déduit par position)
+ *   P4   — Fallback contrôlé (`defaultHeightM` explicite) ou `insufficient_height_signal` sans cote (pas de 0 implicite)
  *
  * CONSOMMATEURS PRÉVUS :
  *   - adapter/calpinageStateToLegacyRoofInput.ts (remplacera resolveHeightAtPx)
@@ -56,6 +57,8 @@ export type HeightSource =
   | "pan_plane_fit_hittest"
   /** Valeur par défaut explicite fournie en option. conf ≈ 0.15 */
   | "fallback_default"
+  /** Hauteur interpolee lineairement sur la surface du mini-toit d'un chien assis (P1.5). conf ~= 0.82 */
+  | "dormer_surface_interpolated"
   /**
    * Aucune source fiable et aucun `defaultHeightM` fourni au résolveur —
    * **pas** de cote numérique imposée (évite la confusion undefined → 0).
@@ -102,6 +105,32 @@ export interface HeightResolutionDebug {
 // CONTEXTE RUNTIME (injectable — aucun accès window direct)
 // ─────────────────────────────────────────────────────────────────────────────
 
+
+/**
+ * Description geometrique d'un chien assis en coordonnees image (pixels),
+ * pre-calculee par le consommateur (qui connait la projection monde->image).
+ * Utilisee par P1.5 pour interpoler la hauteur sur la surface du mini-toit.
+ */
+export interface DormerHeightContext {
+  /** Polygone de l'empreinte image (4 pts minimum : frontLeft, frontRight, rearRight, rearLeft). */
+  readonly footprintPx: ReadonlyArray<{ readonly x: number; readonly y: number }>;
+  /** Faitage en pixels image. */
+  readonly ridgePx: {
+    readonly a: { readonly x: number; readonly y: number };
+    readonly b: { readonly x: number; readonly y: number };
+  };
+  /** Centre de l'egout avant (facade) en pixels image. */
+  readonly frontMidPx: { readonly x: number; readonly y: number };
+  /** Centre de l'egout arriere (jonction avec le pan principal) en pixels image. */
+  readonly rearMidPx: { readonly x: number; readonly y: number };
+  /** Hauteur de l'egout avant au-dessus de la surface du pan support (m). */
+  readonly facadeHeightRelM: number;
+  /** Hauteur du faitage au-dessus de la surface du pan support (m). */
+  readonly ridgeHeightRelM: number;
+  /** ID du pan support — pour resoudre le Z de base via getHeightAtXY. */
+  readonly supportPanId: string;
+}
+
 /**
  * État minimal du calpinage requis pour la recherche de hauteurs explicites.
  * Sous-ensemble défensif de CALPINAGE_STATE — pas de dépendance vers le type global.
@@ -121,6 +150,11 @@ export interface HeightStateContext {
     a?: { readonly x?: number; readonly y?: number; readonly h?: number };
     b?: { readonly x?: number; readonly y?: number; readonly h?: number };
   }>;
+  /**
+   * Chiens assis pre-calcules en coordonnees image (pixels).
+   * Alimentes par le consommateur depuis buildRoofExtensions3DFromRuntime.
+   */
+  dormers?: ReadonlyArray<DormerHeightContext>;
 }
 
 /**
@@ -184,6 +218,7 @@ export const HEIGHT_SOURCE_CONFIDENCE: Readonly<Record<HeightSource, number>> = 
   explicit_vertex_trait:    0.90,
   pan_plane_fit:            0.85,
   pan_plane_fit_hittest:    0.78,
+  dormer_surface_interpolated: 0.82,
   fallback_default:         0.15,
   insufficient_height_signal: 0.03,
 } as const;
@@ -241,6 +276,123 @@ function isValidH(h: unknown): h is number {
 /** Export officiel Prompt 21/22 — Z bâtiment admissible (m). */
 export function isValidBuildingHeightM(h: unknown): h is number {
   return isValidH(h);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P1.5 — HELPERS GEOMETRIE CHIEN ASSIS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Ray-casting point-in-polygon (Jordan curve theorem). Retourne true si P est dans le polygone. */
+function pointInPolygon2D(
+  px: number,
+  py: number,
+  polygon: ReadonlyArray<{ readonly x: number; readonly y: number }>,
+): boolean {
+  let inside = false;
+  const n = polygon.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = polygon[i]!.x;
+    const yi = polygon[i]!.y;
+    const xj = polygon[j]!.x;
+    const yj = polygon[j]!.y;
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/**
+ * Distance signee du point P a la droite orientee AB (positif = a gauche de A->B).
+ * Formula : ((B-A) x (P-A)) / |B-A|  (produit vectoriel 2D).
+ */
+function signedDist2D(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-9) return 0;
+  return (dx * (py - ay) - dy * (px - ax)) / len;
+}
+
+/**
+ * Interpole la hauteur relative (m au-dessus du pan support) d'un point sur
+ * la surface du mini-toit d'un chien assis.
+ *
+ * Convention :
+ *   - Face avant (entre egout facade et faitage) : lerp(facadeHeightRelM, ridgeHeightRelM)
+ *   - Face arriere (entre faitage et jonction pan) : lerp(ridgeHeightRelM, 0)
+ *
+ * Le parametre t est calcule par distance signee au faitage, normalisee par
+ * la distance de l'egout reference au faitage.
+ *
+ * Retourne un nombre clamp dans [0, ridgeHeightRelM] — jamais negatif.
+ */
+function interpolateDormerHeightRel(
+  xPx: number,
+  yPx: number,
+  dormer: DormerHeightContext,
+): number {
+  const ra = dormer.ridgePx.a;
+  const rb = dormer.ridgePx.b;
+  const ridgeDist = signedDist2D(xPx, yPx, ra.x, ra.y, rb.x, rb.y);
+  const frontDist = signedDist2D(dormer.frontMidPx.x, dormer.frontMidPx.y, ra.x, ra.y, rb.x, rb.y);
+  const rearDist  = signedDist2D(dormer.rearMidPx.x,  dormer.rearMidPx.y,  ra.x, ra.y, rb.x, rb.y);
+
+  if (Math.abs(frontDist) < 1e-9 && Math.abs(rearDist) < 1e-9) {
+    return dormer.ridgeHeightRelM;
+  }
+
+  // Face avant : meme signe que frontDist
+  if (Math.abs(frontDist) > 1e-9 && ridgeDist * frontDist >= 0) {
+    const t = Math.min(1, Math.max(0, ridgeDist / frontDist));
+    return dormer.ridgeHeightRelM + t * (dormer.facadeHeightRelM - dormer.ridgeHeightRelM);
+  }
+
+  // Face arriere : meme signe que rearDist
+  if (Math.abs(rearDist) > 1e-9) {
+    const t = Math.min(1, Math.max(0, ridgeDist / rearDist));
+    return dormer.ridgeHeightRelM * (1 - t);
+  }
+
+  return dormer.ridgeHeightRelM;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P1.5 — RÉSOLUTION SUR SURFACE CHIEN ASSIS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * P1.5 : verifie si (xPx, yPx) se trouve dans l'empreinte image d'un chien assis.
+ * Si oui, interpole la hauteur sur la surface du mini-toit et l'ajoute au Z de base du pan support.
+ *
+ * Retourne null si le point n'est dans aucun dormer, ou si le Z de base est indisponible.
+ */
+export function getHeightOnDormerSurface(
+  xPx: number,
+  yPx: number,
+  dormers: ReadonlyArray<DormerHeightContext>,
+  getHeightAtXY: (panId: string, x: number, y: number) => number | null | undefined,
+): { heightM: number; source: HeightSource; panId: string } | null {
+  for (const dormer of dormers) {
+    if (!pointInPolygon2D(xPx, yPx, dormer.footprintPx)) continue;
+    const hRel = interpolateDormerHeightRel(xPx, yPx, dormer);
+    let baseH: number | null | undefined;
+    try { baseH = getHeightAtXY(dormer.supportPanId, xPx, yPx); } catch { continue; }
+    if (!isValidH(baseH)) continue;
+    return {
+      heightM: baseH + hRel,
+      source: "dormer_surface_interpolated",
+      panId: dormer.supportPanId,
+    };
+  }
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -402,10 +554,11 @@ export function resolveHeightFallback(defaultHeightM: number | undefined): {
  * Résout la hauteur Z (m) d'un point (xPx, yPx) image.
  *
  * Ordre de priorité :
- *   P1 — Hauteur explicite sur vertex source (contour/ridge/trait) dans options.epsilonPx
- *   P2 — fitPlane via context.getHeightAtXY avec panId connu (options.panId)
- *   P3 — hitTest pan automatique + fitPlane (context.hitTestPan requis)
- *   P4 — Fallback contrôlé (`options.defaultHeightM`) ou signal insuffisant sans cote
+ *   P1   — Hauteur explicite sur vertex source (contour/ridge/trait) dans options.epsilonPx
+ *   P1.5 — Interpolation sur la surface du mini-toit d'un chien assis (empreinte image)
+ *   P2   — fitPlane via context.getHeightAtXY avec panId connu (options.panId)
+ *   P3   — hitTest pan automatique + fitPlane (context.hitTestPan requis)
+ *   P4   — Fallback contrôlé (`options.defaultHeightM`) ou signal insuffisant sans cote
  *
  * @param xPx - Coordonnée X en pixels image
  * @param yPx - Coordonnée Y en pixels image
@@ -437,6 +590,29 @@ export function resolveHeightAtXY(
       };
     }
     if (withDebug) debugInputs.push("state-searched-no-match");
+  }
+
+  // ── P1.5 : interpolation sur surface chien assis ───────────────────────────
+  if (context.state?.dormers?.length && context.getHeightAtXY) {
+    const dormerHit = getHeightOnDormerSurface(
+      xPx,
+      yPx,
+      context.state.dormers,
+      context.getHeightAtXY,
+    );
+    if (dormerHit) {
+      return {
+        ok: true,
+        heightM: dormerHit.heightM,
+        source: dormerHit.source,
+        confidence: HEIGHT_SOURCE_CONFIDENCE[dormerHit.source],
+        panId: dormerHit.panId,
+        debug: withDebug
+          ? { method: "dormer-surface-interpolated", inputsUsed: ["dormers", dormerHit.panId] }
+          : undefined,
+      };
+    }
+    if (withDebug) debugInputs.push("dormer-no-hit");
   }
 
   // ── P2 : fitPlane avec panId connu ───────────────────────────────────────

@@ -971,7 +971,7 @@ const visualQaPremiumComplex: Runtime3DFixtureBundle = {
       {
         id: "qa-dormer-1",
         type: "roof_extension",
-        kind: "chien_assis",
+        kind: "dormer",
         stage: "COMPLETE",
         visualModel: "manual_outline_gable",
         supportPanId: "qa-main-right",

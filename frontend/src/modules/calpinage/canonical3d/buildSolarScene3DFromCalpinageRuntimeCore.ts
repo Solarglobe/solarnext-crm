@@ -238,6 +238,220 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
   return { obstacles: legacyObstacles, extensions: [] };
 }
 
+// Distance stricte sous laquelle un V1 dormer et un V2 dormer sur le meme pan sont consideres identiques.
+const DORMER_DEDUP_CENTROID_TOLERANCE_M = 0.5;
+const DORMER_DEDUP_AMBIGUOUS_CENTROID_TOLERANCE_M = 2;
+// Ratio d'intersection sur la plus petite empreinte, utilise seulement si le pan support est identique.
+const DORMER_DEDUP_FOOTPRINT_OVERLAP_RATIO = 0.7;
+const DORMER_DEDUP_FOOTPRINT_AREA_EPSILON_M2 = 1e-6;
+const DORMER_DEDUP_CLIP_EPSILON = 1e-9;
+
+type DormerDedupPoint2D = { readonly x: number; readonly y: number };
+type DormerDedupProjectionAxis = "x" | "y" | "z";
+
+function addStringId(target: Set<string>, value: unknown): void {
+  if (typeof value === "string" && value.length > 0) {
+    target.add(value);
+  }
+}
+
+function collectDormerIdentityIds(volume: RoofExtensionVolume3D): Set<string> {
+  const ids = new Set<string>([volume.id]);
+  const provenance = volume.provenance as unknown as Record<string, unknown>;
+  addStringId(ids, provenance.extensionId);
+  addStringId(ids, provenance.recordId);
+  return ids;
+}
+
+function collectDormerLegacyLinkIds(volume: RoofExtensionVolume3D): Set<string> {
+  const ids = new Set<string>();
+  const record = volume as unknown as Record<string, unknown>;
+  for (const field of ["sourceId", "legacyId", "originId", "parentId", "parentModelRef"]) {
+    addStringId(ids, record[field]);
+  }
+  const provenance = volume.provenance as unknown as Record<string, unknown>;
+  for (const field of ["sourceId", "legacyId", "originId", "parentId"]) {
+    addStringId(ids, provenance[field]);
+  }
+  return ids;
+}
+
+function setsIntersect(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  for (const value of a) {
+    if (b.has(value)) return true;
+  }
+  return false;
+}
+
+function dormerVolumesShareLegacyLink(v1: RoofExtensionVolume3D, v2: RoofExtensionVolume3D): boolean {
+  const v1IdentityIds = collectDormerIdentityIds(v1);
+  const v2IdentityIds = collectDormerIdentityIds(v2);
+  const v1LegacyLinkIds = collectDormerLegacyLinkIds(v1);
+  const v2LegacyLinkIds = collectDormerLegacyLinkIds(v2);
+  return (
+    setsIntersect(v1LegacyLinkIds, v2IdentityIds) ||
+    setsIntersect(v2LegacyLinkIds, v1IdentityIds) ||
+    setsIntersect(v1IdentityIds, v2IdentityIds)
+  );
+}
+
+function dormerVolumeSupportPanId(volume: RoofExtensionVolume3D): string | null {
+  return (
+    volume.roofAttachment.primaryPlanePatchId ??
+    volume.topology?.supportPlanePatchId ??
+    volume.relatedPlanePatchIds[0] ??
+    null
+  );
+}
+
+function dormerCentroidDistanceM(v1: RoofExtensionVolume3D, v2: RoofExtensionVolume3D): number {
+  return Math.hypot(
+    v1.centroid.x - v2.centroid.x,
+    v1.centroid.y - v2.centroid.y,
+    v1.centroid.z - v2.centroid.z,
+  );
+}
+
+function projectionAxisForDormer(volume: RoofExtensionVolume3D): DormerDedupProjectionAxis {
+  const normal = volume.topology?.supportPlaneNormal ?? volume.extrusion.directionWorld;
+  const ax = Math.abs(normal.x);
+  const ay = Math.abs(normal.y);
+  const az = Math.abs(normal.z);
+  if (ax >= ay && ax >= az) return "x";
+  if (ay >= ax && ay >= az) return "y";
+  return "z";
+}
+
+function projectDormerFootprint(
+  volume: RoofExtensionVolume3D,
+  axis: DormerDedupProjectionAxis,
+): DormerDedupPoint2D[] | null {
+  if (volume.footprintWorld.length < 3) return null;
+  return volume.footprintWorld.map((p) =>
+    axis === "x"
+      ? { x: p.y, y: p.z }
+      : axis === "y"
+        ? { x: p.x, y: p.z }
+        : { x: p.x, y: p.y },
+  );
+}
+
+function polygonSignedArea2D(points: readonly DormerDedupPoint2D[]): number {
+  let sum = 0;
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i];
+    const b = points[(i + 1) % points.length];
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return sum / 2;
+}
+
+function asCounterClockwise(points: DormerDedupPoint2D[]): DormerDedupPoint2D[] {
+  return polygonSignedArea2D(points) < 0 ? [...points].reverse() : points;
+}
+
+function cross2D(a: DormerDedupPoint2D, b: DormerDedupPoint2D, p: DormerDedupPoint2D): number {
+  return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+}
+
+function isInsideClipEdge(p: DormerDedupPoint2D, a: DormerDedupPoint2D, b: DormerDedupPoint2D): boolean {
+  return cross2D(a, b, p) >= -DORMER_DEDUP_CLIP_EPSILON;
+}
+
+function intersectClipLines(
+  a: DormerDedupPoint2D,
+  b: DormerDedupPoint2D,
+  clipA: DormerDedupPoint2D,
+  clipB: DormerDedupPoint2D,
+): DormerDedupPoint2D {
+  const abX = b.x - a.x;
+  const abY = b.y - a.y;
+  const clipX = clipB.x - clipA.x;
+  const clipY = clipB.y - clipA.y;
+  const denom = abX * clipY - abY * clipX;
+  if (Math.abs(denom) <= DORMER_DEDUP_CLIP_EPSILON) return b;
+  const t = ((clipA.x - a.x) * clipY - (clipA.y - a.y) * clipX) / denom;
+  return { x: a.x + t * abX, y: a.y + t * abY };
+}
+
+function clipConvexPolygon2D(
+  subjectPolygon: readonly DormerDedupPoint2D[],
+  clipPolygon: readonly DormerDedupPoint2D[],
+): DormerDedupPoint2D[] {
+  let output = [...subjectPolygon];
+  for (let i = 0; i < clipPolygon.length; i += 1) {
+    const clipA = clipPolygon[i];
+    const clipB = clipPolygon[(i + 1) % clipPolygon.length];
+    const input = output;
+    output = [];
+    if (input.length === 0) break;
+    let previous = input[input.length - 1];
+    for (const current of input) {
+      const currentInside = isInsideClipEdge(current, clipA, clipB);
+      const previousInside = isInsideClipEdge(previous, clipA, clipB);
+      if (currentInside) {
+        if (!previousInside) output.push(intersectClipLines(previous, current, clipA, clipB));
+        output.push(current);
+      } else if (previousInside) {
+        output.push(intersectClipLines(previous, current, clipA, clipB));
+      }
+      previous = current;
+    }
+  }
+  return output;
+}
+
+function dormerFootprintOverlapRatio(v1: RoofExtensionVolume3D, v2: RoofExtensionVolume3D): number | null {
+  const axis = projectionAxisForDormer(v1);
+  const p1 = projectDormerFootprint(v1, axis);
+  const p2 = projectDormerFootprint(v2, axis);
+  if (p1 == null || p2 == null) return null;
+  const ccw1 = asCounterClockwise(p1);
+  const ccw2 = asCounterClockwise(p2);
+  const area1 = Math.abs(polygonSignedArea2D(ccw1));
+  const area2 = Math.abs(polygonSignedArea2D(ccw2));
+  if (area1 <= DORMER_DEDUP_FOOTPRINT_AREA_EPSILON_M2 || area2 <= DORMER_DEDUP_FOOTPRINT_AREA_EPSILON_M2) return null;
+  const intersection = clipConvexPolygon2D(ccw1, ccw2);
+  const intersectionArea = Math.abs(polygonSignedArea2D(intersection));
+  return intersectionArea / Math.min(area1, area2);
+}
+
+function logDormerV1V2OverlapAmbiguous(
+  v1: RoofExtensionVolume3D,
+  v2: RoofExtensionVolume3D,
+  supportPanId: string,
+  centroidDistanceM: number,
+): void {
+  logCalpinage3DDebug("ROOF_DORMER_V1_V2_OVERLAP_AMBIGUOUS", {
+    code: "ROOF_DORMER_V1_V2_OVERLAP_AMBIGUOUS",
+    v1Id: v1.id,
+    v2Id: v2.id,
+    supportPanId,
+    centroidDistanceM,
+    centroidToleranceM: DORMER_DEDUP_CENTROID_TOLERANCE_M,
+    ambiguousToleranceM: DORMER_DEDUP_AMBIGUOUS_CENTROID_TOLERANCE_M,
+  });
+}
+
+function isSameDormerVolume(v1: RoofExtensionVolume3D, v2: RoofExtensionVolume3D): boolean {
+  if (v1.id === v2.id) return true;
+  if (dormerVolumesShareLegacyLink(v1, v2)) return true;
+
+  const v1SupportPanId = dormerVolumeSupportPanId(v1);
+  const v2SupportPanId = dormerVolumeSupportPanId(v2);
+  if (v1SupportPanId == null || v1SupportPanId !== v2SupportPanId) return false;
+
+  const centroidDistanceM = dormerCentroidDistanceM(v1, v2);
+  if (centroidDistanceM < DORMER_DEDUP_CENTROID_TOLERANCE_M) return true;
+  if (centroidDistanceM < DORMER_DEDUP_AMBIGUOUS_CENTROID_TOLERANCE_M) {
+    logDormerV1V2OverlapAmbiguous(v1, v2, v1SupportPanId, centroidDistanceM);
+    return false;
+  }
+
+  const overlapRatio = dormerFootprintOverlapRatio(v1, v2);
+  return overlapRatio != null && overlapRatio >= DORMER_DEDUP_FOOTPRINT_OVERLAP_RATIO;
+}
+
 /**
  * Convertit un `RoofExtensionVolume3D` (lucarne / chien assis) en dalle keepout fine (0.025 m)
  * pour le pipeline obstacle. La dalle suit la normale du pan support et évite le Z-fighting
@@ -686,8 +900,17 @@ export function buildSolarScene3DFromCalpinageRuntime(
     // Inclure systématiquement les dormers parametriques s'il y en a —
     // plus de feature flag : parametricDormers[] est la source de vérité V2.
     const hasParametricDormers = paramDormerRes.extensionVolumes.length > 0;
+    const v2Ids = new Set(paramDormerRes.extensionVolumes.map((v) => v.id));
+    const v1Filtered =
+      v2Ids.size > 0
+        ? roofExtRes.extensionVolumes.filter((v1) =>
+            v1.kind === "dormer"
+              ? !paramDormerRes.extensionVolumes.some((v2) => isSameDormerVolume(v1, v2))
+              : true,
+          )
+        : roofExtRes.extensionVolumes;
     const extensionVolumesForScene = hasParametricDormers
-      ? [...roofExtRes.extensionVolumes, ...paramDormerRes.extensionVolumes]
+      ? [...v1Filtered, ...paramDormerRes.extensionVolumes]
       : roofExtRes.extensionVolumes;
     // G2 : dalles keepout (0.025 m le long de la normale du pan) pour chaque volume extension.
     // Ajoutées au pipeline obstacle pour déclencher la zone rouge et bloquer la pose de panneaux.

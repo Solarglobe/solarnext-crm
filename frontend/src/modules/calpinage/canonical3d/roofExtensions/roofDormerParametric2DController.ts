@@ -24,7 +24,16 @@ export function normalizeRoofDormerParametric2DDraft(
   draft: RoofDormerParametric2DDraft,
   supportPatch?: RoofPlanePatch3D | null,
 ): NormalizeRoofDormerParametricDraftResult {
-  const model = createRoofDormerParametricModelFromDraft(draft);
+  let model: RoofDormerParametricModel;
+  try {
+    model = createRoofDormerParametricModelFromDraft(draft);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return {
+      model: null,
+      diagnostics: [{ code: "DRAFT_CREATE_EXCEPTION", severity: "error", message, context: { entityId: draft.id } }],
+    };
+  }
   const diagnostics = validateRoofDormerParametricModel(model, supportPatch);
   if (roofDormerParametricHasBlockingErrors(diagnostics)) {
     return { model: null, diagnostics };

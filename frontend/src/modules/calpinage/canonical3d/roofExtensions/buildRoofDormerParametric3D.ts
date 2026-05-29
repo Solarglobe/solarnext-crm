@@ -168,15 +168,13 @@ export function buildRoofDormerParametric3D(
   const basePts = roofDormerParametricFootprintCycle(fp).map((p) => buildPoint(origin, xAxis, yAxis, normal, p, 0));
   const eavePts = roofDormerParametricFootprintCycle(fp).map((p) => buildPoint(origin, xAxis, yAxis, normal, p, hFacade));
 
-  // Faîtière gauche-droite (vrai chien assis) : la faîtière court perpendiculairement
-  // à la direction de pente, entre le flanc gauche et le flanc droit.
-  // ridge.front.vM / ridge.rear.vM donnent la profondeur avant/arrière → on en déduit
-  // le centre V (= milieu de la profondeur du dormer).
-  const centerV = (ridge.front.vM + ridge.rear.vM) / 2;
-  const ridgeLeftU = (fp.frontLeft.uM + fp.rearLeft.uM) / 2;
-  const ridgeRightU = (fp.frontRight.uM + fp.rearRight.uM) / 2;
-  const ridgeLeft = buildPoint(origin, xAxis, yAxis, normal, { uM: ridgeLeftU, vM: centerV }, hRidge);
-  const ridgeRight = buildPoint(origin, xAxis, yAxis, normal, { uM: ridgeRightU, vM: centerV }, hRidge);
+  // Faîtière : utilise directement les coordonnées du ridge modélisé (uM, vM).
+  // ridge.left correspond à l'extrémité gauche du faîtage (côté frontLeft),
+  // ridge.right correspond à l'extrémité droite (côté rearRight).
+  // Ne jamais recalculer depuis le footprint : un chien assis asymétrique aurait
+  // sa faîtière décalée en 3D par rapport à ce qui est dessiné en 2D.
+  const ridgeLeft  = buildPoint(origin, xAxis, yAxis, normal, { uM: ridge.left.uM, vM: ridge.left.vM }, hRidge);
+  const ridgeRight = buildPoint(origin, xAxis, yAxis, normal, { uM: ridge.right.uM, vM: ridge.right.vM }, hRidge);
 
   const vertices: VolumeVertex3D[] = [];
   const addVertex = (id: string, position: Vector3): number => {
@@ -236,7 +234,7 @@ export function buildRoofDormerParametric3D(
     ] : []),
     // Gables lateraux (flancs triangulaires, caracteristiques du vrai chien assis)
     { id: mid + ":face:left-gable", kind: "side" as const, cycle: [gFL, gRL, rLeft] },
-    { id: mid + ":face:right-gable", kind: "side" as const, cycle: [gFR, rRight, gRR] },
+    { id: mid + ":face:right-gable", kind: "side" as const, cycle: [gFR, gRR, rRight] },
     // Pentes de toit avant et arriere
     { id: mid + ":face:roof:front", kind: "top" as const, cycle: [gFL, gFR, rRight, rLeft] },
     { id: mid + ":face:roof:rear", kind: "top" as const, cycle: [gRL, rLeft, rRight, gRR] },
@@ -287,7 +285,7 @@ export function buildRoofDormerParametric3D(
         : [],
       dormerRoof: [mid + ":face:roof:front", mid + ":face:roof:rear"],
       seams: [mid + ":edge:base:front", mid + ":edge:base:right", mid + ":edge:base:rear", mid + ":edge:base:left"],
-      flashing: [mid + ":edge:base:front", mid + ":edge:base:right", mid + ":edge:base:rear", mid + ":edge:base:left"],
+      flashing: [mid + ":edge:base:front", mid + ":edge:base:left", mid + ":edge:base:right"],
     },
     preparedUses: model.preparedUses,
     diagnostics,

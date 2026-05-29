@@ -152,31 +152,43 @@ export function propagateRoofContourEdgeJunctionAfterContourEdit(contours, trait
   var c = (contours || []).find(function (x) { return x && x.id === contourId; });
   if (!c || !c.points || c.points.length < 2) return;
 
+  /* Returns true if ep was updated (has a matching roof_contour_edge attach). */
   function syncEp(ep) {
-    if (!ep || typeof ep !== "object") return;
+    if (!ep || typeof ep !== "object") return false;
     var att = ep.attach;
-    if (!att || att.type !== "roof_contour_edge" || att.contourId !== contourId) return;
+    if (!att || att.type !== "roof_contour_edge" || att.contourId !== contourId) return false;
     var i = att.segmentIndex;
     var n = c.points.length;
-    if (typeof i !== "number" || i < 0 || i >= n) return;
+    if (typeof i !== "number" || i < 0 || i >= n) return false;
     var a = c.points[i];
     var b = c.points[(i + 1) % n];
-    if (!a || !b || typeof a.x !== "number" || typeof b.x !== "number") return;
+    if (!a || !b || typeof a.x !== "number" || typeof b.x !== "number") return false;
     var t = typeof att.t === "number" && Number.isFinite(att.t) ? att.t : 0.5;
     t = Math.max(0, Math.min(1, t));
     ep.x = a.x + t * (b.x - a.x);
     ep.y = a.y + t * (b.y - a.y);
+    return true;
   }
+
+  /* Collect trait endpoints modified, for cascade to their aliases. */
+  var _cascadeIds = [];
 
   (traits || []).forEach(function (tr) {
     if (!tr || isChienAssisTrait(tr)) return;
-    syncEp(tr.a);
-    syncEp(tr.b);
+    if (syncEp(tr.a)) _cascadeIds.push({ traitId: tr.id, pointIndex: 0, x: tr.a.x, y: tr.a.y });
+    if (syncEp(tr.b)) _cascadeIds.push({ traitId: tr.id, pointIndex: 1, x: tr.b.x, y: tr.b.y });
   });
   (ridges || []).forEach(function (r) {
     if (!r || isChienAssisRidge(r)) return;
     syncEp(r.a);
     syncEp(r.b);
+  });
+
+  /* E13: cascade to traits/ridges that alias the just-updated trait endpoints.
+   * Mirrors the pattern in propagateExplicitContourJunction. */
+  var _visited = Object.create(null);
+  _cascadeIds.forEach(function (j) {
+    propagateExplicitTraitJunction(traits, ridges, j.traitId, j.pointIndex, j.x, j.y, _visited);
   });
 }
 

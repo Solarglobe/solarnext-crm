@@ -4219,12 +4219,38 @@ export function initCalpinage(container, options = {}) {
         return { min: center - minSize / 2, max: center + minSize / 2 };
       }
 
+      function normalizeParametricDormerRidgeCompat(model) {
+        if (!model || !model.ridge) return model;
+        if (!model.ridge.left && model.ridge["front"]) model.ridge.left = model.ridge["front"];
+        if (!model.ridge.right && model.ridge["rear"]) model.ridge.right = model.ridge["rear"];
+        if (model.ridge["front"]) delete model.ridge["front"];
+        if (model.ridge["rear"]) delete model.ridge["rear"];
+        return model;
+      }
+
+      function normalizeParametricDormersRidgeCompat(list) {
+        if (!Array.isArray(list)) return [];
+        list.forEach(normalizeParametricDormerRidgeCompat);
+        return list;
+      }
+
       function roofExtensionToParametricDormerV2(rx, index) {
-        if (!rx || !rx.supportPanId || !rx.contour || !Array.isArray(rx.contour.points) || rx.contour.points.length < 3 || !rx.ridge || !rx.ridge.a || !rx.ridge.b) return null;
+        if (!rx || !rx.supportPanId || !rx.contour || !Array.isArray(rx.contour.points) || !rx.ridge || !rx.ridge.a || !rx.ridge.b) return null;
+        var sourcePointCount = rx.contour.points.length;
         var pts = rx.contour.points.filter(function (p) {
           return p && Number.isFinite(p.x) && Number.isFinite(p.y);
         });
-        if (pts.length < 3) return null;
+        if (sourcePointCount !== 4 || pts.length !== 4) {
+          if (typeof console !== "undefined" && console.warn) {
+            console.warn("[DORMER_FOOTPRINT_NOT_QUADRILATERAL]", {
+              severity: "warning",
+              sourcePointCount: sourcePointCount,
+              validPointCount: pts.length,
+              roofExtensionId: rx.id || ("roof-extension-" + index)
+            });
+          }
+          return null;
+        }
         var worldPts = pts.map(imagePxToParametricDormerWorldM);
         var cx = 0;
         var cy = 0;
@@ -4293,8 +4319,8 @@ export function initCalpinage(container, options = {}) {
             rearLeft: { uM: minU, vM: maxV }
           },
           ridge: {
-            front: { uM: ridgeU, vM: ridgeFrontV },
-            rear: { uM: ridgeU, vM: ridgeRearV }
+            left: { uM: ridgeU, vM: ridgeFrontV },
+            right: { uM: ridgeU, vM: ridgeRearV }
           },
           heights: {
             reference: "support_plane_normal",
@@ -4325,7 +4351,7 @@ export function initCalpinage(container, options = {}) {
         // Les parametricDormers sont créés directement en V2 via createCompleteDormerAtPoint.
         // Cette fonction est conservée en place pour ne pas casser les call-sites.
         // Elle retourne l'état existant sans l'écraser.
-        return CALPINAGE_STATE.parametricDormers || [];
+        return normalizeParametricDormersRidgeCompat(CALPINAGE_STATE.parametricDormers || []);
       }
 
       window.syncCalpinageParametricDormersFromLegacy = syncParametricDormersFromRoofExtensions;
@@ -4895,6 +4921,7 @@ export function initCalpinage(container, options = {}) {
           id: id,
           supportPanId: supportPanId,
           topology: "gable_trapezoid",
+          subtype: "gable_dormer",
           anchorWorld: { x: anchorWorld.x, y: anchorWorld.y, z: anchorWorld.z || 0 },
           orientation: {
             uAxisWorld: uAxis,
@@ -4907,8 +4934,8 @@ export function initCalpinage(container, options = {}) {
             rearLeft:   { uM: -halfW, vM: +depth / 2 }
           },
           ridge: {
-            front: { uM: 0, vM: -depth / 4 },  // apex avant centré entre façade et centre
-            rear:  { uM: 0, vM: +depth / 4 }   // apex arrière centré entre centre et derrière
+            left:  { uM: 0, vM: -depth / 4 },  // apex avant centré entre façade et centre
+            right: { uM: 0, vM: +depth / 4 }   // apex arrière centré entre centre et derrière
           },
           heights: {
             reference: "support_plane_normal",  // label conservé pour compat type TS
@@ -10421,7 +10448,7 @@ export function initCalpinage(container, options = {}) {
           if (Array.isArray(data.shadowVolumes)) CALPINAGE_STATE.shadowVolumes = data.shadowVolumes;
           // Restauration des parametricDormers V2 (obligatoire depuis Phase 1A — plus de reconstruction depuis V1).
           if (Array.isArray(data.parametricDormers)) {
-            CALPINAGE_STATE.parametricDormers = data.parametricDormers;
+            CALPINAGE_STATE.parametricDormers = normalizeParametricDormersRidgeCompat(data.parametricDormers);
           }
           if (Array.isArray(data.roofExtensions)) {
             CALPINAGE_STATE.roofExtensions = data.roofExtensions;
@@ -12287,7 +12314,7 @@ export function initCalpinage(container, options = {}) {
           // Restauration des parametricDormers V2 depuis le snapshot (obligatoire depuis Phase 1A —
           // syncParametricDormersFromRoofExtensions est un no-op et ne reconstruit plus depuis V1).
           if (Array.isArray(s.parametricDormers)) {
-            CALPINAGE_STATE.parametricDormers = s.parametricDormers;
+            CALPINAGE_STATE.parametricDormers = normalizeParametricDormersRidgeCompat(s.parametricDormers);
           }
           CALPINAGE_STATE.featureFlags = s.featureFlags || CALPINAGE_STATE.featureFlags || {};
         } catch (_) {}
@@ -17573,7 +17600,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 pdIndex:   pdHit.index,
                 startImg:  { x: imgPt.x, y: imgPt.y },
                 anchorImg: { x: _anchorImgRot.x, y: _anchorImgRot.y },
-                startAngle: Math.atan2(imgPt.y - _anchorImgRot.y, imgPt.x - _anchorImgRot.x),
+                startAngle: Math.atan2(-(imgPt.y - _anchorImgRot.y), imgPt.x - _anchorImgRot.x),
                 origUAxis: { x: model.orientation.uAxisWorld.x, y: model.orientation.uAxisWorld.y, z: model.orientation.uAxisWorld.z },
                 origVAxis: { x: model.orientation.vAxisWorld.x, y: model.orientation.vAxisWorld.y, z: model.orientation.vAxisWorld.z }
               };
@@ -20354,7 +20381,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var _pdRotList = CALPINAGE_STATE.parametricDormers || [];
               var _pdRotModel = _pdRotList[_pdRotBase.pdIndex];
               if (!_pdRotModel || !_pdRotBase.anchorImg) return;
-              var _currentAngle = Math.atan2(imgPt.y - _pdRotBase.anchorImg.y, imgPt.x - _pdRotBase.anchorImg.x);
+              var _currentAngle = Math.atan2(-(imgPt.y - _pdRotBase.anchorImg.y), imgPt.x - _pdRotBase.anchorImg.x);
               var _delta = _currentAngle - _pdRotBase.startAngle;
               if (e && e.shiftKey) {
                 var _snapRot = Math.PI / 12; // magnétisme 15°
@@ -20418,14 +20445,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 _fp.rearRight.uM   =  _newHalfW;
                 _fp.frontLeft.uM   = -_newHalfW;
                 _fp.rearLeft.uM    = -_newHalfW;
-                if (_pdEdgeModel.ridge) { _pdEdgeModel.ridge.front.uM = 0; _pdEdgeModel.ridge.rear.uM = 0; }
+                if (_pdEdgeModel.ridge) { _pdEdgeModel.ridge.left.uM = 0; _pdEdgeModel.ridge.right.uM = 0; }
               } else if (_side === "left") {
                 var _newHalfWL = Math.max(_minHalfW, _pdEdgeBase.origHalfW - _duE);
                 _fp.frontLeft.uM   = -_newHalfWL;
                 _fp.rearLeft.uM    = -_newHalfWL;
                 _fp.frontRight.uM  =  _newHalfWL;
                 _fp.rearRight.uM   =  _newHalfWL;
-                if (_pdEdgeModel.ridge) { _pdEdgeModel.ridge.front.uM = 0; _pdEdgeModel.ridge.rear.uM = 0; }
+                if (_pdEdgeModel.ridge) { _pdEdgeModel.ridge.left.uM = 0; _pdEdgeModel.ridge.right.uM = 0; }
               } else if (_side === "front") {
                 // Front = vM le plus bas (vM négatif dans notre convention centered)
                 // L'ancre reste FIXE — seule la coordonnée vM change.
@@ -20435,8 +20462,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (_rearV - _newFrontV >= _minDepth) {
                   _fp.frontLeft.vM  = _newFrontV;
                   _fp.frontRight.vM = _newFrontV;
-                  // ridge.front reste à 1/4 de la profondeur depuis l'avant (arêtier diagonal)
-                  if (_pdEdgeModel.ridge) _pdEdgeModel.ridge.front.vM = _newFrontV + (_rearV - _newFrontV) / 4;
+                  // ridge.left reste à 1/4 de la profondeur depuis l'avant (arêtier diagonal)
+                  if (_pdEdgeModel.ridge) _pdEdgeModel.ridge.left.vM = _newFrontV + (_rearV - _newFrontV) / 4;
                   // anchorWorld intentionnellement NON déplacé : seul le resize (vM) change,
                   // pas la position monde de l'ancre. Le handle image suit exactement la souris.
                 }
@@ -20445,8 +20472,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (_newRearV - _pdEdgeBase.origFrontV >= _minDepth) {
                   _fp.rearLeft.vM   = _newRearV;
                   _fp.rearRight.vM  = _newRearV;
-                  // ridge.rear reste à 3/4 de la profondeur depuis l'avant (arêtier diagonal)
-                  if (_pdEdgeModel.ridge) _pdEdgeModel.ridge.rear.vM = _pdEdgeBase.origFrontV + (_newRearV - _pdEdgeBase.origFrontV) * 3 / 4;
+                  // ridge.right reste à 3/4 de la profondeur depuis l'avant (arêtier diagonal)
+                  if (_pdEdgeModel.ridge) _pdEdgeModel.ridge.right.vM = _pdEdgeBase.origFrontV + (_newRearV - _pdEdgeBase.origFrontV) * 3 / 4;
                 }
               }
               if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
@@ -21182,6 +21209,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               if ((drawState.dragMode === "parametricDormerMove" || drawState.dragMode === "parametricDormerEdge" || drawState.dragMode === "parametricDormerRotate") && drawState.dragBase) {
                 if (typeof saveCalpinageState === "function") saveCalpinageState();
+                if (typeof calpinageLegacyEmitOfficialStructuralChange === "function") {
+                  calpinageLegacyEmitOfficialStructuralChange();
+                }
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               }
               if ((drawState.dragMode === "roofExtensionMove" || drawState.dragMode === "roofExtensionRotate" || drawState.dragMode === "roofExtensionEdge") && drawState.dragBase) {

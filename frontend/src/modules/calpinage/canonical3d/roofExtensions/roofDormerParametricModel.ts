@@ -4,6 +4,13 @@ export type RoofDormerParametricVersion = "roof_dormer_parametric_v1";
 
 export type RoofDormerParametricTopology = "gable_trapezoid";
 
+export type RoofDormerSubtype =
+  | "chien_assis_inverted_shed"   // pente inverse du toit principal
+  | "gable_dormer"                // deux pans (lucarne à fronton triangulaire)
+  | "shed_dormer"                 // un seul pan, même sens
+  | "hip_dormer"                  // lucarne à croupe (3 pans)
+  | "flat_dormer";                // lucarne plate / capucine
+
 export type RoofDormerHeightReference = "support_plane_normal";
 
 export interface RoofDormerParametricPoint2D {
@@ -19,8 +26,8 @@ export interface RoofDormerParametricFootprint {
 }
 
 export interface RoofDormerParametricRidge {
-  readonly front: RoofDormerParametricPoint2D;
-  readonly rear: RoofDormerParametricPoint2D;
+  readonly left: RoofDormerParametricPoint2D;
+  readonly right: RoofDormerParametricPoint2D;
 }
 
 export interface RoofDormerParametricHeights {
@@ -58,6 +65,7 @@ export interface RoofDormerParametricModel {
   readonly id: StableEntityId;
   readonly supportPanId: StableEntityId;
   readonly topology: RoofDormerParametricTopology;
+  readonly subtype?: RoofDormerSubtype;
   readonly anchorWorld: Vector3;
   readonly orientation: RoofDormerParametricOrientation;
   readonly footprint: RoofDormerParametricFootprint;

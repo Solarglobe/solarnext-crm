@@ -32,8 +32,8 @@ export type LegacyStructuralHeightSelection =
   | LegacyStructuralRidgeSelection
   | LegacyStructuralTraitSelection;
 
-const DEFAULT_HEIGHT_GUTTER = 4;
-const DEFAULT_HEIGHT_RIDGE = 7;
+/** M18: Hauteurs par defaut supprimees -- retourner null quand h est absent. */
+export const HEIGHT_SIGNAL_ABSENT = null;
 
 function distImgPt(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
@@ -184,7 +184,7 @@ export function readCalpinageStructuralHeightM(
     const c = contours[sel.index];
     if (!c?.points || c.points[sel.pointIndex] == null) return null;
     const p = c.points[sel.pointIndex]!;
-    return typeof p.h === "number" && Number.isFinite(p.h) ? p.h : DEFAULT_HEIGHT_GUTTER;
+    return typeof p.h === "number" && Number.isFinite(p.h) ? p.h : HEIGHT_SIGNAL_ABSENT;
   }
   if (sel.type === "ridge") {
     const ridges = filterNonChienAssis(st.ridges ?? []);
@@ -192,21 +192,21 @@ export function readCalpinageStructuralHeightM(
     if (!r) return null;
     const end = sel.pointIndex === 0 ? r.a : r.b;
     if (!end) return null;
-    return typeof end.h === "number" && Number.isFinite(end.h) ? end.h : DEFAULT_HEIGHT_RIDGE;
+    return typeof end.h === "number" && Number.isFinite(end.h) ? end.h : HEIGHT_SIGNAL_ABSENT;
   }
   const traits = filterNonChienAssis(st.traits ?? []);
   const t = traits[sel.index];
   if (!t) return null;
   const end = sel.pointIndex === 0 ? t.a : t.b;
   if (!end) return null;
-  return typeof end.h === "number" && Number.isFinite(end.h) ? end.h : DEFAULT_HEIGHT_GUTTER;
+  return typeof end.h === "number" && Number.isFinite(end.h) ? end.h : HEIGHT_SIGNAL_ABSENT;
 }
 
 /** Lecture de la cote `h` sur une extrémité de faîtage (m), ou défaut faîtage legacy si absente. */
 export function readCalpinageRidgeEndpointHeightM(
   runtime: unknown,
   sel: LegacyStructuralRidgeSelection,
-  defaultRidgeHeightM = DEFAULT_HEIGHT_RIDGE,
+  defaultRidgeHeightM: number | null = HEIGHT_SIGNAL_ABSENT,
 ): number | null {
   if (!runtime || typeof runtime !== "object") return null;
   const ridges = filterNonChienAssis(

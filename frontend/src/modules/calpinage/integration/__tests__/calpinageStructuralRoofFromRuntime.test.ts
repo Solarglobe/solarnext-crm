@@ -96,6 +96,33 @@ describe("calpinageStructuralRoofFromRuntime", () => {
       ),
     ).toBe(false);
   });
+
+  it("structuralRoofLineRawUsable rejette un faitage avec a.y absent (M19)", () => {
+    expect(
+      structuralRoofLineRawUsable(
+        { id: "r", a: { x: 0 }, b: { x: 10, y: 5 }, roofRole: "faitage" },
+        1e-3,
+      ),
+    ).toBe(false);
+  });
+
+  it("structuralRoofLineRawUsable rejette un faitage avec b.y absent (M19)", () => {
+    expect(
+      structuralRoofLineRawUsable(
+        { id: "r", a: { x: 0, y: 0 }, b: { x: 10 }, roofRole: "faitage" },
+        1e-3,
+      ),
+    ).toBe(false);
+  });
+
+  it("structuralRoofLineRawUsable accepte un faitage valide avec a.y et b.y presentes (M19)", () => {
+    expect(
+      structuralRoofLineRawUsable(
+        { id: "r", a: { x: 0, y: 0 }, b: { x: 10, y: 0 }, roofRole: "faitage" },
+        1e-3,
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("buildSolarScene3DFromCalpinageRuntime structural (Cas 4 & 5)", () => {

@@ -7,6 +7,7 @@ import type {
   RoofDormerParametricModel,
   RoofDormerParametricPoint2D,
   RoofDormerParametricRidge,
+  RoofDormerSubtype,
 } from "./roofDormerParametricModel";
 import { validateRoofDormerParametricModel } from "./roofDormerParametricValidation";
 
@@ -34,6 +35,20 @@ function diag(code: string, severity: GeometryDiagnostic["severity"], message: s
   return { code, severity, message, context: { extensionId } };
 }
 
+const ROOF_DORMER_SUBTYPES: readonly RoofDormerSubtype[] = [
+  "chien_assis_inverted_shed",
+  "gable_dormer",
+  "shed_dormer",
+  "hip_dormer",
+  "flat_dormer",
+];
+
+function readSubtype(value: unknown): RoofDormerSubtype | null {
+  return typeof value === "string" && ROOF_DORMER_SUBTYPES.includes(value as RoofDormerSubtype)
+    ? value as RoofDormerSubtype
+    : null;
+}
+
 function readPoint(value: unknown): RoofDormerParametricPoint2D | null {
   if (!isRecord(value)) return null;
   const uM = finiteNumber(value.uM);
@@ -52,12 +67,18 @@ function readFootprint(value: unknown): RoofDormerParametricFootprint | null {
   return { frontLeft, frontRight, rearRight, rearLeft };
 }
 
+function readSourceFootprintPointCount(value: unknown): number | null {
+  if (Array.isArray(value)) return value.length;
+  if (!isRecord(value)) return null;
+  return Array.isArray(value.points) ? value.points.length : null;
+}
+
 function readRidge(value: unknown): RoofDormerParametricRidge | null {
   if (!isRecord(value)) return null;
-  const front = readPoint(value.front);
-  const rear = readPoint(value.rear);
-  if (!front || !rear) return null;
-  return { front, rear };
+  const left = readPoint(value.left) ?? readPoint(value.front);
+  const right = readPoint(value.right) ?? readPoint(value.rear);
+  if (!left || !right) return null;
+  return { left, right };
 }
 
 function readModel(raw: unknown, index: number): { model: RoofDormerParametricModel | null; diagnostics: readonly GeometryDiagnostic[] } {
@@ -68,6 +89,12 @@ function readModel(raw: unknown, index: number): { model: RoofDormerParametricMo
     return { model: null, diagnostics: [diag("ROOF_DORMER_PARAMETRIC_RUNTIME_VERSION_IGNORED", "info", "Enregistrement parametricDormers ignore car version differente.", String(raw.id ?? index))] };
   }
   const id = typeof raw.id === "string" && raw.id.length > 0 ? raw.id : `parametric-dormer-${index}`;
+  const diagnostics: GeometryDiagnostic[] = [];
+  const rawSubtype = raw.subtype;
+  const subtype = readSubtype(rawSubtype);
+  if (rawSubtype !== undefined && subtype == null) {
+    diagnostics.push(diag("DORMER_SUBTYPE_UNKNOWN", "info", "Subtype de dormer inconnu ignore.", id));
+  }
   const supportPanId = typeof raw.supportPanId === "string" ? raw.supportPanId : "";
   const anchor = isRecord(raw.anchorWorld) ? raw.anchorWorld : {};
   const orientation = isRecord(raw.orientation) ? raw.orientation : {};
@@ -82,6 +109,21 @@ function readModel(raw: unknown, index: number): { model: RoofDormerParametricMo
   const vx = finiteNumber(vAxisRaw.x);
   const vy = finiteNumber(vAxisRaw.y);
   const vz = finiteNumber(vAxisRaw.z);
+  const sourceFootprintPointCount = readSourceFootprintPointCount(raw.footprint);
+  if (sourceFootprintPointCount != null && sourceFootprintPointCount !== 4) {
+    return {
+      model: null,
+      diagnostics: [
+        ...diagnostics,
+        diag(
+          "DORMER_FOOTPRINT_NOT_QUADRILATERAL",
+          "warning",
+          `Footprint source du dormer parametrique non quadrilatere (${sourceFootprintPointCount} points) : modele ignore pour eviter une conversion silencieuse.`,
+          id,
+        ),
+      ],
+    };
+  }
   const footprint = readFootprint(raw.footprint);
   const ridge = readRidge(raw.ridge);
   const heights = isRecord(raw.heights) ? raw.heights : {};
@@ -89,16 +131,17 @@ function readModel(raw: unknown, index: number): { model: RoofDormerParametricMo
   const ridgeHeightM = finiteNumber(heights.ridgeHeightM);
   const roofRiseM = finiteNumber(heights.roofRiseM);
   if (ux == null || uy == null || uz == null || vx == null || vy == null || vz == null) {
-    return { model: null, diagnostics: [diag("ROOF_DORMER_PARAMETRIC_ORIENTATION_MISSING", "error", "Orientation (uAxisWorld/vAxisWorld) absente ou invalide pour le dormer parametrique.", id)] };
+    return { model: null, diagnostics: [...diagnostics, diag("ROOF_DORMER_PARAMETRIC_ORIENTATION_MISSING", "error", "Orientation (uAxisWorld/vAxisWorld) absente ou invalide pour le dormer parametrique.", id)] };
   }
   if (x == null || y == null || z == null || !footprint || !ridge || facadeHeightM == null || ridgeHeightM == null || roofRiseM == null) {
-    return { model: null, diagnostics: [diag("ROOF_DORMER_PARAMETRIC_RUNTIME_FIELDS_INVALID", "error", "Champs obligatoires du dormer parametrique manquants.", id)] };
+    return { model: null, diagnostics: [...diagnostics, diag("ROOF_DORMER_PARAMETRIC_RUNTIME_FIELDS_INVALID", "error", "Champs obligatoires du dormer parametrique manquants.", id)] };
   }
   const model: RoofDormerParametricModel = {
     version: "roof_dormer_parametric_v1",
     id,
     supportPanId,
     topology: "gable_trapezoid",
+    ...(subtype ? { subtype } : {}),
     anchorWorld: { x, y, z },
     orientation: {
       uAxisWorld: { x: ux, y: uy, z: uz },
@@ -128,7 +171,7 @@ function readModel(raw: unknown, index: number): { model: RoofDormerParametricMo
       safeZones: "parametric_footprint_offset",
     },
   };
-  return { model, diagnostics: validateRoofDormerParametricModel(model) };
+  return { model, diagnostics: [...diagnostics, ...validateRoofDormerParametricModel(model)] };
 }
 
 function qualityFor(diagnostics: readonly GeometryDiagnostic[]): BuildRoofDormerParametric3DFromRuntimeResult["quality"] {
@@ -193,8 +236,8 @@ function toExtensionVolume(
       ignoredLegacyCanonicalDormerGeometry: true,
       sourceContourPx: [],
       sourceRidgeLocalM: {
-        a: { x: model.ridge.front.uM, y: model.ridge.front.vM, heightRelM: model.heights.ridgeHeightM },
-        b: { x: model.ridge.rear.uM, y: model.ridge.rear.vM, heightRelM: model.heights.ridgeHeightM },
+        a: { x: model.ridge.left.uM, y: model.ridge.left.vM, heightRelM: model.heights.ridgeHeightM },
+        b: { x: model.ridge.right.uM, y: model.ridge.right.vM, heightRelM: model.heights.ridgeHeightM },
       },
       architecturalParts: {
         walls: geometry.parts.walls,
