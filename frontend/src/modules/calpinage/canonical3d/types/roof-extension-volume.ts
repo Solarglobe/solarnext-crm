@@ -105,7 +105,7 @@ export interface RoofExtensionTopologyMetadata {
   readonly supportPlaneNormal: Vector3;
   readonly ignoredLegacyCanonicalDormerGeometry: boolean;
   readonly sourceContourPx: readonly RoofExtensionSourcePointTopology2D[];
-  readonly sourceRidgePx: {
+  readonly sourceRidgeLocalM: {
     readonly a: RoofExtensionSourcePointTopology2D;
     readonly b: RoofExtensionSourcePointTopology2D;
   };

@@ -150,7 +150,7 @@ export function buildRoofExtensionVolume3D(
         y: p.y,
         heightRelM: p.heightRelM ?? 0,
       })),
-      sourceRidgePx: {
+      sourceRidgeLocalM: {
         a: {
           x: source.ridge.a.x,
           y: source.ridge.a.y,
@@ -197,6 +197,5 @@ export function buildRoofExtensionVolume3D(
       },
     },
   };
-
   return { volume, diagnostics };
 }
