@@ -88,6 +88,9 @@ function readModel(raw: unknown, index: number): { model: RoofDormerParametricMo
   const facadeHeightM = finiteNumber(heights.facadeHeightM);
   const ridgeHeightM = finiteNumber(heights.ridgeHeightM);
   const roofRiseM = finiteNumber(heights.roofRiseM);
+  if (ux == null || uy == null || uz == null || vx == null || vy == null || vz == null) {
+    return { model: null, diagnostics: [diag("ROOF_DORMER_PARAMETRIC_ORIENTATION_MISSING", "error", "Orientation (uAxisWorld/vAxisWorld) absente ou invalide pour le dormer parametrique.", id)] };
+  }
   if (x == null || y == null || z == null || !footprint || !ridge || facadeHeightM == null || ridgeHeightM == null || roofRiseM == null) {
     return { model: null, diagnostics: [diag("ROOF_DORMER_PARAMETRIC_RUNTIME_FIELDS_INVALID", "error", "Champs obligatoires du dormer parametrique manquants.", id)] };
   }
@@ -98,8 +101,8 @@ function readModel(raw: unknown, index: number): { model: RoofDormerParametricMo
     topology: "gable_trapezoid",
     anchorWorld: { x, y, z },
     orientation: {
-      uAxisWorld: { x: ux ?? 1, y: uy ?? 0, z: uz ?? 0 },
-      vAxisWorld: { x: vx ?? 0, y: vy ?? 1, z: vz ?? 0 },
+      uAxisWorld: { x: ux, y: uy, z: uz },
+      vAxisWorld: { x: vx, y: vy, z: vz },
     },
     footprint,
     ridge,
@@ -109,7 +112,7 @@ function readModel(raw: unknown, index: number): { model: RoofDormerParametricMo
       ridgeHeightM,
       roofRiseM,
     },
-    eaveOverhangM: finiteNumber(raw.eaveOverhangM) ?? 0.04,
+    eaveOverhangM: finiteNumber(raw.eaveOverhangM) ?? 0.30, // 30 cm : debord de rive standard (M22)
     flashingOffsetM: finiteNumber(raw.flashingOffsetM) ?? 0.02,
     keepoutOffsetM: finiteNumber(raw.keepoutOffsetM) ?? 0.08,
     render: {
@@ -128,10 +131,6 @@ function readModel(raw: unknown, index: number): { model: RoofDormerParametricMo
   return { model, diagnostics: validateRoofDormerParametricModel(model) };
 }
 
-function meanZ(points: readonly { readonly z: number }[]): number {
-  return points.reduce((sum, p) => sum + p.z, 0) / Math.max(1, points.length);
-}
-
 function qualityFor(diagnostics: readonly GeometryDiagnostic[]): BuildRoofDormerParametric3DFromRuntimeResult["quality"] {
   if (diagnostics.some((d) => d.severity === "error")) return { confidence: "low", diagnostics };
   if (diagnostics.some((d) => d.severity === "warning")) return { confidence: "medium", diagnostics };
@@ -147,7 +146,7 @@ function toExtensionVolume(
     id: model.id,
     kind: "dormer",
     structuralRole: "roof_extension",
-    baseElevationM: meanZ(geometry.footprintWorld),
+    baseElevationM: Math.min(...geometry.footprintWorld.map((p) => p.z)),
     heightM: model.heights.ridgeHeightM,
     extrusion: {
       mode: "along_pan_normal",
@@ -193,7 +192,7 @@ function toExtensionVolume(
       supportPlaneNormal: { ...patch.normal },
       ignoredLegacyCanonicalDormerGeometry: true,
       sourceContourPx: [],
-      sourceRidgePx: {
+      sourceRidgeLocalM: {
         a: { x: model.ridge.front.uM, y: model.ridge.front.vM, heightRelM: model.heights.ridgeHeightM },
         b: { x: model.ridge.rear.uM, y: model.ridge.rear.vM, heightRelM: model.heights.ridgeHeightM },
       },

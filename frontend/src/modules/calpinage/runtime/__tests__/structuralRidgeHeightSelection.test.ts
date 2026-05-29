@@ -85,17 +85,17 @@ describe("readCalpinageRidgeEndpointHeightM", () => {
 });
 
 describe("readCalpinageStructuralHeightM", () => {
-  it("applique le défaut gouttière sur contour sans h", () => {
+  it("retourne null (HEIGHT_SIGNAL_ABSENT) pour un contour sans h (M18)", () => {
     const runtime = {
       contours: [{ roofRole: "x", points: [{ x: 0, y: 0 }] }],
     };
-    expect(readCalpinageStructuralHeightM(runtime, { type: "contour", index: 0, pointIndex: 0 })).toBe(4);
+    expect(readCalpinageStructuralHeightM(runtime, { type: "contour", index: 0, pointIndex: 0 })).toBeNull();
   });
 
-  it("applique le défaut gouttière sur trait sans h", () => {
+  it("retourne null (HEIGHT_SIGNAL_ABSENT) pour un trait sans h (M18)", () => {
     const runtime = {
       traits: [{ roofRole: "x", a: { x: 0, y: 0 }, b: { x: 1, y: 1 } }],
     };
-    expect(readCalpinageStructuralHeightM(runtime, { type: "trait", index: 0, pointIndex: 0 })).toBe(4);
+    expect(readCalpinageStructuralHeightM(runtime, { type: "trait", index: 0, pointIndex: 0 })).toBeNull();
   });
 });

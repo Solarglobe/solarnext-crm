@@ -101,7 +101,7 @@ describe("buildRoofExtensions3DFromRuntime", () => {
           {
             id: "rx-apex",
             type: "roof_extension",
-            kind: "chien_assis",
+            kind: "dormer",
             supportPanId: "pan-apex-merge",
             visualModel: "manual_outline_gable",
             contour: {
@@ -154,9 +154,9 @@ describe("buildRoofExtensions3DFromRuntime", () => {
     );
     const ridgeA = vol.vertices.find((v) => v.id.endsWith(":ridge:a"))!;
     const ridgeBase = {
-      x: vol.topology!.sourceRidgePx.a.x,
-      y: -vol.topology!.sourceRidgePx.a.y,
-      z: 10 + Math.tan(Math.PI / 6) * -vol.topology!.sourceRidgePx.a.y,
+      x: vol.topology!.sourceRidgeLocalM.a.x,
+      y: -vol.topology!.sourceRidgeLocalM.a.y,
+      z: 10 + Math.tan(Math.PI / 6) * -vol.topology!.sourceRidgeLocalM.a.y,
     };
     const offset = sub3(ridgeA.position, ridgeBase);
     expect(Math.abs(dot3(offset, patch.normal) - 1)).toBeLessThan(1e-6);

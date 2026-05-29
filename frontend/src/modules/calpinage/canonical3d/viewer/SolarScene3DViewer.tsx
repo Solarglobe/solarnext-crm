@@ -4326,7 +4326,8 @@ export function SolarScene3DViewer({
       return null;
     }
     const rt = debugRuntime ?? roofRawState;
-    const refH = readCalpinageStructuralHeightM(rt, structuralHeightSelection) ?? 7;
+    const refH = readCalpinageStructuralHeightM(rt, structuralHeightSelection);
+    if (refH === null) return null;
     const pointLabel =
       structuralHeightSelection.type === "contour"
         ? String(structuralHeightSelection.pointIndex)

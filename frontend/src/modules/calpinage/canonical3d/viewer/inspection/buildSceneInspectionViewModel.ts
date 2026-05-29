@@ -35,7 +35,7 @@ function formatObstacleKindFr(k: RoofObstacleKind): string {
 function formatExtensionKindFr(k: string): string {
   const map: Record<string, string> = {
     dormer: "Lucarne",
-    chien_assis: "Chien-assis",
+    dormer: "Chien-assis / Dormer",
     shed: "Bâti / appentis",
     other: "Extension",
   };

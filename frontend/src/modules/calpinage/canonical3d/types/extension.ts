@@ -16,8 +16,13 @@ export type RoofExtensionIntegration =
   | "attached" /** partage d’arêtes / sommets avec le maillage principal */
   | "embedded"; /** sous-volume inclus dans l’enveloppe globale */
 
-export type RoofExtensionKind = "dormer" | "shed" | "chien_assis" | "flat_extension" | "other";
+export type RoofExtensionKind = "dormer" | "shed" | "flat_extension" | "other";
 
+/**
+ * @planned -- Type reserve pour une future API de modele 3D canonique des extensions.
+ * Non produit en production ; les volumes reels sont dans RoofExtensionVolume3D.
+ * CanonicalHouse3D.roofExtensions est toujours [] a ce stade.
+ */
 export interface RoofExtension3D {
   readonly id: StableEntityId;
   readonly kind: RoofExtensionKind;

@@ -9,7 +9,7 @@ describe("RoofExtensionV1 canonical model", () => {
       runtime: {
         roofExtensions: [{
           id: "rx-v1",
-          kind: "chien_assis",
+          kind: "dormer",
           supportPanId: "pan-v1",
           contour: {
             closed: true,

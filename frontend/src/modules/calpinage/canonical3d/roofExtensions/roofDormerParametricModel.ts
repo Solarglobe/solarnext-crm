@@ -97,6 +97,11 @@ export function createRoofDormerParametricModelFromDraft(
   draft: RoofDormerParametric2DDraft,
 ): RoofDormerParametricModel {
   const roofRiseM = draft.ridgeHeightM - draft.facadeHeightM;
+  if (roofRiseM <= 0) {
+    throw new Error(
+      `ROOF_DORMER_PARAMETRIC_INVALID_RISE: ridgeHeightM (${draft.ridgeHeightM}) must be strictly greater than facadeHeightM (${draft.facadeHeightM}). roofRiseM=${roofRiseM}.`,
+    );
+  }
   return {
     version: "roof_dormer_parametric_v1",
     id: draft.id,
@@ -115,7 +120,7 @@ export function createRoofDormerParametricModelFromDraft(
       ridgeHeightM: draft.ridgeHeightM,
       roofRiseM,
     },
-    eaveOverhangM: draft.eaveOverhangM ?? 0.04,
+    eaveOverhangM: draft.eaveOverhangM ?? 0.30, // 30 cm : debord de rive standard (M22 -- 0.04 etait une erreur d'unite)
     flashingOffsetM: draft.flashingOffsetM ?? 0.02,
     keepoutOffsetM: draft.keepoutOffsetM ?? 0.08,
     render: {

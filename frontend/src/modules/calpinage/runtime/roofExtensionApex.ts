@@ -40,7 +40,8 @@ export function intersectInfiniteLines2D(
   const b2 = bx1 - bx2;
   const c2 = a2 * bx1 + b2 * by1;
   const det = a1 * b2 - a2 * b1;
-  if (Math.abs(det) < 1e-9) return null;
+  const scale = Math.max(Math.abs(a1 * b2), Math.abs(a2 * b1), 1.0);
+  if (Math.abs(det) < 1e-6 * scale) return null;
   return {
     x: (b2 * c1 - b1 * c2) / det,
     y: (a1 * c2 - a2 * c1) / det,

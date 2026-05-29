@@ -115,14 +115,14 @@ export function validateRoofDormerParametricModel(
       diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_ORIENTATION_NOT_ORTHOGONAL", "error", "Axes parametriques non orthogonaux.", model.id));
     }
     if (supportPatch && (Math.abs(dot3(uAxis, supportPatch.normal)) > 1e-3 || Math.abs(dot3(vAxis, supportPatch.normal)) > 1e-3)) {
-      diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_ORIENTATION_OFF_PLANE", "warning", "Axes parametriques non tangents au pan support.", model.id));
+      diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_ORIENTATION_OFF_PLANE", "error", "Axes parametriques non tangents au pan support.", model.id));
     }
   }
   if (supportPatch && supportPatch.id !== model.supportPanId) {
     diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_SUPPORT_MISMATCH", "error", "Le pan support ne correspond pas au modele.", model.id));
   }
-  if (supportPatch && Math.abs(dot3(supportPatch.normal, model.anchorWorld) + supportPatch.equation.d) > 0.25) {
-    diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_ANCHOR_OFF_PLANE", "warning", "Ancre eloignee du pan support avant projection.", model.id));
+  if (supportPatch && Math.abs(dot3(supportPatch.normal, model.anchorWorld) + supportPatch.equation.d) > 0.05) {
+    diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_ANCHOR_OFF_PLANE", "error", "Ancre eloignee du pan support avant projection.", model.id));
   }
 
   const points = roofDormerParametricFootprintCycle(model.footprint);
@@ -161,7 +161,7 @@ export function validateRoofDormerParametricModel(
   ) {
     diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_HEIGHT_INVALID", "error", "Hauteurs dormer invalides.", model.id));
   }
-  if (Math.abs(h.ridgeHeightM - h.facadeHeightM - h.roofRiseM) > 1e-5) {
+  if (Math.abs(h.ridgeHeightM - h.facadeHeightM - h.roofRiseM) > 1e-3) { // F27: 1mm tolerance, evite faux positifs IEEE 754
     diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_HEIGHT_CONFLICT", "error", "ridgeHeightM doit egaler facadeHeightM + roofRiseM.", model.id));
   }
   if (h.facadeHeightM < 0.05 || h.ridgeHeightM < 0.1) {

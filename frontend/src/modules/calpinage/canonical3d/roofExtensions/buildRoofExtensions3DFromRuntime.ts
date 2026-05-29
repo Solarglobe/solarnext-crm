@@ -31,6 +31,18 @@ export function buildRoofExtensions3DFromRuntime(
   const extensionVolumes: RoofExtensionVolume3D[] = [];
 
   for (const source of sources) {
+    // F25: emit warnings exactly once — in the incomplete branch or after the guard, never both.
+    if (source.contour.length < 3 || !source.ridge) {
+      diagnostics.push(...source.warnings.map((code) => ({
+        code,
+        severity: code === "LEGACY_CANONICAL_DORMER_GEOMETRY_IGNORED" ? "info" as const : "warning" as const,
+        message: `Extension ${source.id} : source incomplete, aucun faux mesh n'est invente.`,
+        context: { extensionId: source.id },
+      })));
+      continue;
+    }
+
+    // Complete source: emit warnings once here.
     diagnostics.push(...source.warnings.map((code) => ({
       code,
       severity: code === "LEGACY_CANONICAL_DORMER_GEOMETRY_IGNORED" ? "info" as const : "warning" as const,
@@ -40,21 +52,6 @@ export function buildRoofExtensions3DFromRuntime(
           : `Extension ${source.id} : avertissement source legacy (${code}).`,
       context: { extensionId: source.id },
     })));
-
-    if (source.contour.length < 3 || !source.ridge) {
-      const incompleteDiagnostics: GeometryDiagnostic[] = source.warnings.map((code) => {
-        const severity: GeometryDiagnostic["severity"] =
-          code === "LEGACY_CANONICAL_DORMER_GEOMETRY_IGNORED" ? "info" : "warning";
-        return {
-          code,
-          severity,
-          message: `Extension ${source.id} : source incomplete, aucun faux mesh n'est invente.`,
-          context: { extensionId: source.id },
-        };
-      });
-      diagnostics.push(...incompleteDiagnostics);
-      continue;
-    }
 
     const support = resolveSupportPanForRoofExtension(source, input.roofPlanePatches, input);
     diagnostics.push(...support.diagnostics);

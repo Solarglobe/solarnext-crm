@@ -46,13 +46,11 @@ export function structuralRoofLineRawUsable(raw: unknown, minSegmentLenPx: numbe
   if (!o || o.roofRole === "chienAssis") return false;
   const a = o.a as { x?: number; y?: number } | undefined;
   const b = o.b as { x?: number; y?: number } | undefined;
-  if (!a || !b || typeof a.x !== "number" || typeof b.x !== "number") return false;
-  const ay = typeof a.y === "number" ? a.y : 0;
-  const by = typeof b.y === "number" ? b.y : 0;
-  if (!Number.isFinite(a.x) || !Number.isFinite(ay) || !Number.isFinite(b.x) || !Number.isFinite(by)) {
+  if (!a || !b || typeof a.x !== "number" || typeof a.y !== "number" || typeof b.x !== "number" || typeof b.y !== "number") return false;
+  if (!Number.isFinite(a.x) || !Number.isFinite(a.y) || !Number.isFinite(b.x) || !Number.isFinite(b.y)) {
     return false;
   }
-  const len = Math.hypot(b.x - a.x, by - ay);
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
   return len >= minSegmentLenPx;
 }
 

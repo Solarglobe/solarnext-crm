@@ -46,7 +46,7 @@ export interface LegacyStructuralLine2D {
  */
 export interface LegacyExtensionInput {
   readonly id: string;
-  readonly kind: "dormer" | "shed" | "chien_assis" | "other";
+  readonly kind: "dormer" | "shed" | "other";
   /** Si vrai, hors enveloppe principale (shell) pour la reconstruction future. */
   readonly excludedFromMainShell?: boolean;
 }

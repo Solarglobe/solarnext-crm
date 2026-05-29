@@ -1,4 +1,4 @@
-import { imagePxToWorldHorizontalM } from "../builder/worldMapping";
+import { imagePxToWorldHorizontalM, worldHorizontalMToImagePx } from "../builder/worldMapping";
 import type { GeometryDiagnostic } from "../types/quality";
 import type { RoofPlanePatch3D } from "../types/roof-surface";
 import type { RoofExtensionSource2D, RoofExtensionSourcePoint2D, RoofExtensionSourceSegment2D } from "./roofExtensionSource";
@@ -110,7 +110,16 @@ export function buildRoofExtensionV1FromSource(
     };
   }
 
-  const ridgeH = height(source.ridgeHeightRelM, 1);
+  // C6: if heights were stored in vertical reference frame, convert to pan-normal
+  const slopeDeg =
+    supportPatch.tiltDeg ??
+    (Math.acos(Math.max(-1, Math.min(1, supportPatch.normal.z))) * 180 / Math.PI);
+  const heightRefCos =
+    source.heightReference === "vertical_from_main_roof"
+      ? Math.cos(slopeDeg * Math.PI / 180)
+      : 1;
+
+  const ridgeH = height(source.ridgeHeightRelM, 1) * heightRefCos;
   const footprintPx = source.contour.map((p) => pointV1(p, 0));
   const areaPx2 = signedArea(footprintPx);
   const ridgePx = segmentV1(source.ridge, ridgeH);
@@ -120,12 +129,39 @@ export function buildRoofExtensionV1FromSource(
   const ridgeLenM = ridgeLenPx * input.metersPerPixel;
   const maxDepthPx = Math.max(...footprintPx.map((p) => distancePointToLinePx(p, ridgePx.a, ridgePx.b)), 0);
   const depthM = maxDepthPx * input.metersPerPixel;
-  const wallHeightM = height(source.wallHeightM, Math.min(0.45, ridgeH));
+  if (depthM < 1e-6) {
+    return {
+      model: null,
+      diagnostics: [{
+        code: "ROOF_EXTENSION_V1_FOOTPRINT_DEGENERATE_DEPTH",
+        severity: "error",
+        message: `Extension ${source.id} : profondeur de l'empreinte nulle ou inferieure a 1 micrometre -- le contour est degenere ou collineaire au faitage.`,
+        context: { extensionId: source.id },
+      }],
+    };
+  }
+  const wallHeightM =
+    source.wallHeightM != null && Number.isFinite(source.wallHeightM) && source.wallHeightM >= 0
+      ? source.wallHeightM * heightRefCos
+      : Math.min(0.45, ridgeH);
   const roofHeightM = Math.max(0, ridgeH - wallHeightM);
+  if (roofHeightM < 0.05) {
+    diagnostics.push({
+      code: "ROOF_EXTENSION_V1_FLAT_ROOF_FALLBACK",
+      severity: "warning",
+      message: "Hauteur de toit nulle ou inferieure a 5 cm -- verifier les dimensions du chien assis",
+      context: { extensionId: source.id },
+    });
+  }
   const pitchDeg = depthM > 1e-6 ? Math.atan2(Math.max(ridgeH - wallHeightM, 0), depthM) * 180 / Math.PI : null;
   const axisLen = ridgeLenPx || 1;
   const ridgeAxisPx = { x: ridgeDx / axisLen, y: ridgeDy / axisLen };
-  const depthAxisPx = { x: -ridgeAxisPx.y, y: ridgeAxisPx.x };
+  // E10: compute depth axis in world space (accounts for northAngleDeg), then back to pixels.
+  // Using mPP=1 because direction vectors are scale-invariant.
+  const ridgeInWorld = imagePxToWorldHorizontalM(ridgeAxisPx.x, ridgeAxisPx.y, 1, input.northAngleDeg);
+  const depthInWorld = { x: -ridgeInWorld.y, y: ridgeInWorld.x };
+  const depthInPx = worldHorizontalMToImagePx(depthInWorld.x, depthInWorld.y, 1, input.northAngleDeg);
+  const depthAxisPx = { x: depthInPx.xPx, y: depthInPx.yPx };
   const apexPx = source.apexVertex
     ? { x: source.apexVertex.x, y: source.apexVertex.y, heightRelM: height(source.apexVertex.h ?? null, ridgeH) }
     : null;
@@ -144,7 +180,7 @@ export function buildRoofExtensionV1FromSource(
     dimensions: {
       widthM: ridgeLenM,
       depthM,
-      footprintAreaM2: polygonWorldAreaM2(footprintPx, input),
+      footprintAreaM2: polygonWorldAreaM2(footprintPx, input) / Math.max(Math.cos(slopeDeg * Math.PI / 180), 1e-6), // M23: correction inclinaison pan
       wallHeightM,
       roofHeightM,
       totalHeightM: ridgeH,
@@ -202,6 +238,7 @@ export function roofExtensionV1ToSource2D(model: RoofExtensionV1): RoofExtension
       : null,
     ridgeHeightRelM: model.dimensions.totalHeightM,
     wallHeightM: model.dimensions.wallHeightM,
+    heightReference: "support_plane_normal",
     hadLegacyCanonicalDormerGeometry: model.provenance.ignoredLegacyFields.includes("canonicalDormerGeometry"),
     warnings: [],
   };

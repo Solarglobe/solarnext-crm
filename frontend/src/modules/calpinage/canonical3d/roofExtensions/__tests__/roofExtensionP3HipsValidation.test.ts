@@ -77,7 +77,7 @@ function buildP3ChienAssisVolume(spec: P3ChienAssisSpec): RoofExtensionVolume3D 
         {
           id: spec.extId,
           type: "roof_extension",
-          kind: "chien_assis",
+          kind: "dormer",
           visualModel: "manual_outline_gable",
           supportPanId: spec.panId,
           contour: {

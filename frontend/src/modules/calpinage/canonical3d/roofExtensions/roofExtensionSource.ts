@@ -39,6 +39,8 @@ export interface RoofExtensionSource2D {
   readonly ridgeHeightRelM: number | null;
   readonly wallHeightM: number | null;
   readonly hadLegacyCanonicalDormerGeometry: boolean;
+  /** Referentiel de hauteur : null = inconnu (suppose support_plane_normal). */
+  readonly heightReference: "support_plane_normal" | "vertical_from_main_roof" | null;
   readonly warnings: readonly string[];
 }
 
@@ -150,11 +152,11 @@ function readKind(raw: Record<string, unknown>): RoofExtensionKind {
   const dormerType = typeof raw.dormerType === "string" ? raw.dormerType.toLowerCase() : "";
   const canonical = readCanonicalV1(raw);
   const canonicalKind = canonical && typeof canonical.kind === "string" ? canonical.kind.toLowerCase() : "";
-  if (canonicalKind.includes("chien")) return "chien_assis";
+  if (canonicalKind.includes("chien")) return "dormer"; // F24: chien_assis unified into dormer
   if (canonicalKind.includes("shed")) return "shed";
   if (canonicalKind.includes("flat")) return "flat_extension";
   if (canonicalKind.includes("dormer")) return "dormer";
-  if (kind.includes("chien") || dormerType.includes("chien")) return "chien_assis";
+  if (kind.includes("chien") || dormerType.includes("chien")) return "dormer"; // F24
   if (kind.includes("dormer") || dormerType.includes("gable")) return "dormer";
   if (kind.includes("shed") || dormerType.includes("shed")) return "shed";
   if (kind.includes("flat")) return "flat_extension";
@@ -270,6 +272,38 @@ export function ridgeEndpointSharesApexVertex(
   return pointsCoincidePx(px.x, px.y, apex.x, apex.y, tolerancePx);
 }
 
+
+/**
+ * Dimensions d'une extension de toiture lues depuis canonicalV1.dimensions.
+ * UNITE : metres mesures selon la normale sortante du pan support (support_plane_normal),
+ * PAS en hauteur verticale absolue. Pour un pan incline a 30 deg, totalHeightM=1m signifie
+ * 1m le long de la normale, soit environ 0.87m de hauteur verticale.
+ * Seuil realiste pour un chien assis : totalHeightM <= 4.0m.
+ */
+interface RoofExtensionDimensionsV1 {
+  readonly totalHeightM?: number;
+  readonly wallHeightM?: number;
+  [key: string]: unknown;
+}
+
+/** Hauteur maximale realiste pour un chien assis (m selon la normale au pan). Au-dela : valeur suspecte. */
+const ROOF_EXTENSION_MAX_REALISTIC_DORMER_HEIGHT_M = 4.0;
+
+
+function readHeightReference(raw: Record<string, unknown>): "support_plane_normal" | "vertical_from_main_roof" | null {
+  const canonical = readCanonicalV1(raw);
+  const fromDimensions = canonical && isRecord(canonical.dimensions)
+    ? (canonical.dimensions as Record<string, unknown>).heightReference
+    : null;
+  const fromLegacyGeom = isRecord(raw.canonicalDormerGeometry)
+    ? (raw.canonicalDormerGeometry as Record<string, unknown>).heightReference
+    : null;
+  const ref = fromDimensions ?? fromLegacyGeom ?? raw.heightReference;
+  if (ref === "vertical_from_main_roof") return "vertical_from_main_roof";
+  if (ref === "support_plane_normal") return "support_plane_normal";
+  return null;
+}
+
 function readSource(raw: Record<string, unknown>, index: number): RoofExtensionSource2D {
   const id = raw.id != null ? String(raw.id) : `roof-extension-${index}`;
   const canonical = readCanonicalV1(raw);
@@ -279,9 +313,19 @@ function readSource(raw: Record<string, unknown>, index: number): RoofExtensionS
   const ridge = readRidge(raw);
   const hips = readHips(raw);
   const dimensions = canonical && isRecord(canonical.dimensions) ? canonical.dimensions : null;
-  const ridgeHeightRelM = nonNegativeNumber(dimensions?.totalHeightM) ?? nonNegativeNumber(raw.ridgeHeightRelM);
+  const rawTotalHeightM = nonNegativeNumber((dimensions as RoofExtensionDimensionsV1 | null)?.totalHeightM);
+  const totalHeightSuspicious =
+    rawTotalHeightM != null && rawTotalHeightM > ROOF_EXTENSION_MAX_REALISTIC_DORMER_HEIGHT_M;
+  const effectiveTotalHeightM = totalHeightSuspicious ? null : rawTotalHeightM;
+  const ridgeHeightRelM = effectiveTotalHeightM ?? nonNegativeNumber(raw.ridgeHeightRelM);
+  const heightReference = readHeightReference(raw);
   const apexVertex = resolveApexVertex(raw, id, hips, ridgeHeightRelM);
   const warnings: string[] = [];
+  if (totalHeightSuspicious) {
+    warnings.push(
+      `ROOF_EXTENSION_TOTAL_HEIGHT_SUSPICIOUS: totalHeightM=${rawTotalHeightM} > ${ROOF_EXTENSION_MAX_REALISTIC_DORMER_HEIGHT_M}m -- fallback sur raw.ridgeHeightRelM`,
+    );
+  }
   if (effectiveContour.length < 3) warnings.push("ROOF_EXTENSION_CONTOUR_INVALID");
   if (canonicalContour.length >= 3) warnings.push("ROOF_EXTENSION_SOURCE_FROM_CANONICAL_V1");
   if (!ridge) warnings.push("ROOF_EXTENSION_RIDGE_MISSING");
@@ -314,6 +358,7 @@ function readSource(raw: Record<string, unknown>, index: number): RoofExtensionS
     ridgeHeightRelM,
     wallHeightM: nonNegativeNumber(dimensions?.wallHeightM) ?? nonNegativeNumber(raw.wallHeightM),
     hadLegacyCanonicalDormerGeometry: hasLegacyCanonicalDormerGeometry(raw),
+    heightReference,
     warnings,
   };
 }
