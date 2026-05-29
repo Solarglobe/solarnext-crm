@@ -221,7 +221,25 @@ export function extractHeightStateContextFromCalpinageState(state: unknown): Hei
   const contours = (Array.isArray(s.contours) ? s.contours : structural.contours) as HeightStateContext["contours"];
   const ridges = (Array.isArray(s.ridges) ? s.ridges : structural.ridges) as HeightStateContext["ridges"];
   const traits = (Array.isArray(s.traits) ? s.traits : structural.traits) as HeightStateContext["traits"];
-  return { contours, ridges, traits };
+  return {
+    contours,
+    ridges,
+    traits,
+    dormers: (Array.isArray(s.parametricDormers) ? s.parametricDormers : []).map(
+      (d: unknown) => {
+        const dm = d as Record<string, unknown>;
+        return {
+          id: dm.id,
+          anchorWorld: dm.anchorWorld,
+          footprint: dm.footprint,
+          ridge: dm.ridge,
+          heights: dm.heights,
+          orientation: dm.orientation,
+          supportPanId: dm.supportPanId,
+        };
+      },
+    ),
+  } as unknown as HeightStateContext;
 }
 
 /** Lit le polygone pan avec `h` / `heightM` explicites sur les sommets (Prompt 22). */

@@ -146,6 +146,7 @@ export function computeRuntimeSceneStructuralSignatures(
     obstacles: snap.obstacles,
     shadowVolumes: snap.shadowVolumes,
     roofExtensions: snap.roofExtensions,
+    parametricDormers: snap.parametricDormers,
   });
   const geometrySignature = fnv1a32Hex(`geom:${geometryPayload}`);
 

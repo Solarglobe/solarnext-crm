@@ -442,7 +442,23 @@ export function KonvaContoursLayer() {
               listening={false}
             />
             <Line
-              points={imagePointsToKonva([frontRight, ridgeLeft], imgH)}
+              points={imagePointsToKonva([frontRight, ridgeRight], imgH)}
+              stroke={STYLE.parametricHipStroke}
+              strokeWidth={1.5}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />
+            <Line
+              points={imagePointsToKonva([rearLeft, ridgeLeft], imgH)}
+              stroke={STYLE.parametricHipStroke}
+              strokeWidth={1.5}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />
+            <Line
+              points={imagePointsToKonva([rearRight, ridgeRight], imgH)}
               stroke={STYLE.parametricHipStroke}
               strokeWidth={1.5}
               strokeScaleEnabled={false}
