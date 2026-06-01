@@ -264,4 +264,225 @@ export function KonvaContoursLayer() {
               lineJoin="round"
               lineCap="round"
               listening={false}
-   
+            />
+            {/* Trait bleu principal */}
+            <Line
+              points={pts}
+              closed={c.closed}
+              stroke={STYLE.roofStroke}
+              strokeWidth={STYLE.roofStrokeWidth}
+              strokeScaleEnabled={false}
+              lineJoin="round"
+              lineCap="round"
+              listening={false}
+            />
+          </Group>
+        );
+      })}
+
+      {/* ── Faitages / ridges ─────────────────────────────────────────────── */}
+      {ridges.map((r) => {
+        if (!r.a || !r.b || r.roofRole === "chienAssis") return null;
+
+        const pts = [r.a.x, imgH - r.a.y, r.b.x, imgH - r.b.y];
+
+        return (
+          <Group key={r.id} listening={false}>
+            {/* Halo blanc */}
+            <Line
+              points={pts}
+              stroke={STYLE.ridgeHalo}
+              strokeWidth={STYLE.ridgeHaloWidth}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />
+            {/* Trait ambre principal */}
+            <Line
+              points={pts}
+              stroke={STYLE.ridgeStroke}
+              strokeWidth={STYLE.ridgeStrokeWidth}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />
+          </Group>
+        );
+      })}
+
+      {/* ── Extensions / dormers (orange) ─────────────────────────────────── */}
+      {roofExtensions.map((rx) => {
+        const elements: React.ReactNode[] = [];
+
+        /* Contour en trait plein orange */
+        if (rx.contour?.points && rx.contour.points.length >= 2) {
+          const pts = rx.contour.points.flatMap((p) => [p.x, imgH - p.y]);
+          const closed = rx.contour.closed !== false;
+          elements.push(
+            <Line
+              key={`${rx.id}:contour`}
+              points={pts}
+              closed={closed}
+              stroke={STYLE.extensionStroke}
+              strokeWidth={STYLE.extensionStrokeWidth}
+              strokeScaleEnabled={false}
+              lineJoin="round"
+              lineCap="round"
+              listening={false}
+            />,
+          );
+        }
+
+        /* Faitage en trait epais orange */
+        if (rx.ridge?.a && rx.ridge?.b) {
+          const pts = [rx.ridge.a.x, imgH - rx.ridge.a.y, rx.ridge.b.x, imgH - rx.ridge.b.y];
+          elements.push(
+            <Line
+              key={`${rx.id}:ridge`}
+              points={pts}
+              stroke={STYLE.extensionStroke}
+              strokeWidth={STYLE.extensionRidgeWidth}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />,
+          );
+        }
+
+
+        /* Aretiers (hips) en trait pointille orange */
+        for (const side of ["left", "right"] as const) {
+          const hip = rx.hips?.[side];
+          if (hip?.a && hip?.b) {
+            const pts = [hip.a.x, imgH - hip.a.y, hip.b.x, imgH - hip.b.y];
+            elements.push(
+              <Line
+                key={`${rx.id}:hip:${side}`}
+                points={pts}
+                stroke={STYLE.extensionStroke}
+                strokeWidth={STYLE.extensionStrokeWidth}
+                strokeScaleEnabled={false}
+                dash={[6, 4]}
+                lineCap="round"
+                listening={false}
+              />,
+            );
+          }
+        }
+
+        if (elements.length === 0) return null;
+        return (
+          <Group key={rx.id} listening={false}>
+            {elements}
+          </Group>
+        );
+      })}
+
+      {/* ── Parametric dormers V2 ─────────────────────────────────────────── */}
+      {worldTransform != null && parametricDormers.map((model, index) => {
+        const fp = model.footprint;
+        const ridge = model.ridge;
+        if (
+          !fp ||
+          !ridge ||
+          !isParametricDormerPoint(fp.frontLeft) ||
+          !isParametricDormerPoint(fp.frontRight) ||
+          !isParametricDormerPoint(fp.rearRight) ||
+          !isParametricDormerPoint(fp.rearLeft) ||
+          !isParametricDormerPoint(ridge.left) ||
+          !isParametricDormerPoint(ridge.right)
+        ) return null;
+
+        const frontLeft = parametricDormerUvToImagePx(model, fp.frontLeft, worldTransform);
+        const frontRight = parametricDormerUvToImagePx(model, fp.frontRight, worldTransform);
+        const rearRight = parametricDormerUvToImagePx(model, fp.rearRight, worldTransform);
+        const rearLeft = parametricDormerUvToImagePx(model, fp.rearLeft, worldTransform);
+        const ridgeLeft = parametricDormerUvToImagePx(model, ridge.left, worldTransform);
+        const ridgeRight = parametricDormerUvToImagePx(model, ridge.right, worldTransform);
+        if (!frontLeft || !frontRight || !rearRight || !rearLeft || !ridgeLeft || !ridgeRight) return null;
+
+        const id = model.id ?? `parametric-dormer-${index}`;
+        const footprint = [frontLeft, frontRight, rearRight, rearLeft];
+        const center = centroid(footprint);
+        const hasV1Twin = model.id != null && roofExtensionIds.has(model.id);
+
+        return (
+          <Group key={`parametric:${id}`} listening={false}>
+            <Line
+              points={imagePointsToKonva(footprint, imgH)}
+              closed
+              fill={STYLE.parametricFootprintFill}
+              stroke={STYLE.parametricFootprintStroke}
+              strokeWidth={1.5}
+              strokeScaleEnabled={false}
+              lineJoin="round"
+              listening={false}
+            />
+            <Line
+              points={imagePointsToKonva([frontLeft, frontRight], imgH)}
+              stroke={STYLE.parametricFacadeStroke}
+              strokeWidth={2.5}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />
+            <Line
+              points={imagePointsToKonva([ridgeLeft, ridgeRight], imgH)}
+              stroke={STYLE.parametricRidgeStroke}
+              strokeWidth={2}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />
+            <Line
+              points={imagePointsToKonva([frontLeft, ridgeLeft], imgH)}
+              stroke={STYLE.parametricHipStroke}
+              strokeWidth={1.5}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />
+            <Line
+              points={imagePointsToKonva([frontRight, ridgeRight], imgH)}
+              stroke={STYLE.parametricHipStroke}
+              strokeWidth={1.5}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />
+            <Line
+              points={imagePointsToKonva([rearLeft, ridgeLeft], imgH)}
+              stroke={STYLE.parametricHipStroke}
+              strokeWidth={1.5}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />
+            <Line
+              points={imagePointsToKonva([rearRight, ridgeRight], imgH)}
+              stroke={STYLE.parametricHipStroke}
+              strokeWidth={1.5}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />
+            {hasV1Twin && (
+              <Circle
+                x={center.x}
+                y={imgH - center.y}
+                radius={6}
+                fill="rgba(220,38,38,0.22)"
+                stroke={STYLE.duplicateMarkerStroke}
+                strokeWidth={2}
+                strokeScaleEnabled={false}
+                listening={false}
+              />
+            )}
+          </Group>
+        );
+      })}
+    </>
+  );
+}
+
+export default KonvaContoursLayer;

@@ -229,13 +229,26 @@ export function buildArchitecturalDormerV1Topology(
 
   /** Pour un vertex de la gouttiére, renvoie l'index du sommet de toiture cible. */
   function targetRidgeFor(i: number): number {
-    const base = projected.contour[i]!.base;
-    const u = dot3(sub3(base, ridgeMid), ridgeAxis);
-    const v = dot3(sub3(base, ridgeMid), depthAxis);
-    if (apexIndex != null && apexIndex !== ridgeLeftIndex && apexIndex !== ridgeRightIndex && v <= 0) {
-      return apexIndex;
-    }
     if (isPointRidge) return ridgeAIndex;
+
+    const base = projected.contour[i]!.base;
+
+    // Apex distinct des deux extrémités du faitage → voisin le plus proche en espace monde
+    // (le test v <= 0 était faux : depthAxis pointe vers le centroïde, pas forcément vers la facade)
+    if (apexIndex != null && apexIndex !== ridgeLeftIndex && apexIndex !== ridgeRightIndex) {
+      const apexBase       = projected.apex!.base;
+      const ridgeLeftBase  = ridgeUA <= ridgeUB ? ridgeBaseA : ridgeBaseB;
+      const ridgeRightBase = ridgeUA <= ridgeUB ? ridgeBaseB : ridgeBaseA;
+      const dApex  = length3(sub3(base, apexBase));
+      const dLeft  = length3(sub3(base, ridgeLeftBase));
+      const dRight = length3(sub3(base, ridgeRightBase));
+      if (dApex <= dLeft && dApex <= dRight) return apexIndex;
+      if (dLeft <= dRight) return ridgeLeftIndex;
+      return ridgeRightIndex;
+    }
+
+    // Pas d'apex distinct : split par coordonnée u le long du faitage
+    const u = dot3(sub3(base, ridgeMid), ridgeAxis);
     return u <= (ridgeULeft + ridgeURight) / 2 ? ridgeLeftIndex : ridgeRightIndex;
   }
 
