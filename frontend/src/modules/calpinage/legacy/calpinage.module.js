@@ -4016,7 +4016,11 @@ export function initCalpinage(container, options = {}) {
         if ((!finiteDormerNumber(rx.ridgeHeightRelM) || rx.ridgeHeightRelM < 0) && rx.canonicalV1 && rx.canonicalV1.dimensions && finiteDormerNumber(rx.canonicalV1.dimensions.totalHeightM)) {
           ridgeH = rx.canonicalV1.dimensions.totalHeightM;
         }
-        var ridge = segmentToRoofExtensionV1(getRoofExtensionRidgeForMigration(rx), ridgeH);
+        /* Pour un manual_outline_gable, le faitage est une ligne de référence sur le pan (h=0).
+         * L'élévation est portée uniquement par l'apex. On force fallbackH=0 pour que
+         * ridgePx.a.heightRelM = ridgePx.b.heightRelM = 0 → ridgeIsFlat=true → useApexOnly=true. */
+        var ridgeFallbackH = (rx.visualModel === "manual_outline_gable") ? 0 : ridgeH;
+        var ridge = segmentToRoofExtensionV1(getRoofExtensionRidgeForMigration(rx), ridgeFallbackH);
         if (!ridge) return null;
         var mpp = getRoofExtensionMetersPerPixel();
         var areaPx2 = roofExtensionSignedAreaPx(footprint);
@@ -5502,8 +5506,15 @@ export function initCalpinage(container, options = {}) {
             return;
           }
           rx.ridgeHeightRelM = num;
-          if (rx.ridge && rx.ridge.a) rx.ridge.a.h = num;
-          if (rx.ridge && rx.ridge.b) rx.ridge.b.h = num;
+          /* Pour manual_outline_gable : le faitage est une référence à h=0.
+           * L'apex (ridgeHeightRelM) est élevé ; on ne touche pas aux heights des endpoints du faitage. */
+          if (rx.visualModel !== "manual_outline_gable") {
+            if (rx.ridge && rx.ridge.a) rx.ridge.a.h = num;
+            if (rx.ridge && rx.ridge.b) rx.ridge.b.h = num;
+          } else {
+            /* Re-sync l'apex avec la nouvelle hauteur */
+            if (rx.apexVertex) rx.apexVertex.h = num;
+          }
           rebuildRoofExtensionVisualGeometry(rx);
           cont.innerHTML = "";
           if (typeof saveCalpinageState === "function") saveCalpinageState();
@@ -5545,6 +5556,9 @@ export function initCalpinage(container, options = {}) {
 
       function syncDormerRidgeHeightFromPointHeights(rx, fallbackHeight) {
         if (!rx || !rx.ridge) return;
+        /* Pour manual_outline_gable, les points du faitage sont à h=0 (référence plate).
+         * ridgeHeightRelM représente la hauteur de l'apex, pas le faitage — on ne l'écrase pas. */
+        if (rx.visualModel === "manual_outline_gable") return;
         var vals = [];
         if (rx.ridge.a && Number.isFinite(rx.ridge.a.h)) vals.push(rx.ridge.a.h);
         if (rx.ridge.b && Number.isFinite(rx.ridge.b.h)) vals.push(rx.ridge.b.h);
@@ -18016,13 +18030,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               if (!ridge.a) {
                 var _sA = _snapRidgePoint(imgPt);
-                ridge.a = _sA || { x: imgPt.x, y: imgPt.y };
+                var _rPtA = _sA || { x: imgPt.x, y: imgPt.y };
+                /* h:0 — le faitage est une ligne de référence sur le pan ; seul l'apex est élevé */
+                ridge.a = { x: _rPtA.x, y: _rPtA.y, h: 0 };
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 return;
               }
               if (!ridge.b) {
                 var _sB = _snapRidgePoint(imgPt);
-                ridge.b = _sB || { x: imgPt.x, y: imgPt.y };
+                var _rPtB = _sB || { x: imgPt.x, y: imgPt.y };
+                /* h:0 — idem, ligne de référence plate */
+                ridge.b = { x: _rPtB.x, y: _rPtB.y, h: 0 };
                 draft.stage = draft.hips && draft.hips.left && draft.hips.right ? "COMPLETE" : "RIDGE";
                 rebuildRoofExtensionVisualGeometry(draft);
                 drawState.dormerEditRxIndex = null;
