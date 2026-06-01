@@ -4872,6 +4872,7 @@ export function initCalpinage(container, options = {}) {
           ridge: null,
           visualModel: "manual_outline_gable",
           ridgeHeightRelM: draft.ridgeHeightRelM != null ? draft.ridgeHeightRelM : 0.8,
+          wallHeightM: 0,
           baseZ: 0,
           supportPanId: draft.supportPanId || null
         };
@@ -17897,7 +17898,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 }
                 syncRoofExtensionSharedApex(draft);
                 draft.stage = draft.ridge && draft.ridge.a && draft.ridge.b ? "COMPLETE" : "HIPS";
-                rebuildDormerCanonicalGeometry(draft);
+                rebuildRoofExtensionVisualGeometry(draft);
                 drawState.dormerEditRxIndex = null;
                 window.CALPINAGE_MODE = null;
                 drawState.dormerActiveTool = null;
@@ -18005,7 +18006,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 var _sB = _snapRidgePoint(imgPt);
                 ridge.b = _sB || { x: imgPt.x, y: imgPt.y };
                 draft.stage = draft.hips && draft.hips.left && draft.hips.right ? "COMPLETE" : "RIDGE";
-                rebuildDormerCanonicalGeometry(draft);
+                rebuildRoofExtensionVisualGeometry(draft);
                 drawState.dormerEditRxIndex = null;
                 window.CALPINAGE_MODE = null;
                 drawState.dormerActiveTool = null;

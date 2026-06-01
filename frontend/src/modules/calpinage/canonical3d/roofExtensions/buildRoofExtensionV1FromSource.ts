@@ -143,7 +143,7 @@ export function buildRoofExtensionV1FromSource(
   const wallHeightM =
     source.wallHeightM != null && Number.isFinite(source.wallHeightM) && source.wallHeightM >= 0
       ? source.wallHeightM * heightRefCos
-      : Math.min(0.45, ridgeH);
+      : 0;
   const roofHeightM = Math.max(0, ridgeH - wallHeightM);
   if (roofHeightM < 0.05) {
     diagnostics.push({

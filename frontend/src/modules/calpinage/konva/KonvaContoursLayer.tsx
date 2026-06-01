@@ -349,6 +349,50 @@ export function KonvaContoursLayer() {
           );
         }
 
+        /* Aretes automatiques calculees si contour 4pts + faitage presents */
+        if (
+          rx.contour?.points &&
+          rx.contour.points.length === 4 &&
+          rx.ridge?.a && rx.ridge?.b
+        ) {
+          const p4 = rx.contour.points;
+          const rA = rx.ridge.a;
+          const rB = rx.ridge.b;
+          const d = (p: { x: number; y: number }, r: { x: number; y: number }) =>
+            Math.hypot(p.x - r.x, p.y - r.y);
+          const ranked = p4
+            .map((p, i) => ({ p, i, score: d(p, rA) - d(p, rB) }))
+            .sort((a, b) => a.score - b.score);
+          const toA = [ranked[0].p, ranked[1].p];
+          const toB = [ranked[2].p, ranked[3].p];
+          const autoHipStyle = {
+            stroke: STYLE.extensionStroke,
+            strokeWidth: STYLE.extensionStrokeWidth,
+            strokeScaleEnabled: false,
+            dash: [5, 5],
+            lineCap: "round" as const,
+            listening: false,
+          };
+          for (const cp of toA) {
+            elements.push(
+              <Line
+                key={`${rx.id}:auto-hip:a:${cp.x}:${cp.y}`}
+                points={[cp.x, imgH - cp.y, rA.x, imgH - rA.y]}
+                {...autoHipStyle}
+              />,
+            );
+          }
+          for (const cp of toB) {
+            elements.push(
+              <Line
+                key={`${rx.id}:auto-hip:b:${cp.x}:${cp.y}`}
+                points={[cp.x, imgH - cp.y, rB.x, imgH - rB.y]}
+                {...autoHipStyle}
+              />,
+            );
+          }
+        }
+
         /* Aretiers (hips) en trait pointille orange */
         for (const side of ["left", "right"] as const) {
           const hip = rx.hips?.[side];
