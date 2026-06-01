@@ -226,6 +226,7 @@ export function buildArchitecturalDormerV1Topology(
   const ridgeULeft      = Math.min(ridgeUA, ridgeUB);
   const ridgeURight     = Math.max(ridgeUA, ridgeUB);
   const isPointRidge    = ridgeAIndex === ridgeBIndex;
+  const targetRidgeAxis = ridgeAxis;
   // useApexOnly : le faitage est à hauteur 0 (ligne de référence), seul l'apex est élevé.
   // Dans ce cas, TOUS les points de gouttière pointent vers l'apex → pyramide propre.
   const ridgeIsFlat = (projected.ridge.a.heightRelM ?? 0) < 0.01 && (projected.ridge.b.heightRelM ?? 0) < 0.01;
@@ -253,7 +254,7 @@ export function buildArchitecturalDormerV1Topology(
     }
 
     // Pas d'apex distinct : split par coordonnée u le long du faitage
-    const u = dot3(sub3(base, ridgeMid), ridgeAxis);
+    const u = dot3(sub3(base, ridgeMid), targetRidgeAxis);
     return u <= (ridgeULeft + ridgeURight) / 2 ? ridgeLeftIndex : ridgeRightIndex;
   }
 
