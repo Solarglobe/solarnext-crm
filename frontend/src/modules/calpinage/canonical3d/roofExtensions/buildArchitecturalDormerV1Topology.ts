@@ -178,6 +178,7 @@ export function buildArchitecturalDormerV1Topology(
   if (uMax - uMin < LENGTH_EPS_M || vMax - vMin < LENGTH_EPS_M) return null;
 
   const wallHeightM = Math.max(0, model.dimensions.wallHeightM);
+  const N = projected.contour.length;
 
   const vertices: VolumeVertex3D[] = [];
   const addVertex = (id: string, position: Vector3): number => {
@@ -187,63 +188,58 @@ export function buildArchitecturalDormerV1Topology(
     return index;
   };
 
-  // ─── Vrais coins du contour dessiné — pas la bounding box ───────────────────
-  // Classe chaque point projeté en (u, v) dans le repère ridge :
-  //   v élevé = "avant" (façade, loin du ridge) ; v faible = "arrière" (près du ridge)
-  //   u faible = "gauche" ; u élevé = "droite"
-  const contourUV = projected.contour.map((p) => ({
-    base: p.base,
-    u: dot3(sub3(p.base, ridgeMid), ridgeAxis),
-    v: dot3(sub3(p.base, ridgeMid), depthAxis),
-  }));
-  const byV = [...contourUV].sort((a, b) => b.v - a.v);
-  const half = Math.ceil(byV.length / 2);
-  const frontG = byV.slice(0, half).sort((a, b) => a.u - b.u); // gauche→droite
-  const rearG  = byV.slice(half).sort((a, b) => a.u - b.u);
+  // ── N base + N eave vertices — tous les points du contour, sans perte ────────────
+  const bPts: number[] = [];
+  const ePts: number[] = [];
+  for (let i = 0; i < N; i++) {
+    const base = projected.contour[i]!.base;
+    bPts.push(addVertex(`${model.id}:base:${i}`, base));
+    ePts.push(addVertex(`${model.id}:eave:${i}`, add3(base, scale3(supportNormal, wallHeightM))));
+  }
 
-  const flBase = frontG[0]!.base;
-  const frBase = frontG[frontG.length - 1]!.base;
-  const rlBase = (rearG[0] ?? frontG[0]!).base;
-  const rrBase = (rearG[rearG.length - 1] ?? frontG[frontG.length - 1]!).base;
-
-  const bFL = addVertex(`${model.id}:base:front-left`,  flBase);
-  const bFR = addVertex(`${model.id}:base:front-right`, frBase);
-  const bRR = addVertex(`${model.id}:base:rear-right`,  rrBase);
-  const bRL = addVertex(`${model.id}:base:rear-left`,   rlBase);
-  const eFL = addVertex(`${model.id}:eave:front-left`,  add3(flBase, scale3(supportNormal, wallHeightM)));
-  const eFR = addVertex(`${model.id}:eave:front-right`, add3(frBase, scale3(supportNormal, wallHeightM)));
-  const eRR = addVertex(`${model.id}:eave:rear-right`,  add3(rrBase, scale3(supportNormal, wallHeightM)));
-  const eRL = addVertex(`${model.id}:eave:rear-left`,   add3(rlBase, scale3(supportNormal, wallHeightM)));
-
+  // ── Ridge / apex ─────────────────────────────────────────────────
   const apexOnRidgeA = !!(projected.apex && model.apexId && nearlySameWorld(projected.apex.top, ridgeTopA));
   const apexOnRidgeB = !!(projected.apex && model.apexId && nearlySameWorld(projected.apex.top, ridgeTopB));
-  const ridgeAIndex = addVertex(apexOnRidgeA ? `${model.id}:${model.apexId}` : `${model.id}:ridge:a`, ridgeTopA);
+  const ridgeAIndex = addVertex(
+    apexOnRidgeA ? `${model.id}:${model.apexId}` : `${model.id}:ridge:a`,
+    ridgeTopA,
+  );
   const ridgeBIndex = nearlySameWorld(ridgeTopA, ridgeTopB)
     ? ridgeAIndex
-    : addVertex(apexOnRidgeB ? `${model.id}:${model.apexId}` : `${model.id}:ridge:b`, ridgeTopB);
+    : addVertex(
+        apexOnRidgeB ? `${model.id}:${model.apexId}` : `${model.id}:ridge:b`,
+        ridgeTopB,
+      );
   let apexIndex: number | null = null;
   if (projected.apex && model.apexId) {
-    if (apexOnRidgeA) {
-      apexIndex = ridgeAIndex;
-    } else if (apexOnRidgeB) {
-      apexIndex = ridgeBIndex;
-    } else {
-      apexIndex = addVertex(`${model.id}:${model.apexId}`, projected.apex.top);
-    }
-  }
-  if (
-    vertices.length < 9 ||
-    [bFL, bFR, bRR, bRL, eFL, eFR, eRR, eRL, ridgeAIndex, ridgeBIndex].some((x) => x < 0) ||
-    apexIndex === -1
-  ) {
-    return null;
+    if (apexOnRidgeA)      apexIndex = ridgeAIndex;
+    else if (apexOnRidgeB) apexIndex = ridgeBIndex;
+    else                   apexIndex = addVertex(`${model.id}:${model.apexId}`, projected.apex.top);
   }
 
-  const ridgeUA = dot3(sub3(ridgeBaseA, ridgeMid), ridgeAxis);
-  const ridgeUB = dot3(sub3(ridgeBaseB, ridgeMid), ridgeAxis);
-  const ridgeLeftIndex = ridgeUA <= ridgeUB ? ridgeAIndex : ridgeBIndex;
+  if (bPts.some((i) => i < 0) || ePts.some((i) => i < 0) || ridgeAIndex < 0 || ridgeBIndex < 0) return null;
+
+  const ridgeUA        = dot3(sub3(ridgeBaseA, ridgeMid), ridgeAxis);
+  const ridgeUB        = dot3(sub3(ridgeBaseB, ridgeMid), ridgeAxis);
+  const ridgeLeftIndex  = ridgeUA <= ridgeUB ? ridgeAIndex : ridgeBIndex;
   const ridgeRightIndex = ridgeUA <= ridgeUB ? ridgeBIndex : ridgeAIndex;
+  const ridgeULeft      = Math.min(ridgeUA, ridgeUB);
+  const ridgeURight     = Math.max(ridgeUA, ridgeUB);
+  const isPointRidge    = ridgeAIndex === ridgeBIndex;
 
+  /** Pour un vertex de la gouttiére, renvoie l'index du sommet de toiture cible. */
+  function targetRidgeFor(i: number): number {
+    const base = projected.contour[i]!.base;
+    const u = dot3(sub3(base, ridgeMid), ridgeAxis);
+    const v = dot3(sub3(base, ridgeMid), depthAxis);
+    if (apexIndex != null && apexIndex !== ridgeLeftIndex && apexIndex !== ridgeRightIndex && v <= 0) {
+      return apexIndex;
+    }
+    if (isPointRidge) return ridgeAIndex;
+    return u <= (ridgeULeft + ridgeURight) / 2 ? ridgeLeftIndex : ridgeRightIndex;
+  }
+
+  // ── Edges ─────────────────────────────────────────────────────────────────
   const edges: VolumeEdge3D[] = [];
   const edgeKeys = new Set<string>();
   const addEdge = (id: string, a: number, b: number, kind: VolumeEdge3D["kind"]): void => {
@@ -257,57 +253,48 @@ export function buildArchitecturalDormerV1Topology(
     edges.push({ id, vertexAIndex: a, vertexBIndex: b, kind });
   };
 
-  addEdge(`${model.id}:edge:base:front`, bFL, bFR, "base");
-  addEdge(`${model.id}:edge:base:right`, bFR, bRR, "base");
-  addEdge(`${model.id}:edge:base:rear`, bRR, bRL, "base");
-  addEdge(`${model.id}:edge:base:left`, bRL, bFL, "base");
-  addEdge(`${model.id}:edge:lateral:front-left`, bFL, eFL, "lateral");
-  addEdge(`${model.id}:edge:lateral:front-right`, bFR, eFR, "lateral");
-  addEdge(`${model.id}:edge:lateral:rear-right`, bRR, eRR, "lateral");
-  addEdge(`${model.id}:edge:lateral:rear-left`, bRL, eRL, "lateral");
-  addEdge(`${model.id}:edge:outline:front-eave`, eFL, eFR, "top");
-  addEdge(`${model.id}:edge:outline:rear-eave`, eRL, eRR, "top");
-  addEdge(`${model.id}:edge:outline:left-cheek-eave`, eFL, eRL, "top");
-  addEdge(`${model.id}:edge:outline:right-cheek-eave`, eFR, eRR, "top");
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    addEdge(`${model.id}:edge:base:${i}`,    bPts[i]!, bPts[j]!, "base");
+    addEdge(`${model.id}:edge:lateral:${i}`, bPts[i]!, ePts[i]!, "lateral");
+    addEdge(`${model.id}:edge:eave:${i}`,    ePts[i]!, ePts[j]!, "top");
+    addEdge(`${model.id}:edge:rafter:${i}`,  ePts[i]!, targetRidgeFor(i), "other");
+  }
   addEdge(`${model.id}:edge:ridge`, ridgeAIndex, ridgeBIndex, "top");
-  addEdge(`${model.id}:edge:roof:left-front`, eFL, ridgeLeftIndex, "other");
-  addEdge(`${model.id}:edge:roof:left-rear`, eRL, ridgeLeftIndex, "other");
-  addEdge(`${model.id}:edge:roof:right-front`, eFR, ridgeRightIndex, "other");
-  addEdge(`${model.id}:edge:roof:right-rear`, eRR, ridgeRightIndex, "other");
-  addEdge(`${model.id}:edge:flashing:front`, bFL, bFR, "base");
-  addEdge(`${model.id}:edge:flashing:rear`, bRL, bRR, "base");
   if (apexIndex != null) {
-    addEdge(`${model.id}:edge:ridge:left`, ridgeLeftIndex, apexIndex, "top");
+    addEdge(`${model.id}:edge:ridge:left`,  ridgeLeftIndex, apexIndex, "top");
     addEdge(`${model.id}:edge:ridge:right`, apexIndex, ridgeRightIndex, "top");
   }
-  if (model.hipsPx) {
-    addEdge(`${model.id}:edge:hip:left`, eFL, apexIndex ?? ridgeLeftIndex, "other");
-    addEdge(`${model.id}:edge:hip:right`, eFR, apexIndex ?? ridgeRightIndex, "other");
-  }
 
+  // ── Faces ──────────────────────────────────────────────────────────────────────
   const positions = vertices.map((v) => v.position);
-  const centroid = centroidPoints(positions);
+  const centroid  = centroidPoints(positions);
   const faces: VolumeFace3D[] = [];
   const addFace = (id: string, kind: VolumeFace3D["kind"], cycle: readonly number[]): void => {
     const face = orientedFace(id, kind, cycle, positions, centroid);
     if (face) faces.push(face);
   };
 
-  addFace(`${model.id}:face:base`, "base", [bFL, bRL, bRR, bFR]);
-  addFace(`${model.id}:face:wall:front`, "side", [bFL, bFR, eFR, eFL]);
-  addFace(`${model.id}:face:wall:rear`, "side", [bRL, eRL, eRR, bRR]);
-  addFace(`${model.id}:face:wall:cheek:left:lower`, "side", [bFL, eFL, eRL, bRL]);
-  addFace(`${model.id}:face:wall:cheek:left:gable`, "side", [eFL, ridgeLeftIndex, eRL]);
-  addFace(`${model.id}:face:wall:cheek:right:lower`, "side", [bFR, bRR, eRR, eFR]);
-  addFace(`${model.id}:face:wall:cheek:right:gable`, "side", [eFR, eRR, ridgeRightIndex]);
-  if (apexIndex != null && apexIndex !== ridgeLeftIndex && apexIndex !== ridgeRightIndex) {
-    addFace(`${model.id}:face:roof:left:front`, "top", [eFL, eFR, apexIndex, ridgeLeftIndex]);
-    addFace(`${model.id}:face:roof:right:front`, "top", [eFR, ridgeRightIndex, apexIndex]);
-    addFace(`${model.id}:face:roof:left:rear`, "top", [eRL, ridgeLeftIndex, apexIndex]);
-    addFace(`${model.id}:face:roof:right:rear`, "top", [eRL, apexIndex, ridgeRightIndex, eRR]);
-  } else {
-    addFace(`${model.id}:face:roof:left:front-slope`, "top", [eFL, eFR, ridgeRightIndex, ridgeLeftIndex]);
-    addFace(`${model.id}:face:roof:right:rear-slope`, "top", [eRL, ridgeLeftIndex, ridgeRightIndex, eRR]);
+  // Base polygon (tous N points)
+  addFace(`${model.id}:face:base`, "base", bPts);
+
+  // Murs lateraux — N quads (dégénèrent si wallHeightM = 0)
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    addFace(`${model.id}:face:wall:${i}`, "side", [bPts[i]!, bPts[j]!, ePts[j]!, ePts[i]!]);
+  }
+
+  // Toiture — fan de la gouttiére vers le faitage / apex
+  for (let i = 0; i < N; i++) {
+    const j  = (i + 1) % N;
+    const ti = targetRidgeFor(i);
+    const tj = targetRidgeFor(j);
+    if (ti === tj) {
+      addFace(`${model.id}:face:roof:${i}`, "top", [ePts[i]!, ePts[j]!, ti]);
+    } else {
+      addFace(`${model.id}:face:roof:${i}:a`, "top", [ePts[i]!, ePts[j]!, tj]);
+      addFace(`${model.id}:face:roof:${i}:b`, "top", [ePts[i]!, tj, ti]);
+    }
   }
 
   if (faces.length === 0) return null;
