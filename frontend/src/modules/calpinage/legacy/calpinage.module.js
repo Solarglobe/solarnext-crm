@@ -26511,4 +26511,18 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       window.CALPINAGE_SELECTED_INVERTER_ID = null;
       window.CALPINAGE_ALLOWED = false;
     }
-    /* Vider le container pour que le prochain init (�
+    /* Vider le container pour que le prochain init (étude B) ne trouve pas #calpinage-root et réinjecte proprement */
+    try {
+      if (container && container.firstChild) {
+        while (container.firstChild) container.removeChild(container.firstChild);
+      }
+    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] container clear error", e); }
+    _calpinageInitInFlight = false;
+    if (devLog) {
+      console.log("[CALPINAGE] cleanup done (state isolated, ready for next study)");
+    }
+  };
+  container.__CALPINAGE_MOUNTED__ = true;
+  container.__CALPINAGE_TEARDOWN__ = cleanup;
+  return cleanup;
+}
