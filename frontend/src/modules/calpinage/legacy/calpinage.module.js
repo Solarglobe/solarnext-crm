@@ -2275,8 +2275,11 @@ export function initCalpinage(container, options = {}) {
                 <span class="calpinage-tool-obstacle-chevron" aria-hidden="true">▾</span>
               </button>
               <div class="calpinage-tool-obstacle-dropdown" id="calpinage-roof-extension-dropdown" hidden>
-                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="parametric-gable-place" title="Placer une lucarne chien assis à 2 pans">
-                  <span class="calpinage-tool-label">Placer lucarne chien assis</span>
+                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="contour" title="Dessiner le contour kite du chien assis (4 clics + fermeture)">
+                  <span class="calpinage-tool-label">① Contour (kite)</span>
+                </button>
+                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="ridge" title="Dessiner le faitage — sélectionner d'abord le chien assis">
+                  <span class="calpinage-tool-label">② Faitage</span>
                 </button>
               </div>
             </div>
@@ -15391,6 +15394,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 drawState.dormerEditRxIndex = null;
                 window.CALPINAGE_MODE = MODE_DORMER_CONTOUR;
                 drawState.dormerActiveTool = "contour";
+                if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.success) {
+                  window.calpinageToast.success("Cliquez 4 points pour tracer le contour kite du chien assis, puis cliquez le 1er point pour fermer.");
+                }
               } else if (tool === "hips") {
                 if (target && target.contour && target.contour.closed && target.contour.points && target.contour.points.length >= 3) {
                   target.hips = { left: null, right: null };
@@ -15413,6 +15419,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   drawState.dormerDraft = null;
                   window.CALPINAGE_MODE = MODE_DORMER_RIDGE;
                   drawState.dormerActiveTool = "ridge";
+                  if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.success) {
+                    window.calpinageToast.success("Cliquez 2 points pour tracer le faitage à l'intérieur du contour. Il sera élevé en 3D.");
+                  }
                 } else {
                   if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.warning) {
                     window.calpinageToast.warning("Veuillez d'abord tracer et fermer le contour du chien assis, puis le s\u00E9lectionner.");
@@ -26475,7 +26484,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         ps.activePoint = null;
       }
     } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] CalpinagePans reset error", e); }
-    /* Supprimer toute référence window pour éviter fuite d'état entre études */
+    /* Supprimer toute référence window pour éviter fuite d état entre études */
     if (typeof window !== "undefined") {
       try { delete window.CALPINAGE_STATE; } catch (_) {}
       try { delete window.__applyFlatRoofConfigAndRecompute; } catch (_) {}
