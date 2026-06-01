@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit v9 — Chien Assis Manuel (V1 Dessin, Kite)</title>
+<style>
+  :root {
+    --bg:#0f172a;--surface:#1e293b;--surface2:#253248;--surface3:#1a2540;
+    --border:#334155;--text:#e2e8f0;--text-dim:#94a3b8;
+    --accent:#6366f1;--accent2:#818cf8;
+    --ok:#22c55e;--warn:#f59e0b;--err:#ef4444;--info:#38bdf8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.6;display:flex;min-height:100vh}
+  nav{width:240px;min-width:240px;background:var(--surface);border-right:1px solid var(--border);padding:24px 0;position:sticky;top:0;height:100vh;overflow-y:auto}
+  nav h2{padding:0 20px 16px;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-dim)}
+  nav a{display:block;padding:7px 20px;color:var(--text-dim);text-decoration:none;font-size:13px;border-left:3px solid transparent;transition:all .15s}
+  nav a:hover,nav a.active{color:var(--text);border-left-color:var(--accent);background:var(--surface2)}
+  nav .sep{height:1px;background:var(--border);margin:10px 20px}
+  main{flex:1;padding:40px 48px;max-width:1150px}
+  h1{font-size:28px;font-weight:700;margin-bottom:8px}
+  .subtitle{color:var(--text-dim);margin-bottom:32px;font-size:15px}
+  section{margin-bottom:56px}
+  h2.section-title{font-size:20px;font-weight:600;margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+  h3{font-size:15px;font-weight:600;margin-bottom:10px;color:var(--accent2)}
+  .hero{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:36px}
+  .badge{padding:10px 18px;border-radius:10px;font-weight:700;font-size:13px;border:1px solid}
+  .badge.red{background:#ef444420;border-color:#ef4444;color:#fca5a5}
+  .badge.orange{background:#f59e0b20;border-color:#f59e0b;color:#fcd34d}
+  .badge.green{background:#22c55e20;border-color:#22c55e;color:#86efac}
+  .badge.blue{background:#38bdf820;border-color:#38bdf8;color:#7dd3fc}
+  .badge.purple{background:#6366f120;border-color:#6366f1;color:#a5b4fc}
+  table{width:100%;border-collapse:collapse;margin-bottom:20px}
+  th{background:var(--surface2);padding:9px 14px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);border:1px solid var(--border)}
+  td{padding:9px 14px;border:1px solid var(--border);vertical-align:top;font-size:13px}
+  tr:nth-child(even) td{background:var(--surface3)}
+  .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+  .tag.p0{background:#ef444430;color:#fca5a5;border:1px solid #ef4444}
+  .tag.p1{background:#f59e0b30;color:#fcd34d;border:1px solid #f59e0b}
+  .tag.p2{background:#6366f130;color:#a5b4fc;border:1px solid #6366f1}
+  .tag.ok{background:#22c55e30;color:#86efac;border:1px solid #22c55e}
+  .bug{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:20px;overflow:hidden}
+  .bug.critical{border-color:#ef4444}
+  .bug.warn{border-color:#f59e0b}
+  .bug.info{border-color:#6366f1}
+  .bug-hd{padding:14px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+  .bug.critical .bug-hd{background:#ef444410}
+  .bug.warn .bug-hd{background:#f59e0b10}
+  .bug.info .bug-hd{background:#6366f110}
+  .bug-bd{padding:18px 20px}
+  .bug-bd p{margin-bottom:8px;color:var(--text-dim);font-size:13px}
+  .bug-bd p strong{color:var(--text)}
+  pre{background:#060d1e;border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;line-height:1.55;margin:10px 0}
+  .del{color:#fca5a5;background:#ef444415}
+  .add{color:#86efac;background:#22c55e15}
+  .prompt-wrap{background:#060d1e;border:1px solid var(--accent);border-radius:10px;margin-top:18px;overflow:hidden}
+  .prompt-hd{padding:9px 16px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-dim)}
+  .prompt-wrap pre{margin:0;border:none;border-radius:0;background:transparent}
+  .copy-btn{background:var(--accent);color:#fff;border:none;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600}
+  .copy-btn:hover{background:var(--accent2)}
+  .callout{border-radius:10px;padding:16px 20px;margin-bottom:16px;border:1px solid}
+  .callout.red{background:#ef444412;border-color:#ef4444}
+  .callout.green{background:#22c55e12;border-color:#22c55e}
+  .callout.orange{background:#f59e0b12;border-color:#f59e0b}
+  .callout.blue{background:#38bdf812;border-color:#38bdf8}
+  .callout h4{font-size:14px;font-weight:700;margin-bottom:4px}
+  .callout.red h4{color:#fca5a5}
+  .callout.green h4{color:#86efac}
+  .callout.orange h4{color:#fcd34d}
+  .callout.blue h4{color:#7dd3fc}
+  code{background:#1e293b;padding:2px 6px;border-radius:4px;font-size:12px;font-family:'Cascadia Code','Fira Code',monospace}
+  .pipeline{display:flex;gap:0;flex-wrap:wrap;margin:16px 0}
+  .pipeline-step{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:12px;position:relative}
+  .pipeline-step::after{content:"→";position:absolute;right:-18px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:16px}
+  .pipeline-step:last-child::after{display:none}
+  .pipeline-arrow{display:flex;align-items:center;padding:0 6px;color:var(--text-dim)}
+  .geo-box{background:#060d1e;border:1px solid var(--border);border-radius:8px;padding:16px;margin:12px 0;font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;line-height:1.8}
+</style>
+</head>
+<body>
+<nav>
+  <h2>Navigation</h2>
+  <a href="#approche">Approche V1 Manuel</a>
+  <a href="#geometrie">Géométrie 3D exacte</a>
+  <a href="#pipeline">Pipeline complet</a>
+  <div class="sep"></div>
+  <a href="#bug-a">BUG-A (P0) — wallHeightM non nul</a>
+  <a href="#bug-b">BUG-B (P0) — canonicalV1 non synchronisé</a>
+  <a href="#bug-c">BUG-C (P1) — Konva : kite non tracé</a>
+  <div class="sep"></div>
+  <a href="#prompts">4 prompts Codex</a>
+  <a href="#synthese">Synthèse</a>
+</nav>
+<main>
+  <h1>Audit v9 — Chien Assis Dessin Manuel (Kite)</h1>
+  <p class="subtitle">SolarNext · V1 manuel : contour KITE + faitage dessinés sur satellite · 2026-06-01 · 3 bugs bloquants, 4 prompts Codex longs</p>
+
+  <div class="hero">
+    <div class="badge red">🔴 2 bugs P0 — géométrie fausse ou non synchronisée</div>
+    <div class="badge orange">🟠 1 bug P1 — kite shape absent en 2D</div>
+    <div class="badge purple">🟣 4 prompts Codex longs et précis</div>
+    <div class="badge green">✓ Pipeline V1 intact — contour+ridge lus directement</div>
+  </div>
+
+  <!-- ═══ APPROCHE -->
+  <section id="approche">
+    <h2 class="section-title">Approche V1 Manuel — Ce qu'on veut faire</h2>
+
+    <div class="callout green">
+      <h4>Principe : dessiner comme la maison et le toit</h4>
+      <p style="color:var(--text-dim);font-size:13px;margin-top:4px">
+        L'utilisateur dessine le chien assis en deux étapes, directement sur la photo satellite :
+        <br><br>
+        <strong style="color:var(--text)">Étape 1 — Contour (4 clics + fermeture)</strong> : l'empreinte du chien assis sur le pan de toit. Outil <code>MODE_DORMER_CONTOUR</code>. Crée un objet dans <code>CALPINAGE_STATE.roofExtensions[]</code>.
+        <br><br>
+        <strong style="color:var(--text)">Étape 2 — Faitage (2 clics)</strong> : la ligne de faitage du chien assis, à l'intérieur du contour. Outil <code>MODE_DORMER_RIDGE</code>. Stocke <code>rx.ridge.a</code> et <code>rx.ridge.b</code> sur l'objet créé à l'étape 1.
+        <br><br>
+        Le 3D est reconstruit automatiquement. Il n'y a PAS besoin de dessiner les arêtes manuellement — elles sont auto-calculées depuis le contour + le faitage.
+      </p>
+    </div>
+
+    <div class="callout blue">
+      <h4>Ce qui EXISTE déjà dans le code (et fonctionne)</h4>
+      <p style="color:var(--text-dim);font-size:13px;margin-top:4px">
+        ✓ <code>MODE_DORMER_CONTOUR</code> — dessin du contour, fermeture, création de <code>roofExtension</code><br>
+        ✓ <code>MODE_DORMER_RIDGE</code> — dessin du faitage en 2 clics<br>
+        ✓ Konva V1 — affiche contour (orange plein) + faitage (orange épais) depuis <code>roofExtensions[]</code><br>
+        ✓ Pipeline 3D V1 — <code>buildRoofExtensions3DFromRuntime</code> lit <code>rx.contour.points</code> et <code>rx.ridge</code> directement<br>
+        ✓ Hauteurs correctes — <code>contour.points</code> → hauteur 0 (sur le pan) ; <code>ridge</code> → élevé de <code>ridgeHeightRelM</code><br>
+        ✓ Projection sur pan — <code>projectRoofExtensionToSupportPlane</code> calcule z_toit + élévation normale
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══ GEOMETRIE -->
+  <section id="geometrie">
+    <h2 class="section-title">Géométrie 3D exacte — Ce que le code produit</h2>
+
+    <div class="callout orange">
+      <h4>Règle utilisateur confirmée</h4>
+      <p style="color:var(--text-dim);font-size:13px;margin-top:4px">
+        "Tout contour est collé au TOIT donc à 0cm — arête côté contour à 0 puis le point qui rejoint arête et faitage est lui sur élevé."
+      </p>
+    </div>
+
+    <div class="callout red">
+      <h4>⚠ Le contour N'EST PAS un rectangle — c'est le KITE visible sur la photo satellite</h4>
+      <p style="color:var(--text-dim);font-size:13px;margin-top:4px">
+        L'utilisateur dessine la vraie forme du chien assis telle qu'elle apparaît depuis le satellite.
+        Un chien assis vu du dessus forme un <strong style="color:var(--text)">kite / losange</strong> : avant large (façade visible depuis la rue),
+        qui se rétrécit vers l'arrière jusqu'au faitage court. Ce n'est PAS un rectangle.
+        Le contour 4 points suit exactement cette forme kite. Le faitage est un segment court dessiné à l'intérieur du kite.
+      </p>
+    </div>
+
+    <div class="geo-box">
+VUE SATELLITE (du dessus) — CE QUE L'UTILISATEUR DESSINE SUR LA PHOTO :
+
+  Rue / avant (downslope)
+            ↓
+   frontLeft ──────────── frontRight    ← façade (côté LARGE du kite, au bas du pan)
+        ╲                      ╱
+    arête╲                    ╱arête    ← calculées automatiquement (BUG-C à corriger)
+          ╲                  ╱
+       ridgeLeft ────── ridgeRight      ← FAITAGE (2 points dessinés, court)
+          ╱                  ╲
+    arête╱                    ╲arête
+        ╱                      ╲
+   rearLeft ──────────── rearRight     ← arrière (côté étroit ou apex, vers faîtage principal)
+            ↑
+  Faîtage principal / arrière (upslope)
+
+  → L'utilisateur dessine le contour [frontLeft, frontRight, rearRight, rearLeft]
+    en suivant la vraie forme kite visible depuis le satellite.
+    Puis il dessine le faitage [ridgeLeft, ridgeRight] à l'intérieur.
+    Les 4 arêtes sont calculées et tracées automatiquement.
+
+─────────────────────────────────────────────────────────────────
+
+VUE 3D (élévation au-dessus du pan de toit) :
+
+  ridgeLeft ──── ridgeRight    ← ÉLEVÉS de ridgeHeightRelM le long de la normale au pan
+      ↑               ↑
+      │  (4 arêtes)   │         ← montent de hauteur 0 au niveau du contour
+      │               │           jusqu'à ridgeHeightRelM au niveau du faitage
+  FL(0cm) FR(0cm) RL(0cm) RR(0cm)  ← contour COLLÉ au pan (z = z_toit)
+
+RÈGLE HAUTEURS :
+  frontLeft, frontRight, rearLeft, rearRight
+              → hauteur relative = 0 cm  (collés à la surface du pan)
+  ridgeLeft   → élevé de ridgeHeightRelM le long de la normale au pan
+  ridgeRight  → même règle
+
+FACES (4 faces planes, wallHeightM = 0) :
+  [frontLeft, frontRight, ridgeLeft]              ← triangle avant (apex ou façade)
+  [rearLeft, rearRight, ridgeRight]               ← triangle arrière (jonction toit)
+  [frontLeft, ridgeLeft, ridgeRight, rearLeft]    ← quad pan gauche   (PLANAIRE ✓)
+  [frontRight, rearRight, ridgeRight, ridgeLeft]  ← quad pan droit    (PLANAIRE ✓)
+    </div>
+
+    <h3>Comment le code calcule les hauteurs</h3>
+    <p style="color:var(--text-dim);font-size:13px;margin-bottom:12px">
+      Dans <code>projectRoofExtensionToSupportPlane.ts</code> — <code>projectSourcePoint()</code> :
+    </p>
+    <pre>
+// Projecter un point 2D (pixel image) sur la surface du pan de toit
+const xy  = imagePxToWorldHorizontalM(point.x, point.y, mpp, northDeg);
+const z   = zOnPlaneEquationAtFixedXY(patch.equation, xy.x, xy.y);  // ← z du pan à ce XY
+const base = { x: xy.x, y: xy.y, z };                               // ← 0cm : SUR le pan
+
+// Élever le point de heightRelM le long de la normale au pan
+const top  = add3(base, scale3(normal, heightRelM));                 // ← élevé si heightRelM > 0
+
+// Pour les points de CONTOUR : heightRelM = 0  → top = base (sur le pan)
+// Pour les points de FAITAGE : heightRelM = ridgeHeightRelM (ex. 0.80)  → élevé</pre>
+
+    <p style="color:var(--text-dim);font-size:13px;margin-top:8px">
+      Le code lit <code>ridgeHeightRelM</code> depuis <code>rx.ridgeHeightRelM</code> (défaut 0.8 défini dans <code>pushRoofExtensionFromContour</code>). L'utilisateur peut le modifier via le panneau latéral de hauteur.
+    </p>
+  </section>
+
+  <!-- ═══ PIPELINE -->
+  <section id="pipeline">
+    <h2 class="section-title">Pipeline complet V1 — de la souris au mesh 3D</h2>
+
+    <table>
+      <tr><th>Étape</th><th>Fichier / Fonction</th><th>Ce que ça fait</th></tr>
+      <tr>
+        <td><strong>1. Dessin contour</strong></td>
+        <td><code>calpinage.module.js</code><br>MODE_DORMER_CONTOUR → <code>pushRoofExtensionFromContour()</code></td>
+        <td>4 clics + fermeture → crée <code>roofExtension</code> avec <code>contour.points[]</code>, <code>ridgeHeightRelM=0.8</code>, <code>stage:"CONTOUR"</code>. Résout <code>supportPanId</code> via <code>hitTestPan(centroid)</code>.</td>
+      </tr>
+      <tr>
+        <td><strong>2. Dessin faitage</strong></td>
+        <td><code>calpinage.module.js</code><br>MODE_DORMER_RIDGE → handler clic</td>
+        <td>2 clics → stocke <code>rx.ridge.a</code> et <code>rx.ridge.b</code> (pixels image). Appelle <code>rebuildDormerCanonicalGeometry(draft)</code> mais <strong>PAS</strong> <code>syncPersistedRoofExtensionV1</code> → <code>canonicalV1</code> reste null. ← <strong>BUG-B</strong></td>
+      </tr>
+      <tr>
+        <td><strong>3. Lecture source 3D</strong></td>
+        <td><code>roofExtensionSource.ts</code><br><code>readRuntimeRoofExtensionSources(state)</code></td>
+        <td>Lit <code>state.roofExtensions[]</code>. Pour chaque rx : lit <code>rx.contour.points</code> directement (fallback si <code>canonicalV1</code> absent). Lit <code>rx.ridge</code> directement. Lit <code>rx.ridgeHeightRelM</code> (0.8). <strong>Le fallback fonctionne — le 3D est bien lu même sans canonicalV1.</strong></td>
+      </tr>
+      <tr>
+        <td><strong>4. Résolution pan support</strong></td>
+        <td><code>resolveSupportPan.ts</code></td>
+        <td>Trouve le <code>RoofPlanePatch3D</code> qui correspond à <code>source.supportPanId</code>. Si null → pas de mesh 3D.</td>
+      </tr>
+      <tr>
+        <td><strong>5. Modèle canonique V1</strong></td>
+        <td><code>buildRoofExtensionV1FromSource.ts</code></td>
+        <td>Convertit source 2D → <code>RoofExtensionV1</code> avec <code>footprintPx</code>, <code>ridgePx</code>, <code>dimensions</code>. <strong>BUG-A ici</strong> : <code>wallHeightM</code> par défaut = <code>Math.min(0.35, ridgeH×0.5)</code> au lieu de 0.</td>
+      </tr>
+      <tr>
+        <td><strong>6. Validation V1</strong></td>
+        <td><code>roofExtensionV1Validation.ts</code></td>
+        <td>Vérifie que le faitage est dans le footprint, que l'aire est non nulle, etc. Erreurs bloquantes si faitage hors contour.</td>
+      </tr>
+      <tr>
+        <td><strong>7. Projection 3D</strong></td>
+        <td><code>projectRoofExtensionToSupportPlane.ts</code></td>
+        <td>Projette chaque point 2D sur le plan du pan : <code>base = z_toit</code>, <code>top = base + normal × height</code>. Contour → height=0 (sur pan). Ridge → height=ridgeHeightRelM.</td>
+      </tr>
+      <tr>
+        <td><strong>8. Topologie 3D</strong></td>
+        <td><code>buildArchitecturalDormerV1Topology.ts</code></td>
+        <td>Construit le mesh avec les vertices et faces. Utilise <code>wallHeightM</code> pour les eave vertices. Si <strong>wallHeightM=0</strong> : base=eave (pas de murs) → 4 faces pures. Correct ✓</td>
+      </tr>
+      <tr>
+        <td><strong>9. Konva 2D</strong></td>
+        <td><code>KonvaContoursLayer.tsx</code><br>lignes 314–378</td>
+        <td>Trace contour (orange plein) + ridge (orange épais) + hips (orange pointillé si manuels). <strong>BUG-C</strong> : les 4 arêtes automatiques (contour_coin → endpoint_faitage) ne sont PAS tracées → kite shape invisible.</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- ═══ BUG-A -->
+  <section id="bug-a">
+    <h2 class="section-title">BUG-A (P0) — wallHeightM non nul crée des murs parasites</h2>
+    <div class="bug critical">
+      <div class="bug-hd">
+        <span class="tag p0">P0 GÉOMÉTRIE</span>
+        <strong>buildRoofExtensionV1FromSource.ts</strong>
+        <span style="color:var(--text-dim);font-size:12px">+ pushRoofExtensionFromContour (calpinage.module.js l.4862)</span>
+      </div>
+      <div class="bug-bd">
+        <p><strong>Symptôme :</strong> Le chien assis 3D a des murs verticaux sur les 4 côtés du contour alors que l'utilisateur veut "tout contour collé au toit à 0cm".</p>
+        <p><strong>Cause :</strong> Dans <code>buildRoofExtensionV1FromSource.ts</code>, quand <code>source.wallHeightM</code> est null (non défini sur le rx), le code applique un fallback non nul :</p>
+        <pre>// ACTUEL — buildRoofExtensionV1FromSource.ts
+const facadeH = Number.isFinite(rx.wallHeightM) && rx.wallHeightM >= 0
+  ? rx.wallHeightM
+  : Math.min(0.35, ridgeH * 0.5);  // ← crée des murs de 35cm max !</pre>
+        <p><strong>Puis dans <code>buildArchitecturalDormerV1Topology.ts</code> ligne 180 :</strong></p>
+        <pre>const wallHeightM = Math.max(0, model.dimensions.wallHeightM);
+// wallHeightM = 0.35 → les eave vertices sont élevés de 35cm par rapport à la base
+// → 4 murs verticaux visibles sur les côtés du chien assis</pre>
+        <p><strong>Ce que veut l'utilisateur :</strong> wallHeightM = 0 → base et eave au même niveau → pas de murs → les 4 faces sont les 2 pignons + 2 pans de toit.</p>
+        <p><strong>Fix en 2 endroits :</strong></p>
+        <pre><span class="del">// 1. calpinage.module.js — pushRoofExtensionFromContour (ligne ~4865)
+// Ajouter wallHeightM: 0 dans rxPartiel</span>
+<span class="add">var rxPartiel = {
+  ...
+  ridgeHeightRelM: draft.ridgeHeightRelM != null ? draft.ridgeHeightRelM : 0.8,
+  wallHeightM: 0,  // ← AJOUTER : contour collé au toit, pas de muralettes
+  baseZ: 0,
+  ...
+};</span>
+
+<span class="del">// 2. buildRoofExtensionV1FromSource.ts — fallback wallHeightM
+// Changer le fallback de Math.min(0.35, ridgeH * 0.5) en 0</span>
+<span class="add">const facadeH = source.wallHeightM != null && source.wallHeightM >= 0
+  ? source.wallHeightM
+  : 0;  // ← FALLBACK = 0 : contour toujours collé au toit</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ BUG-B -->
+  <section id="bug-b">
+    <h2 class="section-title">BUG-B (P0) — canonicalV1 non synchronisé après dessin du faitage</h2>
+    <div class="bug critical">
+      <div class="bug-hd">
+        <span class="tag p0">P0 SYNC</span>
+        <strong>calpinage.module.js</strong>
+        <span style="color:var(--text-dim);font-size:12px">lignes ~18004–18016 (handler MODE_DORMER_RIDGE)</span>
+      </div>
+      <div class="bug-bd">
+        <p><strong>Symptôme :</strong> Après que l'utilisateur place les 2 points du faitage, <code>rx.canonicalV1</code> reste null. Les données du faitage sont bien dans <code>rx.ridge</code> mais pas propagées dans le modèle canonique.</p>
+        <p><strong>Cause :</strong> Le handler <code>MODE_DORMER_RIDGE</code> appelle <code>rebuildDormerCanonicalGeometry(draft)</code> mais PAS <code>syncPersistedRoofExtensionV1(draft)</code> :</p>
+        <pre><span class="del">// ACTUEL — handler MODE_DORMER_RIDGE (ligne ~18008)
+if (!ridge.b) {
+  ridge.b = _sB || { x: imgPt.x, y: imgPt.y };
+  draft.stage = ... ;
+  rebuildDormerCanonicalGeometry(draft);   // ← ne synchro PAS canonicalV1
+  drawState.dormerEditRxIndex = null;
+  window.CALPINAGE_MODE = null;
+  ...
+}</span>
+<span class="add">// CORRIGÉ — remplacer rebuildDormerCanonicalGeometry par rebuildRoofExtensionVisualGeometry
+if (!ridge.b) {
+  ridge.b = _sB || { x: imgPt.x, y: imgPt.y };
+  draft.stage = draft.hips && draft.hips.left && draft.hips.right ? "COMPLETE" : "RIDGE";
+  rebuildRoofExtensionVisualGeometry(draft);  // ← appelle aussi syncPersistedRoofExtensionV1
+  drawState.dormerEditRxIndex = null;
+  window.CALPINAGE_MODE = null;
+  ...
+}</span></pre>
+        <p><strong>Note :</strong> <code>rebuildRoofExtensionVisualGeometry</code> appelle déjà <code>rebuildDormerCanonicalGeometry</code> + <code>syncPersistedRoofExtensionV1</code> + <code>syncParametricDormersFromRoofExtensions</code>. Un seul remplacement suffit. Même fix pour le handler <code>MODE_DORMER_HIPS</code> ligne ~17900.</p>
+        <p><strong>Pourquoi c'est P0 même si le fallback 3D fonctionne :</strong> Sans <code>canonicalV1</code>, certains lecteurs (dont la sauvegarde cloud et le débogueur) utilisent des données périmées ou incomplètes. Le fix est trivial et doit être fait.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ BUG-C -->
+  <section id="bug-c">
+    <h2 class="section-title">BUG-C (P1) — Konva : les 4 arêtes auto ne sont pas tracées</h2>
+    <div class="bug warn">
+      <div class="bug-hd">
+        <span class="tag p1">P1 VISUEL</span>
+        <strong>KonvaContoursLayer.tsx</strong>
+        <span style="color:var(--text-dim);font-size:12px">lignes 314–378 (section roofExtensions V1)</span>
+      </div>
+      <div class="bug-bd">
+        <p><strong>Symptôme :</strong> Après le dessin du contour + faitage, la vue 2D satellite montre un rectangle orange (contour) et une ligne orange épaisse (faitage), mais PAS les 4 arêtes qui relient les coins du contour aux extrémités du faitage. La forme "kite/losange" est invisible.</p>
+        <p><strong>Cause :</strong> Le code Konva V1 (lignes 314–378) trace le contour et le faitage, et les arêtes manuelles si elles existent (<code>rx.hips.left</code>, <code>rx.hips.right</code>). Mais il ne calcule PAS automatiquement les connexions contour_coin → endpoint_faitage.</p>
+        <p><strong>Logique attendue :</strong> Si on a le contour kite (4 coins) et le faitage (2 endpoints), on peut déduire les 4 arêtes automatiquement :</p>
+        <pre>
+VUE SATELLITE — KITE SHAPE (ce que l'utilisateur a dessiné)
+
+  frontLeft ──────────── frontRight    ← façade (large)
+       ╲                      ╱
+   arête╲                    ╱arête   ← à tracer automatiquement
+         ╲                  ╱
+      ridgeLeft ──────── ridgeRight    ← faitage (court, 2 points)
+         ╱                  ╲
+   arête╱                    ╲arête
+       ╱                      ╲
+  rearLeft ──────────── rearRight     ← arrière (étroit ou apex)
+
+4 arêtes à tracer automatiquement :
+  frontLeft  → ridgeLeft    (2 coins les + proches de ridgeLeft  → ridgeLeft)
+  frontRight → ridgeRight   (2 coins les + proches de ridgeRight → ridgeRight)
+  rearLeft   → ridgeLeft
+  rearRight  → ridgeRight
+
+  (ou l'inverse selon la géométrie réelle — l'algorithme distance trie les cas)
+        </pre>
+        <p><strong>Mais :</strong> Pour un V1 dessiné manuellement, on ne sait pas quel corner du contour correspond à FL/FR/RL/RR. Il faut calculer quel endpoint du faitage est "le plus proche du bord avant du contour" et quel est "le plus proche du bord arrière".</p>
+        <p><strong>Algorithme :</strong></p>
+        <pre>// Dans KonvaContoursLayer.tsx — section roofExtensions (après ridge lines)
+// Si on a contour (4 pts) + ridge (a, b), calculer les 4 arêtes
+
+const pts4 = rx.contour.points;  // [p0, p1, p2, p3]
+const rA   = rx.ridge.a;
+const rB   = rx.ridge.b;
+
+// Trouver les 2 coins les plus proches de rA, et les 2 plus proches de rB
+const distTo = (p, r) => Math.hypot(p.x - r.x, p.y - r.y);
+const sorted = pts4.map((p, i) => ({
+  p, i,
+  dA: distTo(p, rA),
+  dB: distTo(p, rB)
+}));
+
+// Les 2 coins avec (dA - dB) le plus négatif → proches de rA = "apex"
+sorted.sort((a, b) => (a.dA - a.dB) - (b.dA - b.dB));
+const nearA = [sorted[0].p, sorted[1].p];  // → rA
+const nearB = [sorted[2].p, sorted[3].p];  // → rB
+
+// Tracer : nearA[0]→rA, nearA[1]→rA, nearB[0]→rB, nearB[1]→rB</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ PROMPTS -->
+  <section id="prompts">
+    <h2 class="section-title">4 Prompts Codex — Longs, Précis, Exécutables</h2>
+
+    <!-- Prompt 1 -->
+    <h3>Prompt 1 — Fixer wallHeightM = 0 pour le dessin manuel (BUG-A)</h3>
+    <p style="color:var(--text-dim);font-size:13px;margin-bottom:10px">2 fichiers à modifier. Objectif : le contour du chien assis est collé au toit à 0cm, sans muralettes.</p>
+    <div class="prompt-wrap">
+      <div class="prompt-hd"><span>Prompt 1/4 — wallHeightM=0</span><button class="copy-btn" onclick="copyPrompt('p1')">Copier</button></div>
+      <pre id="p1">
+Tu travailles sur le projet SolarNext, module calpinage — chien assis (dormer).
+
+CONTEXTE GÉOMÉTRIQUE :
+Le chien assis V1 est dessiné manuellement en 2D satellite. La règle géométrique est :
+- Le CONTOUR (4 coins : frontLeft, frontRight, rearLeft, rearRight) est collé à la surface
+  du pan de toit → hauteur relative = 0cm au-dessus du pan.
+- Le FAITAGE (ridge.a, ridge.b) est élevé au-dessus du pan de ridgeHeightRelM (ex: 0.80m)
+  le long de la normale au pan.
+- Il N'Y A PAS de muralettes (wallHeight = 0). Les faces sont directement :
+  triangle pignon avant [FL, FR, ridgeLeft], triangle pignon arrière [RL, RR, ridgeRight],
+  pan gauche [FL, ridgeLeft, ridgeRight, RL], pan droit [FR, RR, ridgeRight, ridgeLeft].
+
+PROBLÈME :
+Quand wallHeightM n'est pas explicitement défini sur rx (roofExtension), le code applique
+un fallback non nul qui crée des murs indésirables de ~35cm sur les côtés du chien assis.
+
+FICHIER 1 : frontend/src/modules/calpinage/legacy/calpinage.module.js
+
+Cherche la fonction pushRoofExtensionFromContour (vers la ligne 4862).
+Elle crée un objet rxPartiel avec un champ ridgeHeightRelM. Juste après ce champ,
+ajoute wallHeightM: 0 pour forcer l'absence de muralettes.
+
+AVANT (dans l'objet rxPartiel) :
+  ridgeHeightRelM: draft.ridgeHeightRelM != null ? draft.ridgeHeightRelM : 0.8,
+  baseZ: 0,
+
+APRÈS :
+  ridgeHeightRelM: draft.ridgeHeightRelM != null ? draft.ridgeHeightRelM : 0.8,
+  wallHeightM: 0,
+  baseZ: 0,
+
+FICHIER 2 : frontend/src/modules/calpinage/canonical3d/roofExtensions/buildRoofExtensionV1FromSource.ts
+
+Cherche le calcul de facadeH (ou wallHeightM) dans la fonction buildRoofExtensionV1FromSource.
+C'est le fallback utilisé quand source.wallHeightM est null.
+Remplace ce fallback par 0.
+
+AVANT (approximatif — cherche le pattern Math.min(..., ridgeH)) :
+  const facadeH = ... != null ... ? ... : Math.min(0.35, ridgeH * 0.5);
+
+APRÈS :
+  const facadeH = source.wallHeightM != null && source.wallHeightM >= 0
+    ? source.wallHeightM
+    : 0;
+
+Si tu trouves plusieurs endroits où wallHeightM est calculé dans ce fichier (ex: wallHeightM
+dans les dimensions), applique la même logique : fallback = 0 si la source ne le définit pas.
+
+VÉRIFICATION :
+Après le fix, cherche dans buildArchitecturalDormerV1Topology.ts la ligne
+  const wallHeightM = Math.max(0, model.dimensions.wallHeightM);
+Vérifie que model.dimensions.wallHeightM sera bien 0 pour un chien assis sans muralettes.
+Si oui, les eave vertices et base vertices seront au même point → pas de murs → 4 faces planes.
+
+Ne modifie rien d'autre. Ne change pas ridgeHeightRelM ni les autres hauteurs.
+</pre>
+    </div>
+
+    <!-- Prompt 2 -->
+    <h3 style="margin-top:28px">Prompt 2 — Synchroniser canonicalV1 après dessin du faitage et des arêtiers (BUG-B)</h3>
+    <p style="color:var(--text-dim);font-size:13px;margin-bottom:10px">1 fichier, 2 endroits. Remplace rebuildDormerCanonicalGeometry par rebuildRoofExtensionVisualGeometry.</p>
+    <div class="prompt-wrap">
+      <div class="prompt-hd"><span>Prompt 2/4 — canonicalV1 sync</span><button class="copy-btn" onclick="copyPrompt('p2')">Copier</button></div>
+      <pre id="p2">
+Tu travailles sur le projet SolarNext, module calpinage — chien assis (dormer) V1 manuel.
+
+CONTEXTE :
+Quand l'utilisateur dessine le faitage (MODE_DORMER_RIDGE), le handler appelle
+rebuildDormerCanonicalGeometry(draft) mais pas syncPersistedRoofExtensionV1(draft).
+Résultat : rx.canonicalV1 reste null après le dessin du faitage.
+
+La fonction rebuildRoofExtensionVisualGeometry(rx) fait déjà les 3 étapes dans l'ordre :
+  1. rebuildDormerCanonicalGeometry(rx)      ← calcul géométrie canonique
+  2. syncPersistedRoofExtensionV1(rx)        ← synchro canonicalV1 avec ridge
+  3. syncParametricDormersFromRoofExtensions()  ← (no-op actuellement, mais utile pour l'avenir)
+
+FICHIER : frontend/src/modules/calpinage/legacy/calpinage.module.js
+
+CORRECTION 1 — Handler MODE_DORMER_RIDGE (cherche la ligne : if (!ridge.b) {)
+Le bloc qui se termine par saveCalpinageState + CALPINAGE_RENDER.
+
+AVANT :
+  if (!ridge.b) {
+    var _sB = _snapRidgePoint(imgPt);
+    ridge.b = _sB || { x: imgPt.x, y: imgPt.y };
+    draft.stage = draft.hips && draft.hips.left && draft.hips.right ? "COMPLETE" : "RIDGE";
+    rebuildDormerCanonicalGeometry(draft);
+    drawState.dormerEditRxIndex = null;
+    window.CALPINAGE_MODE = null;
+    drawState.dormerActiveTool = null;
+    if (canvasEl) canvasEl.style.cursor = "default";
+    if (typeof saveCalpinageState === "function") saveCalpinageState();
+    if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+    if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
+    return;
+  }
+
+APRÈS :
+  if (!ridge.b) {
+    var _sB = _snapRidgePoint(imgPt);
+    ridge.b = _sB || { x: imgPt.x, y: imgPt.y };
+    draft.stage = draft.hips && draft.hips.left && draft.hips.right ? "COMPLETE" : "RIDGE";
+    rebuildRoofExtensionVisualGeometry(draft);   // ← remplacer rebuildDormerCanonicalGeometry
+    drawState.dormerEditRxIndex = null;
+    window.CALPINAGE_MODE = null;
+    drawState.dormerActiveTool = null;
+    if (canvasEl) canvasEl.style.cursor = "default";
+    if (typeof saveCalpinageState === "function") saveCalpinageState();
+    if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+    if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
+    return;
+  }
+
+CORRECTION 2 — Handler MODE_DORMER_HIPS (cherche : syncRoofExtensionSharedApex(draft))
+Le bloc immédiatement après cette ligne qui finit avec saveCalpinageState + CALPINAGE_RENDER.
+
+AVANT :
+  syncRoofExtensionSharedApex(draft);
+  draft.stage = draft.ridge && draft.ridge.a && draft.ridge.b ? "COMPLETE" : "HIPS";
+  rebuildDormerCanonicalGeometry(draft);
+  drawState.dormerEditRxIndex = null;
+  window.CALPINAGE_MODE = null;
+  ...
+
+APRÈS :
+  syncRoofExtensionSharedApex(draft);
+  draft.stage = draft.ridge && draft.ridge.a && draft.ridge.b ? "COMPLETE" : "HIPS";
+  rebuildRoofExtensionVisualGeometry(draft);   // ← remplacer rebuildDormerCanonicalGeometry
+  drawState.dormerEditRxIndex = null;
+  window.CALPINAGE_MODE = null;
+  ...
+
+Ne modifie rien d'autre dans ces handlers. Ne touche pas aux handlers de la souris (pointermove,
+pointerdown en dehors de ces 2 blocs if).
+</pre>
+    </div>
+
+    <!-- Prompt 3 -->
+    <h3 style="margin-top:28px">Prompt 3 — Konva : tracer automatiquement les 4 arêtes kite depuis contour + faitage (BUG-C)</h3>
+    <p style="color:var(--text-dim);font-size:13px;margin-bottom:10px">1 fichier TypeScript. Ajoute les 4 lignes d'arêtes automatiques dans la section V1 de KonvaContoursLayer.</p>
+    <div class="prompt-wrap">
+      <div class="prompt-hd"><span>Prompt 3/4 — Konva kite arêtes</span><button class="copy-btn" onclick="copyPrompt('p3')">Copier</button></div>
+      <pre id="p3">
+Tu travailles sur le projet SolarNext, module calpinage — chien assis (dormer) V1 manuel.
+
+CONTEXTE GÉOMÉTRIQUE :
+Un chien assis à pignon vu du dessus forme un "kite/losange" :
+- Le contour est un quadrilatère (4 coins)
+- Le faitage est un segment intérieur
+- Les 4 arêtes connectent chaque coin du contour à l'endpoint de faitage le plus proche
+
+La règle d'assignation coin → endpoint est basée sur la distance :
+- Les 2 coins les plus proches de ridge.a sont reliés à ridge.a
+- Les 2 coins les plus proches de ridge.b sont reliés à ridge.b
+
+FICHIER : frontend/src/modules/calpinage/konva/KonvaContoursLayer.tsx
+
+Dans la section {/* ── Extensions / dormers (orange) ── */} (vers la ligne 314),
+à l'intérieur du map sur roofExtensions, APRÈS le bloc "Faitage en trait épais orange"
+(qui trace rx.ridge.a → rx.ridge.b) et AVANT le bloc "Aretiers (hips)",
+ajoute le code suivant pour tracer les 4 arêtes automatiques si on a exactement 4 points
+de contour et 2 points de faitage :
+
+/* Arêtes automatiques calculées si contour 4pts + faitage présents */
+if (
+  rx.contour?.points &&
+  rx.contour.points.length === 4 &&
+  rx.ridge?.a && rx.ridge?.b
+) {
+  const p4 = rx.contour.points;
+  const rA = rx.ridge.a;
+  const rB = rx.ridge.b;
+  const d = (p: { x: number; y: number }, r: { x: number; y: number }) =>
+    Math.hypot(p.x - r.x, p.y - r.y);
+  // Trier les 4 coins par (distance à rA - distance à rB)
+  const ranked = p4
+    .map((p, i) => ({ p, i, score: d(p, rA) - d(p, rB) }))
+    .sort((a, b) => a.score - b.score);
+  // Les 2 premiers (score le plus négatif) → proches de rA
+  // Les 2 derniers → proches de rB
+  const toA = [ranked[0].p, ranked[1].p];
+  const toB = [ranked[2].p, ranked[3].p];
+  const autoHipStyle = {
+    stroke: STYLE.extensionStroke,
+    strokeWidth: STYLE.extensionStrokeWidth,
+    strokeScaleEnabled: false,
+    dash: [5, 5],
+    lineCap: "round" as const,
+    listening: false,
+  };
+  for (const cp of toA) {
+    elements.push(
+      <Line
+        key={`${rx.id}:auto-hip-${cp.x.toFixed(0)}-a`}
+        points={[cp.x, imgH - cp.y, rA.x, imgH - rA.y]}
+        {...autoHipStyle}
+      />,
+    );
+  }
+  for (const cp of toB) {
+    elements.push(
+      <Line
+        key={`${rx.id}:auto-hip-${cp.x.toFixed(0)}-b`}
+        points={[cp.x, imgH - cp.y, rB.x, imgH - rB.y]}
+        {...autoHipStyle}
+      />,
+    );
+  }
+}
+
+IMPORTANT : ce code s'insère AVANT le bloc existant "Aretiers (hips) en trait pointille orange"
+(la boucle for (const side of ["left", "right"] as const) {...}).
+Les arêtes manuelles (hips dessinés par l'utilisateur) restent tracées par le code existant.
+Ne supprime pas ce code existant.
+
+STYLE : utilise STYLE.extensionStroke (orange) avec dash=[5,5] pour les distinguer
+visuellement du faitage (trait plein) mais dans la même couleur orange.
+
+Ne modifie rien d'autre dans ce fichier.
+</pre>
+    </div>
+
+    <!-- Prompt 4 -->
+    <h3 style="margin-top:28px">Prompt 4 — Tests unitaires : géométrie hauteurs V1 correcte</h3>
+    <p style="color:var(--text-dim);font-size:13px;margin-bottom:10px">Tests Jest pour vérifier que contour=0cm et ridge=élevé, et que wallHeightM=0 produit 4 faces planes.</p>
+    <div class="prompt-wrap">
+      <div class="prompt-hd"><span>Prompt 4/4 — Tests</span><button class="copy-btn" onclick="copyPrompt('p4')">Copier</button></div>
+      <pre id="p4">
+Tu travailles sur le projet SolarNext, module calpinage — chien assis (dormer) V1 manuel.
+
+Crée un fichier de test Jest dans :
+frontend/src/modules/calpinage/canonical3d/roofExtensions/__tests__/dormerV1ManualGeometry.test.ts
+
+Le test vérifie les invariants géométriques fondamentaux du chien assis V1 manuel :
+1. Les points du contour sont projetés sur le pan de toit (height=0 au-dessus du pan)
+2. Les points du faitage sont élevés de ridgeHeightRelM au-dessus du pan
+3. wallHeightM=0 produit des eave vertices identiques aux base vertices
+4. Les 4 faces du chien assis à pignon sont planes (dot product ≈ 0 pour les quads)
+
+Le test doit créer un pan de toit horizontal fictif (normal = {0,0,1}, pente = 0°),
+placer un contour en forme de KITE (large en avant, étroit en arrière — jamais un rectangle),
+par exemple :
+  frontLeft  = {x: -1.0, y: 0.0}   ← façade large (côté rue)
+  frontRight = {x:  1.0, y: 0.0}
+  rearRight  = {x:  0.25, y: 1.8}  ← arrière étroit (côté faitage principal)
+  rearLeft   = {x: -0.25, y: 1.8}
+
+Placer un faitage court à l'intérieur du kite, vers l'arrière :
+  ridge.a = {x: -0.15, y: 1.5}
+  ridge.b = {x:  0.15, y: 1.5}
+
+ridgeHeightRelM = 0.8, wallHeightM = 0.
+
+Vérifie :
+A) Tous les vertices du contour ont z ≈ z_pan (tolérance 1mm)
+B) Les vertices du faitage ont z ≈ z_pan + 0.8 (tolérance 1mm)
+C) Le nombre de faces est exactement 4 (2 pignons triangulaires + 2 pans quadrilatéraux)
+D) Les 2 quads sont planaires : pour chaque quad [A,B,C,D], le vecteur (A→D) est dans le plan
+   défini par (A→B) × (A→C) — produit scalaire avec la normale doit être < 1e-6
+
+Importe les fonctions nécessaires depuis les fichiers existants :
+- projectRoofExtensionToSupportPlane
+- buildArchitecturalDormerV1Topology
+- buildRoofExtensionV1FromSource
+
+Construis le RoofPlanePatch3D fictif manuellement (normal {0,0,1}, equation {a:0,b:0,c:1,d:0},
+tiltDeg: 0, id: "test-pan-1").
+
+Si certaines fonctions sont difficiles à instancier en test unitaire (trop de dépendances),
+utilise des données directement depuis buildRoofExtensionV1FromSource avec un source2D fictif.
+
+Le test doit passer avec les corrections des Prompts 1 et 2 appliquées.
+</pre>
+    </div>
+  </section>
+
+  <!-- ═══ SYNTHÈSE -->
+  <section id="synthese">
+    <h2 class="section-title">Synthèse — Ordre d'exécution</h2>
+    <table>
+      <tr><th>Ordre</th><th>Prompt</th><th>Durée Codex</th><th>Effet immédiat</th></tr>
+      <tr>
+        <td>1</td>
+        <td>Prompt 1 — wallHeightM=0</td>
+        <td>5 min</td>
+        <td>Contour collé au toit — 4 faces planes, pas de murs parasites en 3D</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Prompt 2 — canonicalV1 sync après faitage</td>
+        <td>3 min</td>
+        <td>canonicalV1 correct → sauvegarde et rechargement cohérents</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Prompt 3 — Konva kite arêtes auto</td>
+        <td>5 min</td>
+        <td>Les 4 arêtes s'affichent automatiquement dès que contour + faitage sont dessinés</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>Prompt 4 — Tests</td>
+        <td>8 min</td>
+        <td>Filet de sécurité : régression géométrique détectée automatiquement</td>
+      </tr>
+    </table>
+
+    <div class="callout green" style="margin-top:24px">
+      <h4>Ce qui RESTE inchangé (ne pas toucher)</h4>
+      <p style="color:var(--text-dim);font-size:13px;margin-top:4px">
+        ✓ <code>MODE_DORMER_CONTOUR</code> — fonctionne correctement, ne pas modifier<br>
+        ✓ <code>MODE_DORMER_RIDGE</code> — seul le rappel de <code>rebuildRoofExtensionVisualGeometry</code> change<br>
+        ✓ <code>buildRoofExtensions3DFromRuntime</code> — pipeline 3D intact, ne pas toucher<br>
+        ✓ <code>projectRoofExtensionToSupportPlane</code> — projection correcte, ne pas toucher<br>
+        ✓ <code>readRuntimeRoofExtensionSources</code> — lit correctement les données V1, ne pas toucher<br>
+        ✓ <code>buildArchitecturalDormerV1Topology</code> — topologie correcte avec wallHeightM=0<br>
+        ✓ <code>parametricDormers[]</code> (V2) — complètement séparé, pas impacté<br>
+        ✓ Konva V1 : contour + faitage — déjà corrects, on ajoute juste les arêtes auto
+      </p>
+    </div>
+
+    <p style="color:var(--text-dim);font-size:12px;margin-top:24px">
+      Rapport v9 · 2026-06-01 · Approche V1 manuel (roofExtensions[]) · Contour = kite/losange dessiné sur satellite, pas un rectangle · Audit : calpinage.module.js + buildRoofExtensionV1FromSource.ts + KonvaContoursLayer.tsx
+    </p>
+  </section>
+</main>
+<script>
+function copyPrompt(id) {
+  const t = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(t.trim()).then(() => {
+    const b = event.target; const o = b.textContent;
+    b.textContent = "Copié !"; setTimeout(() => b.textContent = o, 1500);
+  });
+}
+const secs = document.querySelectorAll('section[id]');
+const links = document.querySelectorAll('nav a');
+window.addEventListener('scroll', () => {
+  let cur = '';
+  secs.forEach(s => { if (window.scrollY >= s.offsetTop - 80) cur = s.id; });
+  links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + cur));
+});
+</script>
+</body>
+</html>
