@@ -2278,8 +2278,11 @@ export function initCalpinage(container, options = {}) {
                 <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="contour" title="Dessiner le contour kite du chien assis (4 clics + fermeture)">
                   <span class="calpinage-tool-label">① Contour (kite)</span>
                 </button>
-                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="ridge" title="Dessiner le faitage — sélectionner d'abord le chien assis">
-                  <span class="calpinage-tool-label">② Faitage</span>
+                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="hips" title="Dessiner les arêtes — sélectionner d'abord le chien assis">
+                  <span class="calpinage-tool-label">② Arêtes</span>
+                </button>
+                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="ridge" title="Dessiner le faitage — sélectionner d'abord le chien assis (après les arêtes)">
+                  <span class="calpinage-tool-label">③ Faitage</span>
                 </button>
               </div>
             </div>
@@ -15405,6 +15408,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   drawState.dormerDraft = null;
                   window.CALPINAGE_MODE = MODE_DORMER_HIPS;
                   drawState.dormerActiveTool = "hips";
+                  if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.success) {
+                    window.calpinageToast.success("Arête gauche : clic sur contour → clic libre au milieu. Arête droite : clic sur contour → snap intersection.");
+                  }
                 } else {
                   if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.warning) {
                     window.calpinageToast.warning("Veuillez d'abord tracer et fermer le contour du chien assis, puis le s\u00E9lectionner.");
@@ -26505,18 +26511,4 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       window.CALPINAGE_SELECTED_INVERTER_ID = null;
       window.CALPINAGE_ALLOWED = false;
     }
-    /* Vider le container pour que le prochain init (étude B) ne trouve pas #calpinage-root et réinjecte proprement */
-    try {
-      if (container && container.firstChild) {
-        while (container.firstChild) container.removeChild(container.firstChild);
-      }
-    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] container clear error", e); }
-    _calpinageInitInFlight = false;
-    if (devLog) {
-      console.log("[CALPINAGE] cleanup done (state isolated, ready for next study)");
-    }
-  };
-  container.__CALPINAGE_MOUNTED__ = true;
-  container.__CALPINAGE_TEARDOWN__ = cleanup;
-  return cleanup;
-}
+    /* Vider le container pour que le prochain init (�
