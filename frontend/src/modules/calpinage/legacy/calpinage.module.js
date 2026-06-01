@@ -3820,6 +3820,7 @@ export function initCalpinage(container, options = {}) {
           id: id,
           type: "roof_extension",
           kind: "dormer",
+          visualModel: "manual_outline_gable",
           stage: "CONTOUR",
           contour: { points: [], closed: false },
           ridge: null,
@@ -5154,14 +5155,16 @@ export function initCalpinage(container, options = {}) {
           var tolMerge = Math.max(36, getDormerSnapToleranceImg() * 2.5);
           var dMin = Math.min(da, db);
           if (dMin <= tolMerge) {
+            // Snap XY seulement — le faitage reste à hauteur 0 (ligne de référence sur le toit)
+            // Seul l'apexVertex est élevé à ridgeH (le sommet du chien assis)
             if (da <= db) {
               rx.ridge.a.x = qax;
               rx.ridge.a.y = qay;
-              if (ridgeH != null) rx.ridge.a.h = ridgeH;
+              // NE PAS définir rx.ridge.a.h : le faitage doit rester plat (h = 0)
             } else {
               rx.ridge.b.x = qax;
               rx.ridge.b.y = qay;
-              if (ridgeH != null) rx.ridge.b.h = ridgeH;
+              // NE PAS définir rx.ridge.b.h : le faitage doit rester plat (h = 0)
             }
           }
         }
@@ -26504,25 +26507,4 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       try { delete window.__calpinage_hitTestPan__; } catch (_) {}
       try { delete window.__calpinageRecomputePansFromGeometryAndUI; } catch (_) {}
       window.CALPINAGE_STUDY_ID = null;
-      window.CALPINAGE_VERSION_ID = null;
-      window.PV_SELECTED_PANEL = null;
-      window.CALPINAGE_SELECTED_PANEL_ID = null;
-      window.PV_SELECTED_INVERTER = null;
-      window.CALPINAGE_SELECTED_INVERTER_ID = null;
-      window.CALPINAGE_ALLOWED = false;
-    }
-    /* Vider le container pour que le prochain init (étude B) ne trouve pas #calpinage-root et réinjecte proprement */
-    try {
-      if (container && container.firstChild) {
-        while (container.firstChild) container.removeChild(container.firstChild);
-      }
-    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] container clear error", e); }
-    _calpinageInitInFlight = false;
-    if (devLog) {
-      console.log("[CALPINAGE] cleanup done (state isolated, ready for next study)");
-    }
-  };
-  container.__CALPINAGE_MOUNTED__ = true;
-  container.__CALPINAGE_TEARDOWN__ = cleanup;
-  return cleanup;
-}
+      window.CALPINAGE_VERSION_ID = nul

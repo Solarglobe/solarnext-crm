@@ -226,10 +226,15 @@ export function buildArchitecturalDormerV1Topology(
   const ridgeULeft      = Math.min(ridgeUA, ridgeUB);
   const ridgeURight     = Math.max(ridgeUA, ridgeUB);
   const isPointRidge    = ridgeAIndex === ridgeBIndex;
+  // useApexOnly : le faitage est à hauteur 0 (ligne de référence), seul l'apex est élevé.
+  // Dans ce cas, TOUS les points de gouttière pointent vers l'apex → pyramide propre.
+  const ridgeIsFlat = (projected.ridge.a.heightRelM ?? 0) < 0.01 && (projected.ridge.b.heightRelM ?? 0) < 0.01;
+  const useApexOnly = ridgeIsFlat && apexIndex != null;
 
   /** Pour un vertex de la gouttiére, renvoie l'index du sommet de toiture cible. */
   function targetRidgeFor(i: number): number {
-    if (isPointRidge) return ridgeAIndex;
+    // Pyramide kite : faitage à h=0 → tous les points vers l'apex élevé
+    if (isPointRidge || useApexOnly) return apexIndex ?? ridgeAIndex;
 
     const base = projected.contour[i]!.base;
 
