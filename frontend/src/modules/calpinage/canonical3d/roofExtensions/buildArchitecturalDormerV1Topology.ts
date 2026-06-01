@@ -178,10 +178,6 @@ export function buildArchitecturalDormerV1Topology(
   if (uMax - uMin < LENGTH_EPS_M || vMax - vMin < LENGTH_EPS_M) return null;
 
   const wallHeightM = Math.max(0, model.dimensions.wallHeightM);
-  const pointAt = (u: number, v: number, h: number): Vector3 => {
-    const onPlane = add3(add3(ridgeMid, scale3(ridgeAxis, u)), scale3(depthAxis, v));
-    return add3(onPlane, scale3(supportNormal, h));
-  };
 
   const vertices: VolumeVertex3D[] = [];
   const addVertex = (id: string, position: Vector3): number => {
@@ -191,14 +187,33 @@ export function buildArchitecturalDormerV1Topology(
     return index;
   };
 
-  const bFL = addVertex(`${model.id}:base:front-left`, pointAt(uMin, vMax, 0));
-  const bFR = addVertex(`${model.id}:base:front-right`, pointAt(uMax, vMax, 0));
-  const bRR = addVertex(`${model.id}:base:rear-right`, pointAt(uMax, vMin, 0));
-  const bRL = addVertex(`${model.id}:base:rear-left`, pointAt(uMin, vMin, 0));
-  const eFL = addVertex(`${model.id}:eave:front-left`, pointAt(uMin, vMax, wallHeightM));
-  const eFR = addVertex(`${model.id}:eave:front-right`, pointAt(uMax, vMax, wallHeightM));
-  const eRR = addVertex(`${model.id}:eave:rear-right`, pointAt(uMax, vMin, wallHeightM));
-  const eRL = addVertex(`${model.id}:eave:rear-left`, pointAt(uMin, vMin, wallHeightM));
+  // ─── Vrais coins du contour dessiné — pas la bounding box ───────────────────
+  // Classe chaque point projeté en (u, v) dans le repère ridge :
+  //   v élevé = "avant" (façade, loin du ridge) ; v faible = "arrière" (près du ridge)
+  //   u faible = "gauche" ; u élevé = "droite"
+  const contourUV = projected.contour.map((p) => ({
+    base: p.base,
+    u: dot3(sub3(p.base, ridgeMid), ridgeAxis),
+    v: dot3(sub3(p.base, ridgeMid), depthAxis),
+  }));
+  const byV = [...contourUV].sort((a, b) => b.v - a.v);
+  const half = Math.ceil(byV.length / 2);
+  const frontG = byV.slice(0, half).sort((a, b) => a.u - b.u); // gauche→droite
+  const rearG  = byV.slice(half).sort((a, b) => a.u - b.u);
+
+  const flBase = frontG[0]!.base;
+  const frBase = frontG[frontG.length - 1]!.base;
+  const rlBase = (rearG[0] ?? frontG[0]!).base;
+  const rrBase = (rearG[rearG.length - 1] ?? frontG[frontG.length - 1]!).base;
+
+  const bFL = addVertex(`${model.id}:base:front-left`,  flBase);
+  const bFR = addVertex(`${model.id}:base:front-right`, frBase);
+  const bRR = addVertex(`${model.id}:base:rear-right`,  rrBase);
+  const bRL = addVertex(`${model.id}:base:rear-left`,   rlBase);
+  const eFL = addVertex(`${model.id}:eave:front-left`,  add3(flBase, scale3(supportNormal, wallHeightM)));
+  const eFR = addVertex(`${model.id}:eave:front-right`, add3(frBase, scale3(supportNormal, wallHeightM)));
+  const eRR = addVertex(`${model.id}:eave:rear-right`,  add3(rrBase, scale3(supportNormal, wallHeightM)));
+  const eRL = addVertex(`${model.id}:eave:rear-left`,   add3(rlBase, scale3(supportNormal, wallHeightM)));
 
   const apexOnRidgeA = !!(projected.apex && model.apexId && nearlySameWorld(projected.apex.top, ridgeTopA));
   const apexOnRidgeB = !!(projected.apex && model.apexId && nearlySameWorld(projected.apex.top, ridgeTopB));
