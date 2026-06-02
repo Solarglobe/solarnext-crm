@@ -109,6 +109,23 @@ export default function LeadDetail() {
     ld.quotes.length ? { id: "quotes", label: "Devis", value: ld.quotes.length, hint: "finance" } : null,
   ].filter((item): item is NonNullable<typeof item> => Boolean(item));
 
+  const handleBack = async () => {
+    const ok = await ld.flushOverviewSave();
+    if (!ok) return;
+    navigate(-1);
+  };
+
+  const handleOpenTab = async (tab: Parameters<typeof ld.handleLeadTabChange>[0]) => {
+    await ld.handleLeadTabChange(tab);
+  };
+
+  const handleOpenDp = async () => {
+    if (ld.isReadOnly || !ld.id) return;
+    const ok = await ld.flushOverviewSave();
+    if (!ok) return;
+    navigate(`/leads/${ld.id}/dp`);
+  };
+
   return (
     <div className={`crm-lead-page${ld.isArchived ? " crm-lead-page--archived" : ""}`}>
       <div ref={ld.headerZoneRef} className="crm-lead-detail-header-zone crm-lead-detail-header-zone--foundation">
@@ -124,7 +141,7 @@ export default function LeadDetail() {
           source={source}
           isLead={ld.isLead}
           hasClientId={Boolean(ld.data.lead.client_id)}
-          onBack={() => navigate(-1)}
+          onBack={() => void handleBack()}
           onProjectStatusIntent={(s) => void ld.handleProjectStatusIntent(s)}
           onStatusChange={(s) => void ld.handleStatusChange(s)}
           showProjectCycle={ld.isClient}
@@ -185,7 +202,7 @@ export default function LeadDetail() {
             </Button>
           ) : null}
           {ld.isLead ? (
-            <Button type="button" variant="secondary" size="sm" onClick={() => ld.setActiveTab("studies")}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => void handleOpenTab("studies")}>
               Voir les études ({ld.studies.length})
             </Button>
           ) : null}
@@ -211,7 +228,7 @@ export default function LeadDetail() {
               Envoyer email
             </Button>
           ) : null}
-          <Button type="button" variant="ghost" size="sm" onClick={() => ld.setActiveTab("documents")}>
+          <Button type="button" variant="ghost" size="sm" onClick={() => void handleOpenTab("documents")}>
             Documents
           </Button>
           {ld.dpFolderAccessible && ld.id ? (
@@ -220,10 +237,7 @@ export default function LeadDetail() {
               variant="secondary"
               size="sm"
               disabled={ld.isReadOnly}
-              onClick={() => {
-                if (ld.isReadOnly) return;
-                navigate(`/leads/${ld.id}/dp`);
-              }}
+              onClick={() => void handleOpenDp()}
             >
               Dossier DP
             </Button>

@@ -780,7 +780,7 @@ function ClientsDetailPanelBody({
         key={String(lead.id)}
         open={isVisiteOpen}
         onClose={closeVisiteTechnique}
-        clientId={String(lead.id)}
+        clientId={String(lead.client_id ?? lead.id)}
       />
     </div>
   );

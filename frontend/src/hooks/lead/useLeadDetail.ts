@@ -1290,6 +1290,8 @@ export function useLeadDetail() {
   const handleCreateStudy = useCallback(async () => {
     if (isReadOnly) return;
     if (!id) return;
+    const flushed = await flushOverviewSave();
+    if (!flushed) return;
     setCreateStudyLoading(true);
     setError(null);
     try {
@@ -1314,7 +1316,7 @@ export function useLeadDetail() {
       navigate(`/studies/${studyIdNew}/versions/${versionId}/calpinage`);
     } catch (e) { setError(e instanceof Error ? e.message : "Impossible de créer l'étude"); }
     finally { setCreateStudyLoading(false); }
-  }, [isReadOnly, id, selectedMeterId, fetchStudies, navigate]);
+  }, [isReadOnly, id, flushOverviewSave, selectedMeterId, fetchStudies, navigate]);
 
   const getLatestStudyVersion = useCallback(async (studyId: string): Promise<{ versionNumber: number } | null> => {
     const res = await apiFetch(`${API_BASE}/api/studies/${studyId}`);
@@ -1328,6 +1330,8 @@ export function useLeadDetail() {
 
   const handleRunCalc = useCallback(async () => {
     if (isReadOnly) return;
+    const flushed = await flushOverviewSave();
+    if (!flushed) return;
     const latest = studies[0];
     if (!latest) { setError("Créez d'abord une étude avec le bouton « Créer étude »."); return; }
     setCalcLoading(true);
@@ -1373,7 +1377,7 @@ export function useLeadDetail() {
       setError(msg);
       showCalcErrorToast(msg);
     } finally { setCalcLoading(false); }
-  }, [isReadOnly, studies, getLatestStudyVersion]);
+  }, [isReadOnly, flushOverviewSave, studies, getLatestStudyVersion]);
 
   const handleOpenStudyCalpinage = useCallback((study: Study) => {
     const vid = study.latest_version_id;
@@ -1415,6 +1419,8 @@ export function useLeadDetail() {
   const openComposeForLeadEmail = useCallback(async (email: string, leadId: string) => {
     const addr = email.trim();
     if (!addr || !leadId) return;
+    const flushed = await flushOverviewSave();
+    if (!flushed) return;
     try {
       const accounts = await fetchMailAccounts();
       if (accounts.length > 0) {
@@ -1423,7 +1429,7 @@ export function useLeadDetail() {
         });
       } else { window.location.href = `mailto:${encodeURIComponent(addr)}`; }
     } catch { window.location.href = `mailto:${encodeURIComponent(addr)}`; }
-  }, [navigate]);
+  }, [flushOverviewSave, navigate]);
 
   // ——— Computed values ———
   const displayLead = formLead ?? data?.lead;
