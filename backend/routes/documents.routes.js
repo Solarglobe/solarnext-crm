@@ -399,6 +399,14 @@ router.post(
           url: null,
           pdf_document_id: row.id,
         });
+      } else if (documentType === "organization_pdf_cover") {
+        await pool.query(
+          `UPDATE organizations
+           SET pdf_cover_image_key = $1,
+               settings_json = COALESCE(settings_json, '{}'::jsonb) || $2::jsonb
+           WHERE id = $3`,
+          [row.storage_key, JSON.stringify({ pdf_cover_image_key: row.storage_key }), org]
+        );
       }
       const payload = {
         id: row.id,

@@ -36,6 +36,51 @@ function emitCalpinageTrace(event: string, payload: Record<string, unknown>) {
  * Capture du canvas de dessin calpinage uniquement (pas Google Maps — évite canvas « tainted » / CORS).
  * Ordre : #calpinage-canvas-el, puis canvas sous #calpinage-render-root (hors carte).
  */
+function createCompositeCalpinageCanvas(baseCanvas: HTMLCanvasElement): HTMLCanvasElement | null {
+  const overlayCanvases = Array.from(
+    document.querySelectorAll<HTMLCanvasElement>(".konvajs-content canvas")
+  ).filter((canvas) => canvas !== baseCanvas && canvas.width > 0 && canvas.height > 0);
+
+  if (overlayCanvases.length === 0) return null;
+
+  const baseRect = baseCanvas.getBoundingClientRect();
+  if (!baseRect.width || !baseRect.height || !baseCanvas.width || !baseCanvas.height) return null;
+
+  const composite = document.createElement("canvas");
+  composite.width = baseCanvas.width;
+  composite.height = baseCanvas.height;
+  const ctx = composite.getContext("2d");
+  if (!ctx) return null;
+
+  ctx.drawImage(baseCanvas, 0, 0);
+
+  const scaleX = baseCanvas.width / baseRect.width;
+  const scaleY = baseCanvas.height / baseRect.height;
+
+  overlayCanvases.forEach((overlayCanvas) => {
+    const rect = overlayCanvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = (rect.left - baseRect.left) * scaleX;
+    const y = (rect.top - baseRect.top) * scaleY;
+    const w = rect.width * scaleX;
+    const h = rect.height * scaleY;
+    try {
+      ctx.drawImage(overlayCanvas, x, y, w, h);
+    } catch (e) {
+      emitCalpinageTrace("capture_konva_overlay_draw_error", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  emitCalpinageTrace("capture_composite_canvas_created", {
+    overlayCanvasCount: overlayCanvases.length,
+    width: composite.width,
+    height: composite.height,
+  });
+  return composite;
+}
+
 async function captureCalpinageSnapshot(): Promise<string | null> {
   emitCalpinageTrace("capture_called", {});
   const canvas =
@@ -77,12 +122,15 @@ async function captureCalpinageSnapshot(): Promise<string | null> {
     id: canvas.id || null,
   });
 
+  const captureCanvas = createCompositeCalpinageCanvas(canvas) ?? canvas;
+
   let snapshot: string;
   try {
-    snapshot = canvas.toDataURL("image/png");
+    snapshot = captureCanvas.toDataURL("image/png");
     emitCalpinageTrace("capture_toDataURL_ok", {
       dataUrlChars: snapshot.length,
       head: snapshot.slice(0, 32),
+      composite: captureCanvas !== canvas,
     });
   } catch (e) {
     emitCalpinageTrace("capture_toDataURL_error", {
@@ -92,17 +140,17 @@ async function captureCalpinageSnapshot(): Promise<string | null> {
     return null;
   }
 
-  if (canvas.width > MAX_SNAPSHOT_WIDTH) {
+  if (captureCanvas.width > MAX_SNAPSHOT_WIDTH) {
     try {
-      const ratio = MAX_SNAPSHOT_WIDTH / canvas.width;
-      const w = Math.round(canvas.width * ratio);
-      const h = Math.round(canvas.height * ratio);
+      const ratio = MAX_SNAPSHOT_WIDTH / captureCanvas.width;
+      const w = Math.round(captureCanvas.width * ratio);
+      const h = Math.round(captureCanvas.height * ratio);
       const optimizedCanvas = document.createElement("canvas");
       optimizedCanvas.width = w;
       optimizedCanvas.height = h;
       const ctx = optimizedCanvas.getContext("2d");
       if (ctx) {
-        ctx.drawImage(canvas, 0, 0, w, h);
+        ctx.drawImage(captureCanvas, 0, 0, w, h);
         snapshot = optimizedCanvas.toDataURL("image/png");
         emitCalpinageTrace("capture_resized", { dataUrlChars: snapshot.length, w, h });
       }

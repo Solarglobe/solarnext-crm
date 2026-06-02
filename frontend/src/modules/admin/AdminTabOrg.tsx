@@ -33,6 +33,24 @@ function computeDocumentDisplayNamePreview(p: { legal_name: string; trade_name: 
   return legal || trade || n || "—";
 }
 
+type OrganizationDocumentRow = {
+  id?: string;
+  file_name?: string | null;
+  document_type?: string | null;
+};
+
+async function fetchOrganizationPdfCoverFileName(orgId: string): Promise<string | null> {
+  const res = await apiFetch(buildApiUrl(`/api/documents/organization/${encodeURIComponent(orgId)}`), {
+    skipErrorToast: true,
+  });
+  if (!res.ok) return null;
+  const rows = (await res.json().catch(() => [])) as OrganizationDocumentRow[];
+  const cover = Array.isArray(rows)
+    ? rows.find((row) => row.document_type === "organization_pdf_cover")
+    : null;
+  return cover?.file_name ? String(cover.file_name) : null;
+}
+
 function useImageUrl(apiPath: string | undefined) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const prevRef = useRef<string | null>(null);
@@ -174,8 +192,11 @@ export function AdminTabOrg() {
 
   const logoBlobUrl = useImageUrl(org?.logo_url);
   const [settingsPdfCover, setSettingsPdfCover] = useState<string | null>(null);
+  const [pdfCoverFileName, setPdfCoverFileName] = useState<string | null>(null);
+  const [pdfCoverRefreshToken, setPdfCoverRefreshToken] = useState(0);
+  const pdfCoverKey = settingsPdfCover || org?.pdf_cover_image_key || null;
   const pdfCoverBlobUrl = useImageUrl(
-    settingsPdfCover || org?.pdf_cover_image_key ? "/api/admin/org/pdf-cover" : undefined
+    pdfCoverKey ? `/api/admin/org/pdf-cover?v=${encodeURIComponent(`${pdfCoverKey}:${pdfCoverRefreshToken}`)}` : undefined
   );
 
   const documentDisplayNamePreview = useMemo(
@@ -200,9 +221,15 @@ export function AdminTabOrg() {
       try {
         const settings = await adminGetOrgSettings();
         setSettingsPdfCover(settings.pdf_cover_image_key ?? null);
+        if (settings.pdf_cover_image_key ?? o.pdf_cover_image_key) {
+          setPdfCoverFileName(await fetchOrganizationPdfCoverFileName(o.id));
+        } else {
+          setPdfCoverFileName(null);
+        }
         docPrefix = settings.documents?.document_prefix != null ? String(settings.documents.document_prefix) : "";
       } catch {
         setSettingsPdfCover(null);
+        setPdfCoverFileName(null);
       }
       try {
         const full = await getOrganizationsSettings();
@@ -369,6 +396,9 @@ export function AdminTabOrg() {
       } else {
         await adminDeletePdfCover();
         setSettingsPdfCover(null);
+        setOrg((prev) => (prev ? { ...prev, pdf_cover_image_key: undefined } : null));
+        setPdfCoverFileName(null);
+        setPdfCoverRefreshToken((v) => v + 1);
         showCrmInlineToast("Image de couverture supprimée", "success", 2800);
       }
       setDeleteAssetTarget(null);
@@ -387,9 +417,12 @@ export function AdminTabOrg() {
     setUploadingPdfCover(true);
     setError("");
     try {
-      const { storage_key } = await adminUploadPdfCover(file, org.id);
+      const { storage_key, file_name } = await adminUploadPdfCover(file, org.id);
       await adminPostOrgSettings({ pdf_cover_image_key: storage_key });
       setSettingsPdfCover(storage_key);
+      setOrg((prev) => (prev ? { ...prev, pdf_cover_image_key: storage_key } : null));
+      setPdfCoverFileName(file_name || file.name);
+      setPdfCoverRefreshToken((v) => v + 1);
       showCrmInlineToast("Image de couverture PDF enregistrée", "success", 3200);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erreur upload image couverture";
@@ -684,6 +717,11 @@ export function AdminTabOrg() {
                 </div>
               )}
             </div>
+            {pdfCoverFileName ? (
+              <p className="admin-org-field-hint" style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                Fichier enregistre : {pdfCoverFileName}
+              </p>
+            ) : null}
           </div>
         </OrgSection>
 

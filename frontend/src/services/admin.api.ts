@@ -339,7 +339,10 @@ export async function adminDeleteLogo(): Promise<void> {
   }
 }
 
-export async function adminUploadPdfCover(file: File, orgId: string): Promise<{ storage_key: string }> {
+export async function adminUploadPdfCover(
+  file: File,
+  orgId: string
+): Promise<{ id?: string; file_name?: string; storage_key: string }> {
   const formData = new FormData();
   formData.append("entityType", "organization");
   formData.append("entityId", orgId);
@@ -352,7 +355,7 @@ export async function adminUploadPdfCover(file: File, orgId: string): Promise<{ 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
   if (!data.storage_key) throw new Error("Réponse upload invalide");
-  return { storage_key: data.storage_key };
+  return { id: data.id, file_name: data.file_name, storage_key: data.storage_key };
 }
 
 export async function adminDeletePdfCover(): Promise<void> {
