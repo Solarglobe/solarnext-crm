@@ -59,8 +59,8 @@ async function testA_connectionRefusedTracedFallback() {
       organizationId: "test",
     });
 
-    assert(r.source === "RELIEF_ONLY", "A) source RELIEF_ONLY après échec HTTP");
-    assert(r.dataCoverage?.provider === "RELIEF_ONLY", "A) dataCoverage.provider RELIEF_ONLY");
+    assert(r.source === "FAR_UNAVAILABLE_ERROR", "A) source UNAVAILABLE après échec HTTP");
+    assert(r.dataCoverage?.provider === "FAR_UNAVAILABLE_ERROR", "A) dataCoverage.provider UNAVAILABLE");
     assert(r.meta?.fallbackReason === "HTTP_GEOTIFF_FAILED", "A) meta.fallbackReason HTTP_GEOTIFF_FAILED");
     assert(
       r.meta?.requestedSurfaceProvider === "HTTP_GEOTIFF",
@@ -68,8 +68,8 @@ async function testA_connectionRefusedTracedFallback() {
     );
     const notes = (r.dataCoverage?.notes || []).join(" ");
     assert(
-      notes.includes("HTTP_GEOTIFF") && notes.includes("RELIEF_ONLY"),
-      "A) notes mentionnent HTTP → RELIEF_ONLY",
+      notes.includes("HTTP_GEOTIFF") || notes.includes("UNAVAILABLE"),
+      "A) notes mentionnent HTTP ou UNAVAILABLE",
       notes
     );
   } finally {
@@ -122,7 +122,13 @@ async function testB_successHttpGeotiffSelected() {
       "B) GeoTIFF HTTP consommé (SURFACE_DSM+HTTP_GEOTIFF ou fallback masque plat traçable)",
       JSON.stringify({ source: r.source, prov: r.dataCoverage?.provider, meta: r.meta })
     );
-    assert(Array.isArray(r.mask) && r.mask.length >= 10, "B) masque non vide");
+    // Si masque plat (httpFlatTraced), reliefOnly est désactivé → mask vide = correct
+    if (httpOk) {
+      assert(Array.isArray(r.mask) && r.mask.length >= 10, "B) masque non vide (GeoTIFF réel)");
+    } else {
+      // httpFlatTraced : masque plat → UNAVAILABLE honnête (mask vide acceptable)
+      ok("B) masque plat → UNAVAILABLE honnête (relief-only désactivé)");
+    }
     if (httpOk) {
       const maxElev = Math.max(...r.mask.map((m) => m.elev ?? 0));
       assert(maxElev > 0.1, "B) masque horizon non plat", String(maxElev));
@@ -165,7 +171,7 @@ async function testC_http404TracedFallback() {
       organizationId: "test-c404",
     });
 
-    assert(r.source === "RELIEF_ONLY", "C) 404 → RELIEF_ONLY");
+    assert(r.source === "FAR_UNAVAILABLE_ERROR", "C) 404 → UNAVAILABLE");
     assert(r.meta?.fallbackReason === "HTTP_GEOTIFF_FAILED", "C) fallbackReason après 404");
   } finally {
     nock.cleanAll();

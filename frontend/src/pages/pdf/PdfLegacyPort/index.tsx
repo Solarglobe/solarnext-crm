@@ -23,6 +23,7 @@ import PdfPage10 from "./PdfPage10";
 import PdfPage11 from "./PdfPage11";
 import PdfPageMethodologySolarGlobe from "./PdfPageMethodologySolarGlobe";
 import PdfPage12 from "./PdfPage12";
+import PdfPageShading from "./PdfPageShading";
 import "./pdf-legacy-port.css";
 
 export interface PdfLegacyPortProps {
@@ -79,6 +80,7 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
       <PdfPage1 organization={organization} viewModel={viewModel} />
       <PdfPage2 organization={organization} viewModel={viewModel} />
       <PdfPage3 organization={organization} viewModel={viewModel} />
+      <PdfPageShading organization={organization} viewModel={viewModel} />
       <PdfPage4 organization={organization} viewModel={viewModel} />
       <PdfPage5 organization={organization} viewModel={viewModel} />
       <PdfPage6 organization={organization} viewModel={viewModel} />

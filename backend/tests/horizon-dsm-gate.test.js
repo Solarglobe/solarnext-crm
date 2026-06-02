@@ -40,7 +40,7 @@ function main() {
     process.env.HORIZON_DSM_ENABLED = "true";
     process.env.DSM_PROVIDER_TYPE = "STUB";
     assert(!isSurfaceDsmTerrainReady(), "2) STUB seul → pas prêt");
-    assert(getHorizonCacheDsmSuffix() === ":dsm=0", "2b) suffix relief");
+    assert(getHorizonCacheDsmSuffix() === ":dsm=api", "2b) suffix api (IGN ou PVGIS)");
     assert(surfaceDsmTerrainNotReadyNotes().length > 0, "2c) notes non vides");
 
     process.env.DSM_PROVIDER_TYPE = "HTTP_GEOTIFF";
@@ -52,13 +52,13 @@ function main() {
     process.env.DSM_PROVIDER = "LOCAL";
     delete process.env.DSM_PROVIDER_TYPE;
     assert(isSurfaceDsmTerrainReady(), "4) LOCAL → prêt");
-    assert(getHorizonCacheDsmSuffix() === ":dsm=real", "4b) suffix real");
+    assert(getHorizonCacheDsmSuffix() === ":dsm=api", "4b) suffix api");
 
     process.env.DSM_PROVIDER = "AUTO";
     process.env.DSM_PROVIDER_TYPE = "IGN_RGE_ALTI";
     process.env.DSM_ENABLE = "true";
     assert(isSurfaceDsmTerrainReady(), "5) IGN+enable → prêt");
-    assert(getHorizonCacheDsmSuffix() === ":dsm=ign", "5b) suffix ign");
+    assert(getHorizonCacheDsmSuffix() === ":dsm=api", "5b) suffix api");
   } finally {
     Object.assign(process.env, save);
   }

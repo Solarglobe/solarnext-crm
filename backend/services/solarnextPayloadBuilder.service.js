@@ -416,6 +416,15 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
   const shadingOfficialDiff = computeShadingOfficialDiff(legacyShadingSnapshot, officialShading);
   logShadingOfficialDriftIfNeeded(shadingOfficialDiff, { studyId, versionId: versionNum });
 
+  // ── Enrichissement shading — champs mensuels et PVGIS (PDF ombrage) ──────
+  shading = {
+    ...shading,
+    monthlyFactors:  shadingResult.monthlyFactors  ?? null,
+    monthlyKwhStats: shadingResult.monthlyKwhStats ?? null,
+    annualLossKwh:   shadingResult.annualLossKwh   ?? null,
+    pvgisReference:  shadingResult.pvgisReference  ?? null,
+  };
+
   const params = await loadOrgParams(orgId);
 
   const calpinageSnapRes = await pool.query(

@@ -12,9 +12,9 @@ import { fileURLToPath } from "url";
 import { computeSunPosition } from "./solarPosition.js";
 import { interpolateHorizonElevation } from "../horizon/horizonMaskCore.js";
 import { computeHorizonMaskAuto } from "../horizon/providers/horizonProviderSelector.js";
-import { ensureIgnTileAvailable } from "../dsmDynamic/ignDynamicLoader.js";
 import { farHorizonKindFromProvider, REAL_TERRAIN_PROVIDERS } from "./farHorizonTruth.js";
 import { capConfidence01ForSource, SYNTHETIC_MAX_CONFIDENCE_01 } from "./syntheticReliefConfidence.js";
+import { fetchPvgisEnergy } from "./pvgisEnergyApiClient.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -253,6 +253,57 @@ function extractFromGeometry(geometry, metersPerPixel, strictCommercial = false)
  * @param {number} [params.metersPerPixel] - m/px (near shading). Sinon dérivé de geometry ou 1.
  * @returns {{ farLossPct, nearLossPct, totalLossPct, perPanelBreakdown?, [__testMonthly]? }}
  */
+
+/**
+ * Extrait la normale unitaire du premier pan depuis la géométrie.
+ * Fallback plan horizontal si tiltDeg absent (rétrocompat tests).
+ * @param {object|null} geometry
+ * @returns {{ normalX: number, normalY: number, normalZ: number }}
+ */
+function _extractPanelNormal(geometry) {
+  const pans =
+    geometry?.roof?.pans ??
+    geometry?.validatedRoofData?.pans ??
+    geometry?.roofState?.pans ??
+    [];
+  if (!Array.isArray(pans) || pans.length === 0) {
+    return { normalX: 0, normalY: 0, normalZ: 1 }; // plan horizontal
+  }
+  const pan     = pans[0];
+  const tiltDeg = pan.tiltDeg ?? pan.slopeDeg ?? pan.tilt_deg ?? 0;
+  const azDeg   = pan.orientationDeg ?? pan.azimuthDeg ?? pan.azimuth_deg ?? 180;
+  if (!tiltDeg || tiltDeg <= 0) {
+    return { normalX: 0, normalY: 0, normalZ: 1 };
+  }
+  const tiltRad = (tiltDeg * Math.PI) / 180;
+  const azRad   = (azDeg   * Math.PI) / 180;
+  return {
+    normalX: Math.sin(azRad) * Math.sin(tiltRad),
+    normalY: Math.cos(azRad) * Math.sin(tiltRad),
+    normalZ: Math.cos(tiltRad),
+  };
+}
+
+/**
+ * Extrait tiltDeg et azimuthDeg du premier pan pour le calcul PVGIS.
+ * Retourne des défauts France raisonnables si geometry absente.
+ */
+function _extractPanFirstPan(geometry) {
+  const pans =
+    geometry?.roof?.pans ??
+    geometry?.validatedRoofData?.pans ??
+    geometry?.roofState?.pans ??
+    [];
+  if (!Array.isArray(pans) || pans.length === 0) {
+    return { tiltDeg: 30, azimuthDeg: 180 };   // défauts France raisonnables
+  }
+  const p = pans[0];
+  return {
+    tiltDeg:    p.tiltDeg    ?? p.slopeDeg    ?? p.tilt_deg    ?? 30,
+    azimuthDeg: p.orientationDeg ?? p.azimuthDeg ?? p.azimuth_deg ?? 180,
+  };
+}
+
 export async function computeCalpinageShading(params) {
   const {
     lat,
@@ -321,13 +372,6 @@ export async function computeCalpinageShading(params) {
   let horizonMask = options.__testHorizonMaskOverride || null;
   let farMetadata = null;
   if (!horizonMask && hasGps) {
-    if (process.env.DSM_PROVIDER_TYPE === "IGN_RGE_ALTI") {
-      try {
-        await ensureIgnTileAvailable(lat, lon);
-      } catch (err) {
-        console.warn("[IGN DYNAMIC] Tile ensure failed, fallback will handle.", err?.message ?? err);
-      }
-    }
     try {
       if (options.__testForceHorizonFailure === true) {
         throw new Error("__test_force_horizon_failure");
@@ -422,25 +466,32 @@ export async function computeCalpinageShading(params) {
   let totalWeightFar = 0;
   let totalWeightFarNear = 0;
 
-  const returnMonthly = options.__testReturnMonthly === true;
   const includePerPanelBreakdown = options.includePerPanelBreakdown === true;
   const perPanelFarNear =
     includePerPanelBreakdown && panels.length > 0 ? new Array(panels.length).fill(0) : null;
 
-  const monthlyBaseline = returnMonthly ? new Array(12).fill(0) : null;
-  const monthlyFar = returnMonthly ? new Array(12).fill(0) : null;
-  const monthlyFarNear = returnMonthly ? new Array(12).fill(0) : null;
+  const monthlyBaseline = new Array(12).fill(0);
+  const monthlyFar      = new Array(12).fill(0);
+  const monthlyFarNear  = new Array(12).fill(0);
+
+  // Normale panneau pour pondération GTI (cos angle d'incidence)
+  const _panelNormal = _extractPanelNormal(params.geometry ?? params.geom ?? null);
 
   for (const sample of samples) {
     const { date, azimuthDeg: azDeg, elevationDeg: elDeg } = sample;
     const sunDir = computeShadowRayDirection(azDeg, elDeg);
-    const weight = Math.max(0, sunDir.dz);
+    // Pondération GTI : cos(angle d'incidence sur le plan réel du panneau)
+    // Fallback horizontal (normalZ=1) si tiltDeg absent → sunDir.dz (identique à l'ancien)
+    const _cosInc = sunDir.dx * _panelNormal.normalX
+                  + sunDir.dy * _panelNormal.normalY
+                  + sunDir.dz * _panelNormal.normalZ;
+    const weight = Math.max(0, _cosInc);
     if (weight <= 0) continue;
 
     const month = date ? date.getUTCMonth() : 0;
 
     totalWeightBaseline += weight;
-    if (returnMonthly) monthlyBaseline[month] += weight;
+    monthlyBaseline[month] += weight;
 
     const horizonElev = horizonMask?.mask
       ? interpolateHorizonElevation(horizonMask.mask, azDeg)
@@ -450,7 +501,7 @@ export async function computeCalpinageShading(params) {
     if (!aboveHorizon) continue;
 
     totalWeightFar += weight;
-    if (returnMonthly) monthlyFar[month] += weight;
+    monthlyFar[month]      += weight;
 
     let panelFractionSum = 0;
     for (let pi = 0; pi < panels.length; pi++) {
@@ -472,7 +523,7 @@ export async function computeCalpinageShading(params) {
     const avgFraction = panels.length > 0 ? panelFractionSum / panels.length : 0;
     const farNearWeight = weight * (1 - avgFraction);
     totalWeightFarNear += farNearWeight;
-    if (returnMonthly) monthlyFarNear[month] += farNearWeight;
+    monthlyFarNear[month]  += farNearWeight;
   }
 
   let farLossPct = 0;
@@ -525,13 +576,23 @@ export async function computeCalpinageShading(params) {
       farHorizonKind: farHorizonKindFromProvider(horizonProv),
     };
   }
-  if (returnMonthly && monthlyBaseline && monthlyFar && monthlyFarNear) {
-    result.__testMonthly = {
-      monthlyBaselineEnergy: monthlyBaseline,
-      monthlyFarEnergy: monthlyFar,
-      monthlyFarNearEnergy: monthlyFarNear,
+  // monthlyFactors — API stable, toujours retourné
+  result.monthlyFactors = monthlyBaseline.map((base, i) => {
+    const far = monthlyFar[i];
+    const fn  = monthlyFarNear[i];
+    return {
+      month:                i + 1,
+      farLossFraction:      base > 0 ? Math.max(0, Math.min(1, 1 - far / base)) : 0,
+      nearLossFraction:     far  > 0 ? Math.max(0, Math.min(1, 1 - fn  / far))  : 0,
+      combinedLossFraction: base > 0 ? Math.max(0, Math.min(1, 1 - fn  / base)) : 0,
     };
-  }
+  });
+  // __testMonthly — compat rétrograde (stress-scenarios.test.js lit r.__testMonthly)
+  result.__testMonthly = {
+    monthlyBaselineEnergy: monthlyBaseline,
+    monthlyFarEnergy:      monthlyFar,
+    monthlyFarNearEnergy:  monthlyFarNear,
+  };
   if (perPanelFarNear && panels.length > 0 && totalWeightBaseline > 0) {
     result.perPanelBreakdown = panels.map((p, i) => ({
       panelId: String(p.id ?? `p-${i}`),
@@ -541,5 +602,48 @@ export async function computeCalpinageShading(params) {
   if (geometryCommercialWarnings.length > 0) {
     result.geometryCommercialWarnings = geometryCommercialWarnings;
   }
+
+  // ─── PVGIS énergie — kWh mensuels/annuels avec/sans ombrage ─────────────
+  // Activé uniquement si peakPowerKwc fourni ET GPS valide.
+  // Erreur PVGIS non bloquante (résultat partiel avec pvgisReference.source=UNAVAILABLE).
+  if (
+    hasGps &&
+    typeof params.peakPowerKwc === "number" &&
+    params.peakPowerKwc > 0
+  ) {
+    try {
+      const { tiltDeg, azimuthDeg } = _extractPanFirstPan(params.geometry ?? params.geom ?? null);
+      const pvgisData = await fetchPvgisEnergy({ lat, lon, tiltDeg, azimuthDeg, usehorizon: 0 });
+
+      result.monthlyKwhStats = pvgisData.monthly.map((m, i) => {
+        const ref    = m.E_m * params.peakPowerKwc;
+        const factor = result.monthlyFactors?.[i]?.combinedLossFraction ?? 0;
+        const kwhLoss = ref * factor;
+        return {
+          month:                    i + 1,
+          productionNoShadingKwh:   Number(ref.toFixed(1)),
+          productionWithShadingKwh: Number((ref - kwhLoss).toFixed(1)),
+          kwhLoss:                  Number(kwhLoss.toFixed(1)),
+          gtiKwhM2perDay:           m.H_i,
+          combinedLossFraction:     factor,
+        };
+      });
+
+      result.annualLossKwh = Number(
+        result.monthlyKwhStats.reduce((s, m) => s + m.kwhLoss, 0).toFixed(0)
+      );
+      result.pvgisReference = {
+        source:       "PVGIS_V5_3_PVCALC",
+        annualE_y:    pvgisData.annual.E_y,
+        peakPowerKwc: params.peakPowerKwc,
+        tiltDeg,
+        azimuthDeg,
+      };
+    } catch (pvgisErr) {
+      console.warn("[PVGIS ENERGY]", pvgisErr.message);
+      result.pvgisReference = { source: "PVGIS_UNAVAILABLE", error: pvgisErr.message };
+    }
+  }
+
   return result;
 }

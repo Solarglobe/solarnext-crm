@@ -1,69 +1,120 @@
 /**
- * CP-FAR-007 — Sélecteur de provider horizon
- * SURFACE_DSM si disponible (DSM_REAL ou stub), sinon RELIEF_ONLY.
- * Si HORIZON_DSM_ENABLED true => essayer SURFACE_DSM d'abord, fallback RELIEF_ONLY si échec.
+ * CP-FAR-SELECTOR-02 — Sélecteur provider horizon
+ * Priorités :
+ *   1. HTTP_GEOTIFF (si DSM_PROVIDER_TYPE=HTTP_GEOTIFF + URL + DSM_ENABLE=true)
+ *   2. IGN Géoplateforme API (France + DOM + COM, ign_rge_alti_wld, 1m)
+ *   3. PVGIS (fallback mondial, SRTM 90m, 48 azimuts 7.5°)
+ *   4. UNAVAILABLE (honnête — aucun horizon fictif)
+ *
+ * Aucun RELIEF_ONLY. Aucune gaussienne synthétique.
  */
 
-import * as reliefOnlyProvider from "./reliefOnlyProvider.js";
-import * as surfaceDsmProvider from "./surfaceDsmProvider.js";
+import * as surfaceDsmProvider       from "./surfaceDsmProvider.js";
+import * as ignGeoplatformeApiProvider from "./ignGeoplatformeApiProvider.js";
+import * as pvgisHorizonProvider      from "./pvgisHorizonProvider.js";
 
-/**
- * @param {{ lat: number, lon: number, radius_m: number }} params
- * @returns {import("./reliefOnlyProvider.js") | import("./surfaceDsmProvider.js")}
- */
-export function selectBestProvider(params) {
-  const dsmAvail = surfaceDsmProvider.isAvailable(params);
-  if (dsmAvail.available) {
-    return surfaceDsmProvider;
-  }
-  return reliefOnlyProvider;
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function _buildUnavailable(reason) {
+  const msg = String(reason ?? "UNKNOWN").slice(0, 300);
+  console.warn("[HORIZON] UNAVAILABLE:", msg);
+  return {
+    source: "FAR_UNAVAILABLE_ERROR",
+    mask:   [],
+    confidence: 0,
+    dataCoverage: {
+      provider:             "FAR_UNAVAILABLE_ERROR",
+      ratio:                0,
+      gridResolutionMeters: 0,
+      effectiveRadiusMeters: 0,
+      notes:                [msg],
+    },
+    meta: { source: "FAR_UNAVAILABLE_ERROR", fallbackReason: msg },
+  };
 }
 
 /**
- * @param {{ lat: number, lon: number, radius_m: number, step_deg: number }} params
- * @returns {Promise<{ source, radius_m, step_deg, resolution_m, mask, confidence, dataCoverage, meta? }>}
+ * Un masque est valide si :
+ *  - il a au moins un point
+ *  - ce n'est pas un état UNAVAILABLE
+ *  - la couverture terrain dépasse 5 % (sinon site hors couverture IGN → PVGIS)
+ */
+function _isValidMask(result) {
+  if (result == null) return false;
+  if (result.source === "FAR_UNAVAILABLE_ERROR") return false;
+  if (!Array.isArray(result.mask) || result.mask.length === 0) return false;
+  const ratio = result.dataCoverage?.ratio;
+  if (typeof ratio === "number" && ratio < 0.05) return false;
+  return true;
+}
+
+function _isHttpGeotiffConfigured() {
+  return (
+    (process.env.DSM_PROVIDER_TYPE ?? "").toUpperCase() === "HTTP_GEOTIFF" &&
+    Boolean(process.env.DSM_GEOTIFF_URL_TEMPLATE) &&
+    process.env.DSM_ENABLE === "true"
+  );
+}
+
+async function _tryProvider(label, provider, params) {
+  try {
+    const result = await provider.computeMask(params);
+    if (_isValidMask(result)) {
+      const prov = result.meta?.source ?? result.dataCoverage?.provider ?? label;
+      console.log(
+        `[HORIZON] ✓ ${prov} — ${result.mask.length} azimuts — confidence=${result.confidence}`
+      );
+      return result;
+    }
+    const ratio = result?.dataCoverage?.ratio;
+    console.log(
+      `[HORIZON] ${label}: masque vide ou couverture insuffisante (ratio=${ratio ?? "n/a"}), provider suivant`
+    );
+    return null;
+  } catch (err) {
+    console.warn(`[HORIZON] ${label} erreur: ${err.message}`);
+    return null;
+  }
+}
+
+// ─── Point d'entrée principal ─────────────────────────────────────────────────
+
+/**
+ * Retourne toujours un objet valide — jamais undefined.
+ * @param {{ lat: number, lon: number, radius_m?: number, step_deg?: number, enableHD?: boolean }} params
+ * @returns {Promise<{ source, mask, step_deg, confidence, dataCoverage, meta }>}
  */
 export async function computeHorizonMaskAuto(params) {
-  const dsmAvail = surfaceDsmProvider.isAvailable(params);
-  const provider = selectBestProvider(params);
-  const providerName = provider?.getMode ? provider.getMode() : "unknown";
-  console.log("[DSM SELECTOR] using:", providerName);
-
-  let result;
-  try {
-    result = await Promise.resolve(provider.computeMask({ ...params }));
-  } catch (err) {
-    result = await reliefOnlyProvider.computeMask({ ...params });
-    result.dataCoverage = {
-      ...result.dataCoverage,
-      notes: [...(result.dataCoverage.notes || []), "DSM failed: " + (err?.message || "unknown")],
-    };
-    if (!result.meta) result.meta = {};
-    result.meta.fallbackReason = "SURFACE_DSM_EXCEPTION";
-    result.meta.fallbackDetail = String(err?.message || "unknown").slice(0, 500);
+  const { lat, lon } = params ?? {};
+  if (typeof lat !== "number" || typeof lon !== "number") {
+    return _buildUnavailable("INVALID_COORDS");
   }
 
-  const dcProv = result?.dataCoverage?.provider;
-  const fb = result?.meta?.fallbackReason;
-  if (fb || dcProv === "RELIEF_ONLY") {
-    console.log(
-      "[HORIZON] mask outcome dataCoverage.provider=" +
-        (dcProv ?? "n/a") +
-        (fb ? " meta.fallbackReason=" + fb : "")
-    );
+  // 1) HTTP_GEOTIFF — uniquement si configuré explicitement
+  if (_isHttpGeotiffConfigured()) {
+    const result = await _tryProvider("HTTP_GEOTIFF", surfaceDsmProvider, params);
+    if (result) return result;
   }
 
-  if (provider === reliefOnlyProvider && !dsmAvail.available) {
-    result.dataCoverage = {
-      ...result.dataCoverage,
-      notes: [...(result.dataCoverage.notes || []), ...dsmAvail.notes],
-    };
+  // 2) IGN Géoplateforme — France + DOM + COM (ign_rge_alti_wld)
+  //    Sites hors couverture retournent -99999 → coverageRatio < 5% → provider suivant
+  if (ignGeoplatformeApiProvider.isAvailable({ lat, lon }).available) {
+    const result = await _tryProvider("IGN_GEOPLATEFORME", ignGeoplatformeApiProvider, params);
+    if (result) return result;
   }
 
-  if (!result.meta) result.meta = {};
-  if (result.meta.source == null) {
-    result.meta.source = result.source === "SURFACE_DSM" ? "SURFACE_DSM" : "RELIEF_ONLY";
+  // 3) PVGIS — fallback mondial (SRTM 90m, 48 azimuts 7.5°)
+  if (pvgisHorizonProvider.isAvailable({ lat, lon }).available) {
+    const result = await _tryProvider("PVGIS_HORIZON", pvgisHorizonProvider, params);
+    if (result) return result;
   }
 
-  return result;
+  return _buildUnavailable("ALL_PROVIDERS_FAILED");
+}
+
+/**
+ * Alias rétrocompat — utilisé dans quelques tests qui appellent selectBestProvider().
+ */
+export function selectBestProvider(params) {
+  return { computeMask: (p) => computeHorizonMaskAuto(p ?? params) };
 }

@@ -93,6 +93,35 @@ const r5 = computeFarConfidence({
 assert(r5.breakdown.geometryWeight === 8, "geometryWeight = 8 (neutre) sans obstacles");
 assert(r5.score >= 0 && r5.score <= 100, "score dans [0,100]");
 
+
+// --- 6) Nouvelles sources : IGN_GEOPLATEFORME et PVGIS_HORIZON ---
+console.log("\n--- 6) IGN_GEOPLATEFORME → score élevé ---");
+const rIgn = computeFarConfidence({
+  source: "IGN_GEOPLATEFORME",
+  algorithm: "RADIAL_BATCH_API",
+  gridResolutionMeters: 1,
+  maxDistanceMeters: 4000,
+  stepDeg: 1,
+  dataCoverageRatio: 1,
+  hasRealDSM: true,
+});
+assert(rIgn.score >= 75, "IGN_GEOPLATEFORME score >= 75");
+assert(["HIGH", "VERY_HIGH"].includes(rIgn.level), "IGN_GEOPLATEFORME niveau HIGH ou VERY_HIGH");
+
+console.log("\n--- 6b) PVGIS_HORIZON → score intermédiaire ---");
+const rPvgis = computeFarConfidence({
+  source: "PVGIS_HORIZON",
+  algorithm: "PVGIS_BUILT_IN",
+  gridResolutionMeters: 90,
+  maxDistanceMeters: null,
+  stepDeg: 7.5,
+  dataCoverageRatio: 1,
+  hasRealDSM: true,
+});
+assert(rPvgis.score >= 30, "PVGIS_HORIZON score >= 30");
+assert(rPvgis.score < 75,  "PVGIS_HORIZON score < 75 (inférieur à IGN)");
+assert(rIgn.score > rPvgis.score, "IGN_GEOPLATEFORME mieux noté que PVGIS_HORIZON");
+
 // --- Résumé ---
 console.log("\n--- RÉSUMÉ ---");
 console.log("Passed: " + passed + ", Failed: " + failed);

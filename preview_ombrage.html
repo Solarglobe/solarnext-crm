@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Preview — Analyse d'ombrage</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0d1a; display: flex; justify-content: center; align-items: flex-start; padding: 20px; }
+  .page { width: 1090px; background: #0B0F1E; color: #E8ECF8; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; padding: 18px 22px 14px; border: 1px solid rgba(255,255,255,0.06); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const MOCK = {
+  meta: { client: "M. Martin Jean-Pierre", ref: "SN-2026-04872", date: "02/06/2026" },
+  prodNoShadingKwh: 6235, prodWithShadingKwh: 5616, annualLossKwh: 619, annualLossEur: 99,
+  combinedLossPct: 9.9, farLossPct: 6.8, nearLossPct: 3.5,
+  farHorizonKind: "REAL_TERRAIN", farConfidenceLevel: "MEDIUM", farSource: "GeoTIFF IGN",
+  pvgisSource: "PVGIS_V5_3_PVCALC", pvgisTiltDeg: 32, pvgisAzimuthDeg: 185,
+  peakPowerKwc: 6.0,
+  monthlyFactors: [
+    {month:1,farPct:9.2,nearPct:5.8,combinedPct:14.6},{month:2,farPct:8.1,nearPct:5.4,combinedPct:13.1},
+    {month:3,farPct:6.8,nearPct:4.9,combinedPct:11.4},{month:4,farPct:5.2,nearPct:4.1,combinedPct:9.1},
+    {month:5,farPct:4.1,nearPct:3.8,combinedPct:7.7},{month:6,farPct:3.8,nearPct:3.5,combinedPct:7.1},
+    {month:7,farPct:3.9,nearPct:3.6,combinedPct:7.3},{month:8,farPct:4.4,nearPct:3.9,combinedPct:8.1},
+    {month:9,farPct:5.9,nearPct:4.5,combinedPct:10.1},{month:10,farPct:7.4,nearPct:5.1,combinedPct:12.2},
+    {month:11,farPct:8.8,nearPct:5.6,combinedPct:14.0},{month:12,farPct:10.1,nearPct:6.1,combinedPct:15.8}
+  ],
+  monthlyKwhStats: [
+    {month:1,prodNoShadingKwh:310,prodWithShadingKwh:265,kwhLoss:45,lossPct:14.6},
+    {month:2,prodNoShadingKwh:380,prodWithShadingKwh:330,kwhLoss:50,lossPct:13.1},
+    {month:3,prodNoShadingKwh:520,prodWithShadingKwh:461,kwhLoss:59,lossPct:11.4},
+    {month:4,prodNoShadingKwh:610,prodWithShadingKwh:555,kwhLoss:55,lossPct:9.1},
+    {month:5,prodNoShadingKwh:680,prodWithShadingKwh:627,kwhLoss:53,lossPct:7.7},
+    {month:6,prodNoShadingKwh:720,prodWithShadingKwh:669,kwhLoss:51,lossPct:7.1},
+    {month:7,prodNoShadingKwh:740,prodWithShadingKwh:686,kwhLoss:54,lossPct:7.3},
+    {month:8,prodNoShadingKwh:690,prodWithShadingKwh:634,kwhLoss:56,lossPct:8.1},
+    {month:9,prodNoShadingKwh:560,prodWithShadingKwh:504,kwhLoss:56,lossPct:10.1},
+    {month:10,prodNoShadingKwh:440,prodWithShadingKwh:386,kwhLoss:54,lossPct:12.2},
+    {month:11,prodNoShadingKwh:310,prodWithShadingKwh:267,kwhLoss:43,lossPct:14.0},
+    {month:12,prodNoShadingKwh:275,prodWithShadingKwh:232,kwhLoss:43,lossPct:15.8}
+  ],
+  horizonMaskArray: [7.8,8.4,8.6,9.5,9.6,10.2,10.3,10.7,11,11.3,11.4,11.5,12.1,12.1,12,12.3,12.1,11.6,11.9,11.7,11.3,11,11.2,10.8,10.6,10.2,9.8,9.5,8.6,8.4,6.9,6.7,7,7,6.5,6.7,6,6.2,5.7,5.3,4.7,4.9,4.2,4.2,4,3.8,3.6,3.4,3.1,3.1,3.1,2.9,3.1,3.6,3.8,3.8,3.7,3.9,4.2,3.9,4.4,4.2,4.7,4.2,4.6,4.5,4.7,4.4,4.1,4.2,4.4,4.3,4.1,3.9,4.2,3.5,3.6,3.4,3.1,3.1,1.7,2.4,2.1,2.4,2.8,2.8,2.5,3.1,2.8,3,3,2.9,3,3.1,2.9,2.9,2.3,2.5,2.1,2.1,3.4,3.6,4.1,4,4.3,4.4,4.9,4.8,5.3,5.2,5.1,5.5,5.5,5.6,5.3,5.6,5.6,5.3,5.4,5.3,5.2,5.2,5.2,4.8,4.7,4.4,4,3.9,3.9,3.9,5.8,6.2,6.4,7.2,7.3,7.6,7.8,7.8,8.4,8.1,8.9,8.6,8.8,9,9,8.8,9.2,8.8,8.8,8.9,8.8,8.5,8,7.7,7.8,7.7,7.3,7,6.5,6.2,7,7.2,7.6,7.3,7.4,7.5,7.9,8.3,8,8.5,8.5,8.6,8.6,9.2,9.1,9.2,9.3,9.7,10,9.8]
+};
+
+const MONTHS = ["Jan","Fév","Mar","Avr","Mai","Jui","Jul","Aoû","Sep","Oct","Nov","Déc"];
+
+// ── ShadingKpiCard ────────────────────────────────────────────────────────
+function KpiCard({label, value, sublabel, techLines, valueColor="#E8ECF8", isHero=false, badge}) {
+  return (
+    <div style={{flex:1,display:"flex",flexDirection:"column",gap:4,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,padding:"10px 12px",minWidth:0}}>
+      <div style={{fontSize:"7.5pt",color:"#9FA8C7",textTransform:"uppercase",letterSpacing:"0.04em",fontWeight:500}}>{label}</div>
+      {badge ? (
+        <div style={{display:"flex",alignItems:"center",gap:5,fontSize:isHero?"15pt":"13pt",fontWeight:isHero?700:600,lineHeight:1.1}}>
+          <span style={{color:badge.color,fontSize:"10pt"}}>●</span>
+          <span style={{color:badge.color}}>{badge.text}</span>
+        </div>
+      ) : (
+        <div style={{fontSize:isHero?"15pt":"13pt",fontWeight:isHero?700:500,color:valueColor,lineHeight:1.1}}>{value}</div>
+      )}
+      {sublabel && <div style={{fontSize:"8.5pt",color:"#9FA8C7",lineHeight:1.3}}>{sublabel}</div>}
+      {techLines && techLines.map((l,i) => <div key={i} style={{fontSize:"7.5pt",color:"#9FA8C7",opacity:0.8}}>{l}</div>)}
+    </div>
+  );
+}
+
+// ── TableMonthlyKwh ───────────────────────────────────────────────────────
+function TableKwh({rows, pvgisTiltDeg, pvgisAzimuthDeg}) {
+  const sorted = [...rows].sort((a,b) => a.month - b.month);
+  const tRef = sorted.reduce((s,r)=>s+(r.prodNoShadingKwh??0),0);
+  const tNet = sorted.reduce((s,r)=>s+(r.prodWithShadingKwh??0),0);
+  const tLoss = sorted.reduce((s,r)=>s+(r.kwhLoss??0),0);
+  const tPct = tRef > 0 ? (tLoss/tRef*100).toFixed(1)+"%" : "—";
+  const cell = {textAlign:"right",padding:"2px 5px",fontSize:"7.5pt",lineHeight:1.3,borderBottom:"1px solid rgba(255,255,255,0.04)"};
+  const rows4 = [
+    {label:"Prod. référence (kWh)", vals:sorted.map(r=>Math.round(r.prodNoShadingKwh).toLocaleString("fr-FR")), total:Math.round(tRef).toLocaleString("fr-FR"), color:"#E8ECF8", bold:false},
+    {label:"Prod. nette (kWh)",      vals:sorted.map(r=>Math.round(r.prodWithShadingKwh).toLocaleString("fr-FR")), total:Math.round(tNet).toLocaleString("fr-FR"), color:"#C39847", bold:true},
+    {label:"Perte (kWh)",            vals:sorted.map(r=>Math.round(r.kwhLoss).toLocaleString("fr-FR")), total:Math.round(tLoss).toLocaleString("fr-FR"), color:"#E57373", bold:false},
+    {label:"Perte (%)",              vals:sorted.map(r=>r.lossPct!=null?r.lossPct.toFixed(1)+"%":"—"), total:tPct, color:"#9FA8C7", bold:false, italic:true},
+  ];
+  const footer = ["Source : PVGIS v5.3 (JRC)", pvgisTiltDeg!=null?`Inclinaison : ${pvgisTiltDeg}°`:null, pvgisAzimuthDeg!=null?`Azimut : ${pvgisAzimuthDeg}°`:null].filter(Boolean).join("  ·  ");
+  return (
+    <div style={{width:"100%"}}>
+      <table style={{width:"100%",borderCollapse:"collapse"}}>
+        <thead>
+          <tr>
+            <th style={{...cell,textAlign:"left",color:"#9FA8C7",fontSize:"7pt",fontWeight:500}}></th>
+            {MONTHS.map(m=><th key={m} style={{...cell,color:"#9FA8C7",fontSize:"7pt",fontWeight:500}}>{m}</th>)}
+            <th style={{...cell,color:"#9FA8C7",fontSize:"7pt",fontWeight:600,borderLeft:"1px solid rgba(255,255,255,0.10)"}}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows4.map((row,ri)=>(
+            <tr key={ri} style={{background:ri%2===0?"rgba(255,255,255,0.02)":"transparent"}}>
+              <td style={{...cell,textAlign:"left",color:"#9FA8C7",paddingRight:8,whiteSpace:"nowrap"}}>{row.label}</td>
+              {row.vals.map((v,i)=><td key={i} style={{...cell,color:row.color,fontWeight:row.bold?600:400,fontStyle:row.italic?"italic":"normal"}}>{v}</td>)}
+              <td style={{...cell,color:row.color,fontWeight:row.bold?700:600,fontStyle:row.italic?"italic":"normal",borderLeft:"1px solid rgba(255,255,255,0.10)"}}>{row.total}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {footer && <div style={{marginTop:5,fontSize:"7pt",color:"#9FA8C7",opacity:0.7}}>{footer}</div>}
+    </div>
+  );
+}
+
+// ── ChartShadingMonthly ───────────────────────────────────────────────────
+function ChartMonthly({data}) {
+  if (!data || data.length < 12) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:"#9FA8C7"}}>Données indisponibles</div>;
+  const VW=560, VH=240, PL=34, PR=10, PT=14, PB=28;
+  const CW=VW-PL-PR, CH=VH-PT-PB;
+  const maxPct = Math.max(5, Math.ceil(Math.max(...data.map(d=>d.combinedPct))/5)*5);
+  const N=12, slotW=CW/N, barW=slotW*0.65;
+  const x=(i)=>PL+i*slotW+slotW*0.175;
+  const yp=(p)=>PT+CH-(p/maxPct)*CH;
+  const hp=(p)=>(p/maxPct)*CH;
+  const ticks=[0,maxPct/2,maxPct];
+  const linePts=data.map((d,i)=>({x:x(i)+barW/2,y:yp(d.combinedPct)}));
+  const linePath=linePts.map((p,i)=>`${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  return (
+    <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",gap:4}}>
+      <svg viewBox={`0 0 ${VW} ${VH}`} style={{width:"100%",flex:1,display:"block",overflow:"visible"}}>
+        <defs>
+          <linearGradient id="g-far" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#D4AC5A"/><stop offset="100%" stopColor="#B08530"/></linearGradient>
+          <linearGradient id="g-near" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#5FA8F5"/><stop offset="100%" stopColor="#2D6FC8"/></linearGradient>
+        </defs>
+        {ticks.map((v,ti)=>{const y=yp(v);return(
+          <g key={ti}>
+            <line x1={PL} x2={VW-PR} y1={y} y2={y} stroke={ti===0?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.07)"} strokeWidth={0.8} strokeDasharray={ti===0?undefined:"3,3"}/>
+            <text x={PL-3} y={y+3.5} textAnchor="end" fill="#9FA8C7" fontSize={8}>{v%1===0?`${v}%`:`${v.toFixed(1)}%`}</text>
+          </g>
+        );})}
+        {data.map((d,i)=>{
+          const xi=x(i), hF=hp(d.farPct), hN=hp(d.nearPct), yF=yp(d.farPct), yN=yF-hN;
+          return(<g key={d.month}>
+            {hF>0.5&&<rect x={xi} y={yF} width={barW} height={hF} fill="url(#g-far)" opacity={0.88} rx={1.5}/>}
+            {hN>0.5&&<rect x={xi} y={yN} width={barW} height={hN} fill="url(#g-near)" opacity={0.88} rx={1.5}/>}
+            {d.combinedPct>=(maxPct*0.12)&&<text x={xi+barW/2} y={yp(d.combinedPct)-3} textAnchor="middle" fill="#E8ECF8" fontSize={7} fontWeight={500} opacity={0.8}>{d.combinedPct.toFixed(1)}%</text>}
+          </g>);
+        })}
+        <path d={linePath} fill="none" stroke="#E8ECF8" strokeWidth={1.2} strokeDasharray="4,3" strokeLinecap="round" opacity={0.55}/>
+        {linePts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r={1.8} fill="#E8ECF8" opacity={0.6}/>)}
+        {data.map((d,i)=><text key={d.month} x={x(i)+barW/2} y={VH-8} textAnchor="middle" fill="#9FA8C7" fontSize={8}>{MONTHS[d.month-1]}</text>)}
+        <line x1={PL} x2={VW-PR} y1={PT+CH} y2={PT+CH} stroke="rgba(255,255,255,0.15)" strokeWidth={1}/>
+      </svg>
+      <div style={{display:"flex",gap:12,justifyContent:"center",paddingBottom:2}}>
+        {[{c:"#C39847",l:"Horizon lointain (far)"},{c:"#4A90E2",l:"Masques proches (near)"},{c:"#E8ECF8",l:"Total combiné",dash:true}].map((x,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:5,fontSize:"7.5pt",color:"#9FA8C7"}}>
+            {x.dash?<span style={{width:18,height:1.5,background:x.c,display:"inline-block",opacity:0.6,verticalAlign:"middle"}}/>:<span style={{width:12,height:8,background:x.c,borderRadius:2,display:"inline-block",opacity:0.9}}/>}
+            {x.l}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── ChartHorizonProfile ───────────────────────────────────────────────────
+function ChartHorizon({mask}) {
+  if (!mask || mask.length < 2) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:"#9FA8C7"}}>Données indisponibles</div>;
+  const VW=270, VH=200, PL=26, PR=6, PT=10, PB=24;
+  const CW=VW-PL-PR, CH=VH-PT-PB;
+  const rawMax=Math.max(...mask.filter(Number.isFinite));
+  const maxEl=Math.max(15,Math.ceil((rawMax+2)/5)*5);
+  const n=mask.length;
+  const pts=[];
+  for(let i=0;i<=180;i++){
+    const az=i*2;
+    const idx=(i/180)*(n-1);
+    const lo=Math.floor(idx), hi=Math.min(lo+1,n-1);
+    const t=idx-lo;
+    const el=Math.max(0,(mask[lo]??0)*(1-t)+(mask[hi]??0)*t);
+    const xv=PL+(az/360)*CW, yv=PT+CH-(el/maxEl)*CH;
+    pts.push({x:xv,y:yv});
+  }
+  const linePath=pts.map((p,i)=>`${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const baseline=PT+CH;
+  const areaD=`${linePath} L${pts[pts.length-1].x.toFixed(1)},${baseline} L${pts[0].x.toFixed(1)},${baseline} Z`;
+  const step=maxEl<=20?5:maxEl<=40?10:15;
+  const yTicks=[]; for(let v=0;v<=maxEl;v+=step) yTicks.push(v);
+  const cards=[{az:0,l:"N"},{az:90,l:"E"},{az:180,l:"S"},{az:270,l:"O"}];
+  return (
+    <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column"}}>
+      <svg viewBox={`0 0 ${VW} ${VH}`} style={{width:"100%",flex:1,display:"block",overflow:"visible"}}>
+        <defs>
+          <linearGradient id="g-horiz" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#C39847" stopOpacity={0.35}/><stop offset="100%" stopColor="#C39847" stopOpacity={0.06}/>
+          </linearGradient>
+        </defs>
+        {cards.map(({az,l})=>{const xv=PL+(az/360)*CW;return(
+          <g key={az}>
+            <line x1={xv} x2={xv} y1={PT} y2={PT+CH} stroke="rgba(255,255,255,0.20)" strokeWidth={0.7} strokeDasharray="2,3"/>
+            <text x={xv} y={PT+CH+14} textAnchor="middle" fill="#9FA8C7" fontSize={8.5} fontWeight={600}>{l}</text>
+          </g>
+        );})}
+        {yTicks.map(v=>{const yv=PT+CH-(v/maxEl)*CH;return(
+          <g key={v}>
+            <line x1={PL} x2={VW-PR} y1={yv} y2={yv} stroke={v===0?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.07)"} strokeWidth={v===0?1:0.7} strokeDasharray={v===0?undefined:"3,3"}/>
+            <text x={PL-3} y={yv+3} textAnchor="end" fill="#9FA8C7" fontSize={7}>{v}°</text>
+          </g>
+        );})}
+        <path d={areaD} fill="url(#g-horiz)"/>
+        <path d={linePath} fill="none" stroke="#D4AC5A" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
+        {[45,135,225,315].map(az=><text key={az} x={PL+(az/360)*CW} y={PT+CH+14} textAnchor="middle" fill="#9FA8C7" fontSize={6.5} opacity={0.6}>{az}°</text>)}
+        <text x={PL+CW/2} y={VH-1} textAnchor="middle" fill="#9FA8C7" fontSize={6.5} opacity={0.5}>Azimut (°)</text>
+        <text x={8} y={PT+CH/2} textAnchor="middle" fill="#9FA8C7" fontSize={6.5} opacity={0.5} transform={`rotate(-90,8,${PT+CH/2})`}>Élév. (°)</text>
+      </svg>
+      <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"center",paddingBottom:2}}>
+        <span style={{width:14,height:8,background:"linear-gradient(to bottom,rgba(195,152,71,0.5),rgba(195,152,71,0.1))",border:"1px solid #D4AC5A",borderRadius:2,display:"inline-block"}}/>
+        <span style={{fontSize:"7.5pt",color:"#9FA8C7"}}>Horizon terrain / bâti</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Page complète ─────────────────────────────────────────────────────────
+function Page() {
+  const d = MOCK;
+  const lossColor = d.combinedLossPct < 5 ? "#9FA8C7" : d.combinedLossPct < 15 ? "#C39847" : "#E57373";
+  const badge = {color:"#4ade80", text:"ÉLEVÉE"};
+  const sep = {height:1, background:"linear-gradient(90deg,#C39847,rgba(195,152,71,0.3),transparent)", margin:"8px 0"};
+  return (
+    <div className="page">
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:8,paddingBottom:8,borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
+        <div>
+          <div style={{fontSize:"10pt",color:"#C39847",fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase"}}>Analyse d'ombrage</div>
+          <div style={{fontSize:"8pt",color:"#9FA8C7",marginTop:2}}>Production théorique · Pertes · Impact énergétique</div>
+        </div>
+        <div style={{textAlign:"right",fontSize:"8pt",color:"#9FA8C7",lineHeight:1.5}}>
+          <div><b style={{color:"#E8ECF8"}}>Client</b> : {d.meta.client}</div>
+          <div><b style={{color:"#E8ECF8"}}>Réf.</b> : {d.meta.ref}</div>
+          <div><b style={{color:"#E8ECF8"}}>Date</b> : {d.meta.date}</div>
+        </div>
+      </div>
+      <div style={sep}/>
+
+      {/* Bloc A : KPI */}
+      <div style={{display:"flex",gap:8,marginBottom:8}}>
+        <KpiCard label="Production théorique" value={`${d.prodNoShadingKwh.toLocaleString("fr-FR")} kWh`} sublabel="Sans ombrage · PVGIS réf." valueColor="#E8ECF8"/>
+        <KpiCard label="Production réelle" value={`${d.prodWithShadingKwh.toLocaleString("fr-FR")} kWh`} sublabel="Après pertes d'ombrage" valueColor="#C39847" isHero={true}/>
+        <KpiCard label="Énergie perdue / an" value={`${d.annualLossKwh.toLocaleString("fr-FR")} kWh`} sublabel={`≈ ${d.annualLossEur.toLocaleString("fr-FR")} €/an`} valueColor={lossColor}/>
+        <KpiCard label="Perte d'ombrage" value={`${d.combinedLossPct.toFixed(1)} %`} valueColor={lossColor} techLines={[`Horizon : ${d.farLossPct.toFixed(1)} %`,`Masques : ${d.nearLossPct.toFixed(1)} %`]}/>
+        <KpiCard label="Qualité données" value="" badge={badge} sublabel={d.farSource} techLines={[`Confiance : ${d.farConfidenceLevel}`]}/>
+      </div>
+      <div style={sep}/>
+
+      {/* Bloc B : Graphiques */}
+      <div style={{display:"flex",gap:8,height:248,marginBottom:8}}>
+        <div style={{flex:"0 0 58%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:6,padding:"8px 10px 4px",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+          <div style={{fontSize:"8pt",color:"#9FA8C7",fontWeight:500,marginBottom:4,letterSpacing:"0.03em",textTransform:"uppercase"}}>Pertes mensuelles (%)</div>
+          <div style={{flex:1,minHeight:0}}><ChartMonthly data={d.monthlyFactors}/></div>
+        </div>
+        <div style={{flex:1,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:6,padding:"8px 10px 4px",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+          <div style={{fontSize:"8pt",color:"#9FA8C7",fontWeight:500,marginBottom:4,letterSpacing:"0.03em",textTransform:"uppercase"}}>Profil horizon</div>
+          <div style={{flex:1,minHeight:0}}><ChartHorizon mask={d.horizonMaskArray}/></div>
+        </div>
+      </div>
+      <div style={sep}/>
+
+      {/* Bloc C : Tableau kWh */}
+      <TableKwh rows={d.monthlyKwhStats} pvgisTiltDeg={d.pvgisTiltDeg} pvgisAzimuthDeg={d.pvgisAzimuthDeg}/>
+
+      {/* Footer */}
+      <div style={{marginTop:10,paddingTop:6,borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex",justifyContent:"space-between",fontSize:"7pt",color:"#9FA8C7",opacity:0.6}}>
+        <span>SolarNext · Étude photovoltaïque</span>
+        <span>{d.meta.ref}</span>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<Page/>);
+</script>
+</body>
+</html>

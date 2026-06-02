@@ -121,6 +121,33 @@ export interface P12Data {
   v_cars_25?: string;
 }
 
+export interface PShadingMonthlyRow {
+  month:              number;
+  prodNoShadingKwh:   number;
+  prodWithShadingKwh: number;
+  kwhLoss:            number;
+  lossPct:            number | null;
+}
+
+export interface PShadingData {
+  meta?:               { client?: string; ref?: string; date?: string };
+  prodNoShadingKwh?:   number | null;
+  prodWithShadingKwh?: number | null;
+  annualLossKwh?:      number | null;
+  annualLossEur?:      number | null;
+  combinedLossPct?:    number | null;
+  farLossPct?:         number | null;
+  nearLossPct?:        number | null;
+  farHorizonKind?:     string;
+  farConfidenceLevel?: string | null;
+  farSource?:          string | null;
+  monthlyKwhStats?:    PShadingMonthlyRow[] | null;
+  pvgisSource?:        string | null;
+  pvgisTiltDeg?:       number | null;
+  pvgisAzimuthDeg?:    number | null;
+  peakPowerKwc?:       number | null;
+}
+
 export interface P13Data {
   meta?: { client?: string; ref?: string; date?: string };
 }

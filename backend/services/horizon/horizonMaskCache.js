@@ -6,7 +6,7 @@
 
 import { getHorizonCacheDsmSuffix } from "./horizonDsmGate.js";
 
-const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 jours
 const DEFAULT_MAX_ITEMS = 2000;
 const DEFAULT_TILE_DEG = 0.01;
 

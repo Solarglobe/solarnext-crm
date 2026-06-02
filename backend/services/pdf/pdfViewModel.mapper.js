@@ -697,6 +697,71 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p2_production: annualKwh > 0 ? `${Math.round(annualKwh).toLocaleString("fr-FR")} kWh` : "—",
   };
 
+  // ── P_SHADING — Analyse d'ombrage ─────────────────────────────────────────
+  const _pvgisRef    = shading.pvgisReference ?? {};
+  const _horizonMask = shading.horizonMask    ?? {};
+  const _far         = shading.far            ?? {};
+
+  const _prodNoShading = Array.isArray(shading.monthlyKwhStats)
+    ? Math.round(shading.monthlyKwhStats.reduce((s, m) => s + (m.productionNoShadingKwh ?? 0), 0))
+    : (_pvgisRef.annualE_y != null && _pvgisRef.peakPowerKwc != null)
+      ? Math.round(_pvgisRef.annualE_y * _pvgisRef.peakPowerKwc)
+      : null;
+
+  const _prodWithShading = Array.isArray(shading.monthlyKwhStats)
+    ? Math.round(shading.monthlyKwhStats.reduce((s, m) => s + (m.productionWithShadingKwh ?? 0), 0))
+    : null;
+
+  const _prixKwh = num(formParams.tarif_kwh) ?? num(formParams.tarif_actuel) ?? null;
+
+  const p_shading = {
+    meta: { client: clientName, ref, date: dateDisplay },
+    // KPI niveau 1 — lecture client
+    prodNoShadingKwh:   _prodNoShading,
+    prodWithShadingKwh: _prodWithShading,
+    annualLossKwh:      shading.annualLossKwh != null ? Math.round(shading.annualLossKwh) : null,
+    annualLossEur:      (shading.annualLossKwh != null && _prixKwh != null)
+                          ? Math.round(shading.annualLossKwh * _prixKwh) : null,
+    // KPI niveau 2 — lecture technicien
+    combinedLossPct:    num(shading.combinedLossPct ?? shading.combined?.totalLossPct),
+    farLossPct:         shading.farLossPct != null ? num(shading.farLossPct) : null,
+    nearLossPct:        num(shading.nearLossPct ?? shading.near?.totalLossPct),
+    // Qualité données
+    farHorizonKind:     _horizonMask.farHorizonKind ?? shading.farHorizonKind ?? "UNAVAILABLE",
+    farConfidenceLevel: _far.confidenceLevel ?? null,
+    farSource:          _far.source ?? null,
+    // Tableau mensuel kWh
+    monthlyKwhStats: Array.isArray(shading.monthlyKwhStats)
+      ? shading.monthlyKwhStats.map((m) => ({
+          month:             m.month,
+          prodNoShadingKwh:  m.productionNoShadingKwh,
+          prodWithShadingKwh: m.productionWithShadingKwh,
+          kwhLoss:           m.kwhLoss,
+          lossPct:           m.combinedLossFraction != null
+                               ? +(m.combinedLossFraction * 100).toFixed(1) : null,
+        }))
+      : null,
+    // Facteurs mensuels far/near (graphique barres Sprint 2)
+    monthlyFactors: Array.isArray(shading.monthlyFactors)
+      ? shading.monthlyFactors.map((m) => ({
+          month:       m.month,
+          farPct:      m.farLossFraction  != null ? +(m.farLossFraction  * 100).toFixed(1) : 0,
+          nearPct:     m.nearLossFraction != null ? +(m.nearLossFraction * 100).toFixed(1) : 0,
+          combinedPct: m.combinedLossFraction != null ? +(m.combinedLossFraction * 100).toFixed(1) : 0,
+        }))
+      : null,
+    // Métadonnées PVGIS
+    pvgisSource:     _pvgisRef.source     ?? null,
+    pvgisTiltDeg:    _pvgisRef.tiltDeg    != null ? num(_pvgisRef.tiltDeg)    : null,
+    pvgisAzimuthDeg: _pvgisRef.azimuthDeg != null ? num(_pvgisRef.azimuthDeg) : null,
+    // Contexte site
+    peakPowerKwc: num(installation.puissance_kwc),
+    lat: site.lat != null ? num(site.lat) : null,
+    lon: site.lon != null ? num(site.lon) : null,
+    // Masque horizon brut (profil SVG Sprint 3)
+    horizonMaskArray: Array.isArray(_horizonMask.mask) ? _horizonMask.mask : null,
+  };
+
   const orientationMap = { S: "Sud", SE: "Sud-Est", SO: "Sud-Ouest", SW: "Sud-Ouest", E: "Est", O: "Ouest", W: "Ouest" };
   const p3b_auto = {
     client: clientName,
@@ -989,6 +1054,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         tech: {},
       },
       p3b: { p3b_auto },
+      p_shading,
       p4: {
         meta: { client: clientName, ref, date: dateDisplay, date_display: dateDisplay },
         production_kwh: monthly,

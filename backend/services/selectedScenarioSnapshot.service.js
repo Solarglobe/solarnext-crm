@@ -232,9 +232,14 @@ export async function buildSelectedScenarioSnapshot({
   };
 
   const shading = {
-    near_loss_pct: scenario.shading?.near_loss_pct ?? null,
-    far_loss_pct: scenario.shading?.far_loss_pct ?? null,
+    near_loss_pct:  scenario.shading?.near_loss_pct  ?? null,
+    far_loss_pct:   scenario.shading?.far_loss_pct   ?? null,
     total_loss_pct: scenario.shading?.total_loss_pct ?? null,
+    // ── champs enrichis — survivent jusqu'au snapshot PDF ───────────────────
+    monthlyFactors:  scenario.shading?.monthlyFactors  ?? null,
+    monthlyKwhStats: scenario.shading?.monthlyKwhStats ?? null,
+    annualLossKwh:   scenario.shading?.annualLossKwh   ?? null,
+    pvgisReference:  scenario.shading?.pvgisReference  ?? null,
   };
 
   const energy = {

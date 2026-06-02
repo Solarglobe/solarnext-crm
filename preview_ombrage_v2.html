@@ -1,0 +1,220 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Analyse d'ombrage — Preview</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#05080f;font-family:system-ui,'Segoe UI',sans-serif;padding:20px;display:flex;justify-content:center}
+.page{width:1090px;background:#0B0F1E;color:#E8ECF8;padding:18px 22px 14px;border:1px solid rgba(255,255,255,0.06)}
+.sep{height:1px;background:linear-gradient(90deg,#C39847,rgba(195,152,71,0.3),transparent);margin:7px 0}
+.kpi-row{display:flex;gap:8px;margin-bottom:7px}
+.kpi{flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.kpi-label{font-size:7.5pt;color:#9FA8C7;text-transform:uppercase;letter-spacing:.04em;font-weight:500}
+.kpi-value{font-size:13pt;font-weight:500;color:#E8ECF8;line-height:1.1}
+.kpi-value.hero{font-size:15pt;font-weight:700;color:#C39847}
+.kpi-value.orange{color:#C39847}
+.kpi-value.badge-green{font-size:13pt;font-weight:600;color:#4ade80}
+.kpi-sub{font-size:8.5pt;color:#9FA8C7;line-height:1.3}
+.kpi-tech{font-size:7.5pt;color:#9FA8C7;opacity:.8}
+.charts{display:flex;gap:8px;height:250px;margin-bottom:7px}
+.chart-box{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:8px 10px 4px;overflow:hidden;display:flex;flex-direction:column}
+.chart-title{font-size:8pt;color:#9FA8C7;font-weight:500;margin-bottom:4px;letter-spacing:.03em;text-transform:uppercase}
+.chart-inner{flex:1;min-height:0}
+.legend{display:flex;gap:12px;justify-content:center;padding-bottom:2px;margin-top:4px}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:7.5pt;color:#9FA8C7}
+.leg-swatch{width:12px;height:8px;border-radius:2px;display:inline-block}
+table{width:100%;border-collapse:collapse;font-size:7.5pt}
+th{text-align:right;padding:2px 5px;color:#9FA8C7;font-size:7pt;font-weight:500;border-bottom:1px solid rgba(255,255,255,0.04)}
+th:first-child{text-align:left}
+td{text-align:right;padding:2px 5px;border-bottom:1px solid rgba(255,255,255,0.04)}
+td:first-child{text-align:left;color:#9FA8C7;white-space:nowrap;padding-right:8px}
+tr:nth-child(even){background:rgba(255,255,255,0.02)}
+.tot{font-weight:600;border-left:1px solid rgba(255,255,255,0.10)}
+.footer{margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;font-size:7pt;color:#9FA8C7;opacity:.6}
+</style></head><body>
+<div class="page">
+
+<!-- Header -->
+<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,0.08)">
+  <div>
+    <div style="font-size:10pt;color:#C39847;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Analyse d'ombrage</div>
+    <div style="font-size:8pt;color:#9FA8C7;margin-top:2px">Production théorique · Pertes · Impact énergétique</div>
+  </div>
+  <div style="text-align:right;font-size:8pt;color:#9FA8C7;line-height:1.5">
+    <div><b style="color:#E8ECF8">Client</b> : M. Martin Jean-Pierre</div>
+    <div><b style="color:#E8ECF8">Réf.</b> : SN-2026-04872</div>
+    <div><b style="color:#E8ECF8">Date</b> : 03/06/2026</div>
+  </div>
+</div>
+<div class="sep"></div>
+
+<!-- KPI Strip -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="kpi-label">Production théorique</div>
+    <div class="kpi-value">6 235 kWh</div>
+    <div class="kpi-sub">Sans ombrage · PVGIS réf.</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Production réelle</div>
+    <div class="kpi-value hero">5 616 kWh</div>
+    <div class="kpi-sub">Après pertes d'ombrage</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Énergie perdue / an</div>
+    <div class="kpi-value orange">619 kWh</div>
+    <div class="kpi-sub">≈ 99 €/an</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Perte d'ombrage</div>
+    <div class="kpi-value orange">9,9 %</div>
+    <div class="kpi-tech">Horizon : 6,8 %</div>
+    <div class="kpi-tech">Masques : 3,5 %</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Qualité données</div>
+    <div class="kpi-value badge-green">● ÉLEVÉE</div>
+    <div class="kpi-sub">GeoTIFF IGN</div>
+    <div class="kpi-tech">Confiance : MEDIUM</div>
+  </div>
+</div>
+<div class="sep"></div>
+
+<!-- Charts -->
+<div class="charts">
+  <div class="chart-box" style="flex:0 0 58%">
+    <div class="chart-title">Pertes mensuelles (%)</div>
+    <div class="chart-inner">
+      <svg id="bars" viewBox="0 0 560 210" style="width:100%;height:100%"></svg>
+    </div>
+    <div class="legend">
+      <div class="leg-item"><span class="leg-swatch" style="background:#C39847;opacity:.9"></span>Horizon lointain (far)</div>
+      <div class="leg-item"><span class="leg-swatch" style="background:#4A90E2;opacity:.9"></span>Masques proches (near)</div>
+      <div class="leg-item"><span style="width:18px;height:1.5px;background:#E8ECF8;opacity:.6;display:inline-block;vertical-align:middle"></span>Total combiné</div>
+    </div>
+  </div>
+  <div class="chart-box" style="flex:1">
+    <div class="chart-title">Profil horizon</div>
+    <div class="chart-inner">
+      <svg id="horiz" viewBox="0 0 270 185" style="width:100%;height:100%"></svg>
+    </div>
+    <div class="legend">
+      <div class="leg-item"><span style="width:14px;height:8px;background:linear-gradient(to bottom,rgba(195,152,71,0.5),rgba(195,152,71,0.1));border:1px solid #D4AC5A;border-radius:2px;display:inline-block"></span>Horizon terrain / bâti</div>
+    </div>
+  </div>
+</div>
+<div class="sep"></div>
+
+<!-- Table -->
+<table>
+<thead><tr>
+  <th></th>
+  <th>Jan</th><th>Fév</th><th>Mar</th><th>Avr</th><th>Mai</th><th>Jui</th>
+  <th>Jul</th><th>Aoû</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Déc</th>
+  <th class="tot">Total</th>
+</tr></thead>
+<tbody>
+<tr><td>Prod. référence (kWh)</td><td>310</td><td>380</td><td>520</td><td>610</td><td>680</td><td>720</td><td>740</td><td>690</td><td>560</td><td>440</td><td>310</td><td>275</td><td class="tot">6 235</td></tr>
+<tr style="color:#C39847;font-weight:600"><td style="color:#9FA8C7;font-weight:400">Prod. nette (kWh)</td><td>265</td><td>330</td><td>461</td><td>555</td><td>627</td><td>669</td><td>686</td><td>634</td><td>504</td><td>386</td><td>267</td><td>232</td><td class="tot">5 616</td></tr>
+<tr style="color:#E57373"><td style="color:#9FA8C7">Perte (kWh)</td><td>45</td><td>50</td><td>59</td><td>55</td><td>53</td><td>51</td><td>54</td><td>56</td><td>56</td><td>54</td><td>43</td><td>43</td><td class="tot">619</td></tr>
+<tr style="color:#9FA8C7;font-style:italic"><td>Perte (%)</td><td>14.6</td><td>13.1</td><td>11.4</td><td>9.1</td><td>7.7</td><td>7.1</td><td>7.3</td><td>8.1</td><td>10.1</td><td>12.2</td><td>14.0</td><td>15.8</td><td class="tot">9.9%</td></tr>
+</tbody></table>
+<div style="margin-top:5px;font-size:7pt;color:#9FA8C7;opacity:.7">Source : PVGIS v5.3 (JRC)  ·  Inclinaison : 32°  ·  Azimut : 185°</div>
+
+<div class="footer"><span>SolarNext · Étude photovoltaïque</span><span>SN-2026-04872</span></div>
+</div>
+
+<script>
+// ── Graphique barres mensuelles ──────────────────────────────────────────
+const factors=[
+  {f:9.2,n:5.8,c:14.6},{f:8.1,n:5.4,c:13.1},{f:6.8,n:4.9,c:11.4},{f:5.2,n:4.1,c:9.1},
+  {f:4.1,n:3.8,c:7.7},{f:3.8,n:3.5,c:7.1},{f:3.9,n:3.6,c:7.3},{f:4.4,n:3.9,c:8.1},
+  {f:5.9,n:4.5,c:10.1},{f:7.4,n:5.1,c:12.2},{f:8.8,n:5.6,c:14.0},{f:10.1,n:6.1,c:15.8}
+];
+const VW=560,VH=210,PL=34,PR=10,PT=12,PB=26,CW=VW-PL-PR,CH=VH-PT-PB;
+const maxP=20; // 20% max
+const N=12,sW=CW/N,bW=sW*0.65;
+const x=i=>PL+i*sW+sW*0.175;
+const yp=p=>PT+CH-(p/maxP)*CH;
+const hp=p=>(p/maxP)*CH;
+const svg=document.getElementById('bars');
+const ns='http://www.w3.org/2000/svg';
+// Defs
+const defs=document.createElementNS(ns,'defs');
+defs.innerHTML=`
+<linearGradient id="gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#D4AC5A"/><stop offset="100%" stop-color="#B08530"/></linearGradient>
+<linearGradient id="gn" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5FA8F5"/><stop offset="100%" stop-color="#2D6FC8"/></linearGradient>`;
+svg.appendChild(defs);
+// Grille
+[0,maxP/2,maxP].forEach((v,ti)=>{
+  const y=yp(v);
+  const l=document.createElementNS(ns,'line');
+  l.setAttribute('x1',PL);l.setAttribute('x2',VW-PR);l.setAttribute('y1',y);l.setAttribute('y2',y);
+  l.setAttribute('stroke',ti===0?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.07)');
+  l.setAttribute('stroke-width',0.8);if(ti>0)l.setAttribute('stroke-dasharray','3,3');
+  svg.appendChild(l);
+  const t=document.createElementNS(ns,'text');
+  t.setAttribute('x',PL-3);t.setAttribute('y',y+3.5);t.setAttribute('text-anchor','end');
+  t.setAttribute('fill','#9FA8C7');t.setAttribute('font-size',8);t.textContent=v+'%';
+  svg.appendChild(t);
+});
+// Barres + ligne
+const linePts=[];
+factors.forEach((d,i)=>{
+  const xi=x(i),hF=hp(d.f),hN=hp(d.n),yF=yp(d.f),yN=yF-hN;
+  if(hF>0.5){const r=document.createElementNS(ns,'rect');r.setAttribute('x',xi);r.setAttribute('y',yF);r.setAttribute('width',bW);r.setAttribute('height',hF);r.setAttribute('fill','url(#gf)');r.setAttribute('opacity',0.88);r.setAttribute('rx',1.5);svg.appendChild(r);}
+  if(hN>0.5){const r=document.createElementNS(ns,'rect');r.setAttribute('x',xi);r.setAttribute('y',yN);r.setAttribute('width',bW);r.setAttribute('height',hN);r.setAttribute('fill','url(#gn)');r.setAttribute('opacity',0.88);r.setAttribute('rx',1.5);svg.appendChild(r);}
+  if(d.c>=maxP*0.1){const t=document.createElementNS(ns,'text');t.setAttribute('x',xi+bW/2);t.setAttribute('y',yp(d.c)-3);t.setAttribute('text-anchor','middle');t.setAttribute('fill','#E8ECF8');t.setAttribute('font-size',7);t.setAttribute('font-weight',500);t.setAttribute('opacity',0.8);t.textContent=d.c.toFixed(1)+'%';svg.appendChild(t);}
+  linePts.push({x:xi+bW/2,y:yp(d.c)});
+  const label=['Jan','Fév','Mar','Avr','Mai','Jui','Jul','Aoû','Sep','Oct','Nov','Déc'][i];
+  const t=document.createElementNS(ns,'text');t.setAttribute('x',xi+bW/2);t.setAttribute('y',VH-10);t.setAttribute('text-anchor','middle');t.setAttribute('fill','#9FA8C7');t.setAttribute('font-size',8);t.textContent=label;svg.appendChild(t);
+});
+const path=document.createElementNS(ns,'path');
+path.setAttribute('d',linePts.map((p,i)=>`${i===0?'M':'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
+path.setAttribute('fill','none');path.setAttribute('stroke','#E8ECF8');path.setAttribute('stroke-width',1.2);path.setAttribute('stroke-dasharray','4,3');path.setAttribute('stroke-linecap','round');path.setAttribute('opacity',0.55);
+svg.appendChild(path);
+linePts.forEach(p=>{const c=document.createElementNS(ns,'circle');c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);c.setAttribute('r',1.8);c.setAttribute('fill','#E8ECF8');c.setAttribute('opacity',0.6);svg.appendChild(c);});
+
+// ── Profil horizon ────────────────────────────────────────────────────────
+const mask=[7.8,8.4,8.6,9.5,9.6,10.2,10.3,10.7,11,11.3,11.4,11.5,12.1,12.1,12,12.3,12.1,11.6,11.9,11.7,11.3,11,11.2,10.8,10.6,10.2,9.8,9.5,8.6,8.4,6.9,6.7,7,7,6.5,6.7,6,6.2,5.7,5.3,4.7,4.9,4.2,4.2,4,3.8,3.6,3.4,3.1,3.1,3.1,2.9,3.1,3.6,3.8,3.8,3.7,3.9,4.2,3.9,4.4,4.2,4.7,4.2,4.6,4.5,4.7,4.4,4.1,4.2,4.4,4.3,4.1,3.9,4.2,3.5,3.6,3.4,3.1,3.1,1.7,2.4,2.1,2.4,2.8,2.8,2.5,3.1,2.8,3,3,2.9,3,3.1,2.9,2.9,2.3,2.5,2.1,2.1,3.4,3.6,4.1,4,4.3,4.4,4.9,4.8,5.3,5.2,5.1,5.5,5.5,5.6,5.3,5.6,5.6,5.3,5.4,5.3,5.2,5.2,5.2,4.8,4.7,4.4,4,3.9,3.9,3.9,5.8,6.2,6.4,7.2,7.3,7.6,7.8,7.8,8.4,8.1,8.9,8.6,8.8,9,9,8.8,9.2,8.8,8.8,8.9,8.8,8.5,8,7.7,7.8,7.7,7.3,7,6.5,6.2,7,7.2,7.6,7.3,7.4,7.5,7.9,8.3,8,8.5,8.5,8.6,8.6,9.2,9.1,9.2,9.3,9.7,10,9.8];
+const hVW=270,hVH=185,hPL=26,hPR=6,hPT=10,hPB=22,hCW=hVW-hPL-hPR,hCH=hVH-hPT-hPB;
+const rawMax=Math.max(...mask);const maxEl=Math.max(15,Math.ceil((rawMax+2)/5)*5);
+const xAz=az=>hPL+(az/360)*hCW;
+const yEl=el=>hPT+hCH-Math.max(0,el/maxEl)*hCH;
+const hsvg=document.getElementById('horiz');
+const hdefs=document.createElementNS(ns,'defs');
+hdefs.innerHTML=`<linearGradient id="gh" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#C39847" stop-opacity="0.35"/><stop offset="100%" stop-color="#C39847" stop-opacity="0.06"/></linearGradient>`;
+hsvg.appendChild(hdefs);
+// Cardinaux
+[{a:0,l:'N'},{a:90,l:'E'},{a:180,l:'S'},{a:270,l:'O'}].forEach(({a,l})=>{
+  const xv=xAz(a);
+  const li=document.createElementNS(ns,'line');li.setAttribute('x1',xv);li.setAttribute('x2',xv);li.setAttribute('y1',hPT);li.setAttribute('y2',hPT+hCH);li.setAttribute('stroke','rgba(255,255,255,0.2)');li.setAttribute('stroke-width',0.7);li.setAttribute('stroke-dasharray','2,3');hsvg.appendChild(li);
+  const t=document.createElementNS(ns,'text');t.setAttribute('x',xv);t.setAttribute('y',hPT+hCH+13);t.setAttribute('text-anchor','middle');t.setAttribute('fill','#9FA8C7');t.setAttribute('font-size',8.5);t.setAttribute('font-weight',600);t.textContent=l;hsvg.appendChild(t);
+});
+// Grille Y
+const hStep=maxEl<=20?5:10;
+for(let v=0;v<=maxEl;v+=hStep){
+  const yv=yEl(v);
+  const li=document.createElementNS(ns,'line');li.setAttribute('x1',hPL);li.setAttribute('x2',hVW-hPR);li.setAttribute('y1',yv);li.setAttribute('y2',yv);
+  li.setAttribute('stroke',v===0?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.07)');li.setAttribute('stroke-width',v===0?1:0.7);if(v>0)li.setAttribute('stroke-dasharray','3,3');
+  hsvg.appendChild(li);
+  const t=document.createElementNS(ns,'text');t.setAttribute('x',hPL-3);t.setAttribute('y',yv+3);t.setAttribute('text-anchor','end');t.setAttribute('fill','#9FA8C7');t.setAttribute('font-size',7);t.textContent=v+'°';hsvg.appendChild(t);
+}
+// Courbe horizon
+const pts=[];
+const n2=mask.length;
+for(let i=0;i<=180;i++){
+  const az=i*2;
+  const idx=(i/180)*(n2-1);
+  const lo=Math.floor(idx),hi=Math.min(lo+1,n2-1),t=idx-lo;
+  const el=Math.max(0,(mask[lo]??0)*(1-t)+(mask[hi]??0)*t);
+  pts.push({x:xAz(az),y:yEl(el)});
+}
+const baseline=hPT+hCH;
+const linePath2=pts.map((p,i)=>`${i===0?'M':'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+const areaD=linePath2+` L${pts[pts.length-1].x.toFixed(1)},${baseline} L${pts[0].x.toFixed(1)},${baseline} Z`;
+const area=document.createElementNS(ns,'path');area.setAttribute('d',areaD);area.setAttribute('fill','url(#gh)');hsvg.appendChild(area);
+const curve=document.createElementNS(ns,'path');curve.setAttribute('d',linePath2);curve.setAttribute('fill','none');curve.setAttribute('stroke','#D4AC5A');curve.setAttribute('stroke-width',1.5);curve.setAttribute('stroke-linecap','round');curve.setAttribute('stroke-linejoin','round');hsvg.appendChild(curve);
+// Labels intermédiaires
+[45,135,225,315].forEach(az=>{const t=document.createElementNS(ns,'text');t.setAttribute('x',xAz(az));t.setAttribute('y',hPT+hCH+13);t.setAttribute('text-anchor','middle');t.setAttribute('fill','#9FA8C7');t.setAttribute('font-size',6.5);t.setAttribute('opacity',0.6);t.textContent=az+'°';hsvg.appendChild(t);});
+// Label axe Y
+const yl=document.createElementNS(ns,'text');yl.setAttribute('x',8);yl.setAttribute('y',hPT+hCH/2);yl.setAttribute('text-anchor','middle');yl.setAttribute('fill','#9FA8C7');yl.setAttribute('font-size',6.5);yl.setAttribute('opacity',0.5);yl.setAttribute('transform',`rotate(-90,8,${hPT+hCH/2})`);yl.textContent='Élév. (°)';hsvg.appendChild(yl);
+</script>
+</body></html>

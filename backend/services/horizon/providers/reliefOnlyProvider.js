@@ -1,52 +1,49 @@
 /**
- * CP-FAR-007 — ReliefOnly Horizon Provider
- * Réutilise computeHorizonMaskReliefOnly.
+ * RELIEF_ONLY désactivé en production.
+ *
+ * isAvailable() → false : ce provider ne sera plus sélectionné automatiquement.
+ * computeMask() → FAR_UNAVAILABLE_ERROR : surfaceDsmProvider appelle ce provider
+ *   sur ses fallbacks internes ; il reçoit UNAVAILABLE (masque vide), ce qui déclenche
+ *   le tryProvider suivant dans horizonProviderSelector (IGN → PVGIS).
+ *
+ * La fonction computeHorizonMaskReliefOnly() est conservée dans horizonMaskCore.js
+ * pour les tests directs et les scripts de benchmark.
  */
-
-import {
-  computeHorizonMaskReliefOnly,
-  validateHorizonMaskParams,
-} from "../horizonMaskCore.js";
 
 export function getMode() {
-  return "RELIEF_ONLY";
+  return "RELIEF_ONLY_DISABLED";
 }
 
-/**
- * @param {{ lat: number, lon: number, radius_m: number }} params
- * @returns {{ available: boolean, coveragePct: number, resolution_m: number|null, notes: string[] }}
- */
-export function isAvailable(params) {
+export function isAvailable(_params) {
   return {
-    available: true,
-    coveragePct: 1,
-    resolution_m: 25,
-    notes: [],
+    available: false,
+    coveragePct: 0,
+    resolution_m: null,
+    notes: [
+      "RELIEF_ONLY désactivé — toute génération d'horizon fictif est interdite en production.",
+      "Utiliser IGN Géoplateforme API (France) ou PVGIS (mondial).",
+    ],
   };
 }
 
 /**
- * @param {{ lat: number, lon: number, radius_m: number, step_deg: number }} params
- * @returns {{ source, radius_m, step_deg, resolution_m, mask, confidence, dataCoverage }}
+ * Retourne UNAVAILABLE — détecté par horizonProviderSelector._isValidMask() comme invalide.
  */
-export function computeMask(params) {
-  validateHorizonMaskParams(params);
-  const result = computeHorizonMaskReliefOnly(params);
+export function computeMask(_params) {
   return {
-    ...result,
+    source: "FAR_UNAVAILABLE_ERROR",
+    mask:   [],
+    confidence: 0,
     dataCoverage: {
-      mode: "RELIEF_ONLY",
-      available: true,
-      coveragePct: 1,
-      notes: [],
-      ratio: 1,
-      effectiveRadiusMeters: result.radius_m,
-      gridResolutionMeters: result.resolution_m,
-      provider: "RELIEF_ONLY",
+      provider:             "FAR_UNAVAILABLE_ERROR",
+      ratio:                0,
+      gridResolutionMeters: 0,
+      effectiveRadiusMeters: 0,
+      notes:                ["RELIEF_ONLY désactivé — source terrain réelle requise"],
     },
     meta: {
-      source: "RELIEF_ONLY",
-      qualityScore: 0.3,
+      source:        "FAR_UNAVAILABLE_ERROR",
+      fallbackReason: "RELIEF_ONLY_DISABLED",
     },
   };
 }

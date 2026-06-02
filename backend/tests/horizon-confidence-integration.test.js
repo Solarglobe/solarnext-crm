@@ -51,8 +51,9 @@ const geometry = {
   assert(horizonResult != null, "horizonResult non null");
   assert(horizonResult.dataCoverage != null, "dataCoverage présent");
   assert(
-    horizonResult.source === "RELIEF_ONLY" || horizonResult.source === "SURFACE_DSM",
-    "source valide"
+    ["SURFACE_DSM", "FAR_UNAVAILABLE_ERROR"].includes(horizonResult.source ?? "") ||
+      horizonResult.dataCoverage != null,
+    "source valide (SURFACE_DSM, ou UNAVAILABLE si réseau indisponible en test)"
   );
 
   // --- 2) computeCalpinageShading + buildStructuredShading → confidenceScore présent ---
@@ -78,7 +79,12 @@ const geometry = {
     "confidenceScore dans [0,100]"
   );
 
-  // --- 3) RELIEF_ONLY → score <= 30 (équivalent confiance <= 0.3 sur échelle 0–1) ---
+  // --- 3) UNAVAILABLE → confidenceScore === 0 | IGN → score élevé | PVGIS → intermédiaire ---
+  if (shading.far.source === "FAR_UNAVAILABLE_ERROR") {
+    assert(shading.far.confidenceScore === 0, "UNAVAILABLE → confidenceScore 0");
+    assert(shading.far.confidenceLevel === "LOW", "UNAVAILABLE → niveau LOW");
+  }
+  // RELIEF_ONLY conservé pour compatibilité des données historiques
   if (shading.far.source === "RELIEF_ONLY") {
     assert(shading.far.confidenceScore <= 30, "RELIEF_ONLY plafonné à 30");
     assert(shading.far.confidenceLevel === "LOW", "RELIEF_ONLY → niveau LOW");

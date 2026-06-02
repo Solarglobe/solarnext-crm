@@ -38,6 +38,10 @@ export function computeFarConfidence(params) {
   let algorithmWeight = 0;
   if (source === "RELIEF_ONLY" || source === "SYNTHETIC_STUB") {
     algorithmWeight = 40;
+  } else if (source === "IGN_GEOPLATEFORME") {
+    algorithmWeight = 80;
+  } else if (source === "PVGIS_HORIZON") {
+    algorithmWeight = 52;
   } else if (source === "SURFACE_DSM" && algorithm === "LEGACY") {
     algorithmWeight = 60;
   } else if (source === "SURFACE_DSM" && algorithm === "RAYCAST_HD") {

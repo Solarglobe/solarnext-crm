@@ -15,9 +15,9 @@ export function isSurfaceDsmTerrainReady() {
 
   if (provider === "LOCAL") return true;
 
-  const dsmEnable = process.env.DSM_ENABLE === "true";
+  const dsmEnable    = process.env.DSM_ENABLE === "true";
   const providerType = (process.env.DSM_PROVIDER_TYPE || "STUB").toUpperCase();
-  const urlTemplate = (process.env.DSM_GEOTIFF_URL_TEMPLATE || "").trim();
+  const urlTemplate  = (process.env.DSM_GEOTIFF_URL_TEMPLATE || "").trim();
 
   if (providerType === "HTTP_GEOTIFF" && urlTemplate && dsmEnable) return true;
   if (providerType === "IGN_RGE_ALTI" && dsmEnable) return true;
@@ -26,18 +26,23 @@ export function isSurfaceDsmTerrainReady() {
 }
 
 /**
- * Suffixe cache horizon — doit suivre le même critère que le sélecteur (terrain vs relief-only).
+ * Suffixe cache horizon.
+ * Avec la nouvelle architecture (IGN Géoplateforme + PVGIS) :
+ *   - HTTP_GEOTIFF configuré → :dsm=geotiff
+ *   - Sinon               → :dsm=api  (IGN ou PVGIS — tous deux terrain réel)
+ * Les clés existantes :dsm=0 / :dsm=ign / :dsm=real sont naturellement invalidées
+ * par ce changement (TTL 30j garantit la cohérence).
  */
 export function getHorizonCacheDsmSuffix() {
-  if (process.env.HORIZON_DSM_ENABLED !== "true") return ":dsm=0";
-  const { provider } = getDsmEnvConfig();
-  const dsmEnable = process.env.DSM_ENABLE === "true";
-  const providerType = (process.env.DSM_PROVIDER_TYPE || "STUB").toUpperCase();
-  const urlTemplate = (process.env.DSM_GEOTIFF_URL_TEMPLATE || "").trim();
-  if (provider === "LOCAL") return ":dsm=real";
-  if (providerType === "IGN_RGE_ALTI" && dsmEnable) return ":dsm=ign";
-  if (providerType === "HTTP_GEOTIFF" && urlTemplate && dsmEnable) return ":dsm=geotiff";
-  return ":dsm=0";
+  const providerType = (process.env.DSM_PROVIDER_TYPE || "").toUpperCase();
+  const urlTemplate  = (process.env.DSM_GEOTIFF_URL_TEMPLATE || "").trim();
+  const dsmEnable    = process.env.DSM_ENABLE === "true";
+
+  if (providerType === "HTTP_GEOTIFF" && urlTemplate && dsmEnable) {
+    return ":dsm=geotiff";
+  }
+
+  return ":dsm=api";   // IGN Géoplateforme ou PVGIS selon disponibilité
 }
 
 /**
@@ -47,15 +52,15 @@ export function surfaceDsmTerrainNotReadyNotes() {
   const { enabled, provider } = getDsmEnvConfig();
   if (!enabled) return [];
   if (provider === "LOCAL") return [];
-  const dsmEnable = process.env.DSM_ENABLE === "true";
+  const dsmEnable    = process.env.DSM_ENABLE === "true";
   const providerType = (process.env.DSM_PROVIDER_TYPE || "STUB").toUpperCase();
-  const urlTemplate = (process.env.DSM_GEOTIFF_URL_TEMPLATE || "").trim();
+  const urlTemplate  = (process.env.DSM_GEOTIFF_URL_TEMPLATE || "").trim();
   const parts = [];
   if (providerType === "HTTP_GEOTIFF") {
-    if (!dsmEnable) parts.push("DSM_ENABLE=true requis pour HTTP GeoTIFF");
-    if (!urlTemplate) parts.push("DSM_GEOTIFF_URL_TEMPLATE requis (ex. https://hôte/{z}/{x}/{y}.tif)");
+    if (!dsmEnable)    parts.push("DSM_ENABLE=true requis pour HTTP GeoTIFF");
+    if (!urlTemplate)  parts.push("DSM_GEOTIFF_URL_TEMPLATE requis (ex. https://hôte/{z}/{x}/{y}.tif)");
   } else if (providerType === "IGN_RGE_ALTI") {
-    if (!dsmEnable) parts.push("DSM_ENABLE=true requis pour IGN RGE ALTI");
+    if (!dsmEnable)    parts.push("DSM_ENABLE=true requis pour IGN RGE ALTI");
   } else if (providerType === "STUB" || providerType === "") {
     parts.push(
       "DSM_PROVIDER_TYPE=STUB : pas de terrain réel — définir HTTP_GEOTIFF (+ URL) ou IGN_RGE_ALTI ou DSM_PROVIDER=LOCAL"

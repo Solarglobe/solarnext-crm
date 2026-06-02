@@ -420,102 +420,6 @@ function DsmOverlayButton({
   );
 }
 
-function DsmPdfExportButton({ active }: { active: boolean }) {
-  const [loading, setLoading] = useState(false);
-  const toast = useToast();
-
-  const handleClick = async () => {
-    if (!active) return;
-    const cw = getCalpinageWindow();
-    const studyId = cw.CALPINAGE_STUDY_ID;
-    const version = cw.CALPINAGE_VERSION_ID ?? "1";
-    if (!studyId) {
-      toast.error("Impossible : studyId manquant");
-      return;
-    }
-    setLoading(true);
-    try {
-      const user = await getCurrentUser();
-      const orgId = user?.organizationId;
-      if (!orgId) {
-        toast.error("Impossible : orgId manquant");
-        setLoading(false);
-        return;
-      }
-      if (API_BASE.includes("5173")) {
-        throw new Error("API_BASE pointe vers le frontend au lieu du backend");
-      }
-
-      const pdfUrl = `${API_BASE}/internal/pdf/horizon-mask/${studyId}?orgId=${encodeURIComponent(orgId)}&version=${encodeURIComponent(String(version))}`;
-      const response = await apiFetch(pdfUrl, {
-        method: "GET",
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        let errMsg = "Erreur lors de la génération du PDF";
-        try {
-          const body = await response.json();
-          if (body?.error && typeof body.error === "string") {
-            errMsg = body.error;
-          }
-        } catch (_) {
-          /* ignorer si réponse non JSON */
-        }
-        if (response.status === 500) {
-          errMsg = "Erreur technique lors de la génération du PDF";
-        }
-        throw new Error(errMsg);
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      const header = new TextDecoder("ascii").decode(bytes.slice(0, 5));
-      if (header !== "%PDF-") {
-        throw new Error(`Réponse invalide (attendu PDF, reçu: ${header})`);
-      }
-
-      const blob = new Blob([arrayBuffer], { type: "application/pdf" });
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = `horizon-mask-study-${studyId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-      toast.success("PDF téléchargé");
-    } catch (e) {
-      console.error("Erreur téléchargement PDF :", e);
-      toast.error(e instanceof Error ? e.message : "Impossible de télécharger le PDF");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!active) return null;
-
-  return (
-    <button
-      type="button"
-      className={styles.toolGhostBtn}
-      onClick={handleClick}
-      disabled={loading}
-      title="Exporter le PDF analyse d’ombrage"
-    >
-      <span className={styles.toolGhostIcon} aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-        </svg>
-      </span>
-      {loading ? "PDF…" : "Exporter PDF"}
-    </button>
-  );
-}
-
 function Phase3AutofillSection() {
   const { hasActiveBlockWithPanels, autofillActive, autofillText, autofillValidCount } = usePhase3Data();
 
@@ -716,7 +620,6 @@ export function Phase3Sidebar({
 }: {
   containerRef?: React.RefObject<HTMLDivElement | null>;
 }) {
-  const [dsmActive, setDsmActive] = useState(false);
   const validateHintId = useId();
   usePhase3Data();
   const {
@@ -809,8 +712,7 @@ export function Phase3Sidebar({
       <section className={styles.zoneTools} aria-label="Outils">
         {containerRef && (
           <>
-            <DsmOverlayButton containerRef={containerRef} onActiveChange={setDsmActive} />
-            <DsmPdfExportButton active={dsmActive} />
+            <DsmOverlayButton containerRef={containerRef} />
           </>
         )}
       </section>

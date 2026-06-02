@@ -325,10 +325,15 @@ export function mapScenarioToV2(scenario, ctx) {
 
   const shadingSrc = ctx?.shading ?? ctx?.form?.installation?.shading ?? {};
   const shading = {
-    near_loss_pct: shadingSrc.nearLossPct ?? shadingSrc.near_loss_pct ?? null,
-    far_loss_pct: shadingSrc.farLossPct ?? shadingSrc.far_loss_pct ?? null,
-    total_loss_pct: resolveShadingTotalLossPct(shadingSrc, ctx?.form) ?? null,
-    quality: shadingSrc.shadingQuality ?? shadingSrc.quality ?? null,
+    near_loss_pct:  shadingSrc.nearLossPct ?? shadingSrc.near_loss_pct ?? null,
+    far_loss_pct:   shadingSrc.farLossPct  ?? shadingSrc.far_loss_pct  ?? null,
+    total_loss_pct: resolveShadingTotalLossPct(shadingSrc, ctx?.form)  ?? null,
+    quality:        shadingSrc.shadingQuality ?? shadingSrc.quality    ?? null,
+    // ── champs enrichis — propagés depuis payload.installation.shading ──────
+    monthlyFactors:  shadingSrc.monthlyFactors  ?? null,
+    monthlyKwhStats: shadingSrc.monthlyKwhStats ?? null,
+    annualLossKwh:   shadingSrc.annualLossKwh   ?? null,
+    pvgisReference:  shadingSrc.pvgisReference  ?? null,
   };
 
   const prodAnnual = ctx?.production?.annualKwh ?? ctx?.production?.annual_kwh ?? scenario.energy?.prod ?? scenario.prod_kwh;
