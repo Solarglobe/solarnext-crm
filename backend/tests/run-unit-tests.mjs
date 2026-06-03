@@ -167,7 +167,14 @@ function runTests(nodeArgs, files, label) {
     const proc = spawn(
       process.execPath,
       [...nodeArgs, '--test', ...files],
-      { cwd: backendRoot, stdio: 'inherit' },
+      {
+        cwd: backendRoot,
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          SOLARNEXT_UNIT_HORIZON_FIXTURE: 'true',
+        },
+      },
     );
     proc.on('exit', (code) => {
       if (code !== 0) console.error(`\n✗ ${label} : ${code} test(s) en échec`);

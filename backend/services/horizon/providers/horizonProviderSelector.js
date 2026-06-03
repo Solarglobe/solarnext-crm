@@ -56,6 +56,42 @@ function _isHttpGeotiffConfigured() {
   );
 }
 
+function _isUnitHorizonFixtureEnabled() {
+  return process.env.SOLARNEXT_UNIT_HORIZON_FIXTURE === "true";
+}
+
+function _buildUnitHorizonFixture(params) {
+  const step = Number(params?.step_deg || 2);
+  const radius = Number(params?.radius_m || 500);
+  const count = Math.max(1, Math.round(360 / step));
+  const mask = Array.from({ length: count + 1 }, (_, i) => {
+    const az = -180 + i * step;
+    const elev = Number((3 + 1.5 * Math.sin((az * Math.PI) / 180)).toFixed(3));
+    return { az, elev };
+  });
+
+  return {
+    source: "PVGIS_HORIZON",
+    mask,
+    radius_m: radius,
+    step_deg: step,
+    resolution_m: 90,
+    confidence: 0.55,
+    dataCoverage: {
+      provider: "PVGIS_HORIZON",
+      ratio: 1,
+      gridResolutionMeters: 90,
+      effectiveRadiusMeters: radius,
+      notes: ["Unit test deterministic horizon fixture"],
+    },
+    meta: {
+      source: "PVGIS_HORIZON",
+      algorithm: "UNIT_TEST_FIXTURE",
+      fixture: true,
+    },
+  };
+}
+
 async function _tryProvider(label, provider, params) {
   try {
     const result = await provider.computeMask(params);
@@ -89,11 +125,18 @@ export async function computeHorizonMaskAuto(params) {
   if (typeof lat !== "number" || typeof lon !== "number") {
     return _buildUnavailable("INVALID_COORDS");
   }
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return _buildUnavailable("INVALID_COORDS");
+  }
 
   // 1) HTTP_GEOTIFF — uniquement si configuré explicitement
   if (_isHttpGeotiffConfigured()) {
     const result = await _tryProvider("HTTP_GEOTIFF", surfaceDsmProvider, params);
     if (result) return result;
+  }
+
+  if (_isUnitHorizonFixtureEnabled()) {
+    return _buildUnitHorizonFixture(params);
   }
 
   // 2) IGN Géoplateforme — France + DOM + COM (ign_rge_alti_wld)
