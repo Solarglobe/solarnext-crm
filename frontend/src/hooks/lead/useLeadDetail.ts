@@ -1262,7 +1262,12 @@ export function useLeadDetail() {
         pickTier === "fallback_street" || pickTier === "fallback_city" ||
         isLowConfidencePrecision(s.precision_level);
       if (mustOpenGeoModal) setGeoValidationModalOpen(true);
-    } catch (e) { setError(e instanceof Error ? e.message : "Erreur création adresse"); }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erreur création adresse";
+      console.error("[handleAddressSelect] ERREUR:", msg, e);
+      setError(msg);
+      showLeadSuccessToast("❌ Adresse non sauvegardée : " + msg);
+    }
   }, [isReadOnly, patchLeadSilent, fetchLead]);
 
   const handleManualMapPlacement = useCallback(async () => {
