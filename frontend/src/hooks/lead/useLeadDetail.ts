@@ -47,6 +47,7 @@ import {
   buildLeadPatch,
   buildConsumptionPayload,
   applyMeterRowToLeadSnapshot,
+  buildMeterAutosavePayload,
 } from "../../modules/leads/LeadDetail/overviewSave";
 import type {
   EquipementActuelParams,
@@ -371,6 +372,7 @@ export function useLeadDetail() {
   const [overviewDirty, setOverviewDirty] = useState(false);
   const [monthlyLocal, setMonthlyLocal] = useState<{ month: number; kwh: number }[]>([]);
   const formLeadRef = useRef<Lead | null>(null);
+  const overviewDirtyRef = useRef(false);
   const monthlyLocalRef = useRef<{ month: number; kwh: number }[]>([]);
   const [saveSyncState, setSaveSyncState] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const autosaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -418,6 +420,7 @@ export function useLeadDetail() {
 
   // ——— Ref-sync effects ———
   useEffect(() => { formLeadRef.current = formLead; }, [formLead]);
+  useEffect(() => { overviewDirtyRef.current = overviewDirty; }, [overviewDirty]);
   useEffect(() => { monthlyLocalRef.current = monthlyLocal; }, [monthlyLocal]);
   useEffect(() => { saveSyncStateRef.current = saveSyncState; }, [saveSyncState]);
   useEffect(() => { metersLoadPhaseRef.current = metersLoadPhase; }, [metersLoadPhase]);
@@ -495,14 +498,21 @@ export function useLeadDetail() {
       });
       const leadNorm = normalizeLeadEquipmentFields({ ...(payload.lead as Lead) } as Lead);
       const monthly = Array.isArray(payload.consumption_monthly) ? payload.consumption_monthly : [];
-      setFormLead(leadNorm);
+      const preserveLocalDraft =
+        silent &&
+        (overviewDirtyRef.current || isAutosaveInFlightRef.current || editedDuringAutosaveRef.current);
+      if (!preserveLocalDraft) {
+        setFormLead(leadNorm);
+      }
       if (!silent) {
         setMonthlyLocal(monthly);
         latestConsumptionMonthlyRef.current = monthly;
       }
       latestDataLeadRef.current = leadNorm;
-      setOverviewDirty(false);
-      setEnergyEngine(parseEnergyEngineFromProfile(payload.lead?.energy_profile));
+      if (!preserveLocalDraft) {
+        setOverviewDirty(false);
+        setEnergyEngine(parseEnergyEngineFromProfile(payload.lead?.energy_profile));
+      }
 
       if (!silent) void (async () => {
         try {
@@ -735,7 +745,7 @@ export function useLeadDetail() {
   }, [data?.lead?.id]);
 
   // ——— Autosave core ———
-  const mergeLeadRowIntoState = useCallback((row: Record<string, unknown>) => {
+  const mergeLeadRowIntoState = useCallback((row: Record<string, unknown>, opts?: { preserveDirtyForm?: boolean }) => {
     setData((prev) => {
       if (!prev) return prev;
       const merged = { ...prev.lead, ...row } as Lead;
@@ -750,10 +760,17 @@ export function useLeadDetail() {
         stage: st ?? prev.stage,
       };
     });
-    setFormLead((fl) => fl ? normalizeLeadEquipmentFields({ ...fl, ...row } as Lead) : null);
+    setFormLead((fl) => {
+      if (!fl) return null;
+      if (opts?.preserveDirtyForm && editedDuringAutosaveRef.current) return fl;
+      return normalizeLeadEquipmentFields({ ...fl, ...row } as Lead);
+    });
   }, []);
 
-  const patchLeadSilent = useCallback(async (payload: Partial<Lead>) => {
+  const patchLeadSilent = useCallback(async (
+    payload: Partial<Lead>,
+    opts?: { preserveDirtyForm?: boolean }
+  ) => {
     if (!id) return;
     const res = await apiFetch(`${API_BASE}/api/leads/${id}`, {
       method: "PATCH",
@@ -764,7 +781,7 @@ export function useLeadDetail() {
       throw new Error((err as { error?: string }).error || "Erreur mise à jour");
     }
     const row = (await res.json()) as Record<string, unknown>;
-    mergeLeadRowIntoState(row);
+    mergeLeadRowIntoState(row, opts);
   }, [id, mergeLeadRowIntoState]);
 
   const patchConsumptionSilent = useCallback(async (payload: Record<string, unknown>) => {
@@ -792,8 +809,17 @@ export function useLeadDetail() {
         stage: st ?? prev.stage,
       };
     });
-    setFormLead((fl) => fl ? normalizeLeadEquipmentFields({ ...fl, ...row } as Lead) : null);
-    if (row.consumption_monthly && row.consumption_monthly.length > 0 && !monthlyGridEditingRef.current) {
+    setFormLead((fl) => {
+      if (!fl) return null;
+      if (editedDuringAutosaveRef.current) return fl;
+      return normalizeLeadEquipmentFields({ ...fl, ...row } as Lead);
+    });
+    if (
+      row.consumption_monthly &&
+      row.consumption_monthly.length > 0 &&
+      !monthlyGridEditingRef.current &&
+      !editedDuringAutosaveRef.current
+    ) {
       setMonthlyLocal(row.consumption_monthly);
     }
   }, [id]);
@@ -835,10 +861,12 @@ export function useLeadDetail() {
     const detail = (row.meter_detail ?? row) as Record<string, unknown> & { is_default?: boolean };
     const isSelected = selectedMeterIdRef.current === meterId;
     if (isSelected) {
-      setFormLead((fl) =>
-        fl ? normalizeLeadEquipmentFields({ ...fl, ...applyMeterRowToLeadSnapshot(detail) } as Lead) : null
-      );
-      if (row.consumption_monthly !== undefined && !monthlyGridEditingRef.current) {
+      setFormLead((fl) => {
+        if (!fl) return null;
+        if (editedDuringAutosaveRef.current) return fl;
+        return normalizeLeadEquipmentFields({ ...fl, ...applyMeterRowToLeadSnapshot(detail) } as Lead);
+      });
+      if (row.consumption_monthly !== undefined && !monthlyGridEditingRef.current && !editedDuringAutosaveRef.current) {
         setMonthlyLocal(row.consumption_monthly);
       }
     }
@@ -872,19 +900,27 @@ export function useLeadDetail() {
       try {
         const mPhase = metersLoadPhaseRef.current;
         const list = metersListRef.current;
-        const hasMeters = list.length > 0;
-        const canSaveEnergyLegacy = mPhase === "ready" && !hasMeters;
-        await patchLeadSilent(buildLeadPatch(fl, { omitEnergyProfile: hasMeters }) as Partial<Lead>);
-        if (canSaveEnergyLegacy) {
-          await patchConsumptionSilent(buildConsumptionPayload(fl, monthlyLocalRef.current));
-        } else if (!hasMeters) {
-          throw new Error(
-            mPhase === "loading"
-              ? "Sauvegarde consommation impossible : compteurs en cours de chargement."
-              : mPhase === "error"
-                ? metersFetchErrorRef.current || "Sauvegarde consommation impossible : impossible de charger les compteurs."
-                : "Sauvegarde consommation impossible : compteurs non disponibles."
+        const metersReady = mPhase === "ready";
+        const hasMeters = metersReady && list.length > 0;
+        const canSaveEnergyLegacy = metersReady && !hasMeters;
+        await patchLeadSilent(
+          buildLeadPatch(fl, { omitEnergyProfile: hasMeters }) as Partial<Lead>,
+          { preserveDirtyForm: true }
+        );
+        if (hasMeters) {
+          const meterId = selectedMeterIdRef.current;
+          const meter = list.find((m) => m.id === meterId);
+          if (!meterId || !meter) {
+            throw new Error("Sauvegarde consommation impossible : aucun compteur selectionne.");
+          }
+          await patchMeterSilent(
+            meterId,
+            buildMeterAutosavePayload(fl, meter.name ?? "", monthlyLocalRef.current)
           );
+        } else if (canSaveEnergyLegacy) {
+          await patchConsumptionSilent(buildConsumptionPayload(fl, monthlyLocalRef.current));
+        } else if (!metersReady) {
+          // Lead fields are already saved; meter-backed fields will save on the next autosave once meters are ready.
         }
         if (editedDuringAutosaveRef.current) {
           editedDuringAutosaveRef.current = false;
@@ -907,7 +943,7 @@ export function useLeadDetail() {
     })();
     overviewSavePromiseRef.current = promise;
     return promise;
-  }, [isReadOnly, id, patchLeadSilent, patchConsumptionSilent]);
+  }, [isReadOnly, id, patchLeadSilent, patchConsumptionSilent, patchMeterSilent]);
 
   const flushOverviewSave = useCallback(async (): Promise<boolean> => {
     if (isReadOnly) return true;
