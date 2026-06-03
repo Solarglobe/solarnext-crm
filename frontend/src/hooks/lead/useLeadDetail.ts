@@ -393,26 +393,30 @@ export function useLeadDetail() {
   }, [id]);
 
   // ——— fetchLead ———
-  const fetchLead = useCallback(async () => {
+  const fetchLead = useCallback(async (silent = false) => {
     if (!id) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
-    meterIdToRestoreAfterFetchRef.current = selectedMeterIdRef.current;
-    setMetersLoadPhase("loading");
-    setMetersFetchError(null);
-    setMetersList([]);
-    setMeterDetailPhase("idle");
-    setMeterDetailError(null);
-    setSelectedMeterId(null);
+    if (!silent) {
+      meterIdToRestoreAfterFetchRef.current = selectedMeterIdRef.current;
+      setMetersLoadPhase("loading");
+      setMetersFetchError(null);
+      setMetersList([]);
+      setMeterDetailPhase("idle");
+      setMeterDetailError(null);
+      setSelectedMeterId(null);
+    }
     try {
       const res = await apiFetch(`${API_BASE}/api/leads/${id}`);
       if (res.status === 404) {
         setError("Lead non trouvé");
         setData(null);
-        meterIdToRestoreAfterFetchRef.current = null;
-        setMetersLoadPhase("idle");
-        setMetersFetchError(null);
-        setMetersList([]);
+        if (!silent) {
+          meterIdToRestoreAfterFetchRef.current = null;
+          setMetersLoadPhase("idle");
+          setMetersFetchError(null);
+          setMetersList([]);
+        }
         return;
       }
       if (!res.ok) {
@@ -436,13 +440,15 @@ export function useLeadDetail() {
       const leadNorm = normalizeLeadEquipmentFields({ ...(payload.lead as Lead) } as Lead);
       const monthly = Array.isArray(payload.consumption_monthly) ? payload.consumption_monthly : [];
       setFormLead(leadNorm);
-      setMonthlyLocal(monthly);
+      if (!silent) {
+        setMonthlyLocal(monthly);
+        latestConsumptionMonthlyRef.current = monthly;
+      }
       latestDataLeadRef.current = leadNorm;
-      latestConsumptionMonthlyRef.current = monthly;
       setOverviewDirty(false);
       setEnergyEngine(parseEnergyEngineFromProfile(payload.lead?.energy_profile));
 
-      void (async () => {
+      if (!silent) void (async () => {
         try {
           const mRes = await apiFetch(`${API_BASE}/api/leads/${id}/meters`);
           if (!mRes.ok) {
@@ -502,13 +508,15 @@ export function useLeadDetail() {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
-      setData(null);
-      meterIdToRestoreAfterFetchRef.current = null;
-      setMetersLoadPhase("idle");
-      setMetersFetchError(null);
-      setMetersList([]);
+      if (!silent) {
+        setData(null);
+        meterIdToRestoreAfterFetchRef.current = null;
+        setMetersLoadPhase("idle");
+        setMetersFetchError(null);
+        setMetersList([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [id]);
 
@@ -1248,7 +1256,7 @@ export function useLeadDetail() {
       const created = await createAddress(payload);
       await patchLeadSilent({ site_address_id: created.id });
       setAddressInput(s.label);
-      await fetchLead();
+      await fetchLead(true);
       const mustOpenGeoModal =
         s.lat == null || s.lon == null ||
         pickTier === "fallback_street" || pickTier === "fallback_city" ||
@@ -1272,7 +1280,7 @@ export function useLeadDetail() {
         lon: null,
       });
       await patchLeadSilent({ site_address_id: created.id });
-      await fetchLead();
+      await fetchLead(true);
       setGeoValidationModalOpen(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Erreur création adresse"); }
   }, [isReadOnly, id, addressInput, patchLeadSilent, fetchLead]);
@@ -1306,7 +1314,7 @@ export function useLeadDetail() {
       const created = await createAddress(payload);
       await patchLeadSilent({ billing_address_id: created.id });
       setBillingAddressInput(s.label);
-      await fetchLead();
+      await fetchLead(true);
       // Contrainte : la validation géographique concerne uniquement site_address_id.
       // billing_address_id (siège social) = usage administratif — pas de géovalidation.
     } catch (e) { setError(e instanceof Error ? e.message : "Erreur création adresse siège"); }
@@ -1323,7 +1331,7 @@ export function useLeadDetail() {
     if (!billingId) return;
     try {
       await patchLeadSilent({ site_address_id: billingId });
-      await fetchLead();
+      await fetchLead(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Erreur copie adresse"); }
   }, [isReadOnly, data?.lead?.billing_address_id, patchLeadSilent, fetchLead]);
 
