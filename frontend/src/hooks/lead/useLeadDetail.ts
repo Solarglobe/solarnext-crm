@@ -55,7 +55,7 @@ import type {
 import type { EquipmentV2 } from "../../modules/leads/LeadDetail/equipmentTypes";
 import { normalizeLeadEquipmentFields } from "../../modules/leads/LeadDetail/equipmentV2Normalize";
 import {
-  parseFrenchAddressParts,
+  isLowConfidencePrecision,
   type AddressPickTier,
 } from "../../modules/leads/LeadDetail/addressFallback";
 import { deriveCommercialPilot } from "../../modules/leads/LeadDetail/commercialPilot";
@@ -175,59 +175,6 @@ export interface LeadDetailData {
 
 // ——— Utilitaires internes ———
 
-function completeSuggestionAddressParts(s: AutocompleteSuggestion): {
-  address_line1: string;
-  address_line2?: string | null;
-  postal_code?: string | null;
-  city?: string | null;
-  country_code: string;
-} {
-  const label = s.label.trim();
-  const components = s.components ?? {};
-  const parsed = parseFrenchAddressParts(label);
-  const commaParts = label.split(",").map((part) => part.trim()).filter(Boolean);
-  const postalFromLabel = label.match(/\b(\d{5})\b/)?.[1] ?? null;
-  const postal_code = components.postal_code ?? parsed.postalCode ?? postalFromLabel;
-
-  let city = components.city ?? parsed.cityGuess ?? null;
-  let addressLine1 = components.address_line1 ?? parsed.streetPart ?? null;
-
-  if (postal_code) {
-    const postalPartIndex = commaParts.findIndex((part) => part.includes(postal_code));
-    if (!components.address_line1 && postalPartIndex > 0) {
-      addressLine1 = commaParts[0];
-    }
-    if (!city && postalPartIndex > 0) {
-      city = commaParts[postalPartIndex - 1] ?? null;
-    }
-    const postalIndex = label.indexOf(postal_code);
-    const afterPostal =
-      postalIndex >= 0 ? label.slice(postalIndex + postal_code.length).trim().replace(/^[,;\s]+/, "") : "";
-    if (!city && afterPostal) {
-      city = afterPostal.split(/[,;]/).map((part) => part.trim()).filter(Boolean)[0] ?? null;
-    }
-    if (!city && commaParts.length >= 2) {
-      const withoutPostal = commaParts.map((part) => part.replace(postal_code, "").trim()).filter(Boolean);
-      city = withoutPostal[withoutPostal.length - 1] ?? null;
-    }
-    if (!addressLine1 && postalIndex > 0) {
-      addressLine1 = label.slice(0, postalIndex).trim().replace(/[,;]\s*$/, "");
-    }
-  }
-
-  if (!addressLine1 && commaParts.length > 0) {
-    addressLine1 = commaParts[0];
-  }
-
-  return {
-    address_line1: addressLine1 || label,
-    address_line2: components.address_line2 ?? null,
-    postal_code,
-    city,
-    country_code: components.country_code || "FR",
-  };
-}
-
 export function showCalcErrorToast(message: string) {
   const toast = document.createElement("div");
   toast.className = "crm-lead-toast crm-lead-toast--error";
@@ -326,6 +273,9 @@ export function useLeadDetail() {
   const [addressInput, setAddressInput] = useState("");
   const [geoValidationModalOpen, setGeoValidationModalOpen] = useState(false);
   const [addressFocusRequestSeq, setAddressFocusRequestSeq] = useState(0);
+  // Adresse siège social (PRO uniquement) — billing_address_id
+  const [billingAddressInput, setBillingAddressInput] = useState("");
+  const [billingGeoValidationModalOpen, setBillingGeoValidationModalOpen] = useState(false);
 
   // ——— Meta ———
   const [users, setUsers] = useState<{ id: string; email?: string }[]>([]);
@@ -536,6 +486,19 @@ export function useLeadDetail() {
           payload.site_address.city,
         ].filter(Boolean);
         setAddressInput(parts.join(", "));
+      }
+      if (payload.billing_address?.formatted_address) {
+        setBillingAddressInput(payload.billing_address.formatted_address);
+      } else if (payload.billing_address?.address_line1) {
+        const billingParts = [
+          payload.billing_address.address_line1,
+          payload.billing_address.address_line2,
+          payload.billing_address.postal_code,
+          payload.billing_address.city,
+        ].filter(Boolean);
+        setBillingAddressInput(billingParts.join(", "));
+      } else {
+        setBillingAddressInput("");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
@@ -1267,13 +1230,12 @@ export function useLeadDetail() {
         pickTier === "normal" ? "autocomplete_pick"
           : pickTier === "fallback_street" ? "autocomplete_fallback_street"
             : "autocomplete_fallback_city";
-      const addressParts = completeSuggestionAddressParts(s);
       const payload = {
-        address_line1: addressParts.address_line1,
-        address_line2: addressParts.address_line2 ?? undefined,
-        postal_code: addressParts.postal_code ?? undefined,
-        city: addressParts.city ?? undefined,
-        country_code: addressParts.country_code,
+        address_line1: s.components?.address_line1 || s.label,
+        address_line2: s.components?.address_line2 ?? undefined,
+        postal_code: s.components?.postal_code ?? undefined,
+        city: s.components?.city ?? undefined,
+        country_code: s.components?.country_code || "FR",
         formatted_address: s.label,
         lat: s.lat ?? undefined,
         lon: s.lon ?? undefined,
@@ -1286,32 +1248,14 @@ export function useLeadDetail() {
       const created = await createAddress(payload);
       await patchLeadSilent({ site_address_id: created.id });
       setAddressInput(s.label);
-      const localAddress: SiteAddress = {
-        id: created.id,
-        address_line1: created.address_line1 ?? payload.address_line1,
-        address_line2: created.address_line2 ?? payload.address_line2,
-        postal_code: created.postal_code ?? payload.postal_code,
-        city: created.city ?? payload.city,
-        country_code: created.country_code ?? payload.country_code,
-        formatted_address: created.formatted_address ?? payload.formatted_address,
-        lat: created.lat ?? payload.lat ?? undefined,
-        lon: created.lon ?? payload.lon ?? undefined,
-        geo_precision_level: created.geo_precision_level ?? payload.geo_precision_level,
-        geo_source: created.geo_source ?? payload.geo_source,
-        is_geo_verified: created.is_geo_verified ?? false,
-      };
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              lead: { ...prev.lead, site_address_id: created.id },
-              site_address: localAddress,
-            }
-          : prev
-      );
-      setGeoValidationModalOpen(true);
+      await fetchLead();
+      const mustOpenGeoModal =
+        s.lat == null || s.lon == null ||
+        pickTier === "fallback_street" || pickTier === "fallback_city" ||
+        isLowConfidencePrecision(s.precision_level);
+      if (mustOpenGeoModal) setGeoValidationModalOpen(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Erreur création adresse"); }
-  }, [isReadOnly, patchLeadSilent]);
+  }, [isReadOnly, patchLeadSilent, fetchLead]);
 
   const handleManualMapPlacement = useCallback(async () => {
     if (isReadOnly) return;
@@ -1332,6 +1276,56 @@ export function useLeadDetail() {
       setGeoValidationModalOpen(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Erreur création adresse"); }
   }, [isReadOnly, id, addressInput, patchLeadSilent, fetchLead]);
+
+  // ——— Billing address (PRO — siège social → billing_address_id) ———
+  const handleBillingAddressSelect = useCallback(async (
+    s: AutocompleteSuggestion,
+    pickTier: AddressPickTier = "normal"
+  ) => {
+    if (isReadOnly) return;
+    try {
+      const geo_source: string =
+        pickTier === "normal" ? "autocomplete_pick"
+          : pickTier === "fallback_street" ? "autocomplete_fallback_street"
+            : "autocomplete_fallback_city";
+      const payload = {
+        address_line1: s.components?.address_line1 || s.label,
+        address_line2: s.components?.address_line2 ?? undefined,
+        postal_code: s.components?.postal_code ?? undefined,
+        city: s.components?.city ?? undefined,
+        country_code: s.components?.country_code || "FR",
+        formatted_address: s.label,
+        lat: s.lat ?? undefined,
+        lon: s.lon ?? undefined,
+        geo_provider: s.provider || "BAN",
+        geo_place_id: s.place_id,
+        geo_source,
+        geo_precision_level: s.precision_level ?? undefined,
+        geo_confidence: s.confidence ?? undefined,
+      };
+      const created = await createAddress(payload);
+      await patchLeadSilent({ billing_address_id: created.id });
+      setBillingAddressInput(s.label);
+      await fetchLead();
+      // Contrainte : la validation géographique concerne uniquement site_address_id.
+      // billing_address_id (siège social) = usage administratif — pas de géovalidation.
+    } catch (e) { setError(e instanceof Error ? e.message : "Erreur création adresse siège"); }
+  }, [isReadOnly, patchLeadSilent, fetchLead]);
+
+  /**
+   * Copier l'adresse du siège social comme adresse chantier (PRO).
+   * Patch site_address_id = billing_address_id — partage le même enregistrement.
+   * Après fetchLead, les deux sections reflètent la même adresse.
+   */
+  const handleCopyBillingToSite = useCallback(async () => {
+    if (isReadOnly) return;
+    const billingId = data?.lead?.billing_address_id;
+    if (!billingId) return;
+    try {
+      await patchLeadSilent({ site_address_id: billingId });
+      await fetchLead();
+    } catch (e) { setError(e instanceof Error ? e.message : "Erreur copie adresse"); }
+  }, [isReadOnly, data?.lead?.billing_address_id, patchLeadSilent, fetchLead]);
 
   // ——— Activities ———
   const handleAddActivity = useCallback(async () => {
@@ -1643,9 +1637,13 @@ export function useLeadDetail() {
     confirmProjectOpen, setConfirmProjectOpen, pendingProjectStatus, setPendingProjectStatus,
     // DP
     dpRefusedOpen, setDpRefusedOpen, dpRefusedBusy, handleDpRefusedChoose,
-    // Address
+    // Address — chantier (site_address_id)
     addressInput, setAddressInput, geoValidationModalOpen, setGeoValidationModalOpen, addressFocusRequestSeq,
     handleAddressSelect, handleManualMapPlacement,
+    // Address — siège social (billing_address_id, PRO uniquement)
+    billingAddressInput, setBillingAddressInput,
+    billingGeoValidationModalOpen, setBillingGeoValidationModalOpen,
+    handleBillingAddressSelect, handleCopyBillingToSite,
     // Email
     openComposeForLeadEmail,
     // Computed

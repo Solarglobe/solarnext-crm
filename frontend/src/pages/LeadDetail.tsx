@@ -385,6 +385,11 @@ export default function LeadDetail() {
             siteAddress={ld.data.site_address}
             addressInput={ld.addressInput}
             setAddressInput={ld.setAddressInput}
+            billingAddress={ld.data.billing_address}
+            billingAddressInput={ld.billingAddressInput}
+            setBillingAddressInput={ld.setBillingAddressInput}
+            onBillingAddressSelect={ld.handleBillingAddressSelect}
+            onCopyBillingToSite={ld.handleCopyBillingToSite}
             consumptionMonthly={ld.monthlyLocal}
             users={ld.users}
             leadSources={ld.leadSources}

@@ -58,8 +58,6 @@ import {
 import PillPicker from "./PillPicker";
 import CustomSelect from "./CustomSelect";
 
-const LEAD_ADDRESS_FOCUS_EVENT = "solarnext:lead-address-focus";
-
 /** Choix d’ajout : 1 entrée = 1 groupe ou 1 ligne dans un groupe existant. */
 const EQUIPMENT_ADD_CHOICES: {
   kind: EquipmentKind;
@@ -432,6 +430,13 @@ interface OverviewTabProps {
   siteAddress: SiteAddress | null;
   addressInput: string;
   setAddressInput: (v: string) => void;
+  /** Adresse siège social (PRO uniquement) → billing_address_id */
+  billingAddress?: SiteAddress | null;
+  billingAddressInput?: string;
+  setBillingAddressInput?: (v: string) => void;
+  onBillingAddressSelect?: (s: AutocompleteSuggestion, pickTier?: AddressPickTier) => Promise<void>;
+  /** Bouton "Identique au siège social" : copie billing_address_id → site_address_id */
+  onCopyBillingToSite?: () => Promise<void>;
   consumptionMonthly: { month: number; kwh: number }[];
   users: { id: string; email?: string }[];
   leadSources: LeadsMeta["sources"];
@@ -482,6 +487,11 @@ export default function OverviewTab({
   siteAddress,
   addressInput,
   setAddressInput,
+  billingAddress = null,
+  billingAddressInput = "",
+  setBillingAddressInput,
+  onBillingAddressSelect,
+  onCopyBillingToSite,
   consumptionMonthly,
   users,
   leadSources = [],
@@ -517,13 +527,17 @@ export default function OverviewTab({
     : [];
 
   const addressWrapRef = useRef<HTMLDivElement>(null);
-  const addressInputRef = useRef<HTMLInputElement>(null);
   /** Évite de remplacer la liste de suggestions pendant qu’une sélection est en cours (A1). */
   const addressSelectInFlightRef = useRef(false);
   /** Saisie normalisée « verrouillée » après pick ou alignée sur le site — pas de liste tant qu’elle ne change pas. */
   const addressAutocompleteLockedKeyRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [addressSuggestions, setAddressSuggestions] = useState<AutocompleteSuggestion[]>([]);
+  // Billing address (PRO — siège social)
+  const billingAddressWrapRef = useRef<HTMLDivElement>(null);
+  const billingSelectInFlightRef = useRef(false);
+  const [billingSuggestions, setBillingSuggestions] = useState<AutocompleteSuggestion[]>([]);
+  const [billingSuggestionsOpen, setBillingSuggestionsOpen] = useState(false);
   const [energyFileName, setEnergyFileName] = useState<string | null>(null);
   const [energyLoading, setEnergyLoading] = useState(false);
   const [energyError, setEnergyError] = useState<string | null>(null);
@@ -649,15 +663,6 @@ export default function OverviewTab({
     return () => {
       document.removeEventListener("click", closeSuggestions);
     };
-  }, []);
-
-  useEffect(() => {
-    const focusAddress = () => {
-      addressWrapRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      window.setTimeout(() => addressInputRef.current?.focus(), 220);
-    };
-    window.addEventListener(LEAD_ADDRESS_FOCUS_EVENT, focusAddress);
-    return () => window.removeEventListener(LEAD_ADDRESS_FOCUS_EVENT, focusAddress);
   }, []);
 
   useEffect(() => {
@@ -792,14 +797,63 @@ export default function OverviewTab({
       setAddressSuggestionsOpen(false);
       setAddressSuggestions([]);   // vide la liste immédiatement pour éviter la réouverture
       void Promise.resolve(onAddressSelect(s, tier)).finally(() => {
-        // Délai 800 ms > debounce 300 ms + appel API : le flag reste vrai le temps que
-        // l'effet de debounce se déclenche et vérifie la ref, évitant la réouverture.
         setTimeout(() => {
           addressSelectInFlightRef.current = false;
         }, 800);
       });
     },
     [onAddressSelect]
+  );
+
+  // ——— Billing address autocomplete (PRO — siège social) ———
+  const debouncedBillingAddress = useDebounce(billingAddressInput, 300);
+  useEffect(() => {
+    if (lead.customer_type !== "PRO" || !onBillingAddressSelect) return;
+    if (!debouncedBillingAddress || debouncedBillingAddress.length < 3) {
+      setBillingSuggestions([]);
+      setBillingSuggestionsOpen(false);
+      return;
+    }
+    if (billingAddress?.formatted_address &&
+      normalizeAddressKey(debouncedBillingAddress) === normalizeAddressKey(billingAddress.formatted_address)) {
+      setBillingSuggestions([]);
+      setBillingSuggestionsOpen(false);
+      return;
+    }
+    if (billingSelectInFlightRef.current) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await geoAutocomplete(debouncedBillingAddress, { limit: 8 });
+        if (!cancelled && !billingSelectInFlightRef.current) {
+          const suggestions = (res.suggestions || []).map((s) => ({
+            ...s,
+            pickTier: "normal" as AddressPickTier,
+          }));
+          setBillingSuggestions(suggestions);
+          setBillingSuggestionsOpen(suggestions.length > 0);
+        }
+      } catch {
+        if (!cancelled) {
+          setBillingSuggestions([]);
+          setBillingSuggestionsOpen(false);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [debouncedBillingAddress, billingAddress, lead.customer_type, onBillingAddressSelect]);
+
+  const handleBillingSuggestionPick = useCallback(
+    (s: AddressSuggestionWithTier, tier: AddressPickTier) => {
+      if (billingSelectInFlightRef.current || !onBillingAddressSelect) return;
+      billingSelectInFlightRef.current = true;
+      setBillingSuggestionsOpen(false);
+      setBillingSuggestions([]);
+      void Promise.resolve(onBillingAddressSelect(s, tier)).finally(() => {
+        setTimeout(() => { billingSelectInFlightRef.current = false; }, 800);
+      });
+    },
+    [onBillingAddressSelect]
   );
 
   const consumptionMode = lead.consumption_mode || "ANNUAL";
@@ -1249,17 +1303,28 @@ export default function OverviewTab({
 
       <OverviewCardSection
         index={2}
-        title={lead.customer_type === "PRO" ? "Adresse du siège social" : "Adresse et localisation"}
+        title="Adresse chantier"
         defaultOpen
         summary={addressOverviewSummary || undefined}
         sectionClassName="crm-lead-overview-section--address-autocomplete"
       >
+        {/* Bouton "Identique au siège social" — visible pour PRO si siège renseigné et IDs différents */}
+        {lead.customer_type === "PRO" && billingAddress?.id && billingAddress.id !== siteAddress?.id && onCopyBillingToSite && (
+          <div style={{ marginBottom: 10 }}>
+            <button
+              type="button"
+              className="sn-btn sn-btn-outline"
+              onClick={() => void onCopyBillingToSite()}
+            >
+              Identique au siège social
+            </button>
+          </div>
+        )}
         <div ref={addressWrapRef} className="crm-lead-field crm-lead-field-full">
-          <label>{lead.customer_type === "PRO" ? "Adresse du siège" : "Adresse complète"}</label>
+          <label>Adresse complète</label>
           {/* Wrapper relatif limité à l'input : le dropdown se positionne juste en dessous */}
           <div style={{ position: "relative" }}>
             <input
-              ref={addressInputRef}
               className="sn-input"
               value={addressInput}
               onChange={(e) => setAddressInput(e.target.value)}
@@ -1282,7 +1347,6 @@ export default function OverviewTab({
                     onKeyDown={(e) => {
                       if (e.key !== "Enter") return;
                       e.preventDefault();
-                      e.stopPropagation();
                       handleAddressSuggestionPick(
                         s as AddressSuggestionWithTier,
                         (s as AddressSuggestionWithTier).pickTier ?? "normal"
@@ -1290,15 +1354,6 @@ export default function OverviewTab({
                     }}
                     onMouseDown={(e) => {
                       e.preventDefault();
-                      e.stopPropagation();
-                      handleAddressSuggestionPick(
-                        s as AddressSuggestionWithTier,
-                        (s as AddressSuggestionWithTier).pickTier ?? "normal"
-                      );
-                    }}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
                       handleAddressSuggestionPick(
                         s as AddressSuggestionWithTier,
                         (s as AddressSuggestionWithTier).pickTier ?? "normal"
@@ -1465,6 +1520,98 @@ export default function OverviewTab({
           </>
         )}
       </OverviewCardSection>
+
+      {/* ——— Section siège social (PRO uniquement) ——— */}
+      {lead.customer_type === "PRO" && (
+        <OverviewCardSection
+          index={3}
+          title="Adresse du siège social"
+          defaultOpen
+          summary={
+            billingAddress?.formatted_address ||
+            [billingAddress?.address_line1, billingAddress?.city].filter(Boolean).join(", ") ||
+            undefined
+          }
+          sectionClassName="crm-lead-overview-section--address-autocomplete"
+        >
+          <div ref={billingAddressWrapRef} className="crm-lead-field crm-lead-field-full">
+            <label>Adresse du siège</label>
+            <div style={{ position: "relative" }}>
+              <input
+                className="sn-input"
+                value={billingAddressInput}
+                onChange={(e) => setBillingAddressInput?.(e.target.value)}
+                onFocus={() => billingSuggestions.length > 0 && setBillingSuggestionsOpen(true)}
+                onBlur={(e) => {
+                  const next = e.relatedTarget as Node | null;
+                  if (next && billingAddressWrapRef.current?.contains(next)) return;
+                  setBillingSuggestionsOpen(false);
+                }}
+                placeholder="Rechercher une adresse…"
+                autoComplete="off"
+              />
+              {billingSuggestionsOpen && billingSuggestions.length > 0 && (
+                <ul className="crm-lead-address-suggestions">
+                  {billingSuggestions.map((s, i) => (
+                    <li
+                      key={`${s.place_id}-${i}`}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        handleBillingSuggestionPick(
+                          s as AddressSuggestionWithTier,
+                          (s as AddressSuggestionWithTier).pickTier ?? "normal"
+                        );
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleBillingSuggestionPick(
+                          s as AddressSuggestionWithTier,
+                          (s as AddressSuggestionWithTier).pickTier ?? "normal"
+                        );
+                      }}
+                    >
+                      {s.label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <p className="crm-lead-address-hint">
+              Utilisée pour les devis et factures. Saisissez au moins 3 caractères puis choisissez une proposition.
+            </p>
+          </div>
+          {billingAddress && (
+            <>
+              <div className="crm-lead-address-meta">
+                <span className="crm-lead-address-meta-label">PRÉCISION GÉOLOCALISATION</span>
+                <span className={`crm-lead-address-quality-badge crm-lead-address-quality-badge--${billingAddress.is_geo_verified ? "verified" : "pending"}`}>
+                  {billingAddress.is_geo_verified ? "Validé (parcelle)" : "À confirmer sur carte"}
+                </span>
+              </div>
+              <div className="crm-lead-address-fields">
+                {[
+                  { label: "ADRESSE", value: billingAddress.address_line1 },
+                  { label: "CODE POSTAL", value: billingAddress.postal_code },
+                  { label: "VILLE", value: billingAddress.city },
+                  { label: "PAYS", value: billingAddress.country_code },
+                  { label: "LATITUDE", value: billingAddress.lat },
+                  { label: "LONGITUDE", value: billingAddress.lon },
+                ].map(({ label, value }) => value != null && (
+                  <div key={label} className="crm-lead-address-field">
+                    <span className="crm-lead-address-field-label">{label}</span>
+                    <input className="sn-input sn-input--readonly" readOnly value={String(value)} />
+                  </div>
+                ))}
+              </div>
+              {/* Pas de géovalidation sur l'adresse siège — usage administratif uniquement.
+                  La validation géographique concerne exclusivement site_address_id. */}
+            </>
+          )}
+        </OverviewCardSection>
+      )}
 
       <OverviewCardSection
         index={5}
@@ -1971,6 +2118,7 @@ export default function OverviewTab({
           onSuccess={onGeoValidationSuccess}
         />
       )}
+      {/* billingGeoValidationModal supprimé : géovalidation = site_address_id uniquement. */}
     </div>
   );
 }

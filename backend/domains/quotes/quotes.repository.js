@@ -347,7 +347,8 @@ export async function getQuoteDocumentViewModel(quoteId, organizationId, opts = 
  */
 export async function buildCustomerSnapshotFromLead(leadId, organizationId) {
   const leadRes = await pool.query(
-    `SELECT l.first_name, l.last_name, l.full_name, l.email, l.phone, l.phone_mobile, l.phone_landline, l.address, l.site_address_id,
+    `SELECT l.first_name, l.last_name, l.full_name, l.email, l.phone, l.phone_mobile, l.phone_landline, l.address,
+            l.site_address_id, l.billing_address_id,
             l.customer_type, l.company_name, l.siret
      FROM leads l
      WHERE l.id = $1 AND l.organization_id = $2 AND (l.archived_at IS NULL)`,
@@ -356,11 +357,14 @@ export async function buildCustomerSnapshotFromLead(leadId, organizationId) {
   if (leadRes.rows.length === 0) return null;
   const lead = leadRes.rows[0];
   let addressFormatted = lead.address || null;
-  if (lead.site_address_id) {
+  // Source de verite devis/factures : billing_address_id (siege social PRO) en priorite.
+  // Fallback : site_address_id (PARTICULIER ou PRO sans siege), puis texte legacy.
+  const addressIdForQuote = lead.billing_address_id || lead.site_address_id;
+  if (addressIdForQuote) {
     const addrRes = await pool.query(
       `SELECT address_line1, address_line2, postal_code, city, country_code, formatted_address
        FROM addresses WHERE id = $1 AND organization_id = $2`,
-      [lead.site_address_id, organizationId]
+      [addressIdForQuote, organizationId]
     );
     if (addrRes.rows.length > 0) {
       const a = addrRes.rows[0];
