@@ -18,10 +18,6 @@ import {
 } from "../hooks/phase3LegacyValidateUi";
 import { Phase3ChecklistPanel } from "../Phase3ChecklistPanel";
 import { createDsmOverlayManager } from "../dsmOverlay";
-import { getCurrentUser } from "../../../services/auth.service";
-import { getCrmApiBase } from "@/config/crmApiBase";
-import { apiFetch } from "../../../services/api";
-import { useToast } from "../ui/useToast";
 import "../dsmOverlay/dsmOverlay.css";
 
 function formatFallbackReason(reason?: string): string {
@@ -112,8 +108,6 @@ function Phase3ModeSegment() {
 
 /** Émis par CalpinageOverlay (CRM) ou le legacy à la fin du flux de validation. */
 const CALPINAGE_VALIDATE_FINISHED = "calpinage:validate-finished";
-
-const API_BASE = getCrmApiBase();
 
 function Phase3FlatRoofControls() {
   const { flatRoof } = usePhase3Data();
