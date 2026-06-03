@@ -60,7 +60,12 @@ export interface AddressPayload {
   geo_bbox?: unknown;
 }
 
-export async function createAddress(payload: AddressPayload): Promise<{ id: string }> {
+export interface AddressRecord extends AddressPayload {
+  id: string;
+  is_geo_verified?: boolean;
+}
+
+export async function createAddress(payload: AddressPayload): Promise<AddressRecord> {
   const res = await apiFetch(`${API_BASE}/api/addresses`, {
     method: "POST",
     body: JSON.stringify(payload),

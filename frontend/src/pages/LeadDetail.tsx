@@ -38,6 +38,7 @@ import "../modules/leads/LeadDetail/lead-detail.css";
 import { useLeadDetail } from "../hooks/lead/useLeadDetail";
 
 const API_BASE = getCrmApiBase();
+const LEAD_ADDRESS_FOCUS_EVENT = "solarnext:lead-address-focus";
 
 export default function LeadDetail() {
   const navigate = useNavigate();
@@ -120,6 +121,12 @@ export default function LeadDetail() {
     await ld.handleLeadTabChange(tab);
   };
 
+  const requestAddressFocus = () => {
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent(LEAD_ADDRESS_FOCUS_EVENT));
+    }, 0);
+  };
+
   const handleOpenDp = async () => {
     if (ld.isReadOnly || !ld.id) return;
     const ok = await ld.flushOverviewSave();
@@ -135,9 +142,12 @@ export default function LeadDetail() {
         await ld.handleUnarchiveLead();
         break;
       case "complete_contact":
-      case "complete_address":
       case "complete_consumption":
         await handleOpenTab("overview");
+        break;
+      case "complete_address":
+        await handleOpenTab("overview");
+        requestAddressFocus();
         break;
       case "validate_address":
         if (ld.data?.site_address?.id) ld.setGeoValidationModalOpen(true);

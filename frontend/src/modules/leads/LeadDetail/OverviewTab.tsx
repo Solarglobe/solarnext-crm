@@ -58,6 +58,8 @@ import {
 import PillPicker from "./PillPicker";
 import CustomSelect from "./CustomSelect";
 
+const LEAD_ADDRESS_FOCUS_EVENT = "solarnext:lead-address-focus";
+
 /** Choix d’ajout : 1 entrée = 1 groupe ou 1 ligne dans un groupe existant. */
 const EQUIPMENT_ADD_CHOICES: {
   kind: EquipmentKind;
@@ -515,6 +517,7 @@ export default function OverviewTab({
     : [];
 
   const addressWrapRef = useRef<HTMLDivElement>(null);
+  const addressInputRef = useRef<HTMLInputElement>(null);
   /** Évite de remplacer la liste de suggestions pendant qu’une sélection est en cours (A1). */
   const addressSelectInFlightRef = useRef(false);
   /** Saisie normalisée « verrouillée » après pick ou alignée sur le site — pas de liste tant qu’elle ne change pas. */
@@ -646,6 +649,15 @@ export default function OverviewTab({
     return () => {
       document.removeEventListener("click", closeSuggestions);
     };
+  }, []);
+
+  useEffect(() => {
+    const focusAddress = () => {
+      addressWrapRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => addressInputRef.current?.focus(), 220);
+    };
+    window.addEventListener(LEAD_ADDRESS_FOCUS_EVENT, focusAddress);
+    return () => window.removeEventListener(LEAD_ADDRESS_FOCUS_EVENT, focusAddress);
   }, []);
 
   useEffect(() => {
@@ -1247,6 +1259,7 @@ export default function OverviewTab({
           {/* Wrapper relatif limité à l'input : le dropdown se positionne juste en dessous */}
           <div style={{ position: "relative" }}>
             <input
+              ref={addressInputRef}
               className="sn-input"
               value={addressInput}
               onChange={(e) => setAddressInput(e.target.value)}
@@ -1269,6 +1282,7 @@ export default function OverviewTab({
                     onKeyDown={(e) => {
                       if (e.key !== "Enter") return;
                       e.preventDefault();
+                      e.stopPropagation();
                       handleAddressSuggestionPick(
                         s as AddressSuggestionWithTier,
                         (s as AddressSuggestionWithTier).pickTier ?? "normal"
@@ -1276,6 +1290,15 @@ export default function OverviewTab({
                     }}
                     onMouseDown={(e) => {
                       e.preventDefault();
+                      e.stopPropagation();
+                      handleAddressSuggestionPick(
+                        s as AddressSuggestionWithTier,
+                        (s as AddressSuggestionWithTier).pickTier ?? "normal"
+                      );
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       handleAddressSuggestionPick(
                         s as AddressSuggestionWithTier,
                         (s as AddressSuggestionWithTier).pickTier ?? "normal"
