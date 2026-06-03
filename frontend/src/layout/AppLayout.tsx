@@ -112,6 +112,19 @@ function CalendarIcon() {
   );
 }
 
+/** Études — document technique PV */
+function StudyNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h8" />
+      <path d="M8 17h5" />
+      <path d="M9 9h1" />
+    </svg>
+  );
+}
+
 /** Boite d'envoi */
 function OutboxIcon() {
   return (
@@ -331,6 +344,7 @@ type NavItem = {
   label: string;
   icon: React.ComponentType;
   end?: boolean;
+  activePathPrefixes?: string[];
   requiredPermissions?: string[];
   superAdminOnly?: boolean;
 };
@@ -349,6 +363,13 @@ const principalModules: NavItem[] = [
   },
   { path: "/leads", label: "Leads", icon: LeadIcon, requiredPermissions: LEAD_READ_PERMISSIONS },
   { path: "/clients", label: "Clients", icon: ClientIcon, requiredPermissions: CLIENT_READ_PERMISSIONS },
+  {
+    path: "/leads",
+    label: "Études",
+    icon: StudyNavIcon,
+    activePathPrefixes: ["/studies"],
+    requiredPermissions: DOCUMENT_READ_PERMISSIONS,
+  },
   {
     path: "/planning",
     label: "Planning",
@@ -471,6 +492,7 @@ function pathMatchesSection(pathname: string, id: SidebarSectionId): boolean {
     return (
       pathname.startsWith("/dashboard") ||
       pathname.startsWith("/leads") ||
+      pathname.startsWith("/studies") ||
       pathname.startsWith("/clients") ||
       pathname.startsWith("/planning")
     );
@@ -533,6 +555,7 @@ function SidebarCollapsibleSection({
   /** ex. sn-sidebar-link-org pour sous-niveau */
   linkClassName?: string;
 }) {
+  const { pathname } = useLocation();
   if (navLinks.length === 0) return null;
 
   const panelId = `sn-sidebar-section-${sectionId}`;
@@ -556,14 +579,18 @@ function SidebarCollapsibleSection({
         className="sn-sidebar-section-panel"
         hidden={!expanded}
       >
-        {navLinks.map(({ path, label, icon: Icon, end: endMatch }) => (
+        {navLinks.map(({ path, label, icon: Icon, end: endMatch, activePathPrefixes }) => (
           <NavLink
-            key={path}
+            key={`${label}:${path}`}
             to={path}
             end={Boolean(endMatch)}
-            className={({ isActive }) =>
-              `sn-sidebar-link${linkClassName ? ` ${linkClassName}` : ""}${isActive ? " sn-sidebar-link-active" : ""}`
-            }
+            className={({ isActive }) => {
+              const hasCustomActivePaths = Boolean(activePathPrefixes?.length);
+              const isCustomActive = activePathPrefixes?.some((prefix) => pathname.startsWith(prefix)) ?? false;
+              return `sn-sidebar-link${linkClassName ? ` ${linkClassName}` : ""}${
+                (hasCustomActivePaths ? isCustomActive : isActive) ? " sn-sidebar-link-active" : ""
+              }`;
+            }}
           >
             <span className="sn-sidebar-link-icon">
               <Icon />

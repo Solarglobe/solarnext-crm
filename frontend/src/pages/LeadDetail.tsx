@@ -4,6 +4,7 @@
  * Route : /leads/:id
  */
 
+import { useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCrmApiBase } from "../config/crmApiBase";
 import MissionCreateModal from "../modules/planning/MissionCreateModal";
@@ -121,11 +122,16 @@ export default function LeadDetail() {
     await ld.handleLeadTabChange(tab);
   };
 
-  const requestAddressFocus = () => {
+  const requestAddressFocus = useCallback(() => {
     window.setTimeout(() => {
       window.dispatchEvent(new CustomEvent(LEAD_ADDRESS_FOCUS_EVENT));
     }, 0);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!ld.addressFocusRequestSeq) return;
+    requestAddressFocus();
+  }, [ld.addressFocusRequestSeq, requestAddressFocus]);
 
   const handleOpenDp = async () => {
     if (ld.isReadOnly || !ld.id) return;
@@ -274,7 +280,7 @@ export default function LeadDetail() {
               variant="primary"
               size="sm"
               disabled={ld.createStudyLoading || ld.isReadOnly}
-              onClick={ld.handleCreateStudy}
+              onClick={() => void ld.handleCreateStudy()}
             >
               {ld.createStudyLoading ? "Création…" : "Créer étude"}
             </Button>

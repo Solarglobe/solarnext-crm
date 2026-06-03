@@ -64,6 +64,8 @@ import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
 import { useUndoAction } from "../useUndoAction";
 
 const API_BASE = getCrmApiBase();
+const SITE_ADDRESS_REQUIRED_MESSAGE =
+  "Adresse chantier non validée. Veuillez compléter et valider l'adresse avant de créer une étude.";
 
 // ——— Types ———
 
@@ -323,6 +325,7 @@ export function useLeadDetail() {
   // ——— Address ———
   const [addressInput, setAddressInput] = useState("");
   const [geoValidationModalOpen, setGeoValidationModalOpen] = useState(false);
+  const [addressFocusRequestSeq, setAddressFocusRequestSeq] = useState(0);
 
   // ——— Meta ———
   const [users, setUsers] = useState<{ id: string; email?: string }[]>([]);
@@ -417,6 +420,13 @@ export function useLeadDetail() {
   useEffect(() => { meterDetailErrorRef.current = meterDetailError; }, [meterDetailError]);
   useEffect(() => { metersFetchErrorRef.current = metersFetchError; }, [metersFetchError]);
   useEffect(() => { selectedMeterIdRef.current = selectedMeterId; }, [selectedMeterId]);
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get("tab") as LeadTabId | null;
+    if (tabFromUrl && tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [activeTab, searchParams]);
 
   // ——— Meta fetch ———
   useEffect(() => {
@@ -967,6 +977,12 @@ export function useLeadDetail() {
     setActiveTab(tab);
   }, [activeTab, flushOverviewSave]);
 
+  const requestSiteAddressValidation = useCallback(() => {
+    setError(SITE_ADDRESS_REQUIRED_MESSAGE);
+    setActiveTab("overview");
+    setAddressFocusRequestSeq((seq) => seq + 1);
+  }, []);
+
   // ——— Meter handlers ———
   const handleOpenMeterCreateModal = useCallback(async () => {
     if (isReadOnly) return;
@@ -1363,6 +1379,15 @@ export function useLeadDetail() {
   const handleCreateStudy = useCallback(async () => {
     if (isReadOnly) return;
     if (!id) return;
+    const siteAddress = data?.site_address;
+    const hasSiteAddressId = Boolean(data?.lead?.site_address_id);
+    const hasLat = Number.isFinite(Number(siteAddress?.lat));
+    const hasLon = Number.isFinite(Number(siteAddress?.lon));
+    const isGeoVerified = siteAddress?.is_geo_verified === true;
+    if (!hasSiteAddressId || !hasLat || !hasLon || !isGeoVerified) {
+      requestSiteAddressValidation();
+      return;
+    }
     const flushed = await flushOverviewSave();
     if (!flushed) return;
     setCreateStudyLoading(true);
@@ -1389,7 +1414,7 @@ export function useLeadDetail() {
       navigate(`/studies/${studyIdNew}/versions/${versionId}/calpinage`);
     } catch (e) { setError(e instanceof Error ? e.message : "Impossible de créer l'étude"); }
     finally { setCreateStudyLoading(false); }
-  }, [isReadOnly, id, flushOverviewSave, selectedMeterId, fetchStudies, navigate]);
+  }, [isReadOnly, id, data?.site_address, data?.lead?.site_address_id, requestSiteAddressValidation, flushOverviewSave, selectedMeterId, fetchStudies, navigate]);
 
   const getLatestStudyVersion = useCallback(async (studyId: string): Promise<{ versionNumber: number } | null> => {
     const res = await apiFetch(`${API_BASE}/api/studies/${studyId}`);
@@ -1619,7 +1644,7 @@ export function useLeadDetail() {
     // DP
     dpRefusedOpen, setDpRefusedOpen, dpRefusedBusy, handleDpRefusedChoose,
     // Address
-    addressInput, setAddressInput, geoValidationModalOpen, setGeoValidationModalOpen,
+    addressInput, setAddressInput, geoValidationModalOpen, setGeoValidationModalOpen, addressFocusRequestSeq,
     handleAddressSelect, handleManualMapPlacement,
     // Email
     openComposeForLeadEmail,
