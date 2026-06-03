@@ -54,10 +54,7 @@ import type {
 } from "../../modules/leads/LeadDetail/equipmentPilotageHelpers";
 import type { EquipmentV2 } from "../../modules/leads/LeadDetail/equipmentTypes";
 import { normalizeLeadEquipmentFields } from "../../modules/leads/LeadDetail/equipmentV2Normalize";
-import {
-  isLowConfidencePrecision,
-  type AddressPickTier,
-} from "../../modules/leads/LeadDetail/addressFallback";
+import type { AddressPickTier } from "../../modules/leads/LeadDetail/addressFallback";
 import { deriveCommercialPilot } from "../../modules/leads/LeadDetail/commercialPilot";
 import { getCrmApiBase } from "../../config/crmApiBase";
 import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
@@ -1217,11 +1214,7 @@ export function useLeadDetail() {
       await patchLeadSilent({ site_address_id: created.id });
       setAddressInput(s.label);
       await fetchLead();
-      const mustOpenGeoModal =
-        s.lat == null || s.lon == null ||
-        pickTier === "fallback_street" || pickTier === "fallback_city" ||
-        isLowConfidencePrecision(s.precision_level);
-      if (mustOpenGeoModal) setGeoValidationModalOpen(true);
+      setGeoValidationModalOpen(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Erreur création adresse"); }
   }, [isReadOnly, patchLeadSilent, fetchLead]);
 
