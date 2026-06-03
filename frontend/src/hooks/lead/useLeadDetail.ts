@@ -1232,8 +1232,10 @@ export function useLeadDetail() {
     s: AutocompleteSuggestion,
     pickTier: AddressPickTier = "normal"
   ) => {
-    if (isReadOnly) return;
+    console.log("[ADDR] handleAddressSelect called, isReadOnly=", isReadOnly, "label=", s.label);
+    if (isReadOnly) { console.warn("[ADDR] BLOQUE: isReadOnly=true"); return; }
     try {
+      console.log("[ADDR] step1: createAddress...");
       const geo_source: string =
         pickTier === "normal" ? "autocomplete_pick"
           : pickTier === "fallback_street" ? "autocomplete_fallback_street"
@@ -1254,19 +1256,23 @@ export function useLeadDetail() {
         geo_confidence: s.confidence ?? undefined,
       };
       const created = await createAddress(payload);
+      console.log("[ADDR] step2: createAddress OK, id=", created.id);
       await patchLeadSilent({ site_address_id: created.id });
+      console.log("[ADDR] step3: patchLeadSilent OK");
       setAddressInput(s.label);
       await fetchLead(true);
+      console.log("[ADDR] step4: fetchLead OK");
       const mustOpenGeoModal =
         s.lat == null || s.lon == null ||
         pickTier === "fallback_street" || pickTier === "fallback_city" ||
         isLowConfidencePrecision(s.precision_level);
       if (mustOpenGeoModal) setGeoValidationModalOpen(true);
+      showLeadSuccessToast("✅ Adresse enregistrée");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erreur création adresse";
-      console.error("[handleAddressSelect] ERREUR:", msg, e);
+      console.error("[ADDR] ERREUR:", msg, e);
       setError(msg);
-      showLeadSuccessToast("❌ Adresse non sauvegardée : " + msg);
+      showLeadSuccessToast("❌ " + msg);
     }
   }, [isReadOnly, patchLeadSilent, fetchLead]);
 
