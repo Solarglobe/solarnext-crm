@@ -40,12 +40,14 @@ export type Address = z.infer<typeof AddressSchema>;
 
 export const LeadShapeSchema = z.object({
   civility: CivilitySchema.optional(),
-  first_name: z.string().min(1).max(100),
-  last_name: z.string().min(1).max(100),
+  first_name: z.string().min(1).max(100).optional(),
+  last_name: z.string().min(1).max(100).optional(),
   email: z.string().email().max(255).optional(),
   phone: z.string().max(30).optional(),
   customer_type: CustomerTypeSchema.default("PERSON"),
   company_name: z.string().max(255).optional(),
+  contact_first_name: z.string().max(100).optional(),
+  contact_last_name: z.string().max(100).optional(),
   siret: z.string().regex(/^\d{14}$/, "SIRET doit contenir exactement 14 chiffres").optional(),
   ...AddressSchema.shape,
   construction_year: z.number().int().min(1800).max(2100).optional(),
@@ -62,11 +64,37 @@ export const LeadShapeSchema = z.object({
 });
 
 export const CreateLeadSchema = LeadShapeSchema.superRefine((data, ctx) => {
-  if (data.customer_type === "PRO" && !data.company_name) {
+  if (!data.phone && !data.email) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ["company_name"],
-      message: "company_name est obligatoire pour un client professionnel",
+      path: ["phone"],
+      message: "Le telephone ou l'email est obligatoire",
+    });
+  }
+
+  if (data.customer_type === "PRO") {
+    if (!data.company_name) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["company_name"],
+        message: "company_name est obligatoire pour un client professionnel",
+      });
+    }
+    return;
+  }
+
+  if (!data.first_name) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["first_name"],
+      message: "first_name est obligatoire pour un particulier",
+    });
+  }
+  if (!data.last_name) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["last_name"],
+      message: "last_name est obligatoire pour un particulier",
     });
   }
 });
