@@ -45,6 +45,17 @@ export default function LeadDetail() {
   const navigate = useNavigate();
   const ld = useLeadDetail();
 
+  const requestAddressFocus = useCallback(() => {
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent(LEAD_ADDRESS_FOCUS_EVENT));
+    }, 0);
+  }, []);
+
+  useEffect(() => {
+    if (!ld.addressFocusRequestSeq) return;
+    requestAddressFocus();
+  }, [ld.addressFocusRequestSeq, requestAddressFocus]);
+
   if (ld.loading) {
     return (
       <div className="crm-lead-page">
@@ -121,17 +132,6 @@ export default function LeadDetail() {
   const handleOpenTab = async (tab: Parameters<typeof ld.handleLeadTabChange>[0]) => {
     await ld.handleLeadTabChange(tab);
   };
-
-  const requestAddressFocus = useCallback(() => {
-    window.setTimeout(() => {
-      window.dispatchEvent(new CustomEvent(LEAD_ADDRESS_FOCUS_EVENT));
-    }, 0);
-  }, []);
-
-  useEffect(() => {
-    if (!ld.addressFocusRequestSeq) return;
-    requestAddressFocus();
-  }, [ld.addressFocusRequestSeq, requestAddressFocus]);
 
   const handleOpenDp = async () => {
     if (ld.isReadOnly || !ld.id) return;
