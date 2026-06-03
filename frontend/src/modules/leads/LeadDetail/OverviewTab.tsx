@@ -1347,6 +1347,7 @@ export default function OverviewTab({
                     onKeyDown={(e) => {
                       if (e.key !== "Enter") return;
                       e.preventDefault();
+                      e.stopPropagation();
                       handleAddressSuggestionPick(
                         s as AddressSuggestionWithTier,
                         (s as AddressSuggestionWithTier).pickTier ?? "normal"
@@ -1354,10 +1355,15 @@ export default function OverviewTab({
                     }}
                     onMouseDown={(e) => {
                       e.preventDefault();
+                      e.stopPropagation();
                       handleAddressSuggestionPick(
                         s as AddressSuggestionWithTier,
                         (s as AddressSuggestionWithTier).pickTier ?? "normal"
                       );
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                     }}
                   >
                     {s.label}

@@ -55,7 +55,7 @@ import type {
 import type { EquipmentV2 } from "../../modules/leads/LeadDetail/equipmentTypes";
 import { normalizeLeadEquipmentFields } from "../../modules/leads/LeadDetail/equipmentV2Normalize";
 import {
-  isLowConfidencePrecision,
+  parseFrenchAddressParts,
   type AddressPickTier,
 } from "../../modules/leads/LeadDetail/addressFallback";
 import { deriveCommercialPilot } from "../../modules/leads/LeadDetail/commercialPilot";
@@ -68,6 +68,62 @@ const SITE_ADDRESS_REQUIRED_MESSAGE =
   "Adresse chantier non validée. Veuillez compléter et valider l'adresse avant de créer une étude.";
 
 // ——— Types ———
+
+function completeSuggestionAddressParts(s: AutocompleteSuggestion): {
+  address_line1: string;
+  address_line2?: string | null;
+  postal_code?: string | null;
+  city?: string | null;
+  country_code: string;
+} {
+  const label = s.label.trim();
+  const components = s.components ?? {};
+  const parsed = parseFrenchAddressParts(label);
+  const commaParts = label.split(",").map((part) => part.trim()).filter(Boolean);
+  const postalFromLabel = label.match(/\b(\d{5})\b/)?.[1] ?? null;
+  const componentAddressLine1 = components.address_line1?.trim() || null;
+  const componentPostalCode = components.postal_code?.trim() || null;
+  const componentCity = components.city?.trim() || null;
+  const postal_code = componentPostalCode ?? parsed.postalCode ?? postalFromLabel;
+
+  let city = componentCity ?? parsed.cityGuess ?? null;
+  let addressLine1 = componentAddressLine1 ?? parsed.streetPart ?? null;
+
+  if (postal_code) {
+    const postalPartIndex = commaParts.findIndex((part) => part.includes(postal_code));
+    if (!componentAddressLine1 && postalPartIndex > 0) {
+      addressLine1 = commaParts[0];
+    }
+    if (!city && postalPartIndex > 0) {
+      city = commaParts[postalPartIndex - 1] ?? null;
+    }
+    const postalIndex = label.indexOf(postal_code);
+    const afterPostal =
+      postalIndex >= 0 ? label.slice(postalIndex + postal_code.length).trim().replace(/^[,;\s]+/, "") : "";
+    if (!city && afterPostal) {
+      city = afterPostal.split(/[,;]/).map((part) => part.trim()).filter(Boolean)[0] ?? null;
+    }
+    if (!city && commaParts.length >= 2) {
+      const withoutPostal = commaParts.map((part) => part.replace(postal_code, "").trim()).filter(Boolean);
+      city = withoutPostal[withoutPostal.length - 1] ?? null;
+    }
+    if (!addressLine1 && postalIndex > 0) {
+      addressLine1 = label.slice(0, postalIndex).trim().replace(/[,;]\s*$/, "");
+    }
+  }
+
+  if (!addressLine1 && commaParts.length > 0) {
+    addressLine1 = commaParts[0];
+  }
+
+  return {
+    address_line1: addressLine1 || label,
+    address_line2: components.address_line2?.trim() || null,
+    postal_code,
+    city,
+    country_code: components.country_code || "FR",
+  };
+}
 
 type MetersLoadPhase = "idle" | "loading" | "ready" | "error";
 type MeterDetailPhase = "idle" | "loading" | "ready" | "error";
@@ -1240,12 +1296,13 @@ export function useLeadDetail() {
         pickTier === "normal" ? "autocomplete_pick"
           : pickTier === "fallback_street" ? "autocomplete_fallback_street"
             : "autocomplete_fallback_city";
+      const addressParts = completeSuggestionAddressParts(s);
       const payload = {
-        address_line1: s.components?.address_line1 || s.label,
-        address_line2: s.components?.address_line2 ?? undefined,
-        postal_code: s.components?.postal_code ?? undefined,
-        city: s.components?.city ?? undefined,
-        country_code: s.components?.country_code || "FR",
+        address_line1: addressParts.address_line1,
+        address_line2: addressParts.address_line2 ?? undefined,
+        postal_code: addressParts.postal_code ?? undefined,
+        city: addressParts.city ?? undefined,
+        country_code: addressParts.country_code,
         formatted_address: s.label,
         lat: s.lat ?? undefined,
         lon: s.lon ?? undefined,
@@ -1260,13 +1317,31 @@ export function useLeadDetail() {
       await patchLeadSilent({ site_address_id: created.id });
       console.log("[ADDR] step3: patchLeadSilent OK");
       setAddressInput(s.label);
-      await fetchLead(true);
-      console.log("[ADDR] step4: fetchLead OK");
-      const mustOpenGeoModal =
-        s.lat == null || s.lon == null ||
-        pickTier === "fallback_street" || pickTier === "fallback_city" ||
-        isLowConfidencePrecision(s.precision_level);
-      if (mustOpenGeoModal) setGeoValidationModalOpen(true);
+      const localAddress: SiteAddress = {
+        id: created.id,
+        address_line1: created.address_line1 ?? payload.address_line1,
+        address_line2: created.address_line2 ?? payload.address_line2,
+        postal_code: created.postal_code ?? payload.postal_code,
+        city: created.city ?? payload.city,
+        country_code: created.country_code ?? payload.country_code,
+        formatted_address: created.formatted_address ?? payload.formatted_address,
+        lat: created.lat ?? payload.lat ?? undefined,
+        lon: created.lon ?? payload.lon ?? undefined,
+        geo_precision_level: created.geo_precision_level ?? payload.geo_precision_level,
+        geo_source: created.geo_source ?? payload.geo_source,
+        is_geo_verified: created.is_geo_verified ?? false,
+      };
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              lead: { ...prev.lead, site_address_id: created.id },
+              site_address: localAddress,
+            }
+          : prev
+      );
+      setGeoValidationModalOpen(true);
+      void fetchLead(true);
       showLeadSuccessToast("✅ Adresse enregistrée");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erreur création adresse";
@@ -1307,12 +1382,13 @@ export function useLeadDetail() {
         pickTier === "normal" ? "autocomplete_pick"
           : pickTier === "fallback_street" ? "autocomplete_fallback_street"
             : "autocomplete_fallback_city";
+      const addressParts = completeSuggestionAddressParts(s);
       const payload = {
-        address_line1: s.components?.address_line1 || s.label,
-        address_line2: s.components?.address_line2 ?? undefined,
-        postal_code: s.components?.postal_code ?? undefined,
-        city: s.components?.city ?? undefined,
-        country_code: s.components?.country_code || "FR",
+        address_line1: addressParts.address_line1,
+        address_line2: addressParts.address_line2 ?? undefined,
+        postal_code: addressParts.postal_code ?? undefined,
+        city: addressParts.city ?? undefined,
+        country_code: addressParts.country_code,
         formatted_address: s.label,
         lat: s.lat ?? undefined,
         lon: s.lon ?? undefined,
