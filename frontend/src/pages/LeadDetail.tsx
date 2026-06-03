@@ -19,6 +19,7 @@ import { DPRefusedModal } from "../modules/leads/DPRefusedModal";
 import { PROJECT_CYCLE_LABELS } from "../modules/leads/LeadDetail/constants";
 import LeadHeader from "../modules/leads/LeadDetail/LeadHeader";
 import {
+  LeadCommercialPilotBar,
   LeadTabs,
   OverviewTab,
   StudiesTab,
@@ -126,6 +127,66 @@ export default function LeadDetail() {
     navigate(`/leads/${ld.id}/dp`);
   };
 
+  const handlePilotPrimaryAction = async () => {
+    const action = ld.commercialPilot.nextAction;
+    if (ld.isReadOnly && action.id !== "open_notes") return;
+    switch (action.id) {
+      case "restore":
+        await ld.handleUnarchiveLead();
+        break;
+      case "complete_contact":
+      case "complete_address":
+      case "complete_consumption":
+        await handleOpenTab("overview");
+        break;
+      case "validate_address":
+        if (ld.data?.site_address?.id) ld.setGeoValidationModalOpen(true);
+        else await handleOpenTab("overview");
+        break;
+      case "create_study":
+        await ld.handleCreateStudy();
+        break;
+      case "open_study": {
+        const study = ld.studies.find((s) => s.id === action.targetStudyId) ?? ld.commercialPilot.primaryStudy;
+        if (study) ld.handleOpenStudyCalpinage(study);
+        else await handleOpenTab("studies");
+        break;
+      }
+      case "create_quote": {
+        const study = ld.studies.find((s) => s.id === action.targetStudyId) ?? ld.commercialPilot.primaryStudy;
+        if (study?.latest_version_id) ld.handleOpenStudyQuoteBuilder(study);
+        else await handleOpenTab("financial");
+        break;
+      }
+      case "open_financial":
+        await handleOpenTab("financial");
+        break;
+      case "send_email":
+        if (canWriteEmail) await ld.openComposeForLeadEmail(email, ld.id!);
+        else await handleOpenTab("financial");
+        break;
+      case "mark_signed":
+        if (action.targetStageId) await ld.handleStageChange(action.targetStageId);
+        break;
+      case "open_dp":
+        await handleOpenDp();
+        break;
+      case "open_documents":
+        await handleOpenTab("documents");
+        break;
+      case "open_notes":
+      default:
+        await handleOpenTab("notes");
+        ld.setAddNotesFormOpen(true);
+        break;
+    }
+  };
+
+  const handlePilotBlockerClick = (blockerId: string) => {
+    const blocker = ld.commercialPilot.blockers.find((b) => b.id === blockerId);
+    if (blocker?.targetTab) void handleOpenTab(blocker.targetTab);
+  };
+
   return (
     <div className={`crm-lead-page${ld.isArchived ? " crm-lead-page--archived" : ""}`}>
       <div ref={ld.headerZoneRef} className="crm-lead-detail-header-zone crm-lead-detail-header-zone--foundation">
@@ -181,6 +242,13 @@ export default function LeadDetail() {
           leadStatusCode={ld.displayLead?.status}
           stageName={stageName}
           stageCode={ld.data.stage?.code}
+        />
+
+        <LeadCommercialPilotBar
+          pilot={ld.commercialPilot}
+          onPrimaryAction={() => void handlePilotPrimaryAction()}
+          onBlockerClick={handlePilotBlockerClick}
+          primaryDisabled={ld.isReadOnly || ld.createStudyLoading || ld.stageChanging}
         />
 
         {ld.error ? (

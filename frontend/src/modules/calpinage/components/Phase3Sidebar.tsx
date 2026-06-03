@@ -19,6 +19,9 @@ import {
 import { Phase3ChecklistPanel } from "../Phase3ChecklistPanel";
 import { createDsmOverlayManager } from "../dsmOverlay";
 import "../dsmOverlay/dsmOverlay.css";
+import { apiFetch } from "../../../services/api";
+import { getCurrentUser } from "../../../services/auth.service";
+import { useToast } from "../ui/useToast";
 
 function formatFallbackReason(reason?: string): string {
   switch (reason) {
@@ -367,6 +370,69 @@ function Phase3StateSummary({
 }
 
 
+function ShadingPdfExportButton() {
+  const [loading, setLoading] = useState(false);
+  const toast = useToast();
+
+  const handleClick = async () => {
+    const cw = getCalpinageWindow();
+    const studyId = cw.CALPINAGE_STUDY_ID;
+    const version = cw.CALPINAGE_VERSION_ID ?? "1";
+    if (!studyId) { toast.error("Impossible : studyId manquant"); return; }
+    setLoading(true);
+    try {
+      const user = await getCurrentUser();
+      const orgId = user?.organizationId;
+      if (!orgId) { toast.error("Impossible : orgId manquant"); setLoading(false); return; }
+      const url = `/internal/pdf/dsm-analysis/${studyId}?orgId=${encodeURIComponent(orgId)}&version=${encodeURIComponent(String(version))}`;
+      const response = await apiFetch(url, { method: "GET", credentials: "include" });
+      if (!response.ok) {
+        let errMsg = "Erreur lors de la génération du PDF";
+        try { const body = await response.json(); if (body?.error) errMsg = body.error; } catch (_) {}
+        throw new Error(errMsg);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      const header = new TextDecoder("ascii").decode(bytes.slice(0, 5));
+      if (header !== "%PDF-") throw new Error("Réponse invalide (attendu PDF)");
+      const blob = new Blob([arrayBuffer], { type: "application/pdf" });
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `analyse-ombrage-${studyId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      toast.success("PDF téléchargé");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Impossible de télécharger le PDF");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className={styles.toolGhostBtn}
+      onClick={handleClick}
+      disabled={loading}
+      title="Exporter le rapport d'analyse d'ombrage (PDF)"
+    >
+      <span className={styles.toolGhostIcon} aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+      </span>
+      {loading ? "PDF…" : "Rapport ombrage"}
+    </button>
+  );
+}
+
 function DsmOverlayButton({
   containerRef,
   onActiveChange,
@@ -707,6 +773,7 @@ export function Phase3Sidebar({
         {containerRef && (
           <>
             <DsmOverlayButton containerRef={containerRef} />
+            <ShadingPdfExportButton />
           </>
         )}
       </section>

@@ -511,13 +511,15 @@ function createOverlayDOM(container) {
     return null;
   }
   const canvasEl = container.querySelector("#calpinage-canvas-el");
+  // DSM-VIEWMODE-FIX: ancrer dans #zone-c (parent commun 2D+3D, toujours visible)
+  // plutôt que #canvas-wrapper qui est display:none en mode 3D.
   const wrapper =
+    container.querySelector("#zone-c") ||
     container.querySelector("#canvas-wrapper") ||
     canvasEl?.parentElement ||
-    container.querySelector("#zone-c") ||
     container.querySelector("#calpinage-body");
   if (!wrapper) {
-    console.error("[DSM] canvas wrapper not found (#canvas-wrapper, canvas parent, #zone-c, #calpinage-body) — overlay aborted");
+    console.error("[DSM] canvas wrapper not found (#zone-c, #canvas-wrapper, canvas parent, #calpinage-body) — overlay aborted");
     return null;
   }
   if (getComputedStyle(wrapper).position === "static") {
@@ -609,11 +611,33 @@ function hideStatus(overlayRoot) {
   }
 }
 
+/**
+ * DSM-VIEWMODE-FIX: retourne l'élément de référence pour la mesure de taille.
+ * En mode 3D, #calpinage-canvas-el est dans #canvas-wrapper (display:none) →
+ * getBoundingClientRect retourne 0×0. On utilise #zone-c-3d à la place.
+ * En mode 2D, on revient au canvas legacy.
+ */
+function getActiveSizeEl(container) {
+  const mode =
+    typeof window !== "undefined" && window.__CALPINAGE_VIEW_MODE__
+      ? window.__CALPINAGE_VIEW_MODE__
+      : "2D";
+  if (mode === "3D") {
+    const zone3d = container.querySelector("#zone-c-3d");
+    if (zone3d) return zone3d;
+  }
+  return (
+    container.querySelector("#calpinage-canvas-el") ||
+    container.querySelector("#zone-c")
+  );
+}
+
 function redraw(manager) {
   const container = manager._container;
   if (!container || !manager._enabled) return;
 
-  const mainCanvas = container.querySelector("#calpinage-canvas-el");
+  // DSM-VIEWMODE-FIX: mesurer la taille sur l'élément actif (3D ou 2D).
+  const mainCanvas = getActiveSizeEl(container);
   const overlayRoot = container.querySelector("#dsm-overlay-container");
   const overlayCanvas = overlayRoot?.querySelector("#dsm-overlay-canvas");
   const radarCanvas = overlayRoot?.querySelector(".dsm-horizon-radar canvas");
@@ -1018,11 +1042,34 @@ export function createDsmOverlayManager(container) {
       }
     }
 
-    const mainCanvas = container.querySelector("#calpinage-canvas-el");
-    if (mainCanvas && typeof ResizeObserver !== "undefined") {
+    // DSM-VIEWMODE-FIX Mod 4: observer #zone-c (toujours visible en 2D et 3D)
+    // plutôt que #calpinage-canvas-el qui est dans #canvas-wrapper (display:none en 3D).
+    const resizeTarget =
+      container.querySelector("#zone-c") ||
+      container.querySelector("#calpinage-canvas-el");
+    if (resizeTarget && typeof ResizeObserver !== "undefined") {
       manager._resizeObserver = new ResizeObserver(() => scheduleRedraw(manager));
-      manager._resizeObserver.observe(mainCanvas);
+      manager._resizeObserver.observe(resizeTarget);
     }
+
+    // DSM-VIEWMODE-FIX Mod 3: synchroniser la visibilité du heatmap canvas lors du toggle 2D/3D.
+    // Le radar et le panneau résumé restent visibles dans les deux modes.
+    // Le canvas heatmap est masqué en 3D car ses coordonnées polygonPx sont celles du canvas 2D
+    // et n'ont aucune correspondance dans l'espace Three.js.
+    const viewModeHandler = (e) => {
+      const mode = e && e.detail && e.detail.mode;
+      const overlayRoot = container.querySelector("#dsm-overlay-container");
+      const heatmapCanvas = overlayRoot?.querySelector("#dsm-overlay-canvas");
+      if (mode === "3D") {
+        if (heatmapCanvas) heatmapCanvas.style.display = "none";
+        scheduleRedraw(manager);
+      } else {
+        if (heatmapCanvas) heatmapCanvas.style.display = "";
+        scheduleRedraw(manager);
+      }
+    };
+    window.addEventListener("calpinage:viewmode", viewModeHandler);
+    manager._listeners.push({ el: window, type: "calpinage:viewmode", handler: viewModeHandler });
 
     const { destroy: destroyInteraction } = createDsmInteractionLayer(root);
     manager._interactionLayerDestroy = destroyInteraction;

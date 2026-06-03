@@ -11,6 +11,7 @@ import { generateDsmAnalysisPDF, generatePdfFromHtml } from "../pdf/playwright-d
 import { getDsmAnalysisData } from "../services/dsmAnalysisPdf.service.js";
 import { getHorizonMaskPdfData } from "../services/horizonMaskPdf.service.js";
 import { buildDsmCombinedHtml } from "../pdf/dsmCombinedHtmlBuilder.js";
+import { buildShadingReportHtml } from "../pdf/shadingReportHtmlBuilder.js";
 import { buildHorizonMaskSinglePageHtml } from "../pdf/horizonMaskHtmlBuilder.js";
 import { respondWithDpPdfOrJson } from "../services/dpPdfPersistResponse.service.js";
 import { publicHeavyRateLimiter } from "../middleware/security/rateLimit.presets.js";
@@ -390,13 +391,13 @@ router.get(
       orgId,
     });
 
-    const html = buildDsmCombinedHtml(data);
+    const html = buildShadingReportHtml(data);
     const pdfBuffer = await generateDsmAnalysisPDF(html);
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      'attachment; filename="analyse-ombres-solarglobe.pdf"'
+      `attachment; filename="analyse-ombrage-${studyId}.pdf"`
     );
 
     res.send(pdfBuffer);

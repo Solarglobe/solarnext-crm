@@ -4,7 +4,7 @@
  * LeadDetail.tsx ne conserve que le JSX (routeur d'onglets + layout).
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, useBlocker, useSearchParams } from "react-router-dom";
 import { apiFetch, getAuthToken } from "../../services/api";
 import { createAddress, type AutocompleteSuggestion } from "../../services/address.service";
@@ -58,6 +58,7 @@ import {
   isLowConfidencePrecision,
   type AddressPickTier,
 } from "../../modules/leads/LeadDetail/addressFallback";
+import { deriveCommercialPilot } from "../../modules/leads/LeadDetail/commercialPilot";
 import { getCrmApiBase } from "../../config/crmApiBase";
 import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
 import { useUndoAction } from "../useUndoAction";
@@ -1447,6 +1448,45 @@ export function useLeadDetail() {
   const energySectionSummary = buildEnergyMetersSectionSummary(metersLoadPhase, metersList, metersFetchError);
   const metersBarMeters = metersLoadPhase === "loading" ? null : metersList;
   const dpFolderAccessible = displayLead ? isLeadDpFolderAccessible(displayLead) : false;
+  const commercialPilot = useMemo(
+    () =>
+      deriveCommercialPilot({
+        lead: displayLead ?? null,
+        stage: data?.stage ?? null,
+        stages: data?.stages ?? [],
+        siteAddress: data?.site_address ?? null,
+        activities,
+        studies,
+        quotes,
+        documents,
+        clientDocuments,
+        metersCount: metersList.length,
+        hasEnergyEngine: Boolean(energyEngine),
+        hasMonthlyConsumption: monthlyLocal.some((m) => Number(m.kwh) > 0),
+        isLead,
+        isClient,
+        isArchived,
+        dpFolderAccessible,
+      }),
+    [
+      activities,
+      clientDocuments,
+      data?.site_address,
+      data?.stage,
+      data?.stages,
+      displayLead,
+      documents,
+      dpFolderAccessible,
+      energyEngine,
+      isArchived,
+      isClient,
+      isLead,
+      metersList.length,
+      monthlyLocal,
+      quotes,
+      studies,
+    ]
+  );
 
   return {
     // Core
@@ -1514,6 +1554,7 @@ export function useLeadDetail() {
     // Computed
     displayLead, fullName, commercialEmail,
     isArchived, isClient, isLead, headerTypeStatus,
+    commercialPilot,
     showEnergyConsoBody, energySectionSummary, metersBarMeters, dpFolderAccessible,
     // Refs for JSX
     headerZoneRef, leadStickyBarVisible,
