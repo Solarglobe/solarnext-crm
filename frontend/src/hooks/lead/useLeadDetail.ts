@@ -1435,13 +1435,47 @@ export function useLeadDetail() {
         geo_confidence: s.confidence ?? undefined,
       };
       const created = await createAddress(payload);
-      await patchLeadSilent({ billing_address_id: created.id });
+      const shouldUseAsSiteAddress = !data?.lead?.site_address_id && !data?.site_address;
+      await patchLeadSilent({
+        billing_address_id: created.id,
+        ...(shouldUseAsSiteAddress ? { site_address_id: created.id } : {}),
+      });
       setBillingAddressInput(s.label);
-      await fetchLead(true);
+      if (shouldUseAsSiteAddress) {
+        setAddressInput(s.label);
+        const localAddress: SiteAddress = {
+          id: created.id,
+          address_line1: created.address_line1 ?? payload.address_line1,
+          address_line2: created.address_line2 ?? payload.address_line2,
+          postal_code: created.postal_code ?? payload.postal_code,
+          city: created.city ?? payload.city,
+          country_code: created.country_code ?? payload.country_code,
+          formatted_address: created.formatted_address ?? payload.formatted_address,
+          lat: created.lat ?? payload.lat ?? undefined,
+          lon: created.lon ?? payload.lon ?? undefined,
+          geo_precision_level: created.geo_precision_level ?? payload.geo_precision_level,
+          geo_source: created.geo_source ?? payload.geo_source,
+          is_geo_verified: created.is_geo_verified ?? false,
+        };
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                lead: { ...prev.lead, billing_address_id: created.id, site_address_id: created.id },
+                billing_address: localAddress,
+                site_address: localAddress,
+              }
+            : prev
+        );
+        setGeoValidationModalOpen(true);
+        void fetchLead(true);
+      } else {
+        await fetchLead(true);
+      }
       // Contrainte : la validation géographique concerne uniquement site_address_id.
       // billing_address_id (siège social) = usage administratif — pas de géovalidation.
     } catch (e) { setError(e instanceof Error ? e.message : "Erreur création adresse siège"); }
-  }, [isReadOnly, patchLeadSilent, fetchLead]);
+  }, [isReadOnly, data?.lead?.site_address_id, data?.site_address, patchLeadSilent, fetchLead]);
 
   /**
    * Copier l'adresse du siège social comme adresse chantier (PRO).
@@ -1454,7 +1488,17 @@ export function useLeadDetail() {
     if (!billingId) return;
     try {
       await patchLeadSilent({ site_address_id: billingId });
-      await fetchLead(true);
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              lead: { ...prev.lead, site_address_id: billingId },
+              site_address: prev.billing_address ?? prev.site_address,
+            }
+          : prev
+      );
+      setGeoValidationModalOpen(true);
+      void fetchLead(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Erreur copie adresse"); }
   }, [isReadOnly, data?.lead?.billing_address_id, patchLeadSilent, fetchLead]);
 
