@@ -1750,50 +1750,11 @@
       };
     }
 
-    /* CENTRAGE AUTOMATIQUE — aligne le barycentre du groupe sur le centroïde du pan.
-     * Problème : l'ancre est le centre du 1er panneau posé. Si ce panneau est décalé,
-     * le groupe remplit le pan en partant de ce point, laissant des marges visuelles
-     * inégales (plus d'espace d'un côté que de l'autre).
-     * Correction : on calcule le décalage entre le barycentre des positions valides et
-     * le centroïde du polygone de pan, puis on décale l'ancre de cette différence et on
-     * relance la grille. Le résultat n'est appliqué que si le nombre de panneaux valides
-     * est identique (aucune perte due au recalage).                                    */
+    /* NOTE CENTRAGE (revert) : un centrage post-calcul déplaçait la grille vers le
+     * centroïde du pan mais laissait le 1er panneau (déjà posé manuellement) à son
+     * emplacement d'origine — hors de la grille décalée → décalage en escalier visible.
+     * La grille reste donc ancrée sur le 1er panneau (gridBase = refCenter).              */
     var autofillGridNudge = null;
-    if (full.validCenters && full.validCenters.length > 0 && roofPolygon && roofPolygon.length >= 3) {
-      /* 1. Barycentre du groupe valide (image-space) */
-      var _sumCx = 0, _sumCy = 0;
-      for (var _ni = 0; _ni < full.validCenters.length; _ni++) {
-        _sumCx += full.validCenters[_ni].x;
-        _sumCy += full.validCenters[_ni].y;
-      }
-      var _groupCx = _sumCx / full.validCenters.length;
-      var _groupCy = _sumCy / full.validCenters.length;
-
-      /* 2. Centroïde du polygone de pan (proxy du centre de la safe zone) */
-      var _panCx = 0, _panCy = 0;
-      for (var _pi2 = 0; _pi2 < roofPolygon.length; _pi2++) {
-        _panCx += roofPolygon[_pi2].x;
-        _panCy += roofPolygon[_pi2].y;
-      }
-      _panCx /= roofPolygon.length;
-      _panCy /= roofPolygon.length;
-
-      var _nudgeDx = _panCx - _groupCx;
-      var _nudgeDy = _panCy - _groupCy;
-
-      /* 3. Seuil minimal : évite un recalcul pour un décalage négligeable (< 5 % du pas) */
-      var _nudgeDist = Math.hypot(_nudgeDx, _nudgeDy);
-      var _nudgeThreshold = Math.min(stepAlong, stepPerp) * 0.05;
-      if (_nudgeDist > _nudgeThreshold) {
-        var _nudgedBase = { x: gridBase.x + _nudgeDx, y: gridBase.y + _nudgeDy };
-        var _fullNudged = runGridAtAnchor(_nudgedBase, true);
-        /* 4. N'applique le centrage que si le nombre de panneaux valides est inchangé */
-        if (!_fullNudged.aborted && _fullNudged.validCenters.length >= full.validCenters.length) {
-          full = _fullNudged;
-          autofillGridNudge = { dx: _nudgeDx, dy: _nudgeDy };
-        }
-      }
-    }
 
     var validCenters = full.validCenters;
     var previewItems = full.previewItems;
