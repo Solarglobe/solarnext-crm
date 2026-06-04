@@ -17,7 +17,7 @@ export default function LeadCommercialPilotBar({
   onBlockerClick,
   primaryDisabled = false,
 }: LeadCommercialPilotBarProps) {
-  const visibleBlockers = pilot.blockers.slice(0, 3);
+  const visibleBlockers = pilot.blockers.slice(0, 2);
   const hiddenCount = Math.max(0, pilot.blockers.length - visibleBlockers.length);
   const interaction = pilot.lastInteraction;
 
@@ -25,8 +25,9 @@ export default function LeadCommercialPilotBar({
     <section className="lead-commercial-pilot" aria-label="Pilotage commercial">
       <div className={`lead-commercial-pilot__next ${toneClass(pilot.nextAction.tone)}`}>
         <div className="lead-commercial-pilot__eyebrow">Prochaine action</div>
-        <div className="lead-commercial-pilot__title">{pilot.nextAction.title}</div>
-        <p className="lead-commercial-pilot__subtitle">{pilot.nextAction.subtitle}</p>
+        <div className="lead-commercial-pilot__title" title={pilot.nextAction.subtitle}>
+          {pilot.nextAction.title}
+        </div>
         <button
           type="button"
           className="sn-btn sn-btn-primary sn-btn-sm lead-commercial-pilot__cta"
@@ -52,7 +53,7 @@ export default function LeadCommercialPilotBar({
           ) : (
             <>
               <div className="lead-commercial-pilot__status lead-pilot-tone-danger">Aucune interaction</div>
-              <p className="lead-commercial-pilot__line">Ajoutez une note, un appel ou un email pour tracer le suivi.</p>
+              <p className="lead-commercial-pilot__line">Aucun suivi trace</p>
             </>
           )}
         </div>
