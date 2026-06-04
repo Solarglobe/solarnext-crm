@@ -68,6 +68,10 @@ const API_BASE = getCrmApiBase();
 const SITE_ADDRESS_REQUIRED_MESSAGE =
   "Adresse chantier non validée. Veuillez compléter et valider l'adresse avant de créer une étude.";
 
+function isTruthyFlag(value: unknown): boolean {
+  return value === true || value === 1 || value === "1" || value === "true";
+}
+
 // ——— Types ———
 
 function completeSuggestionAddressParts(s: AutocompleteSuggestion): {
@@ -1552,7 +1556,7 @@ export function useLeadDetail() {
     const hasSiteAddressId = Boolean(data?.lead?.site_address_id);
     const hasLat = Number.isFinite(Number(siteAddress?.lat));
     const hasLon = Number.isFinite(Number(siteAddress?.lon));
-    const isGeoVerified = siteAddress?.is_geo_verified === true;
+    const isGeoVerified = isTruthyFlag(siteAddress?.is_geo_verified);
     if (!hasSiteAddressId || !hasLat || !hasLon || !isGeoVerified) {
       requestSiteAddressValidation();
       return;

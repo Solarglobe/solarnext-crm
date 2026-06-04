@@ -80,9 +80,9 @@ interface PilotStage {
 
 interface PilotSiteAddress {
   id?: string;
-  lat?: number;
-  lon?: number;
-  is_geo_verified?: boolean;
+  lat?: number | string | null;
+  lon?: number | string | null;
+  is_geo_verified?: boolean | string | number | null;
 }
 
 interface DeriveCommercialPilotInput {
@@ -170,8 +170,16 @@ function hasConsumption(input: DeriveCommercialPilotInput): boolean {
   );
 }
 
+function isTruthyFlag(value: unknown): boolean {
+  return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function hasFiniteCoordinate(value: unknown): boolean {
+  return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+}
+
 function isAddressVerified(site: PilotSiteAddress | null | undefined): boolean {
-  return Boolean(site?.is_geo_verified === true && Number.isFinite(site.lat) && Number.isFinite(site.lon));
+  return Boolean(isTruthyFlag(site?.is_geo_verified) && hasFiniteCoordinate(site?.lat) && hasFiniteCoordinate(site?.lon));
 }
 
 function signedStage(stages: PilotStage[]): PilotStage | null {

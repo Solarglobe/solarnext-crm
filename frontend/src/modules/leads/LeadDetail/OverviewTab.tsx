@@ -191,6 +191,10 @@ function buildAddressOverviewSummary(
   return city || null;
 }
 
+function isTruthyFlag(value: unknown): boolean {
+  return value === true || value === 1 || value === "1" || value === "true";
+}
+
 function buildConsommationSummary(annualKwh: number | null | undefined, meterKva: number | undefined | null): string | null {
   const kwhPart =
     annualKwh != null && Number.isFinite(annualKwh) ? formatEnergyKwh(annualKwh) : "—";
@@ -869,7 +873,7 @@ export default function OverviewTab({
         ? lead.consumption_annual_calculated_kwh ?? 0
         : annualFromEngine;
   const siteAddr = siteAddress;
-  const isGeoVerified = siteAddr?.is_geo_verified === true;
+  const isGeoVerified = isTruthyFlag(siteAddr?.is_geo_verified);
   const hasLatLon = siteAddr?.lat != null && siteAddr?.lon != null;
   const addressQualityUi = qualityUiFromSite({
     isGeoVerified,
@@ -1591,24 +1595,24 @@ export default function OverviewTab({
           </div>
           {billingAddress && (
             <>
-              <div className="crm-lead-address-meta">
-                <span className="crm-lead-address-meta-label">PRÉCISION GÉOLOCALISATION</span>
-                <span className={`crm-lead-address-quality-badge crm-lead-address-quality-badge--${billingAddress.is_geo_verified ? "verified" : "pending"}`}>
-                  {billingAddress.is_geo_verified ? "Validé (parcelle)" : "À confirmer sur carte"}
+              <div className="crm-lead-address-quality-row" aria-live="polite">
+                <span className="crm-lead-address-quality-label">Précision géolocalisation</span>
+                <span className={billingAddress.is_geo_verified ? "sn-badge sn-badge-success" : "sn-badge sn-badge-neutral"}>
+                  {billingAddress.is_geo_verified ? "Validé (parcelle)" : "Adresse administrative"}
                 </span>
               </div>
-              <div className="crm-lead-address-fields">
+              <div className="crm-lead-fields">
                 {[
-                  { label: "ADRESSE", value: billingAddress.address_line1 },
-                  { label: "CODE POSTAL", value: billingAddress.postal_code },
-                  { label: "VILLE", value: billingAddress.city },
-                  { label: "PAYS", value: billingAddress.country_code },
-                  { label: "LATITUDE", value: billingAddress.lat },
-                  { label: "LONGITUDE", value: billingAddress.lon },
+                  { label: "Adresse", value: [billingAddress.address_line1, billingAddress.address_line2].filter(Boolean).join(", ") || "—" },
+                  { label: "Code postal", value: billingAddress.postal_code || "—" },
+                  { label: "Ville", value: billingAddress.city || "—" },
+                  { label: "Pays", value: billingAddress.country_code || "FR" },
+                  { label: "Latitude", value: billingAddress.lat ?? "—" },
+                  { label: "Longitude", value: billingAddress.lon ?? "—" },
                 ].map(({ label, value }) => value != null && (
-                  <div key={label} className="crm-lead-address-field">
-                    <span className="crm-lead-address-field-label">{label}</span>
-                    <input className="sn-input sn-input--readonly" readOnly value={String(value)} />
+                  <div key={label} className="crm-lead-field">
+                    <label>{label}</label>
+                    <input className="sn-input" readOnly value={String(value)} />
                   </div>
                 ))}
               </div>
