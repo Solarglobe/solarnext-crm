@@ -39,7 +39,7 @@ import {
   ACTIVITY_TAG_DP_RETRY_LATER,
   type DPRefusedChoice,
 } from "../../modules/leads/dpRefusedStatus";
-import { isLeadDpFolderAccessible } from "../../modules/leads/LeadDetail/constants";
+import { ALL_TABS, isLeadDpFolderAccessible } from "../../modules/leads/LeadDetail/constants";
 import type { LeadTabId, EnergyEngineResult, OverviewLead } from "../../modules/leads/LeadDetail";
 import type { LeadMeterListItem } from "../../modules/leads/LeadDetail/LeadMetersBar";
 import { annualKwhForCard } from "../../modules/leads/LeadDetail/LeadMetersBar";
@@ -70,6 +70,10 @@ const SITE_ADDRESS_REQUIRED_MESSAGE =
 
 function isTruthyFlag(value: unknown): boolean {
   return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function parseLeadTab(value: string | null): LeadTabId | null {
+  return ALL_TABS.includes(value as LeadTabId) ? (value as LeadTabId) : null;
 }
 
 // ——— Types ———
@@ -306,7 +310,7 @@ export function parseEnergyEngineFromProfile(ep: unknown): EnergyEngineResult | 
 export function useLeadDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // ——— Data ———
   const [data, setData] = useState<LeadDetailData | null>(null);
@@ -314,7 +318,7 @@ export function useLeadDetail() {
   const [error, setError] = useState<string | null>(null);
 
   // ——— UI state ———
-  const _initialTab = (searchParams.get("tab") as LeadTabId | null) ?? "overview";
+  const _initialTab = parseLeadTab(searchParams.get("tab")) ?? "overview";
   const [activeTab, setActiveTab] = useState<LeadTabId>(_initialTab);
   const [stageChanging, setStageChanging] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
@@ -435,7 +439,7 @@ export function useLeadDetail() {
   useEffect(() => { selectedMeterIdRef.current = selectedMeterId; }, [selectedMeterId]);
 
   useEffect(() => {
-    const tabFromUrl = searchParams.get("tab") as LeadTabId | null;
+    const tabFromUrl = parseLeadTab(searchParams.get("tab"));
     if (tabFromUrl && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
@@ -1042,13 +1046,23 @@ export function useLeadDetail() {
       if (!ok) return;
     }
     setActiveTab(tab);
-  }, [activeTab, flushOverviewSave]);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", tab);
+      return next;
+    }, { replace: true });
+  }, [activeTab, flushOverviewSave, setSearchParams]);
 
   const requestSiteAddressValidation = useCallback(() => {
     setError(SITE_ADDRESS_REQUIRED_MESSAGE);
     setActiveTab("overview");
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", "overview");
+      return next;
+    }, { replace: true });
     setAddressFocusRequestSeq((seq) => seq + 1);
-  }, []);
+  }, [setSearchParams]);
 
   // ——— Meter handlers ———
   const handleOpenMeterCreateModal = useCallback(async () => {
