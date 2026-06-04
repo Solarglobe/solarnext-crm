@@ -325,9 +325,10 @@ export default function InvoiceBuilderPage() {
   }, [id, state, load, canEdit]);
 
   const openCatalog = async () => {
+    setCatalogQ("");
     setCatalogOpen(true);
     try {
-      const { items } = await adminGetQuoteCatalog({ q: catalogQ || undefined });
+      const { items } = await adminGetQuoteCatalog();
       setCatalogItems(items.filter((x) => x.is_active));
     } catch {
       setCatalogItems([]);
@@ -352,6 +353,7 @@ export default function InvoiceBuilderPage() {
         position: state.lines.length + 1,
       },
     });
+    setCatalogQ("");
     setCatalogOpen(false);
   };
 

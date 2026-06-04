@@ -485,9 +485,10 @@ export default function QuoteBuilderPage() {
 
   const openCatalog = async () => {
     if (isReadOnly) return;
+    setCatalogQ("");
     setCatalogOpen(true);
     try {
-      const { items } = await adminGetQuoteCatalog({ q: catalogQ || undefined });
+      const { items } = await adminGetQuoteCatalog();
       setCatalogItems(items.filter((x) => x.is_active));
     } catch {
       setCatalogItems([]);
@@ -515,6 +516,7 @@ export default function QuoteBuilderPage() {
       ...(Number.isFinite(pCents) && pCents > 0 ? { purchase_unit_price_ht_cents: Math.floor(pCents) } : {}),
     };
     dispatch({ type: "ADD_LINE", line });
+    setCatalogQ("");
     setCatalogOpen(false);
   };
 
