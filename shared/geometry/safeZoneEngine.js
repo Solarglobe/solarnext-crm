@@ -130,6 +130,11 @@ function ensureClosedClipperPath(path) {
 
 /**
  * Inset (shrink) d'un polygone pan.
+ * Utilise jtSquare (bisectrice à 45°) plutôt que jtMiter pour éviter que les coins
+ * d'angles non-rectangulaires produisent des décalages visuels asymétriques :
+ * avec jtMiter, un coin aigu se rétracte davantage (gap visuel plus grand) et un
+ * coin obtus moins (gap plus petit), rendant la marge apparemment inégale sur un
+ * pan trapézoïdal. jtSquare biseaute uniformément → marge visuelle cohérente.
  * @param {Array<{X: number, Y: number}>} path - path Clipper
  * @param {number} deltaPx - marge en px (positif = shrink)
  * @returns {Array<Array<{X: number, Y: number}>>}
@@ -139,7 +144,7 @@ function offsetInward(path, deltaPx) {
   const deltaInt = Math.round(deltaPx * SCALE);
   if (deltaInt <= 0) return [path];
   const co = new ClipperLib.ClipperOffset(MITER_LIMIT, 0.25);
-  co.AddPath(path, ClipperLib.JoinType.jtMiter, ClipperLib.EndType.etClosedPolygon);
+  co.AddPath(path, ClipperLib.JoinType.jtSquare, ClipperLib.EndType.etClosedPolygon);
   const solution = new ClipperLib.Paths();
   co.Execute(solution, -deltaInt);
   return solution;
