@@ -1857,6 +1857,25 @@
     if (!centers || centers.length === 0) {
       return { success: false, added: 0, failed: 0, reason: "Aucun centre fourni." };
     }
+
+    /* CORRECTION DÉCALAGE AUTOFILL — double application du manipulationTransform.
+     *
+     * Les centres fournis par computeAutofillGridPreview sont en coordonnées absolues
+     * (image-space) : l'ancre gridBase = getEffectivePanelCenter(block, 0) intègre déjà
+     * le manipulationTransform courant (offsetX/Y + rotation).
+     *
+     * Si on stocke ces centres tels quels dans block.panels[i].center ALORS QUE
+     * manipulationTransform est encore actif, le rendu re-appliquera le transform
+     * lors du prochain getEffectivePanelCenter, produisant un double décalage :
+     *   • panneaux existants  → transform appliqué 1× au rendu (correct)
+     *   • nouveaux panneaux   → transform déjà dans la valeur stockée + appliqué 1× → décalage ×2
+     *
+     * commitManipulation() transfère le transform dans les centres stockés des panneaux
+     * existants et réinitialise manipulationTransform = null. Les nouveaux panneaux
+     * peuvent alors être stockés à leurs coordonnées absolues sans risque de doublon.   */
+    if (block.manipulationTransform && typeof APB.commitManipulation === "function") {
+      APB.commitManipulation();
+    }
     var ctxBatch = typeof getProjectionContext === "function" ? getProjectionContext() : null;
     var cachesBatch = null;
     if (isFlatRoofContext(ctxBatch)) {
