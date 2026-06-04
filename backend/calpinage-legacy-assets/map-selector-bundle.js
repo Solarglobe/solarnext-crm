@@ -555,7 +555,11 @@
     var GP_ZOOM = 19;
     var leafletMap = L.map(container, { minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM }).setView([GP_CENTER.lat, GP_CENTER.lng], GP_ZOOM);
     L.tileLayer(
-      "https://data.geopf.fr/wmts?service=WMTS&request=GetTile&version=1.0.0&tilematrixset=PM&tilematrix={z}&tilecol={x}&tilerow={y}&layer=ORTHOIMAGERY.ORTHOPHOTOS&format=image/jpeg&style=normal",
+      "https://data.geopf.fr/wmts?service=WMTS&request=GetTile&version=1.0.0&tilematrixset=PM_0_19&tilematrix={z}&tilecol={x}&tilerow={y}&layer=ORTHOIMAGERY.ORTHOPHOTOS&format=image/jpeg&style=normal",
+      { minZoom: 0, maxZoom: 21, maxNativeZoom: 19, tileSize: 256, attribution: "IGN-F/Geoportail" }
+    ).addTo(leafletMap);
+    L.tileLayer(
+      "https://data.geopf.fr/wmts?service=WMTS&request=GetTile&version=1.0.0&tilematrixset=PM_6_21&tilematrix={z}&tilecol={x}&tilerow={y}&layer=THR.ORTHOIMAGERY.ORTHOPHOTOS&format=image/jpeg&style=normal",
       { minZoom: 0, maxZoom: 21, tileSize: 256, attribution: "© IGN-F/Géoportail" }
     ).addTo(leafletMap);
 
