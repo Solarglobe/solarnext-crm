@@ -1561,6 +1561,43 @@
     if (stepAlong <= 0) stepAlong = 1;
     if (stepPerp <= 0) stepPerp = 1;
 
+    /* CENTRAGE PAR PAS ENTIERS — déplace gridBase vers le centroïde du pan en
+     * arrondissant à l'entier de pas dans chaque direction de la grille.
+     *
+     * Principe : le 1er panneau (à gridBase avant décalage) doit rester sur un
+     * nœud de la grille après décalage, sinon il se retrouverait isolé du groupe
+     * lors du commit autofill. En décalant par un nombre entier de pas, le
+     * 1er panneau reste à l'indice (u = -roundU, v = -roundV) de la nouvelle
+     * grille — c'est toujours un nœud valide, donc il est inclus visuellement
+     * dans le groupe. Résultat : groupe centré ET 1er panneau intégré.
+     *
+     * Fonctionne aussi pour le placement 3D où le clic tombe en dehors du centre
+     * visuel : le décalage par pas entiers ramène le groupe au centre du pan
+     * sans bouger les panneaux déjà posés manuellement.                        */
+    if (roofPolygon && roofPolygon.length >= 3) {
+      var _panCX = 0, _panCY = 0;
+      for (var _pCi = 0; _pCi < roofPolygon.length; _pCi++) {
+        _panCX += roofPolygon[_pCi].x;
+        _panCY += roofPolygon[_pCi].y;
+      }
+      _panCX /= roofPolygon.length;
+      _panCY /= roofPolygon.length;
+      /* Projeter le vecteur centroïde→gridBase sur les axes de la grille */
+      var _dxC = _panCX - gridBase.x;
+      var _dyC = _panCY - gridBase.y;
+      var _deltaU = (_dxC * slopeAxis.x + _dyC * slopeAxis.y) / stepAlong;
+      var _deltaV = (_dxC * perpAxis.x + _dyC * perpAxis.y) / stepPerp;
+      /* Arrondir à l'entier le plus proche (préserve le 1er panneau sur un nœud) */
+      var _roundU = Math.round(_deltaU);
+      var _roundV = Math.round(_deltaV);
+      if (_roundU !== 0 || _roundV !== 0) {
+        gridBase = {
+          x: gridBase.x + _roundU * stepAlong * slopeAxis.x + _roundV * stepPerp * perpAxis.x,
+          y: gridBase.y + _roundU * stepAlong * slopeAxis.y + _roundV * stepPerp * perpAxis.y,
+        };
+      }
+    }
+
     var validationCaches = buildValidationCaches(block, getProjectionContext);
     if (!validationCaches) {
       return { success: false, reason: "Contexte de validation indisponible." };
