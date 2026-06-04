@@ -99,12 +99,13 @@ export function buildRecipientLines(rec: Record<string, unknown> | undefined): s
     lines.push(fn);
   } else if (company) lines.push(company);
   else if (fn) lines.push(fn);
+  if (rec.siret) lines.push(`SIRET ${rec.siret}`);
+  const { streetLines, postalCity, country } = extractRecipientAddressParts(rec);
+  for (const line of streetLines) lines.push(line);
+  if (postalCity) lines.push(postalCity);
+  if (country) lines.push(country);
   if (rec.email) lines.push(String(rec.email));
   if (rec.phone) lines.push(`Tél. ${rec.phone}`);
-  const addr = rec.address;
-  if (typeof addr === "string" && addr.trim()) {
-    lines.push(...addr.split(/\n|,/).map((x) => x.trim()).filter(Boolean));
-  }
   return lines;
 }
 
@@ -171,6 +172,7 @@ export function buildInvoiceRecipientAddressLines(rec: Record<string, unknown> |
 /** Email et téléphone — après le bloc adresse. */
 export function buildInvoiceRecipientContactLines(rec: Record<string, unknown> | undefined): string[] {
   const out: string[] = [];
+  if (rec?.siret) out.push(`SIRET ${rec.siret}`);
   if (rec?.email) out.push(String(rec.email));
   if (rec?.phone) out.push(String(rec.phone));
   return out;

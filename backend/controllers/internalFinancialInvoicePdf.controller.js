@@ -10,6 +10,7 @@ import {
   buildInvoicePdfPayloadFromSnapshot,
   mergeLiveBillingAddressIntoInvoicePdfPayload,
   mergeLiveOrganizationBankIntoInvoicePdfPayload,
+  mergeLiveRecipientBusinessFieldsIntoFinancialPdfPayload,
 } from "../services/financialDocumentPdfPayload.service.js";
 
 export async function getInternalFinancialInvoicePdfPayload(req, res) {
@@ -68,7 +69,8 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
     let leadRow = null;
     if (cid) {
       const cr = await pool.query(
-        `SELECT address_line_1, address_line_2, postal_code, city, country,
+        `SELECT company_name, first_name, last_name, email, phone, siret,
+                address_line_1, address_line_2, postal_code, city, country,
                 installation_address_line_1, installation_postal_code, installation_city
          FROM clients WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
         [cid, decoded.organizationId]
@@ -77,7 +79,9 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
     }
     if (lid) {
       const lr = await pool.query(
-        `SELECT l.address AS legacy_address,
+        `SELECT l.customer_type, l.company_name, l.contact_first_name, l.contact_last_name,
+                l.first_name, l.last_name, l.email, l.phone, l.siret,
+                l.address AS legacy_address,
                 b.address_line1 AS b_line1,
                 b.address_line2 AS b_line2,
                 b.postal_code AS b_postal,
@@ -99,6 +103,7 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
       leadRow = lr.rows[0] ?? null;
     }
     payload = mergeLiveBillingAddressIntoInvoicePdfPayload(payload, { clientRow, leadRow });
+    payload = mergeLiveRecipientBusinessFieldsIntoFinancialPdfPayload(payload, { clientRow, leadRow });
 
     // Merge live payment data — total_paid / amount_due doivent toujours refléter
     // les paiements réels, pas le snapshot figé à l'émission (qui avait total_paid=0).

@@ -5,7 +5,10 @@
 
 import { pool } from "../config/db.js";
 import { verifyFinancialQuoteRenderToken } from "../services/pdfRenderToken.service.js";
-import { buildQuotePdfPayloadFromSnapshot } from "../services/financialDocumentPdfPayload.service.js";
+import {
+  buildQuotePdfPayloadFromSnapshot,
+  mergeLiveRecipientBusinessFieldsIntoFinancialPdfPayload,
+} from "../services/financialDocumentPdfPayload.service.js";
 import { mergeQuoteOrgDocumentFieldsIntoPayload } from "../services/quoteDocumentOrgSettings.service.js";
 import {
   QUOTE_DOC_SIGNATURE_CLIENT,
@@ -31,7 +34,7 @@ export async function getInternalFinancialQuotePdfPayload(req, res) {
     }
 
     const r = await pool.query(
-      `SELECT status, document_snapshot_json FROM quotes
+      `SELECT status, document_snapshot_json, client_id, lead_id FROM quotes
        WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
       [quoteId, decoded.organizationId]
     );
@@ -53,6 +56,46 @@ export async function getInternalFinancialQuotePdfPayload(req, res) {
     } catch (pe) {
       return res.status(400).json({ ok: false, error: pe.message || "Snapshot invalide" });
     }
+
+    const cid = r.rows[0]?.client_id ?? null;
+    const lid = r.rows[0]?.lead_id ?? null;
+    let clientRow = null;
+    let leadRow = null;
+    if (cid) {
+      const cr = await pool.query(
+        `SELECT company_name, first_name, last_name, email, phone, siret,
+                address_line_1, address_line_2, postal_code, city, country,
+                installation_address_line_1, installation_postal_code, installation_city
+         FROM clients WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+        [cid, decoded.organizationId]
+      );
+      clientRow = cr.rows[0] ?? null;
+    }
+    if (lid) {
+      const lr = await pool.query(
+        `SELECT l.customer_type, l.company_name, l.contact_first_name, l.contact_last_name,
+                l.first_name, l.last_name, l.email, l.phone, l.siret, l.address AS legacy_address,
+                b.address_line1 AS b_line1,
+                b.address_line2 AS b_line2,
+                b.postal_code AS b_postal,
+                b.city AS b_city,
+                b.country_code AS b_country,
+                b.formatted_address AS b_formatted,
+                s.address_line1 AS s_line1,
+                s.address_line2 AS s_line2,
+                s.postal_code AS s_postal,
+                s.city AS s_city,
+                s.country_code AS s_country,
+                s.formatted_address AS s_formatted
+         FROM leads l
+         LEFT JOIN addresses b ON b.id = l.billing_address_id AND b.organization_id = l.organization_id
+         LEFT JOIN addresses s ON s.id = l.site_address_id AND s.organization_id = l.organization_id
+         WHERE l.id = $1 AND l.organization_id = $2 AND (l.archived_at IS NULL)`,
+        [lid, decoded.organizationId]
+      );
+      leadRow = lr.rows[0] ?? null;
+    }
+    payload = mergeLiveRecipientBusinessFieldsIntoFinancialPdfPayload(payload, { clientRow, leadRow });
 
     const wantSigned = req.query.quoteSigned === "1" || req.query.quoteSigned === "true";
     if (wantSigned) {

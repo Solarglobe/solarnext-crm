@@ -3,6 +3,10 @@
  */
 
 import { pool } from "../config/db.js";
+import {
+  addressesTableRowToInvoicePdfAddressShape,
+  clientRowToInvoicePdfAddressShape,
+} from "./financialDocumentPdfPayload.service.js";
 
 /**
  * @param {string} organizationId
@@ -69,7 +73,9 @@ export function buildIssuerSnapshotFromOrganizationRow(orgRow) {
  */
 export async function loadClientRecipientPayload(clientId, organizationId) {
   const r = await pool.query(
-    `SELECT id, company_name, first_name, last_name, email, phone
+    `SELECT id, company_name, first_name, last_name, email, phone, siret,
+            address_line_1, address_line_2, postal_code, city, country,
+            installation_address_line_1, installation_postal_code, installation_city
      FROM clients WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
     [clientId, organizationId]
   );
@@ -86,6 +92,8 @@ export function buildRecipientSnapshotFromClientRow(clientRow) {
     last_name: clientRow.last_name ?? null,
     email: clientRow.email ?? null,
     phone: clientRow.phone ?? null,
+    siret: clientRow.siret ?? null,
+    address: clientRowToInvoicePdfAddressShape(clientRow),
   };
 }
 
@@ -95,8 +103,24 @@ export function buildRecipientSnapshotFromClientRow(clientRow) {
  */
 export async function loadLeadRecipientPayload(leadId, organizationId) {
   const r = await pool.query(
-    `SELECT id, first_name, last_name, email, phone, address
-     FROM leads WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+    `SELECT l.id, l.first_name, l.last_name, l.email, l.phone, l.address,
+            l.customer_type, l.company_name, l.contact_first_name, l.contact_last_name, l.siret,
+            b.address_line1 AS b_line1,
+            b.address_line2 AS b_line2,
+            b.postal_code AS b_postal,
+            b.city AS b_city,
+            b.country_code AS b_country,
+            b.formatted_address AS b_formatted,
+            s.address_line1 AS s_line1,
+            s.address_line2 AS s_line2,
+            s.postal_code AS s_postal,
+            s.city AS s_city,
+            s.country_code AS s_country,
+            s.formatted_address AS s_formatted
+     FROM leads l
+     LEFT JOIN addresses b ON b.id = l.billing_address_id AND b.organization_id = l.organization_id
+     LEFT JOIN addresses s ON s.id = l.site_address_id AND s.organization_id = l.organization_id
+     WHERE l.id = $1 AND l.organization_id = $2 AND (l.archived_at IS NULL)`,
     [leadId, organizationId]
   );
   return r.rows[0] ?? null;
@@ -104,14 +128,33 @@ export async function loadLeadRecipientPayload(leadId, organizationId) {
 
 export function buildRecipientSnapshotFromLeadRow(leadRow) {
   if (!leadRow) return {};
+  const isPro = String(leadRow.customer_type || "").toUpperCase() === "PRO";
+  const billingAddress = addressesTableRowToInvoicePdfAddressShape({
+    address_line1: leadRow.b_line1,
+    address_line2: leadRow.b_line2,
+    postal_code: leadRow.b_postal,
+    city: leadRow.b_city,
+    country_code: leadRow.b_country,
+    formatted_address: leadRow.b_formatted,
+  });
+  const siteAddress = addressesTableRowToInvoicePdfAddressShape({
+    address_line1: leadRow.s_line1,
+    address_line2: leadRow.s_line2,
+    postal_code: leadRow.s_postal,
+    city: leadRow.s_city,
+    country_code: leadRow.s_country,
+    formatted_address: leadRow.s_formatted,
+  });
   return {
     source: "lead",
     lead_id: leadRow.id,
-    first_name: leadRow.first_name ?? null,
-    last_name: leadRow.last_name ?? null,
+    company_name: isPro ? leadRow.company_name ?? null : null,
+    first_name: isPro ? leadRow.contact_first_name ?? null : leadRow.first_name ?? null,
+    last_name: isPro ? leadRow.contact_last_name ?? null : leadRow.last_name ?? null,
     email: leadRow.email ?? null,
     phone: leadRow.phone ?? null,
-    address: leadRow.address ?? null,
+    siret: leadRow.siret ?? null,
+    address: billingAddress ?? siteAddress ?? leadRow.address ?? null,
   };
 }
 

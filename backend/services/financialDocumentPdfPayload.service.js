@@ -259,6 +259,71 @@ export function mergeLiveBillingAddressIntoInvoicePdfPayload(payload, enrich) {
   return { ...payload, recipient };
 }
 
+function leadRowToFinancialRecipientFields(row) {
+  if (!row || typeof row !== "object") return {};
+  const customerType = String(row.customer_type || "").toUpperCase();
+  const isPro = customerType === "PRO";
+  return {
+    ...(isPro ? { company_name: trimOrNull(row.company_name) } : {}),
+    first_name: trimOrNull(isPro ? row.contact_first_name : row.first_name),
+    last_name: trimOrNull(isPro ? row.contact_last_name : row.last_name),
+    email: trimOrNull(row.email),
+    phone: trimOrNull(row.phone),
+    siret: trimOrNull(row.siret),
+  };
+}
+
+function clientRowToFinancialRecipientFields(row) {
+  if (!row || typeof row !== "object") return {};
+  return {
+    company_name: trimOrNull(row.company_name),
+    first_name: trimOrNull(row.first_name),
+    last_name: trimOrNull(row.last_name),
+    email: trimOrNull(row.email),
+    phone: trimOrNull(row.phone),
+    siret: trimOrNull(row.siret),
+  };
+}
+
+function compactObject(obj) {
+  return Object.fromEntries(Object.entries(obj || {}).filter(([, v]) => v !== null && v !== undefined && v !== ""));
+}
+
+/**
+ * Rendu PDF devis/facture : enrichit le destinataire avec les champs business live
+ * utiles aux documents PRO, sans modifier le snapshot stocké.
+ * Priorité adresse : lead.billing_address_id → lead.site_address_id → client siège → client installation.
+ * @param {object} payload
+ * @param {{ clientRow?: object|null, leadRow?: object|null }} enrich
+ * @returns {object}
+ */
+export function mergeLiveRecipientBusinessFieldsIntoFinancialPdfPayload(payload, enrich) {
+  if (!payload || typeof payload !== "object") return payload;
+  const recipientSrc =
+    payload.recipient !== null && payload.recipient !== undefined && typeof payload.recipient === "object"
+      ? payload.recipient
+      : {};
+
+  const leadFields = compactObject(leadRowToFinancialRecipientFields(enrich?.leadRow));
+  const clientFields = compactObject(clientRowToFinancialRecipientFields(enrich?.clientRow));
+  const identityFields = Object.keys(leadFields).length > 0 ? leadFields : clientFields;
+
+  const withAddress = mergeLiveBillingAddressIntoInvoicePdfPayload({ ...payload, recipient: recipientSrc }, enrich);
+  const recipientWithAddress =
+    withAddress.recipient !== null && withAddress.recipient !== undefined && typeof withAddress.recipient === "object"
+      ? withAddress.recipient
+      : recipientSrc;
+
+  return {
+    ...payload,
+    recipient: {
+      ...recipientWithAddress,
+      ...identityFields,
+      address: recipientWithAddress.address ?? recipientSrc.address ?? null,
+    },
+  };
+}
+
 /**
  * @param {object} snapshot
  */
