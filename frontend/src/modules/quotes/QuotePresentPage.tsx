@@ -10,7 +10,10 @@ import {
   getQuoteDocumentViewModel,
   postFinalizeQuoteSigned,
   postGenerateQuotePdf,
+  postRequestQuoteSignatureOtp,
+  postVerifyQuoteSignatureOtp,
 } from "../../services/financial.api";
+import { getLegalCgv, type LegalCgvState } from "../../services/legalCgv.api";
 import { Button } from "../../components/ui/Button";
 import {
   quoteHasOfficialDocumentSnapshot,
@@ -57,6 +60,18 @@ export default function QuotePresentPage() {
   const [padRole, setPadRole] = useState<"client" | "company" | null>(null);
   const [finalizeBusy, setFinalizeBusy] = useState(false);
   const [clientReadApproved, setClientReadApproved] = useState(false);
+  const [cgvInfo, setCgvInfo] = useState<LegalCgvState | null>(null);
+  const [cgvPdfUrl, setCgvPdfUrl] = useState<string | null>(null);
+  const [cgvScrolledEndAt, setCgvScrolledEndAt] = useState<string | null>(null);
+  const [cgvAccepted, setCgvAccepted] = useState(false);
+  const [otpStatus, setOtpStatus] = useState<"idle" | "sent" | "verified" | "unavailable">("idle");
+  const [otpEmailMasked, setOtpEmailMasked] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpMsg, setOtpMsg] = useState<string | null>(null);
+  const [signaturePlace, setSignaturePlace] = useState("");
+  const cgvPdfObjectUrlRef = useRef<string | null>(null);
+  const cgvScrollRef = useRef<HTMLDivElement | null>(null);
   const [persistedSigClientUrl, setPersistedSigClientUrl] = useState<string | null>(null);
   const [persistedSigCompanyUrl, setPersistedSigCompanyUrl] = useState<string | null>(null);
   const padTargetRef = useRef<"client" | "company">("client");
@@ -124,6 +139,75 @@ export default function QuotePresentPage() {
   useEffect(() => {
     setClientReadApproved(false);
   }, [id]);
+
+  /* CGV : chargement pour lecture + acceptation avant signature. */
+  useEffect(() => {
+    setCgvAccepted(false);
+    setCgvScrolledEndAt(null);
+    setOtpStatus("idle");
+    setOtpCode("");
+    setOtpMsg(null);
+    setOtpEmailMasked(null);
+    setSignaturePlace("");
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await getLegalCgv();
+        if (!cancelled) setCgvInfo(r.cgv);
+      } catch {
+        if (!cancelled) setCgvInfo(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  /* CGV mode PDF : blob authentifié pour l'aperçu intégré. */
+  useEffect(() => {
+    if (!cgvInfo || cgvInfo.mode !== "pdf" || !cgvInfo.pdf_document_id) {
+      if (cgvPdfObjectUrlRef.current) {
+        URL.revokeObjectURL(cgvPdfObjectUrlRef.current);
+        cgvPdfObjectUrlRef.current = null;
+      }
+      setCgvPdfUrl(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await apiFetch(
+          `${API_BASE}/api/documents/${encodeURIComponent(cgvInfo.pdf_document_id as string)}/download`
+        );
+        if (!res.ok || cancelled) return;
+        const blob = await res.blob();
+        if (cancelled) return;
+        const next = URL.createObjectURL(blob);
+        if (cgvPdfObjectUrlRef.current) URL.revokeObjectURL(cgvPdfObjectUrlRef.current);
+        cgvPdfObjectUrlRef.current = next;
+        setCgvPdfUrl(next);
+      } catch {
+        /* aperçu indisponible — le bouton de confirmation reste utilisable */
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (cgvPdfObjectUrlRef.current) {
+        URL.revokeObjectURL(cgvPdfObjectUrlRef.current);
+        cgvPdfObjectUrlRef.current = null;
+      }
+      setCgvPdfUrl(null);
+    };
+  }, [cgvInfo]);
+
+  /* CGV HTML courtes : si tout tient sans défilement, la lecture est réputée complète. */
+  useEffect(() => {
+    if (!cgvInfo || cgvInfo.mode !== "html") return;
+    const el = cgvScrollRef.current;
+    if (el && el.scrollHeight <= el.clientHeight + 4) {
+      setCgvScrolledEndAt(new Date().toISOString());
+    }
+  }, [cgvInfo]);
 
   /** Permet au navigateur d’imprimer tout le document (plusieurs pages A4), pas seulement la zone scrollable .sn-main */
   useEffect(() => {
@@ -349,10 +433,70 @@ export default function QuotePresentPage() {
   const displaySigCompany = isFinalizeLocked ? persistedSigCompanyUrl : sigCompany;
   const bothSignedLocal = Boolean(sigClient && sigCompany);
   /** Pads + case + date : actifs dès qu’on a un document (brouillon ou officiel), sauf déjà finalisé. */
+  const cgvVersionFr = cgvInfo?.updated_at ? new Date(cgvInfo.updated_at).toLocaleDateString("fr-FR") : null;
+  const cgvAcceptLabel = `Je reconnais avoir pris connaissance des Conditions Générales de Vente${
+    cgvVersionFr ? ` (version du ${cgvVersionFr})` : ""
+  } et les accepter sans réserve, notamment les clauses relatives à l'annulation et aux acomptes.`;
+  const cgvOk = !cgvInfo || (cgvAccepted && cgvScrolledEndAt != null);
+  const otpOk = otpStatus === "verified" || otpStatus === "unavailable";
+
   const canUseSignaturePads = !isFinalizeLocked && docMode !== null;
   /** PDF signé : une seule action serveur (figement si besoin + PDF + accepté). */
   const canFinalizeSigned =
-    !isFinalizeLocked && docMode !== null && bothSignedLocal && clientReadApproved && !finalizeBusy;
+    !isFinalizeLocked && docMode !== null && bothSignedLocal && clientReadApproved && cgvOk && otpOk && !finalizeBusy;
+
+  const onCgvScroll = () => {
+    if (cgvScrolledEndAt) return;
+    const el = cgvScrollRef.current;
+    if (!el) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 12) {
+      setCgvScrolledEndAt(new Date().toISOString());
+    }
+  };
+
+  const confirmCgvReadManually = () => {
+    if (!cgvScrolledEndAt) setCgvScrolledEndAt(new Date().toISOString());
+  };
+
+  const onSendOtp = async () => {
+    if (!id) return;
+    setOtpBusy(true);
+    setOtpMsg(null);
+    try {
+      const r = await postRequestQuoteSignatureOtp(id);
+      if (r.sent) {
+        setOtpStatus("sent");
+        setOtpEmailMasked(r.emailMasked ?? null);
+        setOtpMsg(`Code envoyé à ${r.emailMasked ?? "l'email du client"} — valable ${r.ttlMinutes ?? 10} minutes.`);
+      } else {
+        setOtpStatus("unavailable");
+        setOtpMsg("Aucun email client sur ce dossier — vérification par code impossible (elle sera consignée comme telle).");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Envoi du code impossible.";
+      if (msg.includes("SMTP")) setOtpStatus("unavailable");
+      setOtpMsg(msg);
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  const onVerifyOtp = async () => {
+    if (!id) return;
+    setOtpBusy(true);
+    setOtpMsg(null);
+    try {
+      const r = await postVerifyQuoteSignatureOtp(id, otpCode);
+      if (r.verified) {
+        setOtpStatus("verified");
+        setOtpMsg(null);
+      }
+    } catch (e) {
+      setOtpMsg(e instanceof Error ? e.message : "Code incorrect.");
+    } finally {
+      setOtpBusy(false);
+    }
+  };
 
   const onValidateSigned = async () => {
     if (!id || isFinalizeLocked) return;
@@ -364,6 +508,14 @@ export default function QuotePresentPage() {
       window.alert("Les deux signatures sont obligatoires : client et entreprise.");
       return;
     }
+    if (cgvInfo && (!cgvAccepted || !cgvScrolledEndAt)) {
+      window.alert("Faites défiler les CGV jusqu'en bas et cochez la case d'acceptation des CGV.");
+      return;
+    }
+    if (!otpOk) {
+      window.alert("Vérification d'identité requise : envoyez le code email au client et validez-le.");
+      return;
+    }
     setFinalizeBusy(true);
     try {
       await postFinalizeQuoteSigned(id, {
@@ -372,6 +524,11 @@ export default function QuotePresentPage() {
         signature_company_data_url: sigCompany,
         signature_client_acceptance: { accepted: true, acceptedLabel: SIGNATURE_READ_ACCEPTANCE_LABEL_FR },
         signature_company_acceptance: { accepted: true, acceptedLabel: SIGNATURE_READ_ACCEPTANCE_LABEL_FR },
+        cgv_acceptance: cgvInfo
+          ? { accepted: true, acceptedLabel: cgvAcceptLabel, scrolledToEndAt: cgvScrolledEndAt }
+          : undefined,
+        client_signed_at: new Date().toISOString(),
+        signature_place: signaturePlace.trim() || undefined,
       });
       navigate(`/quotes/${id}`, { state: { quoteSignedSaved: true } });
     } catch (e) {
@@ -521,6 +678,14 @@ export default function QuotePresentPage() {
             <span className={clientReadApproved ? "qp-sign-ok" : "qp-sign-missing"}>
               Lu et approuvé : {clientReadApproved ? "oui" : "à cocher sur le document"}
             </span>
+            {cgvInfo ? (
+              <span className={cgvOk ? "qp-sign-ok" : "qp-sign-missing"}>
+                CGV : {cgvOk ? "lues et acceptées" : "à faire défiler et accepter"}
+              </span>
+            ) : null}
+            <span className={otpOk ? "qp-sign-ok" : "qp-sign-missing"}>
+              Code email : {otpStatus === "verified" ? "vérifié" : otpStatus === "unavailable" ? "indisponible" : "à valider"}
+            </span>
           </>
         )}
       </div>
@@ -574,6 +739,109 @@ export default function QuotePresentPage() {
           onClientReadApprovedChange={canUseSignaturePads ? setClientReadApproved : undefined}
         />
       </div>
+
+      {cgvInfo && !isFinalizeLocked ? (
+        <section className="qp-cgv-gate qp-no-print" aria-labelledby="qp-cgv-title">
+          <h3 id="qp-cgv-title">Conditions Générales de Vente</h3>
+          <p className="qp-cgv-hint">
+            À faire lire au client avant signature : faites défiler le document jusqu&apos;en bas pour débloquer la case
+            d&apos;acceptation.
+          </p>
+          {cgvInfo.mode === "html" ? (
+            <div className="qp-cgv-scrollbox" ref={cgvScrollRef} onScroll={onCgvScroll}>
+              <div dangerouslySetInnerHTML={{ __html: cgvInfo.html || "" }} />
+            </div>
+          ) : cgvInfo.mode === "pdf" ? (
+            <>
+              {cgvPdfUrl ? (
+                <iframe className="qp-cgv-frame" src={cgvPdfUrl} title="Conditions Générales de Vente (PDF)" />
+              ) : (
+                <p className="qp-muted">Chargement des CGV…</p>
+              )}
+              {!cgvScrolledEndAt ? (
+                <Button type="button" variant="outlineGold" size="sm" onClick={confirmCgvReadManually}>
+                  Le client confirme avoir parcouru les CGV jusqu&apos;à la dernière page
+                </Button>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <p>
+                Les CGV sont consultables ici :{" "}
+                <a href={cgvInfo.url || "#"} target="_blank" rel="noopener noreferrer">
+                  {cgvInfo.url}
+                </a>
+              </p>
+              {!cgvScrolledEndAt ? (
+                <Button type="button" variant="outlineGold" size="sm" onClick={confirmCgvReadManually}>
+                  Le client confirme avoir consulté les CGV en intégralité
+                </Button>
+              ) : null}
+            </>
+          )}
+          <label className={`qp-cgv-accept${cgvScrolledEndAt ? "" : " qp-cgv-accept--disabled"}`}>
+            <input
+              type="checkbox"
+              disabled={!cgvScrolledEndAt}
+              checked={cgvAccepted}
+              onChange={(e) => setCgvAccepted(e.target.checked)}
+            />
+            <span>{cgvAcceptLabel}</span>
+          </label>
+          {!cgvScrolledEndAt ? (
+            <p className="qp-cgv-locked-hint">La case se débloque après lecture complète des CGV.</p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {!isFinalizeLocked && docMode !== null ? (
+        <section className="qp-otp-gate qp-no-print" aria-labelledby="qp-otp-title">
+          <h3 id="qp-otp-title">Vérification d&apos;identité du signataire</h3>
+          {otpStatus === "verified" ? (
+            <p className="qp-sign-ok">
+              Identité vérifiée par code email{otpEmailMasked ? ` (${otpEmailMasked})` : ""}.
+            </p>
+          ) : (
+            <div className="qp-otp-row">
+              <Button type="button" variant="outlineGold" size="sm" disabled={otpBusy} onClick={() => void onSendOtp()}>
+                {otpStatus === "sent" ? "Renvoyer le code" : "Envoyer le code par email au client"}
+              </Button>
+              {otpStatus === "sent" ? (
+                <>
+                  <input
+                    className="qp-otp-input"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="Code à 6 chiffres"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                  />
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    disabled={otpBusy || otpCode.length !== 6}
+                    onClick={() => void onVerifyOtp()}
+                  >
+                    Vérifier
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          )}
+          {otpMsg ? <p className="qp-otp-msg">{otpMsg}</p> : null}
+          <label className="qp-place-label">
+            Lieu de signature (recommandé)
+            <input
+              className="qp-place-input"
+              type="text"
+              placeholder="ex. : au domicile du client, Chelles"
+              value={signaturePlace}
+              onChange={(e) => setSignaturePlace(e.target.value)}
+            />
+          </label>
+        </section>
+      ) : null}
 
       {!latestPdf && pdfMessage ? (
         <div className="qp-pdf-banner qp-no-print">

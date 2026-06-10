@@ -31,6 +31,7 @@ export type LegalCgvState = {
   pdf_document_id: string | null;
   url: string | null;
   pdf_file_name?: string | null;
+  updated_at?: string | null;
 };
 
 export async function getLegalCgv(): Promise<{ ok: boolean; cgv: LegalCgvState | null }> {

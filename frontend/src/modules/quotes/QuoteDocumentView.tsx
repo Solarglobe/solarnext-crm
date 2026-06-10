@@ -520,6 +520,55 @@ export function QuoteDocumentView({
         </section>
       </div>
 
+
+      <section className="fq-consumer-legal" aria-label="Informations légales consommateur">
+        <h3 className="fq-erp-gold-heading">Droit de rétractation (contrat hors établissement ou à distance)</h3>
+        <p>
+          Conformément aux articles L221-18 et suivants du Code de la consommation, le client consommateur dispose
+          d&apos;un délai de quatorze (14) jours à compter de la signature du présent devis pour exercer son droit de
+          rétractation, sans avoir à motiver sa décision ni à supporter de pénalité. Pour l&apos;exercer, il peut
+          utiliser le formulaire de rétractation joint en annexe du présent document ou adresser toute autre
+          déclaration dénuée d&apos;ambiguïté à l&apos;entreprise. Conformément à l&apos;article L221-10 du même code,
+          pour un contrat conclu hors établissement, l&apos;entreprise ne peut recevoir aucun paiement avant
+          l&apos;expiration d&apos;un délai de sept (7) jours à compter de la conclusion du contrat.
+        </p>
+        {payload.legal_mediator ? (
+          <p>
+            <strong>Médiation de la consommation — </strong>
+            Conformément aux articles L611-1 et suivants du Code de la consommation, après démarche écrite préalable
+            auprès de l&apos;entreprise restée sans réponse satisfaisante, le client consommateur peut recourir
+            gratuitement au médiateur de la consommation : <strong>{payload.legal_mediator.name}</strong>
+            {payload.legal_mediator.address ? <> — {payload.legal_mediator.address}</> : null}
+            {payload.legal_mediator.phone ? <> — Tél. : {payload.legal_mediator.phone}</> : null}
+            {payload.legal_mediator.url ? <> — {payload.legal_mediator.url}</> : null}
+            {payload.legal_mediator.email ? <> — {payload.legal_mediator.email}</> : null}.
+          </p>
+        ) : null}
+      </section>
+
+      <section className="fq-retract-form" aria-label="Formulaire de rétractation">
+        <h3 className="fq-erp-gold-heading">Annexe — Formulaire de rétractation</h3>
+        <p className="fq-retract-intro">
+          (Veuillez compléter et renvoyer le présent formulaire uniquement si vous souhaitez vous rétracter du contrat,
+          dans un délai de quatorze jours à compter de sa signature.)
+        </p>
+        <div className="fq-retract-body">
+          <p>
+            À l&apos;attention de <strong>{companyName}</strong> — coordonnées indiquées en tête du présent devis :
+          </p>
+          <p>
+            Je/Nous (*) vous notifie/notifions (*) par la présente ma/notre (*) rétractation du contrat portant sur la
+            prestation objet du devis{showOfficial && payload.number ? <> n° {payload.number}</> : null}, signé le :
+            ______________________
+          </p>
+          <p>Nom du (des) consommateur(s) : _____________________________________________________</p>
+          <p>Adresse du (des) consommateur(s) : __________________________________________________</p>
+          <p>Signature du (des) consommateur(s) (uniquement en cas de notification sur papier) :</p>
+          <p>Date : ______________________</p>
+          <p className="fq-retract-asterisk">(*) Rayez la mention inutile.</p>
+        </div>
+      </section>
+
       <PdfCgvSection legalCgv={payload.legal_cgv} />
 
       {variant === "pdf" ? (

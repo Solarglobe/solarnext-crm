@@ -442,11 +442,15 @@ export async function postFinalizeQuoteSigned(
     signature_company_data_url: string;
     signature_client_acceptance: { accepted: boolean; acceptedLabel?: string };
     signature_company_acceptance: { accepted: boolean; acceptedLabel?: string };
+    cgv_acceptance?: { accepted: boolean; acceptedLabel?: string; scrolledToEndAt?: string | null };
+    client_signed_at?: string;
+    signature_place?: string;
   }
 ): Promise<{
   document?: { id?: string; file_name?: string };
   downloadUrl?: string;
   message?: string;
+  sha256?: string | null;
 }> {
   const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(quoteId)}/finalize-signed`, {
     method: "POST",
@@ -458,6 +462,39 @@ export async function postFinalizeQuoteSigned(
     throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
   }
   return res.json();
+}
+
+/** OTP signature : envoi du code email au client (présentiel). */
+export async function postRequestQuoteSignatureOtp(
+  quoteId: string
+): Promise<{ sent: boolean; emailMasked?: string; ttlMinutes?: number; reason?: string }> {
+  const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(quoteId)}/signature-otp/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error || `Erreur ${res.status}`);
+  }
+  return data as { sent: boolean; emailMasked?: string; ttlMinutes?: number; reason?: string };
+}
+
+/** OTP signature : vérification du code saisi par le client. */
+export async function postVerifyQuoteSignatureOtp(
+  quoteId: string,
+  code: string
+): Promise<{ verified: boolean; email?: string }> {
+  const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(quoteId)}/signature-otp/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error || `Erreur ${res.status}`);
+  }
+  return data as { verified: boolean; email?: string };
 }
 
 /** Payload miroir PDF (officiel ou aperçu brouillon) — page Présenter */

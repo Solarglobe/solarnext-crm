@@ -25,7 +25,12 @@ function smtpConfig() {
   };
 }
 
-async function sendSystemMail({ to, subject, text, html }) {
+/** SMTP système configuré ? (conditionne l'exigence OTP de signature) */
+export function isSystemMailConfigured() {
+  return smtpConfig() != null;
+}
+
+async function sendSystemMail({ to, subject, text, html, attachments }) {
   const config = smtpConfig();
   if (!config) {
     logger.warn("AUTH_MAIL_SKIPPED_SMTP_NOT_CONFIGURED", { to, subject });
@@ -44,6 +49,7 @@ async function sendSystemMail({ to, subject, text, html }) {
       subject,
       text,
       html,
+      attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : undefined,
     });
     return { skipped: false, messageId: info.messageId ?? null };
   } finally {
@@ -140,5 +146,58 @@ export async function sendNewSessionAlertEmail({ to, location, device }) {
       </p>
       <p style="margin:0;color:#64748b;font-size:13px">Depuis la page securite, vous pouvez revoquer toutes les autres sessions actives.</p>
     `),
+  });
+}
+
+/**
+ * OTP signature devis — code 6 chiffres envoyé au client avant signature (preuve d'identification).
+ */
+export async function sendQuoteSignatureOtpEmail({ to, code, quoteNumber, issuerName }) {
+  const ref = quoteNumber ? ` n° ${quoteNumber}` : "";
+  const issuer = issuerName || "votre installateur";
+  return sendSystemMail({
+    to,
+    subject: `Code de signature du devis${ref} : ${code}`,
+    text: `Votre code de signature pour le devis${ref} (${issuer}) est : ${code}. Il est valable 10 minutes. Communiquez-le uniquement au conseiller present avec vous. Si vous n'etes pas en train de signer un devis, ignorez cet email.`,
+    html: shellHtml(`
+      <p style="margin:0 0 16px">Voici votre code de confirmation pour la signature du devis${ref} (${issuer}) :</p>
+      <p style="margin:0 0 22px;font-size:30px;font-weight:700;letter-spacing:6px;color:#2e1a47">${code}</p>
+      <p style="margin:0 0 8px">Ce code est valable <strong>10 minutes</strong>. Saisissez-le sur l'écran de signature présenté par votre conseiller.</p>
+      <p style="margin:0;color:#64748b;font-size:13px">Si vous n'êtes pas en train de signer un devis, ignorez cet email.</p>
+    `),
+  });
+}
+
+/**
+ * Remise du devis signé au client — preuve de remise + rappel rétractation (vente hors établissement).
+ */
+export async function sendSignedQuotePdfEmail({ to, clientName, quoteNumber, issuerName, pdfBuffer, pdfFileName, sha256 }) {
+  const ref = quoteNumber ? ` n° ${quoteNumber}` : "";
+  const issuer = issuerName || "votre installateur";
+  const hello = clientName ? `Bonjour ${clientName},` : "Bonjour,";
+  return sendSystemMail({
+    to,
+    subject: `Votre devis signé${ref} — ${issuer}`,
+    text:
+      `${hello}\n\nVeuillez trouver ci-joint votre exemplaire du devis${ref} signé électroniquement.\n\n` +
+      `Conformément aux articles L221-18 et suivants du Code de la consommation, vous disposez d'un délai de 14 jours ` +
+      `à compter de la signature pour exercer votre droit de rétractation, sans justification ni pénalité, ` +
+      `au moyen du formulaire joint au contrat ou par tout écrit non équivoque.\n\n` +
+      (sha256 ? `Empreinte numérique du document (SHA-256) : ${sha256}\n\n` : "") +
+      `Cordialement,\n${issuer}`,
+    html: shellHtml(`
+      <p style="margin:0 0 16px">${hello}</p>
+      <p style="margin:0 0 16px">Veuillez trouver ci-joint votre exemplaire du <strong>devis${ref} signé électroniquement</strong>.</p>
+      <p style="margin:0 0 16px;padding:12px 14px;background:#faf6ee;border:1px solid #e8dfd2;border-radius:6px;font-size:13px">
+        Conformément aux articles L221-18 et suivants du Code de la consommation, vous disposez d'un délai de
+        <strong>14 jours</strong> à compter de la signature pour exercer votre droit de rétractation, sans justification
+        ni pénalité, au moyen du formulaire joint au contrat ou par tout écrit non équivoque.
+      </p>
+      ${sha256 ? `<p style="margin:0 0 16px;color:#64748b;font-size:12px;word-break:break-all">Empreinte numérique du document (SHA-256) : ${sha256}</p>` : ""}
+      <p style="margin:0">Cordialement,<br/>${issuer}</p>
+    `),
+    attachments: pdfBuffer
+      ? [{ filename: pdfFileName || "devis-signe.pdf", content: pdfBuffer, contentType: "application/pdf" }]
+      : undefined,
   });
 }

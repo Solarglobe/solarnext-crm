@@ -58,6 +58,13 @@ export interface QuotePdfPayload {
   regulatory_document_text?: string | null;
   /** CGV (paramètres org.) — html/url rendus ici ; pdf fusionné côté serveur */
   legal_cgv?: QuotePdfLegalCgv | null;
+  legal_mediator?: {
+    name: string;
+    address?: string | null;
+    phone?: string | null;
+    url?: string | null;
+    email?: string | null;
+  } | null;
   /** RGE / décennale : fusion PDF côté serveur uniquement */
   legal_documents?: QuotePdfLegalDocuments | null;
   /** PDF signé / devis accepté : lecture depuis metadata_json des signatures */

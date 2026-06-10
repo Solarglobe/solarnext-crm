@@ -24,6 +24,7 @@ import { requireEmailVerified } from "../../middleware/emailVerification.middlew
 import { requirePermission } from "../../rbac/rbac.middleware.js";
 import * as controller from "./quotes.controller.js";
 import * as service from "./quotes.repository.js";
+import { requestQuoteSignatureOtp, verifyQuoteSignatureOtp } from "../../services/quoteSignatureOtp.service.js";
 import { archiveEntity, restoreEntity } from "../../services/archive.service.js";
 import { pool } from "../../config/db.js";
 import path from "path";
@@ -206,6 +207,39 @@ router.get(
   }
 );
 
+/** OTP signature : envoi du code email au client (identification du signataire en présentiel). */
+router.post(
+  "/:id/signature-otp/request",
+  verifyJWT,
+  requirePermission("quote.manage"),
+  requireEmailVerified,
+  heavyUserRateLimiter,
+  async (req, res) => {
+    try {
+      const data = await requestQuoteSignatureOtp(req.params.id, orgId(req), userId(req), {});
+      res.json(data);
+    } catch (e) {
+      res.status(e.statusCode || 500).json({ error: e.message });
+    }
+  }
+);
+
+/** OTP signature : vérification du code saisi par le client. */
+router.post(
+  "/:id/signature-otp/verify",
+  verifyJWT,
+  requirePermission("quote.manage"),
+  requireEmailVerified,
+  async (req, res) => {
+    try {
+      const data = await verifyQuoteSignatureOtp(req.params.id, orgId(req), req.body?.code);
+      res.json(data);
+    } catch (e) {
+      res.status(e.statusCode || 500).json({ error: e.message });
+    }
+  }
+);
+
 /** Finalisation terrain : signatures PNG → PDF signé (Playwright) → quote_pdf_signed → ACCEPTED */
 router.post(
   "/:id/finalize-signed",
@@ -217,7 +251,11 @@ router.post(
     try {
       const org = orgId(req);
       const uid = userId(req);
-      const data = await service.finalizeQuoteSigned(req.params.id, org, uid, req.body || {});
+      const fwd = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+      const data = await service.finalizeQuoteSigned(req.params.id, org, uid, req.body || {}, {
+        ip: fwd || req.ip || req.socket?.remoteAddress || null,
+        userAgent: req.headers["user-agent"] || null,
+      });
       res.status(201).json(data);
     } catch (e) {
       const code =

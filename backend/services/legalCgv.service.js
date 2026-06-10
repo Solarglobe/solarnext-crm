@@ -3,8 +3,11 @@
  * Pas de migration : JSON uniquement.
  */
 
+import crypto from "crypto";
+import fs from "fs/promises";
 import QRCode from "qrcode";
 import { pool } from "../config/db.js";
+import { getAbsolutePath } from "./localStorage.service.js";
 
 const VALID_MODES = new Set(["html", "pdf", "url"]);
 
@@ -140,10 +143,12 @@ export async function saveLegalCgvSettings(organizationId, cgv) {
     throw e;
   }
   const prev = r.rows[0].settings_json ?? {};
-  const legal = { ...(typeof prev.legal === "object" && prev.legal !== null ? prev.legal : {}), cgv };
+  /* Versionnage : chaque enregistrement date la version des CGV (preuve d'opposabilité). */
+  const cgvVersioned = { ...cgv, updated_at: new Date().toISOString() };
+  const legal = { ...(typeof prev.legal === "object" && prev.legal !== null ? prev.legal : {}), cgv: cgvVersioned };
   const next = { ...prev, legal };
   await pool.query(`UPDATE organizations SET settings_json = $1::jsonb WHERE id = $2`, [JSON.stringify(next), organizationId]);
-  return cgv;
+  return cgvVersioned;
 }
 
 /**
@@ -156,7 +161,7 @@ export async function getLegalCgvApiResponse(organizationId) {
     return { cgv: null };
   }
   const mode = raw.mode;
-  const out = { mode, html: null, pdf_document_id: null, url: null, pdf_file_name: null };
+  const out = { mode, html: null, pdf_document_id: null, url: null, pdf_file_name: null, updated_at: typeof raw.updated_at === "string" ? raw.updated_at : null };
 
   if (mode === "html") {
     out.html = typeof raw.html === "string" ? raw.html : "";
@@ -203,6 +208,42 @@ export async function getLegalCgvForPdfRender(organizationId) {
       qr_data_url = null;
     }
     return { mode: "url", url: u, qr_data_url };
+  }
+  return null;
+}
+
+/**
+ * Preuve CGV pour le dossier de signature : mode, date de version, empreinte SHA-256 du contenu.
+ * html → hash du HTML assaini ; pdf → hash des octets du fichier ; url → hash de l'URL.
+ * @param {string} organizationId
+ * @returns {Promise<null | { mode: string, version_date: string | null, sha256: string | null }>}
+ */
+export async function getLegalCgvEvidence(organizationId) {
+  const raw = await getLegalCgvRaw(organizationId);
+  if (!raw || !raw.mode) return null;
+  const versionDate = typeof raw.updated_at === "string" ? raw.updated_at : null;
+  const sha = (input) => crypto.createHash("sha256").update(input).digest("hex");
+
+  if (raw.mode === "html") {
+    const h = sanitizeCgvHtml(typeof raw.html === "string" ? raw.html : "");
+    return { mode: "html", version_date: versionDate, sha256: h ? sha(Buffer.from(h, "utf8")) : null };
+  }
+  if (raw.mode === "pdf" && raw.pdf_document_id) {
+    try {
+      const dr = await pool.query(
+        `SELECT storage_key FROM entity_documents WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+        [raw.pdf_document_id, organizationId]
+      );
+      if (dr.rows.length === 0) return { mode: "pdf", version_date: versionDate, sha256: null };
+      const bytes = await fs.readFile(getAbsolutePath(dr.rows[0].storage_key));
+      return { mode: "pdf", version_date: versionDate, sha256: sha(bytes) };
+    } catch {
+      return { mode: "pdf", version_date: versionDate, sha256: null };
+    }
+  }
+  if (raw.mode === "url") {
+    const u = typeof raw.url === "string" ? raw.url.trim() : "";
+    return { mode: "url", version_date: versionDate, sha256: u ? sha(Buffer.from(u, "utf8")) : null };
   }
   return null;
 }

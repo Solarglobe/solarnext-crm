@@ -1,13 +1,13 @@
-/**
- * domains/quotes/quotes.repository.js — Couche données du domaine Quotes.
- *
- * Migré depuis routes/quotes/service.js (Step #8 — DDD léger).
- * L'ancien chemin routes/quotes/service.js est un stub de réexportation.
- *
- * Ce fichier centralise toutes les requêtes SQL et la logique de
- * construction des devis. Aucune dépendance Express.
- */
-
+/**
+ * domains/quotes/quotes.repository.js — Couche données du domaine Quotes.
+ *
+ * Migré depuis routes/quotes/service.js (Step #8 — DDD léger).
+ * L'ancien chemin routes/quotes/service.js est un stub de réexportation.
+ *
+ * Ce fichier centralise toutes les requêtes SQL et la logique de
+ * construction des devis. Aucune dépendance Express.
+ */
+
 /**
  * CP-031 — Moteur Devis V1
  * CP-032C — withTx + assertOrgEntity + assertStatus
@@ -27,12 +27,12 @@ import {
   assertQuoteLinesMatchHeaderOrThrow,
   PRICING_MODE_PERCENT_TOTAL,
 } from "../../services/quoteEngine.service.js";
-import {
-  buildScenarioQuoteCoherenceError,
-  validateScenarioQuoteCoherence,
-} from "../studies/financial/scenarioQuoteCoherence.js";
-
-import { computeFinancialLineDbFields } from "../../services/finance/financialLine.js";
+import {
+  buildScenarioQuoteCoherenceError,
+  validateScenarioQuoteCoherence,
+} from "../studies/financial/scenarioQuoteCoherence.js";
+
+import { computeFinancialLineDbFields } from "../../services/finance/financialLine.js";
 import { roundMoney2 } from "../../services/finance/moneyRounding.js";
 import { isQuoteEditable } from "../../services/finance/financialImmutability.js";
 import { allocateNextDocumentNumber } from "../../services/documentSequence.service.js";
@@ -46,6 +46,10 @@ import {
 import { mergeOrganizationCgvPdfAppend } from "../../services/legalCgvPdfMerge.service.js";
 import { mergeQuoteLegalComplementaryPdfsAppend } from "../../services/legalComplementaryPdfMerge.service.js";
 import { assertQuoteLegalDocumentsConfiguredOrThrow } from "../../services/organizationLegalDocuments.service.js";
+import { getLegalCgvEvidence, getLegalCgvRaw } from "../../services/legalCgv.service.js";
+import { getRecentVerifiedOtp, resolveQuoteSignerEmail } from "../../services/quoteSignatureOtp.service.js";
+import { stampQuoteParaphes, appendSignatureCertificatePage, sha256Hex, formatFrDateTime } from "../../services/signedQuoteEvidence.service.js";
+import { sendSignedQuotePdfEmail, isSystemMailConfigured } from "../../services/mail.service.js";
 import fs from "fs/promises";
 import {
   removeQuotePdfDocuments,
@@ -347,8 +351,8 @@ export async function getQuoteDocumentViewModel(quoteId, organizationId, opts = 
  */
 export async function buildCustomerSnapshotFromLead(leadId, organizationId) {
   const leadRes = await pool.query(
-    `SELECT l.first_name, l.last_name, l.full_name, l.email, l.phone, l.phone_mobile, l.phone_landline, l.address,
-            l.site_address_id, l.billing_address_id,
+    `SELECT l.first_name, l.last_name, l.full_name, l.email, l.phone, l.phone_mobile, l.phone_landline, l.address,
+            l.site_address_id, l.billing_address_id,
             l.customer_type, l.company_name, l.siret
      FROM leads l
      WHERE l.id = $1 AND l.organization_id = $2 AND (l.archived_at IS NULL)`,
@@ -357,14 +361,14 @@ export async function buildCustomerSnapshotFromLead(leadId, organizationId) {
   if (leadRes.rows.length === 0) return null;
   const lead = leadRes.rows[0];
   let addressFormatted = lead.address || null;
-  // Source de verite devis/factures : billing_address_id (siege social PRO) en priorite.
-  // Fallback : site_address_id (PARTICULIER ou PRO sans siege), puis texte legacy.
-  const addressIdForQuote = lead.billing_address_id || lead.site_address_id;
-  if (addressIdForQuote) {
+  // Source de verite devis/factures : billing_address_id (siege social PRO) en priorite.
+  // Fallback : site_address_id (PARTICULIER ou PRO sans siege), puis texte legacy.
+  const addressIdForQuote = lead.billing_address_id || lead.site_address_id;
+  if (addressIdForQuote) {
     const addrRes = await pool.query(
       `SELECT address_line1, address_line2, postal_code, city, country_code, formatted_address
        FROM addresses WHERE id = $1 AND organization_id = $2`,
-      [addressIdForQuote, organizationId]
+      [addressIdForQuote, organizationId]
     );
     if (addrRes.rows.length > 0) {
       const a = addrRes.rows[0];
@@ -739,109 +743,109 @@ function buildQuoteLineSnapshotJsonForWrite(it) {
  * metadata optionnel : fusionné dans metadata_json (ex. study_import).
  * @param {{ req?: import("express").Request; userId?: string | null }} [auditContext]
  */
-async function loadLockedScenarioQuoteCoherenceContext(client, organizationId, studyVersionId) {
-  if (!studyVersionId) return null;
-
-  const versionRes = await client.query(
-    `SELECT id, is_locked, selected_scenario_id, selected_scenario_snapshot
-       FROM study_versions
-      WHERE id = $1 AND organization_id = $2
-      FOR UPDATE`,
-    [studyVersionId, organizationId]
-  );
-  const version = versionRes.rows[0] || null;
-  if (!version || (!version.is_locked && !version.selected_scenario_snapshot)) return null;
-
-  const economicRes = await client.query(
-    `SELECT config_json
-       FROM economic_snapshots
-      WHERE study_version_id = $1 AND organization_id = $2
-      ORDER BY created_at DESC
-      LIMIT 1`,
-    [studyVersionId, organizationId]
-  );
-
-  const calpinageRes = await client.query(
-    `SELECT total_power_kwc, annual_production_kwh
-       FROM calpinage_data
-      WHERE study_version_id = $1 AND organization_id = $2
-      LIMIT 1`,
-    [studyVersionId, organizationId]
-  );
-
-  return {
-    selectedScenarioId: version.selected_scenario_id,
-    selectedScenarioSnapshot: version.selected_scenario_snapshot || null,
-    economicConfig: economicRes.rows[0]?.config_json || {},
-    calpinage: calpinageRes.rows[0] || {},
-  };
-}
-
-function pickFirstPresent(...values) {
-  for (const value of values) {
-    if (value != null && value !== "") return value;
-  }
-  return null;
-}
-
-function buildQuoteCoherenceReference({ quoteRow, lockedContext }) {
-  const economicConfig = lockedContext?.economicConfig || {};
-  const calpinage = lockedContext?.calpinage || {};
-  const selected = lockedContext?.selectedScenarioSnapshot || {};
-  const technical = economicConfig.technical_snapshot_summary || economicConfig.technical || {};
-
-  return {
-    production_annual_kwh: pickFirstPresent(
-      calpinage.annual_production_kwh,
-      technical.production_annual_kwh,
-      technical.annual_production_kwh,
-      selected.installation?.production_annuelle_kwh
-    ),
-    total_ttc: quoteRow?.total_ttc,
-    aides_total_eur: pickFirstPresent(
-      economicConfig.aides_total_eur,
-      economicConfig.aids_total_eur,
-      economicConfig.prime_eur,
-      economicConfig.totals?.aides_total_eur,
-      selected.finance?.aides_total_eur,
-      selected.finance?.prime_eur
-    ),
-    total_power_kwc: pickFirstPresent(
-      calpinage.total_power_kwc,
-      technical.power_kwc,
-      technical.total_power_kwc,
-      selected.installation?.puissance_kwc
-    ),
-  };
-}
-
-function assertLockedScenarioQuoteCoherence(lockedContext, quoteRow) {
-  if (!lockedContext) return;
-  if (!lockedContext.selectedScenarioSnapshot) {
-    const err = new Error("Creation du devis bloquee: version verrouillee sans snapshot de scenario financier.");
-    err.code = "LOCKED_SCENARIO_SNAPSHOT_MISSING";
-    err.statusCode = 409;
-    throw err;
-  }
-
-  const validation = validateScenarioQuoteCoherence(
-    lockedContext.selectedScenarioSnapshot,
-    buildQuoteCoherenceReference({ quoteRow, lockedContext })
-  );
-
-  if (!validation.ok) {
-    throw buildScenarioQuoteCoherenceError(validation);
-  }
-}
-
-/**
- * Creer devis en draft avec items.
- *
- * Rattachement : client_id et/ou lead_id (au moins un des deux). study_id / study_version_id facultatifs.
- * metadata optionnel : fusionne dans metadata_json (ex. study_import).
- * @param {{ req?: import("express").Request; userId?: string | null }} [auditContext]
- */
-export async function createQuote(organizationId, body, auditContext = null) {
+async function loadLockedScenarioQuoteCoherenceContext(client, organizationId, studyVersionId) {
+  if (!studyVersionId) return null;
+
+  const versionRes = await client.query(
+    `SELECT id, is_locked, selected_scenario_id, selected_scenario_snapshot
+       FROM study_versions
+      WHERE id = $1 AND organization_id = $2
+      FOR UPDATE`,
+    [studyVersionId, organizationId]
+  );
+  const version = versionRes.rows[0] || null;
+  if (!version || (!version.is_locked && !version.selected_scenario_snapshot)) return null;
+
+  const economicRes = await client.query(
+    `SELECT config_json
+       FROM economic_snapshots
+      WHERE study_version_id = $1 AND organization_id = $2
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [studyVersionId, organizationId]
+  );
+
+  const calpinageRes = await client.query(
+    `SELECT total_power_kwc, annual_production_kwh
+       FROM calpinage_data
+      WHERE study_version_id = $1 AND organization_id = $2
+      LIMIT 1`,
+    [studyVersionId, organizationId]
+  );
+
+  return {
+    selectedScenarioId: version.selected_scenario_id,
+    selectedScenarioSnapshot: version.selected_scenario_snapshot || null,
+    economicConfig: economicRes.rows[0]?.config_json || {},
+    calpinage: calpinageRes.rows[0] || {},
+  };
+}
+
+function pickFirstPresent(...values) {
+  for (const value of values) {
+    if (value != null && value !== "") return value;
+  }
+  return null;
+}
+
+function buildQuoteCoherenceReference({ quoteRow, lockedContext }) {
+  const economicConfig = lockedContext?.economicConfig || {};
+  const calpinage = lockedContext?.calpinage || {};
+  const selected = lockedContext?.selectedScenarioSnapshot || {};
+  const technical = economicConfig.technical_snapshot_summary || economicConfig.technical || {};
+
+  return {
+    production_annual_kwh: pickFirstPresent(
+      calpinage.annual_production_kwh,
+      technical.production_annual_kwh,
+      technical.annual_production_kwh,
+      selected.installation?.production_annuelle_kwh
+    ),
+    total_ttc: quoteRow?.total_ttc,
+    aides_total_eur: pickFirstPresent(
+      economicConfig.aides_total_eur,
+      economicConfig.aids_total_eur,
+      economicConfig.prime_eur,
+      economicConfig.totals?.aides_total_eur,
+      selected.finance?.aides_total_eur,
+      selected.finance?.prime_eur
+    ),
+    total_power_kwc: pickFirstPresent(
+      calpinage.total_power_kwc,
+      technical.power_kwc,
+      technical.total_power_kwc,
+      selected.installation?.puissance_kwc
+    ),
+  };
+}
+
+function assertLockedScenarioQuoteCoherence(lockedContext, quoteRow) {
+  if (!lockedContext) return;
+  if (!lockedContext.selectedScenarioSnapshot) {
+    const err = new Error("Creation du devis bloquee: version verrouillee sans snapshot de scenario financier.");
+    err.code = "LOCKED_SCENARIO_SNAPSHOT_MISSING";
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const validation = validateScenarioQuoteCoherence(
+    lockedContext.selectedScenarioSnapshot,
+    buildQuoteCoherenceReference({ quoteRow, lockedContext })
+  );
+
+  if (!validation.ok) {
+    throw buildScenarioQuoteCoherenceError(validation);
+  }
+}
+
+/**
+ * Creer devis en draft avec items.
+ *
+ * Rattachement : client_id et/ou lead_id (au moins un des deux). study_id / study_version_id facultatifs.
+ * metadata optionnel : fusionne dans metadata_json (ex. study_import).
+ * @param {{ req?: import("express").Request; userId?: string | null }} [auditContext]
+ */
+export async function createQuote(organizationId, body, auditContext = null) {
   const { client_id, lead_id, study_id, study_version_id, items = [], metadata } = body;
 
   const hasClient = client_id != null && String(client_id).trim() !== "";
@@ -867,8 +871,8 @@ export async function createQuote(organizationId, body, auditContext = null) {
     const clientIdVal = hasClient ? client_id : null;
     const leadIdVal = lead_id || null;
     const studyIdVal = study_id || null;
-    const studyVersionVal = study_version_id || null;
-    const lockedScenarioContext = await loadLockedScenarioQuoteCoherenceContext(client, organizationId, studyVersionVal);
+    const studyVersionVal = study_version_id || null;
+    const lockedScenarioContext = await loadLockedScenarioQuoteCoherenceContext(client, organizationId, studyVersionVal);
 
     let metadataJson = {};
     if (!hasClient && leadIdVal) {
@@ -989,9 +993,9 @@ export async function createQuote(organizationId, body, auditContext = null) {
         [quoteId, organizationId]
       )
     ).rows;
-    assertLockedScenarioQuoteCoherence(lockedScenarioContext, quoteRow);
-
-    const itemsRows = (
+    assertLockedScenarioQuoteCoherence(lockedScenarioContext, quoteRow);
+
+    const itemsRows = (
       await client.query(
         "SELECT * FROM quote_lines WHERE quote_id = $1 AND organization_id = $2 ORDER BY position",
         [quoteId, organizationId]
@@ -1692,6 +1696,8 @@ export async function getOfficialQuotePdf(quoteId, organizationId, userId, inten
 
   if (intent === "lead_document") {
     let pdfBuffer;
+  let bodySha256 = null;
+  let finalPdfSha256 = null;
     let reusedSigned = false;
     let reusedUnsigned = false;
     let sourceTag = "regenerated";
@@ -1994,6 +2000,23 @@ export function assertSignaturePadReadAcceptance(block, label) {
   }
 }
 
+/**
+ * Acceptation explicite des CGV — exigée dès lors que l'organisation a des CGV configurées.
+ * Distincte du « Bon pour accord » : elle vise spécifiquement les conditions générales.
+ */
+export function assertFinalizeSignedCgvAcceptance(body, cgvRaw) {
+  if (!cgvRaw) return;
+  const acc = body?.cgv_acceptance;
+  const ok = acc && (acc.accepted === true || acc.accepted === "true");
+  if (!ok) {
+    const err = new Error(
+      "Acceptation des CGV requise : le client doit cocher la case d'acceptation des Conditions Générales de Vente après les avoir fait défiler."
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+}
+
 function parsePngDataUrl(dataUrl) {
   if (!dataUrl || typeof dataUrl !== "string") return null;
   const m = dataUrl.match(/^data:image\/png;base64,([\s\S]+)$/i);
@@ -2010,10 +2033,77 @@ function parsePngDataUrl(dataUrl) {
  * Finalisation métier « devis signé » (terrain) : figement officiel si besoin, snapshot, signatures,
  * PDF signé Playwright, enregistrement document, passage en ACCEPTED. Une seule requête API côté client.
  */
-export async function finalizeQuoteSigned(quoteId, organizationId, userId, body = {}) {
+export async function finalizeQuoteSigned(quoteId, organizationId, userId, body = {}, context = {}) {
   assertFinalizeSignedClientReadApproval(body);
   assertSignaturePadReadAcceptance(body.signature_client_acceptance, "Signature client");
   assertSignaturePadReadAcceptance(body.signature_company_acceptance, "Signature entreprise");
+
+  /* ---- Dossier de preuve : CGV opposables + OTP email + captures techniques ---- */
+  const cgvRaw = await getLegalCgvRaw(organizationId);
+  assertFinalizeSignedCgvAcceptance(body, cgvRaw);
+
+  const signerInfo = await resolveQuoteSignerEmail(quoteId, organizationId);
+  let otpProof = null;
+  if (signerInfo.email) {
+    otpProof = await getRecentVerifiedOtp(quoteId, organizationId);
+    if (!otpProof && isSystemMailConfigured()) {
+      const err = new Error(
+        "Vérification d'identité requise : envoyez le code de signature au client par email et validez-le avant de finaliser."
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
+  const signedAtServerIso = new Date().toISOString();
+  const clientSignedAtIso =
+    typeof body.client_signed_at === "string" && !Number.isNaN(new Date(body.client_signed_at).getTime())
+      ? new Date(body.client_signed_at).toISOString()
+      : null;
+  const signaturePlace =
+    typeof body.signature_place === "string" && body.signature_place.trim()
+      ? body.signature_place.trim().slice(0, 200)
+      : null;
+  const cgvEvidence = cgvRaw ? await getLegalCgvEvidence(organizationId) : null;
+  const cgvScrolledAtIso =
+    typeof body?.cgv_acceptance?.scrolledToEndAt === "string" &&
+    !Number.isNaN(new Date(body.cgv_acceptance.scrolledToEndAt).getTime())
+      ? new Date(body.cgv_acceptance.scrolledToEndAt).toISOString()
+      : null;
+  const cgvAcceptedLabel =
+    typeof body?.cgv_acceptance?.acceptedLabel === "string" && body.cgv_acceptance.acceptedLabel.trim()
+      ? body.cgv_acceptance.acceptedLabel.trim()
+      : null;
+  let operatorLabel = userId ? String(userId) : null;
+  try {
+    const ur = await pool.query(`SELECT email FROM users WHERE id = $1`, [userId]);
+    if (ur.rows.length > 0 && ur.rows[0].email) operatorLabel = String(ur.rows[0].email);
+  } catch {
+    /* best effort */
+  }
+
+  const signatureEvidence = {
+    signedAtServer: signedAtServerIso,
+    clientSignedAt: clientSignedAtIso,
+    signaturePlace,
+    ip: context.ip ?? null,
+    userAgent: context.userAgent ?? null,
+    operator: operatorLabel,
+    otp: otpProof
+      ? { channel: "email", email: otpProof.email, verifiedAt: otpProof.verifiedAt }
+      : signerInfo.email
+        ? { channel: "email", email: signerInfo.email, verifiedAt: null, skipped: "smtp_not_configured" }
+        : { channel: null, skipped: "no_signer_email" },
+    cgv: cgvRaw
+      ? {
+          mode: cgvEvidence?.mode ?? cgvRaw.mode ?? null,
+          versionDate: cgvEvidence?.version_date ?? null,
+          sha256: cgvEvidence?.sha256 ?? null,
+          acceptedLabel: cgvAcceptedLabel,
+          scrolledToEndAt: cgvScrolledAtIso,
+        }
+      : null,
+  };
 
   const clientBuf = parsePngDataUrl(body.signature_client_data_url);
   const companyBuf = parsePngDataUrl(body.signature_company_data_url);
@@ -2125,13 +2215,14 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
     accepted: true,
     acceptedLabel: SIGNATURE_READ_ACCEPTANCE_LABEL_FR,
   };
+  const clientAcceptancePayload = { ...acceptancePayload, evidence: signatureEvidence };
   await saveQuoteSignaturePng(
     clientBuf,
     organizationId,
     quoteId,
     userId,
     QUOTE_DOC_SIGNATURE_CLIENT,
-    acceptancePayload
+    clientAcceptancePayload
   );
   await saveQuoteSignaturePng(
     companyBuf,
@@ -2168,6 +2259,52 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
     throw err;
   }
 
+  /* ---- Paraphes sur chaque page + page certificat + empreintes SHA-256 (dossier de preuve) ---- */
+  try {
+    const signedAtLabel = formatFrDateTime(signedAtServerIso);
+    pdfBuffer = await stampQuoteParaphes(pdfBuffer, {
+      clientSignaturePng: clientBuf,
+      quoteNumber: row.quote_number ?? null,
+      signedAtLabel,
+    });
+    bodySha256 = sha256Hex(pdfBuffer);
+    const { PDFDocument } = await import("pdf-lib");
+    const paraphedPages = (await PDFDocument.load(pdfBuffer)).getPageCount();
+    pdfBuffer = await appendSignatureCertificatePage(pdfBuffer, {
+      quoteNumber: row.quote_number ?? null,
+      signerName: signerInfo.name ?? row.lead_full_name ?? row.lead_last_name ?? null,
+      otp: signatureEvidence.otp?.verifiedAt
+        ? { email: signatureEvidence.otp.email, verifiedAtLabel: formatFrDateTime(signatureEvidence.otp.verifiedAt) }
+        : null,
+      signaturePlace,
+      signedAtServerLabel: signedAtLabel,
+      clientSignedAtLabel: clientSignedAtIso ? formatFrDateTime(clientSignedAtIso) : null,
+      ip: signatureEvidence.ip,
+      userAgent: signatureEvidence.userAgent,
+      operatorLabel,
+      readApprovedLabel: "Attestation « Bon pour accord » cochée sur le document présenté",
+      padAcceptanceLabel: SIGNATURE_READ_ACCEPTANCE_LABEL_FR,
+      cgv: signatureEvidence.cgv
+        ? {
+            acceptedLabel: signatureEvidence.cgv.acceptedLabel ?? "Case d'acceptation des CGV cochée",
+            versionLabel: signatureEvidence.cgv.versionDate
+              ? formatFrDateTime(signatureEvidence.cgv.versionDate)
+              : "non datée",
+            sha256: signatureEvidence.cgv.sha256,
+            scrolledToEndAtLabel: signatureEvidence.cgv.scrolledToEndAt
+              ? formatFrDateTime(signatureEvidence.cgv.scrolledToEndAt)
+              : null,
+          }
+        : null,
+      bodySha256,
+      paraphedPages,
+    });
+    finalPdfSha256 = sha256Hex(pdfBuffer);
+  } catch (se) {
+    console.warn(`[finalizeQuoteSigned] paraphes/certificat non apposés (non bloquant): ${se?.message}`);
+    finalPdfSha256 = sha256Hex(pdfBuffer);
+  }
+
   let docRow = null;
   try {
     await removeQuoteSignedPdfDocuments(organizationId, quoteId);
@@ -2179,6 +2316,9 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
         source: "document_snapshot_json_signed",
         snapshot_checksum: pdfPayload.snapshot_checksum,
         business_document_type: "QUOTE_PDF_SIGNED",
+        signature_evidence: signatureEvidence,
+        body_sha256: bodySha256,
+        pdf_sha256: finalPdfSha256,
       },
     });
   } catch (e) {
@@ -2198,6 +2338,23 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
     throw e;
   }
 
+  // Remise du contrat signé au client (preuve de remise + rappel rétractation 14 jours) — best effort.
+  if (signerInfo.email) {
+    const issuerName =
+      (pdfPayload?.issuer && (pdfPayload.issuer.display_name || pdfPayload.issuer.legal_name)) || null;
+    sendSignedQuotePdfEmail({
+      to: signerInfo.email,
+      clientName: signerInfo.name,
+      quoteNumber: row.quote_number ?? null,
+      issuerName,
+      pdfBuffer,
+      pdfFileName: docRow.file_name,
+      sha256: finalPdfSha256,
+    }).catch((e) => {
+      console.warn(`[finalizeQuoteSigned] envoi email devis signé échoué (non bloquant): ${e?.message}`);
+    });
+  }
+
   // Auto-copie du PDF signé vers les documents du lead (écrase le PDF non signé si existant).
   // Best-effort : n'échoue pas la requête principale si la copie échoue.
   addQuotePdfToDocuments(quoteId, organizationId, userId, { force_replace: true }).catch((e) => {
@@ -2208,6 +2365,7 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
     document: docRow,
     downloadUrl: `/api/documents/${docRow.id}/download`,
     message: "Devis signé enregistré — PDF signé généré et statut passé à « Accepté ».",
+    sha256: finalPdfSha256,
   };
 }
 

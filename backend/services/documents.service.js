@@ -177,6 +177,10 @@ export async function saveQuoteSignaturePng(pngBuffer, organizationId, quoteId, 
         : SIGNATURE_READ_ACCEPTANCE_LABEL_FR;
     meta.acceptedLabel = lbl;
   }
+  if (readAcceptance && typeof readAcceptance.evidence === "object" && readAcceptance.evidence !== null) {
+    /* Dossier de preuve signature (OTP, IP, user-agent, CGV…) — voir finalizeQuoteSigned. */
+    meta.evidence = readAcceptance.evidence;
+  }
   const ins = await pool.query(
     `INSERT INTO entity_documents
      (organization_id, entity_type, entity_id, file_name, file_size, mime_type, storage_key, url, uploaded_by, document_type, metadata_json,

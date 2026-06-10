@@ -229,3 +229,107 @@
     margin: 0 auto !important;
   }
 }
+
+/* ---- CGV avant signature (preuve de lecture) ---- */
+.qp-cgv-gate,
+.qp-otp-gate {
+  margin: 18px auto 0;
+  max-width: 860px;
+  padding: 16px 18px;
+  border: 1px solid rgba(195, 152, 71, 0.45);
+  border-radius: 10px;
+  background: rgba(20, 18, 26, 0.6);
+}
+.qp-cgv-gate h3,
+.qp-otp-gate h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.qp-cgv-hint {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  opacity: 0.8;
+}
+.qp-cgv-scrollbox {
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: #fff;
+  color: #1c1c1f;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.qp-cgv-frame {
+  width: 100%;
+  height: 460px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 10px;
+}
+.qp-cgv-accept {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.qp-cgv-accept input {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: #c39847;
+}
+.qp-cgv-accept--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.qp-cgv-locked-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #e2b35c;
+}
+.qp-otp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.qp-otp-input {
+  width: 140px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-size: 16px;
+  letter-spacing: 4px;
+  text-align: center;
+}
+.qp-otp-msg {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  opacity: 0.85;
+}
+.qp-place-label {
+  display: block;
+  margin-top: 12px;
+  font-size: 12.5px;
+  opacity: 0.9;
+}
+.qp-place-input {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-size: 13px;
+}
