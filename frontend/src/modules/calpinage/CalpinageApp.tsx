@@ -1,5 +1,4 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useCalpinageStore } from "./store/calpinageStore";
 import { installEmitOfficialRuntimeStructuralChangeOnWindow } from "./runtime/emitOfficialRuntimeStructuralChange";
 import { installRoofModelingHistoryOnWindow, resetRoofModelingHistory } from "./runtime/roofModelingHistory";
 import { initCalpinage } from "./legacy/calpinage.module.js";
@@ -91,8 +90,6 @@ export default function CalpinageApp({
     };
   }, []);
 
-  // calpinage:3d-degraded migré vers Zustand — voir MIGRATION-EVENTS.md
-
   /** Écoute l'event calpinage:near-shading-divergence émis par useNearShadingDivergence. */
   useEffect(() => {
     const handler = (e: Event) => {
@@ -101,16 +98,6 @@ export default function CalpinageApp({
     };
     window.addEventListener("calpinage:near-shading-divergence", handler);
     return () => window.removeEventListener("calpinage:near-shading-divergence", handler);
-  }, []);
-
-  /** Écoute l'event calpinage:unsupported-roof-plane émis par solveRoofPlanes. */
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ reason?: string; count?: number }>).detail;
-      setUnsupportedRoofPlaneCount(detail?.count ?? 1);
-    };
-    window.addEventListener("calpinage:unsupported-roof-plane", handler);
-    return () => window.removeEventListener("calpinage:unsupported-roof-plane", handler);
   }, []);
 
   /** Détection divergence near shading canonical vs backend. */
@@ -150,26 +137,14 @@ export default function CalpinageApp({
   }, [calpinageRuntimeNotifyEpoch]);
 
   /**
-   * Banner non-bloquant affiché quand la reconstruction 3D est dégradée
-   * (runtime non initialisé → toiture plate silencieuse évitée).
-   * Écrit par officialSolarScene3DGateway via useCalpinageStore.setState() — migré depuis CustomEvent.
-   */
-  const degraded3DReason = useCalpinageStore((s) => s.degraded3DReason);
-  /**
    * Banner non-bloquant affiché quand le near shading canonical TS diverge du near backend.
    * Émis par useNearShadingDivergence via CustomEvent "calpinage:near-shading-divergence".
-   * Mutuellement exclusif avec degraded3DReason (si 3D échoue, canonical ne tourne pas).
    */
   const [nearShadingDivergence, setNearShadingDivergence] = useState<{
     canonical: number;
     backend: number;
     delta: number;
   } | null>(null);
-  /**
-   * Banner non-bloquant affiché quand solveRoofPlanes détecte des pans quasi-verticaux.
-   * Émis via CustomEvent "calpinage:unsupported-roof-plane" depuis solveRoofPlanes.ts.
-   */
-  const [unsupportedRoofPlaneCount, setUnsupportedRoofPlaneCount] = useState(0);
 
   const runInit = useCallback(async (isRetry = false) => {
     if (initInFlightRef.current) {
@@ -299,56 +274,6 @@ export default function CalpinageApp({
           </Suspense>
         </>
       )}
-      {/* Banner 3D dégradé — non-bloquant, le rendu 2D reste actif */}
-      {degraded3DReason != null && (
-        <div
-          role="alert"
-          style={{
-            position: "absolute",
-            top: 12,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 30,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 16px",
-            borderRadius: "var(--sg-radius-md, 8px)",
-            background: "#7c2d12",
-            border: "1px solid #b45309",
-            color: "#fef3c7",
-            fontSize: 13,
-            fontWeight: 500,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-            maxWidth: "calc(100% - 48px)",
-          }}
-        >
-          <span aria-hidden="true" style={{ fontSize: 16 }}>⚠️</span>
-          <span>
-            Reconstruction 3D indisponible — runtime non initialisé
-            {DEV && degraded3DReason !== "UNKNOWN" ? ` (${degraded3DReason})` : ""}
-            . Le calpinage 2D reste actif.
-          </span>
-          <button
-            type="button"
-            aria-label="Fermer l'alerte reconstruction 3D"
-            onClick={() => useCalpinageStore.setState({ degraded3DReason: null })}
-            style={{
-              marginLeft: 8,
-              background: "none",
-              border: "none",
-              color: "#fef3c7",
-              cursor: "pointer",
-              fontSize: 16,
-              lineHeight: 1,
-              padding: 0,
-            }}
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       {/* Banner near shading divergence — non-bloquant, avertissement uniquement */}
       {nearShadingDivergence != null && (
         <div
@@ -384,54 +309,6 @@ export default function CalpinageApp({
             type="button"
             aria-label="Fermer l'alerte divergence near shading"
             onClick={() => setNearShadingDivergence(null)}
-            style={{
-              marginLeft: 8,
-              background: "none",
-              border: "none",
-              color: "#fef3c7",
-              cursor: "pointer",
-              fontSize: 16,
-              lineHeight: 1,
-              padding: 0,
-            }}
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Banner pans quasi-verticaux — non-bloquant, avertissement uniquement */}
-      {unsupportedRoofPlaneCount > 0 && (
-        <div
-          role="alert"
-          style={{
-            position: "absolute",
-            top: nearShadingDivergence != null ? 60 : 12,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 30,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 16px",
-            borderRadius: "var(--sg-radius-md, 8px)",
-            background: "#78350f",
-            border: "1px solid #b45309",
-            color: "#fef3c7",
-            fontSize: 13,
-            fontWeight: 500,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-            maxWidth: "calc(100% - 48px)",
-          }}
-        >
-          <span aria-hidden="true" style={{ fontSize: 16 }}>⚠️</span>
-          <span>
-            {unsupportedRoofPlaneCount} pan{unsupportedRoofPlaneCount > 1 ? "s" : ""} quasi-vertical{unsupportedRoofPlaneCount > 1 ? "aux" : ""} détecté{unsupportedRoofPlaneCount > 1 ? "s" : ""} — panneaux PV non placés sur {unsupportedRoofPlaneCount > 1 ? "ces surfaces" : "cette surface"}.
-          </span>
-          <button
-            type="button"
-            aria-label="Fermer l'alerte pans quasi-verticaux"
-            onClick={() => setUnsupportedRoofPlaneCount(0)}
             style={{
               marginLeft: 8,
               background: "none",

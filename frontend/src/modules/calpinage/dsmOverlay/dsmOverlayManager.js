@@ -526,6 +526,10 @@ function createOverlayDOM(container) {
     wrapper.style.position = "relative";
   }
 
+  container.querySelectorAll("#dsm-overlay-container").forEach((existingRoot) => {
+    if (existingRoot.parentElement !== wrapper) existingRoot.remove();
+  });
+
   let root = wrapper.querySelector("#dsm-overlay-container");
   if (root) return root;
 
@@ -593,6 +597,14 @@ function createOverlayDOM(container) {
   return root;
 }
 
+function getOverlayRoot(container) {
+  return (
+    container?.querySelector?.("#zone-c > #dsm-overlay-container") ||
+    container?.querySelector?.("#dsm-overlay-container") ||
+    null
+  );
+}
+
 function setStatus(overlayRoot, mode, message) {
   const statusEl = overlayRoot?.querySelector("#dsm-status");
   if (!statusEl) return;
@@ -638,7 +650,7 @@ function redraw(manager) {
 
   // DSM-VIEWMODE-FIX: mesurer la taille sur l'élément actif (3D ou 2D).
   const mainCanvas = getActiveSizeEl(container);
-  const overlayRoot = container.querySelector("#dsm-overlay-container");
+  const overlayRoot = getOverlayRoot(container);
   const overlayCanvas = overlayRoot?.querySelector("#dsm-overlay-canvas");
   const radarCanvas = overlayRoot?.querySelector(".dsm-horizon-radar canvas");
 
@@ -1058,7 +1070,7 @@ export function createDsmOverlayManager(container) {
     // et n'ont aucune correspondance dans l'espace Three.js.
     const viewModeHandler = (e) => {
       const mode = e && e.detail && e.detail.mode;
-      const overlayRoot = container.querySelector("#dsm-overlay-container");
+      const overlayRoot = getOverlayRoot(container);
       const heatmapCanvas = overlayRoot?.querySelector("#dsm-overlay-canvas");
       if (mode === "3D") {
         if (heatmapCanvas) heatmapCanvas.style.display = "none";
@@ -1074,7 +1086,7 @@ export function createDsmOverlayManager(container) {
     const { destroy: destroyInteraction } = createDsmInteractionLayer(root);
     manager._interactionLayerDestroy = destroyInteraction;
 
-    const radarWrap = container.querySelector(".dsm-horizon-radar");
+    const radarWrap = getOverlayRoot(container)?.querySelector(".dsm-horizon-radar");
     const tooltipEl = radarWrap?.querySelector(".dsm-radar-tooltip");
     if (radarWrap) {
       const moveHandler = (e) => {
@@ -1124,7 +1136,7 @@ export function createDsmOverlayManager(container) {
     manager._refreshTemporal = null;
     manager._solarPosition = null;
     const cont = manager._container;
-    const root = cont?.querySelector?.("#dsm-overlay-container");
+    const root = getOverlayRoot(cont);
     if (root) {
       root.classList.remove("dsm-overlay-visible");
       const overlayCanvas = root.querySelector("#dsm-overlay-canvas");
@@ -1158,7 +1170,7 @@ export function createDsmOverlayManager(container) {
   manager.destroy = function () {
     manager.disable();
     const cont = manager._container;
-    const root = cont?.querySelector?.("#dsm-overlay-container");
+    const root = getOverlayRoot(cont);
     if (root) root.remove();
     instance = null;
   };

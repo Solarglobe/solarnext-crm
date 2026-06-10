@@ -23258,8 +23258,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.stroke(rxRidgePath);
                 }
                 /* ── Arêtiers : segments hip.a → hip.b (dessinés en Phase 2 ET Phase 3) */
-                if (rx.hips) {
-                  var _hipsToRender = [rx.hips.left, rx.hips.right];
+                var _rxHipsForRender = getRoofExtensionHipsForMigration(rx);
+                if (_rxHipsForRender) {
+                  var _hipsToRender = [_rxHipsForRender.left, _rxHipsForRender.right];
                   for (var _hi = 0; _hi < _hipsToRender.length; _hi++) {
                     var _hipSeg = _hipsToRender[_hi];
                     if (!_hipSeg || !_hipSeg.a || !_hipSeg.b) continue;
@@ -23270,10 +23271,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     rxHipLine.lineTo(rHbS.x, rHbS.y);
                     ctx.setLineDash([]);
                     ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
-                    ctx.lineWidth = sel ? 4.5 : 3.0;
+                    ctx.lineWidth = sel ? 5.2 : 4.0;
                     ctx.stroke(rxHipLine);
                     ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHipStroke;
-                    ctx.lineWidth = sel ? 2.2 : 1.6;
+                    ctx.lineWidth = sel ? 2.8 : 2.2;
                     ctx.stroke(rxHipLine);
                   }
                 }

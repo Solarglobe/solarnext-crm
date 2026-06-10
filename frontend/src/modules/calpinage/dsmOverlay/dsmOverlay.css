@@ -7,8 +7,8 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 50;
-  overflow: hidden;
+  z-index: 1400;
+  overflow: visible;
 }
 
 .dsm-overlay-container.dsm-overlay-visible {
@@ -41,7 +41,7 @@
   flex-direction: column;
   align-items: stretch;
   gap: 10px;
-  z-index: 85;
+  z-index: 1420;
   max-width: min(268px, 46vw);
   pointer-events: none;
 }
@@ -65,7 +65,7 @@
   backdrop-filter: blur(10px);
   border: 1px solid rgba(99, 102, 241, 0.35);
   pointer-events: auto;
-  z-index: 90;
+  z-index: 1430;
 }
 
 .dsm-horizon-radar canvas {
@@ -159,7 +159,7 @@
   max-height: min(72vh, 560px);
   overflow-y: auto;
   overflow-x: hidden;
-  z-index: 70;
+  z-index: 1440;
   pointer-events: auto;
   padding: 0;
   background: transparent;
@@ -391,7 +391,7 @@
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(99, 102, 241, 0.20);
   box-shadow: 0 10px 36px rgba(15, 23, 42, 0.1);
-  z-index: 80;
+  z-index: 1425;
 }
 
 .dsm-temporal-head {
@@ -540,7 +540,7 @@
   position: absolute;
   top: 0;
   left: 0;
-  z-index: 40;
+  z-index: 1410;
   pointer-events: auto;
   cursor: default;
 }
