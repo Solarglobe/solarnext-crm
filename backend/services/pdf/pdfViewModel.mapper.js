@@ -87,6 +87,24 @@ function numOrZero(v) {
   return n != null ? n : 0;
 }
 
+function canonicalGridImportKwh(energy) {
+  const e = energy || {};
+  return (
+    num(e.energy_grid_import_kwh) ??
+    num(e.billable_import_kwh) ??
+    num(e.grid_import_kwh) ??
+    num(e.import_kwh) ??
+    num(e.import)
+  );
+}
+
+function coveredFromCanonicalImportKwh(energy) {
+  const conso = num(energy?.consumption_kwh ?? energy?.conso);
+  const imp = canonicalGridImportKwh(energy);
+  if (conso == null || conso <= 0 || imp == null || !Number.isFinite(imp)) return null;
+  return Math.max(0, Math.min(conso, conso - imp));
+}
+
 function clampPctVal(x) {
   if (x == null || !Number.isFinite(Number(x))) return null;
   return Math.max(0, Math.min(100, Number(x)));
@@ -94,21 +112,23 @@ function clampPctVal(x) {
 
 /** Autonomie site : 1 − import / conso (sans fallback auto/prod). */
 function resolveSiteAutonomyPct(energy) {
-  const preset = clampPctVal(num(energy?.site_autonomy_pct));
-  if (preset != null) return preset;
   const conso = num(energy?.consumption_kwh ?? energy?.conso);
-  const imp = num(
-    energy?.import_kwh ?? energy?.import ?? energy?.billable_import_kwh ?? energy?.grid_import_kwh
-  );
-  if (conso == null || conso <= 0 || imp == null || !Number.isFinite(imp)) return null;
-  return clampPctVal((1 - imp / conso) * 100);
+  const imp = canonicalGridImportKwh(energy);
+  if (conso != null && conso > 0 && imp != null && Number.isFinite(imp)) {
+    return clampPctVal((1 - imp / conso) * 100);
+  }
+  return clampPctVal(num(energy?.site_autonomy_pct));
 }
 
 /** Autoconsommation PV : part de la production valorisée sur site. */
 function resolvePvSelfConsumptionPct(energy) {
+  const prod = num(energy?.production_kwh ?? energy?.prod);
+  const covered = coveredFromCanonicalImportKwh(energy);
+  if (prod != null && prod > 0 && covered != null && Number.isFinite(covered)) {
+    return clampPctVal((covered / prod) * 100);
+  }
   const preset = clampPctVal(num(energy?.pv_self_consumption_pct));
   if (preset != null) return preset;
-  const prod = num(energy?.production_kwh ?? energy?.prod);
   const total = num(energy?.total_pv_used_on_site_kwh ?? energy?.autoconsumption_kwh ?? energy?.auto);
   if (prod == null || prod <= 0 || total == null || !Number.isFinite(total)) return null;
   return clampPctVal((total / prod) * 100);
@@ -116,6 +136,11 @@ function resolvePvSelfConsumptionPct(energy) {
 
 /** Couverture besoins via PV (+ batterie) : total utilisé / conso. */
 function resolveSiteCoverageFromPvPct(energy) {
+  const covered = coveredFromCanonicalImportKwh(energy);
+  if (covered != null) {
+    const consoFromImport = num(energy?.consumption_kwh ?? energy?.conso);
+    return consoFromImport > 0 ? clampPctVal((covered / consoFromImport) * 100) : null;
+  }
   const conso = num(energy?.consumption_kwh ?? energy?.conso);
   const total = num(energy?.total_pv_used_on_site_kwh ?? energy?.autoconsumption_kwh ?? energy?.auto);
   if (conso == null || conso <= 0 || total == null || !Number.isFinite(total)) return null;
@@ -129,7 +154,7 @@ function buildResidualBillVirtualVmFromScenario(scenario) {
   const vf = scenario.virtual_battery_finance;
   if (!vf || typeof vf !== "object") return null;
   const e = scenario.energy || {};
-  const impKwh = Number(e.import_kwh ?? e.import ?? e.grid_import_kwh);
+  const impKwh = canonicalGridImportKwh(e);
   const residualBill = scenario.finance?.residual_bill_eur;
   const priceImplied =
     impKwh > 0 && residualBill != null && Number.isFinite(Number(residualBill))
@@ -201,12 +226,12 @@ function sumMonthlyGridImportKwh(energy) {
 function p8AnnualGridImportKwh(energy, batteryTypeForColumnB) {
   const e = energy || {};
   if (batteryTypeForColumnB === "VIRTUAL") {
-    const bill = num(e.billable_import_kwh);
+    const bill = canonicalGridImportKwh(e);
     if (bill != null && Number.isFinite(bill)) return bill;
   }
   const monthSum = sumMonthlyGridImportKwh(e);
   if (monthSum != null && Number.isFinite(monthSum) && monthSum >= 0) return monthSum;
-  return numOrZero(num(e.import_kwh) ?? num(e.import) ?? num(e.grid_import_kwh));
+  return numOrZero(canonicalGridImportKwh(e));
 }
 
 /**
@@ -989,13 +1014,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     num(_energyFlowsShared.auto) ??
     null;
   const _sharedRestoredKwh = num(_energyFlowsShared.restored_kwh) ?? num(_energyFlowsShared.used_credit_kwh) ?? 0;
-  const _sharedGridImportKwh =
-    num(_energyFlowsShared.energy_grid_import_kwh) ??
-    num(_energyFlowsShared.billable_import_kwh) ??
-    num(_energyFlowsShared.grid_import_kwh) ??
-    num(_energyFlowsShared.import_kwh) ??
-    num(_energyFlowsShared.import) ??
-    null;
+  const _sharedGridImportKwh = canonicalGridImportKwh(_energyFlowsShared);
   const _sharedSolarUsedKwh =
     _sharedConsoKwh != null && _sharedGridImportKwh != null
       ? Math.max(0, Math.min(_sharedConsoKwh, _sharedConsoKwh - _sharedGridImportKwh))
@@ -1163,11 +1182,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           num(energyP7.surplus_kwh ?? energyP7.surplus) ??
           Math.max(0, prodP7 - autoP7);
         const importP7 =
-          num(energyP7.energy_grid_import_kwh) ??
-          num(energyP7.billable_import_kwh) ??
-          num(energyP7.grid_import_kwh) ??
-          num(energyP7.import_kwh) ??
-          num(energyP7.import) ??
+          canonicalGridImportKwh(energyP7) ??
           Math.max(0, consoP7 - autoP7);
         const selfConsP7 = resolvePvSelfConsumptionPct(energyP7);
         const autonomyP7 =
@@ -1279,19 +1294,15 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           num(baseEnergy.autoconsumption_kwh) ??
           num(baseEnergy.auto);
         const baseGridImportKwh =
-          num(baseEnergy.grid_import_kwh) ??
-          num(baseEnergy.import_kwh) ??
-          num(baseEnergy.import);
+          canonicalGridImportKwh(baseEnergy);
         const vbDirectSelfKwh = num(vbEnergy.direct_self_consumption_kwh);
         const vbBatteryDischargeKwh = num(vbEnergy.battery_discharge_kwh);
+        const vbGridImportKwh = canonicalGridImportKwh(vbEnergy);
         const vbTotalPvUsedKwh =
+          coveredFromCanonicalImportKwh(vbEnergy) ??
           num(vbEnergy.total_pv_used_on_site_kwh) ??
           num(vbEnergy.autoconsumption_kwh) ??
           num(vbEnergy.auto);
-        const vbGridImportKwh =
-          num(vbEnergy.grid_import_kwh) ??
-          num(vbEnergy.import_kwh) ??
-          num(vbEnergy.import);
         const vbExportedKwh =
           num(vbEnergy.exported_kwh) ??
           num(vbEnergy.surplus_kwh) ??
@@ -1395,7 +1406,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         // ── Énergie totale hybride ──────────────────────────────────────────────
         const productionKwh = num(hybridEnergy.production_kwh) ?? num(baseEnergy.production_kwh) ?? annualKwh;
         const consumptionKwh = num(hybridEnergy.consumption_kwh) ?? num(baseEnergy.consumption_kwh);
-        const totalAutoKwh = num(hybridEnergy.autoconsumption_kwh) ?? num(selectedScenario.autoproduction_kwh);
+        const totalAutoKwh =
+          coveredFromCanonicalImportKwh(hybridEnergy) ??
+          num(hybridEnergy.autoconsumption_kwh) ??
+          num(selectedScenario.autoproduction_kwh);
         // En V2, batteryPhysicalMetrics est spreadé à la RACINE du scénario (pas dans hardware).
         // → selectedScenario.battery_discharge_kwh (racine) est la source fiable.
         // Fallbacks : energy.battery_discharge_kwh (si moteur le fournit), puis battery.annual_discharge_kwh (pré-V2).
@@ -1416,9 +1430,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             ? Math.max(0, totalAutoKwh - physicalDischargeKwh - virtualDischargeKwh)
             : null;
         const residualImportKwh =
-          num(hybridEnergy.import_kwh) ??
-          num(hybridEnergy.grid_import_kwh) ??
-          num(hybridEnergy.billable_import_kwh);
+          canonicalGridImportKwh(hybridEnergy);
         const residualSurplusKwh =
           num(hybridEnergy.surplus_kwh) ??
           num(hybridEnergy.grid_export_kwh) ??
@@ -1436,7 +1448,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           num(baseEnergy.autoconsumption_kwh) ??
           num(baseEnergy.auto);
         const baseImportKwh =
-          num(baseEnergy.import_kwh) ?? num(baseEnergy.grid_import_kwh);
+          canonicalGridImportKwh(baseEnergy);
         const autonomyHybridRatio = safeRatio(totalAutoKwh, consumptionKwh);
         const autonomyBaseRatio = safeRatio(baseDirectAutoKwh, consumptionKwh);
         const autonomyGainRatio =
@@ -1650,7 +1662,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             credited_kwh: numOrZero(B.credited_kwh),
             restored_kwh: numOrZero(B.restored_kwh ?? B.used_credit_kwh),
             overflow_export_kwh: numOrZero(B.overflow_export_kwh ?? B.virtual_battery_overflow_export_kwh),
-            billable_import_kwh: numOrZero(B.billable_import_kwh ?? B.import_kwh),
+            billable_import_kwh: numOrZero(canonicalGridImportKwh(B)),
           },
           profile: {
             pv: Array.isArray(A.hourly_pv) && A.hourly_pv.length >= 24 ? A.hourly_pv.slice(0, 24) : pvFallback,

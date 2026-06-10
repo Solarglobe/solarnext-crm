@@ -78,7 +78,7 @@ function main() {
   });
   const page = vmVirtual.fullReport?.p7_virtual_battery;
   assert(page != null, "BATTERY_VIRTUAL: virtual battery page must be present");
-  assert(page.with_virtual_battery?.pv_total_used_kwh === 9200, "total PV used must come from engine data");
+  assert(page.with_virtual_battery?.pv_total_used_kwh === 9234, "total PV used must be consumption - canonical import");
   assert(page.contribution?.recovered_kwh === 4200, "recovered energy must come from battery_discharge_kwh");
 
   const vmLegacyInconsistent = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
