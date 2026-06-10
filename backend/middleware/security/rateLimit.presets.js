@@ -1,14 +1,12 @@
 /**
- * CP-076 — Middlewares prêts à l’emploi (profils).
+ * CP-076 - Middlewares prets a l'emploi (profils).
  */
 
 import { createRateLimiter } from "./createRateLimiter.js";
 import { rateLimitEnv } from "./rateLimit.config.js";
 import { keyUserOrIp, keyIpOnly } from "./rateLimit.keys.js";
 
-/** Login : voir loginRateLimit.helper.js + auth.controller (échecs uniquement). */
-
-/** A — Routes sensibles avec utilisateur connecté (priorité user_id) */
+/** A - Routes sensibles avec utilisateur connecte (priorite user_id) */
 export const sensitiveUserRateLimiter = createRateLimiter({
   name: "sensitive_user",
   windowMs: rateLimitEnv.sensitiveWindowMs,
@@ -16,7 +14,7 @@ export const sensitiveUserRateLimiter = createRateLimiter({
   keyGenerator: (req) => keyUserOrIp(req),
 });
 
-/** C — Opérations lourdes authentifiées */
+/** C - Operations lourdes authentifiees */
 export const heavyUserRateLimiter = createRateLimiter({
   name: "heavy_user",
   windowMs: rateLimitEnv.heavyWindowMs,
@@ -24,7 +22,7 @@ export const heavyUserRateLimiter = createRateLimiter({
   keyGenerator: (req) => keyUserOrIp(req),
 });
 
-/** D — Endpoints publics ou sans JWT mais coûteux (IP uniquement) */
+/** D - Endpoints publics ou sans JWT mais couteux (IP uniquement) */
 export const publicHeavyRateLimiter = createRateLimiter({
   name: "public_heavy",
   windowMs: rateLimitEnv.publicHeavyWindowMs,

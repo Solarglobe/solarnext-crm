@@ -29,7 +29,7 @@ import {
 
 const router = express.Router();
 
-router.post("/login", authStrictRateLimiter, login);
+router.post("/login", login);
 router.post("/refresh", authStrictRateLimiter, refresh);
 router.post("/logout", authStrictRateLimiter, logout);
 router.get("/verify-email", authStrictRateLimiter, verifyEmail);

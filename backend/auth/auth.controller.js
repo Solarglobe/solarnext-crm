@@ -38,11 +38,6 @@ import {
 import logger from "../app/core/logger.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
-import {
-  checkLoginFailuresAllowed,
-  recordLoginFailure,
-  resetLoginFailures,
-} from "../middleware/security/loginRateLimit.helper.js";
 import { resolveEffectiveHighestRole } from "../lib/superAdminUserGuards.js";
 import { syncAdminRbacOnLogin } from "../rbac/rbac.service.js";
 import { ensureLegacyRoleAndUserBridge } from "../services/rbac/legacyRoleBridge.service.js";
@@ -110,9 +105,6 @@ export async function login(req, res) {
   }
 
   const emailNorm = String(email).toLowerCase().trim();
-  if (!(await checkLoginFailuresAllowed(req, res, emailNorm))) {
-    return;
-  }
 
   let client;
   try {
@@ -133,7 +125,6 @@ export async function login(req, res) {
     );
 
     if (result.rows.length === 0) {
-      await recordLoginFailure(req, emailNorm);
       void logAuditEvent({
         action: AuditActions.AUTH_LOGIN_FAILURE,
         entityType: "auth",
@@ -191,7 +182,6 @@ export async function login(req, res) {
       }
       user = passwordMatches.find((m) => String(m.organization_id) === bodyOrganizationId) ?? null;
       if (!user) {
-        await recordLoginFailure(req, emailNorm);
         void logAuditEvent({
           action: AuditActions.AUTH_LOGIN_FAILURE,
           entityType: "auth",
@@ -206,7 +196,6 @@ export async function login(req, res) {
     }
 
     if (!user) {
-      await recordLoginFailure(req, emailNorm);
       void logAuditEvent({
         action: AuditActions.AUTH_LOGIN_FAILURE,
         entityType: "auth",
@@ -223,7 +212,6 @@ export async function login(req, res) {
     const role = await resolveEffectiveHighestRole(client, user.id);
     if (!role) {
       logger.warn("LOGIN_NO_ROLE", { userId: user.id });
-      await recordLoginFailure(req, emailNorm);
       void logAuditEvent({
         action: AuditActions.AUTH_LOGIN_FAILURE,
         entityType: "user",
@@ -261,8 +249,6 @@ export async function login(req, res) {
       "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1",
       [user.id]
     );
-
-    await resetLoginFailures(req, emailNorm);
 
     const session = await createRefreshSession(user, req, client);
     notifyNewSessionIfNeeded(user, session);
