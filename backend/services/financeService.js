@@ -504,18 +504,26 @@ export async function computeFinance(ctx, scenarios) {
       const auto_y1 =
         sc.name === "BATTERY_VIRTUAL"
           ? (baseScenario?.auto_kwh ?? baseScenario?.energy?.auto ?? sc.auto_kwh ?? 0)
+          : sc.name === "BATTERY_HYBRID"
+            ? (sc.energy?.physical_auto_kwh ?? scenarios.BATTERY_PHYSICAL?.auto_kwh ?? scenarios.BATTERY_PHYSICAL?.energy?.auto ?? sc.auto_kwh ?? 0)
           : (sc.auto_kwh ?? 0);
       const surplus_y1 =
         sc.name === "BATTERY_VIRTUAL"
           ? (baseScenario?.surplus_kwh ?? baseScenario?.energy?.surplus ?? sc.surplus_kwh ?? 0)
+          : sc.name === "BATTERY_HYBRID"
+            ? (sc.energy?.physical_grid_export_kwh ?? scenarios.BATTERY_PHYSICAL?.surplus_kwh ?? scenarios.BATTERY_PHYSICAL?.energy?.surplus ?? sc.surplus_kwh ?? 0)
           : (sc.surplus_kwh ?? 0);
       const oa_rate = kwc < 9 ? econ.oa_rate_lt_9 : econ.oa_rate_gte_9;
 
       const baseImportKwh = baseScenario?.energy?.import ?? baseScenario?.import_kwh ?? 0;
+      const virtualSavingsReferenceImportKwh =
+        sc.name === "BATTERY_HYBRID"
+          ? (sc.energy?.physical_grid_import_kwh ?? scenarios.BATTERY_PHYSICAL?.import_kwh ?? scenarios.BATTERY_PHYSICAL?.energy?.import ?? baseImportKwh)
+          : baseImportKwh;
       const billableImportKwh = sc.billable_import_kwh ?? sc.energy?.billable_import_kwh ?? null;
       const virtualImportSavingsKwh =
         (sc.name === "BATTERY_VIRTUAL" || sc.name === "BATTERY_HYBRID") && billableImportKwh != null && Number.isFinite(billableImportKwh)
-          ? Math.max(0, (baseImportKwh || 0) - billableImportKwh)
+          ? Math.max(0, (virtualSavingsReferenceImportKwh || 0) - billableImportKwh)
           : null;
 
       // Pour BATTERY_PHYSICAL / BATTERY_HYBRID : séparation de la contribution batterie pour dégradation physique.

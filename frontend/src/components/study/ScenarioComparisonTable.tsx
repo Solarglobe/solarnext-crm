@@ -68,6 +68,7 @@ export interface ScenarioV2Energy {
   grid_import_kwh?: number | null;
   grid_export_kwh?: number | null;
   energy_solar_used_kwh?: number | null;
+  site_solar_or_credit_used_kwh?: number | null;
   energy_grid_import_kwh?: number | null;
 }
 
@@ -616,7 +617,11 @@ export default function ScenarioComparisonTable({
 
           const residualBillEur = getResidualBillEurForDisplay(finance);
           const solarUsedKwh =
-            energy.energy_solar_used_kwh != null && Number.isFinite(Number(energy.energy_solar_used_kwh))
+            id === "BATTERY_VIRTUAL" &&
+            energy.site_solar_or_credit_used_kwh != null &&
+            Number.isFinite(Number(energy.site_solar_or_credit_used_kwh))
+              ? Number(energy.site_solar_or_credit_used_kwh)
+              : energy.energy_solar_used_kwh != null && Number.isFinite(Number(energy.energy_solar_used_kwh))
               ? Number(energy.energy_solar_used_kwh)
               : autoKwh;
           const gridToBuyKwh =

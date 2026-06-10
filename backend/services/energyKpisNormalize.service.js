@@ -19,6 +19,19 @@ function num(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+function clampKwh(v, min, max) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  let out = Math.max(min, n);
+  if (Number.isFinite(max)) out = Math.min(out, max);
+  return out;
+}
+
+function minPositiveCap(...vals) {
+  const finite = vals.filter((v) => Number.isFinite(Number(v)) && Number(v) >= 0).map(Number);
+  return finite.length > 0 ? Math.min(...finite) : Infinity;
+}
+
 /**
  * Attache sur scenario.energy les champs canoniques (mutatif).
  * Prérequis : energy.import = import réseau facturable (BV) ou physique ; energy.auto = énergie servie au site (direct + batterie).
@@ -53,6 +66,7 @@ export function attachNormalizedEnergyKpiFields(scenario) {
     num(scenario.surplus_kwh) ??
     0;
   const autoTotal = num(e.auto) ?? num(scenario.auto_kwh) ?? num(e.autoconsumption_kwh) ?? 0;
+  const isVirtualLike = name === "BATTERY_VIRTUAL" || name === "BATTERY_HYBRID";
 
   let direct = num(e.direct_self_consumption_kwh);
   let battOut = num(e.battery_discharge_kwh);
@@ -69,6 +83,20 @@ export function attachNormalizedEnergyKpiFields(scenario) {
         num(scenario.battery_virtual?.annual_discharge_kwh) ??
         0;
       direct = Math.max(0, autoTotal - battOut);
+    } else if (name === "BATTERY_HYBRID") {
+      const physicalOut =
+        num(e.physical_battery_discharge_kwh) ??
+        num(scenario.battery?.annual_discharge_kwh) ??
+        0;
+      const virtualOut =
+        num(e.virtual_battery_discharge_kwh) ??
+        num(e.used_credit_kwh) ??
+        num(e.restored_kwh) ??
+        num(scenario.used_credit_kwh) ??
+        num(scenario.battery_virtual?.annual_discharge_kwh) ??
+        0;
+      battOut = physicalOut + virtualOut;
+      direct = Math.max(0, autoTotal - battOut);
     } else {
       direct = Math.max(0, autoTotal);
       battOut = 0;
@@ -76,16 +104,37 @@ export function attachNormalizedEnergyKpiFields(scenario) {
   }
   if (battOut == null || !Number.isFinite(battOut)) battOut = 0;
 
-  const totalPvUsed =
+  const totalPvUsedRaw =
     num(e.total_pv_used_on_site_kwh) != null && Number.isFinite(num(e.total_pv_used_on_site_kwh))
       ? num(e.total_pv_used_on_site_kwh)
       : Math.max(0, direct + battOut);
+  const pvUsedCap = minPositiveCap(prod, conso);
+  const totalPvUsed = clampKwh(totalPvUsedRaw, 0, pvUsedCap) ?? 0;
+
+  const creditStart =
+    num(e.virtual_credit_start_kwh) ??
+    num(scenario.virtual_credit_start_kwh) ??
+    num(scenario.virtual_battery_rollover?.virtual_credit_start_kwh) ??
+    num(scenario._virtualBattery8760?.virtual_battery_credit_start_kwh) ??
+    0;
+  const creditEnd =
+    num(e.virtual_credit_end_kwh) ??
+    num(scenario.virtual_credit_end_kwh) ??
+    num(scenario.virtual_battery_rollover?.virtual_credit_end_kwh) ??
+    num(scenario._virtualBattery8760?.virtual_battery_credit_end_kwh) ??
+    0;
+  const priorCreditUsedNet = Math.max(0, creditStart - creditEnd);
+  const siteSolarOrCreditRaw = Math.max(0, conso - gridImport);
+  const siteSolarOrCreditLimit = minPositiveCap(conso, isVirtualLike ? prod + priorCreditUsedNet : prod);
+  const siteSolarOrCreditUsed = clampKwh(siteSolarOrCreditRaw, 0, siteSolarOrCreditLimit) ?? 0;
 
   const exported = num(e.exported_kwh) != null && Number.isFinite(num(e.exported_kwh)) ? num(e.exported_kwh) : surplus;
 
   e.direct_self_consumption_kwh = round2(direct) ?? 0;
   e.battery_discharge_kwh = round2(battOut) ?? 0;
   e.total_pv_used_on_site_kwh = round2(totalPvUsed) ?? 0;
+  e.energy_solar_used_kwh = round2(totalPvUsed) ?? 0;
+  e.site_solar_or_credit_used_kwh = round2(siteSolarOrCreditUsed) ?? 0;
   e.grid_import_kwh = round2(gridImport) ?? 0;
   e.exported_kwh = round2(exported) ?? 0;
   if (prod > 0) {

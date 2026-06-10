@@ -4,6 +4,7 @@
  */
 
 import { attachNormalizedEnergyKpiFields } from "../services/energyKpisNormalize.service.js";
+import { mapScenarioToV2 } from "../services/scenarioV2Mapper.service.js";
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -65,6 +66,36 @@ function main() {
   assert(virt.energy.pv_self_consumption_pct < 100, "BV autoconsommation PV < 100 % si surplus exporté");
   assert(virt.energy.export_pct != null && virt.energy.export_pct < 100, "BV export_pct");
 
+  const virtRolloverAudit = {
+    name: "BATTERY_VIRTUAL",
+    _skipped: false,
+    energy: {
+      production_kwh: 9146,
+      consumption_kwh: 10200,
+      import_kwh: 1054,
+      grid_import_kwh: 1054,
+      auto: 9146,
+      total_pv_used_on_site_kwh: 9146,
+      direct_self_consumption_kwh: 6444,
+      used_credit_kwh: 2702,
+      restored_kwh: 2702,
+      credited_kwh: 2702,
+      surplus_kwh: 0,
+      exported_kwh: 0,
+      virtual_credit_start_kwh: 1648,
+      virtual_credit_end_kwh: 1648,
+    },
+    auto_kwh: 9146,
+    conso_kwh: 10200,
+    prod_kwh: 9146,
+    import_kwh: 1054,
+  };
+  attachNormalizedEnergyKpiFields(virtRolloverAudit);
+  assert(Math.abs((virtRolloverAudit.energy.site_autonomy_pct ?? 0) - 89.67) < 0.05, "audit BV autonomie stabilisee");
+  assert(Math.abs((virtRolloverAudit.energy.solar_coverage_pct ?? 0) - 89.67) < 0.05, "audit BV couverture stabilisee");
+  assert(Math.abs((virtRolloverAudit.energy.pv_self_consumption_pct ?? 0) - 100) < 0.05, "audit BV autoconsommation PV stabilisee");
+  assert(virtRolloverAudit.energy.site_solar_or_credit_used_kwh === 9146, "audit BV energie utilisee coherente");
+
   const audit = {
     name: "BASE",
     _skipped: false,
@@ -80,6 +111,78 @@ function main() {
   assert(Math.abs((audit.energy.site_autonomy_pct ?? 0) - 45.45) < 0.05, "audit site_autonomy");
   assert(Math.abs((audit.energy.solar_coverage_pct ?? 0) - 45.45) < 0.05, "audit solar_coverage");
   assert(Math.abs((audit.energy.export_pct ?? 0) - 66.67) < 0.05, "audit export");
+
+  const hybridImpossibleDisplay = {
+    name: "BATTERY_HYBRID",
+    _skipped: false,
+    battery: {
+      enabled: true,
+      annual_charge_kwh: 1800,
+      annual_discharge_kwh: 1600,
+      annual_throughput_kwh: 3400,
+      equivalent_cycles: 228.57,
+      daily_cycles_avg: 0.63,
+      battery_utilization_rate: 0.63,
+    },
+    battery_virtual: {
+      enabled: true,
+      annual_charge_kwh: 2418,
+      annual_discharge_kwh: 4218,
+      restored_kwh: 4218,
+      overflow_export_kwh: 0,
+    },
+    energy: {
+      production_kwh: 9146,
+      consumption_kwh: 10200,
+      prod: 9146,
+      conso: 10200,
+      auto: 11694,
+      autoconsumption_kwh: 11694,
+      total_pv_used_on_site_kwh: 11694,
+      import: 1224,
+      import_kwh: 1224,
+      billable_import_kwh: 1224,
+      grid_import_kwh: 1224,
+      surplus: 0,
+      surplus_kwh: 0,
+      exported_kwh: 0,
+      battery_losses_kwh: 170,
+      direct_self_consumption_kwh: 5876,
+      physical_battery_discharge_kwh: 1600,
+      virtual_battery_discharge_kwh: 4218,
+      used_credit_kwh: 4218,
+      restored_kwh: 4218,
+    },
+    prod_kwh: 9146,
+    conso_kwh: 10200,
+    auto_kwh: 11694,
+    import_kwh: 1224,
+    billable_import_kwh: 1224,
+    virtual_credit_start_kwh: 5000,
+    virtual_credit_end_kwh: 5000,
+  };
+  attachNormalizedEnergyKpiFields(hybridImpossibleDisplay);
+  assert(hybridImpossibleDisplay.energy.total_pv_used_on_site_kwh <= 9146, "HYBRID PV used capped to annual production");
+  assert(hybridImpossibleDisplay.energy.energy_solar_used_kwh <= 9146, "HYBRID display solar used capped to annual production");
+  assert(hybridImpossibleDisplay.energy.autoconsumption_kwh <= 9146, "HYBRID autoconsumption_kwh capped to annual production");
+  assert(hybridImpossibleDisplay.energy.pv_self_consumption_pct <= 100, "HYBRID PV self-consumption cannot exceed 100%");
+  assert(Math.abs((hybridImpossibleDisplay.energy.site_autonomy_pct ?? 0) - 88) < 0.05, "HYBRID site autonomy = 1 - import / conso");
+  assert(
+    (hybridImpossibleDisplay.energy.solar_coverage_pct ?? 0) <= (9146 / 10200) * 100 + 0.01,
+    "HYBRID solar coverage cannot exceed annual PV production / consumption"
+  );
+  assert(hybridImpossibleDisplay.energy.site_solar_or_credit_used_kwh === 8976, "HYBRID site covered by solar or credit = conso - import");
+
+  const mappedHybrid = mapScenarioToV2(hybridImpossibleDisplay, {
+    pv: { kwc: 7, panelsCount: 18 },
+    battery_input: { capacity_kwh: 7 },
+    finance_input: { battery_physical_price_ttc: 0 },
+  });
+  assert(mappedHybrid.energy.energy_solar_used_kwh <= 9146, "scenarios_v2 energy_solar_used_kwh capped");
+  assert(mappedHybrid.energy.total_pv_used_on_site_kwh <= 9146, "scenarios_v2 total_pv_used_on_site_kwh capped");
+  assert(mappedHybrid.energy.billable_import_kwh === 1224, "scenarios_v2 billable_import_kwh preserved");
+  assert(mappedHybrid.energy.energy_grid_import_kwh === 1224, "scenarios_v2 energy_grid_import_kwh preserved");
+  assert(mappedHybrid.energy.site_solar_or_credit_used_kwh === 8976, "scenarios_v2 site solar or credit used preserved");
 
   console.log("OK — energyKpisNormalize\n");
 }

@@ -250,6 +250,37 @@ function main() {
     console.log("OK Cas 10 - report annuel vers regime permanent");
   }
 
+  // Cas 11 - audit BATTERY_VIRTUAL 9146/10200 avec 2702 kWh de surplus annuel.
+  // Distribution volontaire : deficit hiver avant surplus, puis surplus, puis deficit.
+  // En report pluriannuel stabilise, tout le surplus annuel est restitue et l'import residuel
+  // vaut conso - production = 1054 kWh.
+  {
+    const pv = zeros(H);
+    const load = zeros(H);
+    load[0] = 2702;
+    pv[100] = 6444;
+    load[100] = 6444;
+    pv[200] = 2702;
+    load[300] = 1054;
+
+    const r = simulateVirtualBattery8760Rollover({
+      pv_hourly: pv,
+      conso_hourly: load,
+      config: { capacity_kwh: 1000000 },
+      years: 10,
+    });
+
+    assert(r.ok, "cas11 ok");
+    assertApprox(r.year1.grid_import_kwh, 2702, "cas11 year1 import");
+    assertApprox(r.stabilized.grid_import_kwh, 1054, "cas11 stabilized import");
+    assertApprox(r.stabilized.virtual_battery_total_charged_kwh, 2702, "cas11 surplus stocke");
+    assertApprox(r.stabilized.virtual_battery_total_discharged_kwh, 2702, "cas11 surplus restitue");
+    assertApprox(r.stabilized.virtual_battery_credit_start_kwh, 1648, "cas11 credit debut stabilise");
+    assertApprox(r.stabilized.virtual_battery_credit_end_kwh, 1648, "cas11 credit fin stabilise");
+    assertApprox(r.stabilized.auto_kwh, 9146, "cas11 energie couverte stabilisee");
+    console.log("OK Cas 11 - audit 9146/10200 surplus 2702 en regime stabilise");
+  }
+
   console.log("\n✅ Tous les tests virtualBattery8760 passent.");
 }
 

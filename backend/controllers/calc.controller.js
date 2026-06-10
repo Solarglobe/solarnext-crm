@@ -1479,6 +1479,17 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             const baseScenarioH = scenarios.BASE;
             const production = baseScenarioH.energy?.production_kwh ?? baseScenarioH.energy?.prod ?? baseScenarioH.prod_kwh ?? 0;
             const consumption = baseScenarioH.energy?.consumption_kwh ?? baseScenarioH.energy?.conso ?? baseScenarioH.conso_kwh ?? 0;
+            const physicalDischargeKwh = battPhysicalResult.annual_discharge_kwh ?? 0;
+            const physicalAutoKwh = battPhysicalResult.auto_kwh ?? 0;
+            const physicalImportKwh = battPhysicalResult.grid_import_kwh ?? 0;
+            const physicalExportKwh = battPhysicalResult.surplus_kwh ?? 0;
+            const physicalLossesKwh = battPhysicalResult.battery_losses_kwh ?? 0;
+            const directSelfConsumptionKwh = Math.max(0, physicalAutoKwh - physicalDischargeKwh);
+            const hybridPvProducedUsedKwh = Math.max(
+              0,
+              Math.min(production, consumption, production - hybridSurplusKwh - physicalLossesKwh)
+            );
+            const hybridSiteSolarOrCreditUsedKwh = Math.max(0, Math.min(consumption, consumption - hybridImportKwh));
 
             // Agrégation mensuelle hybride (auto = physique + crédits VB utilisés)
             const hybridAutoHourly = battPhysicalResult.auto_hourly.map(
@@ -1553,10 +1564,20 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               surplus: hybridSurplusKwh,
               import: hybridImportKwh,
               conso: consumption,
-              battery_losses_kwh: battPhysicalResult.battery_losses_kwh ?? 0,
+              battery_losses_kwh: physicalLossesKwh,
               production_kwh: production,
               consumption_kwh: consumption,
-              autoconsumption_kwh: hybridAutoKwh,
+              autoconsumption_kwh: hybridPvProducedUsedKwh,
+              total_pv_used_on_site_kwh: hybridPvProducedUsedKwh,
+              energy_solar_used_kwh: hybridPvProducedUsedKwh,
+              site_solar_or_credit_used_kwh: hybridSiteSolarOrCreditUsedKwh,
+              direct_self_consumption_kwh: directSelfConsumptionKwh,
+              physical_battery_discharge_kwh: physicalDischargeKwh,
+              virtual_battery_discharge_kwh: vbCreditsUsed,
+              battery_discharge_kwh: physicalDischargeKwh + vbCreditsUsed,
+              physical_auto_kwh: physicalAutoKwh,
+              physical_grid_import_kwh: physicalImportKwh,
+              physical_grid_export_kwh: physicalExportKwh,
               import_kwh: hybridImportKwh,
               billable_import_kwh: hybridImportKwh,
               surplus_kwh: hybridSurplusKwh,
@@ -1585,12 +1606,12 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             hybridScenario.used_credit_kwh = vbCreditsUsed;
             // Taux d'autoconsommation (auto / production) et couverture solaire (auto / conso) — cohérents avec BATTERY_PHYSICAL et BATTERY_VIRTUAL
             hybridScenario.self_consumption_pct = production > 0
-              ? Math.round((hybridAutoKwh / production) * 10000) / 100
+              ? Math.round((hybridPvProducedUsedKwh / production) * 10000) / 100
               : 0;
             hybridScenario.self_production_pct = consumption > 0
-              ? Math.round((hybridAutoKwh / consumption) * 10000) / 100
+              ? Math.round((hybridPvProducedUsedKwh / consumption) * 10000) / 100
               : 0;
-            hybridScenario.autoproduction_kwh = hybridAutoKwh;
+            hybridScenario.autoproduction_kwh = hybridPvProducedUsedKwh;
 
             hybridScenario.battery_virtual = {
               enabled: true,
