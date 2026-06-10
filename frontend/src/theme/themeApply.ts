@@ -8,9 +8,9 @@ function isThemeMode(value: unknown): value is ThemeMode {
 }
 
 export function readStoredTheme(): ThemeMode {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   const stored = window.localStorage.getItem(STORAGE_KEY);
-  return isThemeMode(stored) ? stored : "dark";
+  return isThemeMode(stored) ? stored : "light";
 }
 
 export function applyTheme(theme: ThemeMode): void {
