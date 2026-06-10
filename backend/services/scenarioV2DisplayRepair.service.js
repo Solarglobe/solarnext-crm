@@ -32,6 +32,62 @@ function virtualProviderCode(sc) {
  * La page scénarios lit data_json.scenarios_v2 sans recalcul ; cette réparation évite de réafficher
  * 63 % quand le snapshot contient assez d'information pour inférer le crédit kWh reportable.
  */
+function firstNum(...vals) {
+  for (const v of vals) {
+    const n = num(v);
+    if (n != null) return n;
+  }
+  return null;
+}
+
+function repairFinanceFromImport(sc, previousImport, repairedImport) {
+  const finance = sc.finance && typeof sc.finance === "object" ? sc.finance : {};
+  const previousBill = firstNum(
+    finance.estimated_annual_bill_eur,
+    finance.remaining_bill_eur,
+    finance.residual_bill_eur,
+    sc.residual_bill_eur
+  );
+  if (previousBill == null || previousBill <= 0 || previousImport == null || previousImport <= 0) {
+    return finance;
+  }
+
+  const repairedBill = round2(previousBill * (repairedImport / previousImport));
+  if (repairedBill == null || repairedBill >= previousBill) return finance;
+
+  const annualDelta = previousBill - repairedBill;
+  const horizonYears = firstNum(
+    finance.economie_horizon_years,
+    finance.finance_meta?.horizon_years
+  ) ?? 25;
+
+  const nextFinance = {
+    ...finance,
+    estimated_annual_bill_eur: repairedBill,
+    remaining_bill_eur: repairedBill,
+    residual_bill_eur: repairedBill,
+  };
+
+  const ecoY1 = num(finance.economie_year_1);
+  if (ecoY1 != null) nextFinance.economie_year_1 = round2(ecoY1 + annualDelta);
+
+  const ecoTotal = num(finance.economie_total ?? finance.total_savings_25y);
+  if (ecoTotal != null) {
+    const repairedTotal = round2(ecoTotal + annualDelta * horizonYears);
+    nextFinance.economie_total = repairedTotal;
+    nextFinance.total_savings_25y = repairedTotal;
+  }
+
+  nextFinance._display_repair = {
+    ...(finance._display_repair && typeof finance._display_repair === "object" ? finance._display_repair : {}),
+    previous_annual_bill_eur: round2(previousBill),
+    repaired_annual_bill_eur: repairedBill,
+    annual_savings_delta_eur: round2(annualDelta),
+  };
+
+  return nextFinance;
+}
+
 export function repairVirtualScenarioDisplayKpis(sc) {
   if (!sc || typeof sc !== "object") return sc;
   if (scenarioId(sc) !== "BATTERY_VIRTUAL") return sc;
@@ -108,9 +164,13 @@ export function repairVirtualScenarioDisplayKpis(sc) {
     site_autonomy_pct: coveragePct,
   };
 
+  const fixedFinance = repairFinanceFromImport(sc, currentImport, repairedImport);
+
   return {
     ...sc,
     energy: fixedEnergy,
+    finance: fixedFinance,
+    residual_bill_eur: fixedFinance.residual_bill_eur ?? sc.residual_bill_eur,
     auto_kwh: round2(covered),
     import_kwh: round2(repairedImport),
     billable_import_kwh: round2(repairedImport),
