@@ -218,6 +218,43 @@ function main() {
   assert(mappedVirtualStalePct.energy.energy_solar_used_kwh === 9146, "scenarios_v2 BV energie PV utilisee corrigee");
   assert(mappedVirtualStalePct.energy.site_solar_or_credit_used_kwh === 9146, "scenarios_v2 BV energie site couverte corrigee");
 
+  const mappedVirtualCapture = mapScenarioToV2(
+    {
+      name: "BATTERY_VIRTUAL",
+      _skipped: false,
+      energy: {
+        production_kwh: 9152,
+        consumption_kwh: 10200,
+        total_pv_used_on_site_kwh: 6447,
+        autoconsumption_kwh: 6447,
+        direct_self_consumption_kwh: 6447,
+        import_kwh: 1048,
+        billable_import_kwh: 1048,
+        grid_import_kwh: 1048,
+        energy_grid_import_kwh: 1048,
+        credited_kwh: 2705,
+        used_credit_kwh: 2705,
+        restored_kwh: 2705,
+        site_autonomy_pct: 63.2,
+        solar_coverage_pct: 63.2,
+        pv_self_consumption_pct: 70.44,
+      },
+      prod_kwh: 9152,
+      conso_kwh: 10200,
+      auto_kwh: 9152,
+      import_kwh: 1048,
+      billable_import_kwh: 1048,
+      virtual_credit_start_kwh: 1657,
+      virtual_credit_end_kwh: 1657,
+    },
+    { pv: { kwc: 7, panelsCount: 18 } }
+  );
+  assert(Math.abs((mappedVirtualCapture.energy.site_autonomy_pct ?? 0) - 89.73) < 0.05, "capture BV scenarios_v2 autonomie stabilisee");
+  assert(Math.abs((mappedVirtualCapture.energy.solar_coverage_pct ?? 0) - 89.73) < 0.05, "capture BV scenarios_v2 couverture stabilisee");
+  assert(Math.abs((mappedVirtualCapture.energy.pv_self_consumption_pct ?? 0) - 100) < 0.05, "capture BV scenarios_v2 autoconsommation PV stabilisee");
+  assert(mappedVirtualCapture.energy.energy_grid_import_kwh === 1048, "capture BV scenarios_v2 import stabilise");
+  assert(mappedVirtualCapture.energy.site_solar_or_credit_used_kwh === 9152, "capture BV scenarios_v2 energie site couverte");
+
   console.log("OK — energyKpisNormalize\n");
 }
 

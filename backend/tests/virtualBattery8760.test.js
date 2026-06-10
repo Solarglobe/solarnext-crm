@@ -281,6 +281,36 @@ function main() {
     console.log("OK Cas 11 - audit 9146/10200 surplus 2702 en regime stabilise");
   }
 
+  // Cas 12 - audit capture BATTERY_VIRTUAL 9152/10200 avec PV direct 6447
+  // et 2705 kWh de surplus annuel. En Urban Solar kWh reportable stabilise,
+  // l'import residuel vaut conso - production = 1048 kWh.
+  {
+    const pv = zeros(H);
+    const load = zeros(H);
+    load[0] = 2705;
+    pv[100] = 6447;
+    load[100] = 6447;
+    pv[200] = 2705;
+    load[300] = 1048;
+
+    const r = simulateVirtualBattery8760Rollover({
+      pv_hourly: pv,
+      conso_hourly: load,
+      config: { capacity_kwh: 2705, credit_rollover_enabled: true },
+      years: 10,
+    });
+
+    assert(r.ok, "cas12 ok");
+    assertApprox(r.year1.grid_import_kwh, 2705, "cas12 year1 import");
+    assertApprox(r.stabilized.grid_import_kwh, 1048, "cas12 stabilized import");
+    assertApprox(r.stabilized.virtual_battery_total_charged_kwh, 2705, "cas12 surplus stocke");
+    assertApprox(r.stabilized.virtual_battery_total_discharged_kwh, 2705, "cas12 surplus restitue");
+    assertApprox(r.stabilized.virtual_battery_credit_start_kwh, 1657, "cas12 credit debut stabilise");
+    assertApprox(r.stabilized.virtual_battery_credit_end_kwh, 1657, "cas12 credit fin stabilise");
+    assertApprox(r.stabilized.auto_kwh, 9152, "cas12 energie couverte stabilisee");
+    console.log("OK Cas 12 - audit 9152/10200 surplus 2705 en regime stabilise");
+  }
+
   console.log("\n✅ Tous les tests virtualBattery8760 passent.");
 }
 
