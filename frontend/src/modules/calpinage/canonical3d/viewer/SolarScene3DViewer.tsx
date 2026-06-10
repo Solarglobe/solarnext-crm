@@ -314,7 +314,7 @@ export interface SolarScene3DViewerProps {
   readonly showRoofTruthBadges?: boolean;
   /** Alerte compacte quand un pan utilise une hauteur moyenne / par défaut. */
   readonly showMissingHeightAlerts?: boolean;
-  /** Diagnostic des jonctions multi-pans avant pose PV. */
+  /** Diagnostic des jonctions multi-pans avant pose PV. Opt-in: trop verbeux pour la phase 3 produit. */
   readonly showMultiPanDiagnostics?: boolean;
   readonly showRoofEdges?: boolean;
   readonly showObstacles?: boolean;
@@ -3143,7 +3143,7 @@ export function SolarScene3DViewer({
   showRoof = true,
   showRoofTruthBadges = false,
   showMissingHeightAlerts = true,
-  showMultiPanDiagnostics = true,
+  showMultiPanDiagnostics = false,
   showRoofEdges = true,
   showObstacles = true,
   showExtensions = true,
