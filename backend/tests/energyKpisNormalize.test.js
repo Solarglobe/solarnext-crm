@@ -287,6 +287,32 @@ function main() {
   assert((repairedLegacyHardy.finance.economie_year_1 ?? 0) > 2001, "API repair Hardy economie annuelle augmente");
   assert((repairedLegacyHardy.finance.economie_total ?? 0) > 48078, "API repair Hardy economie 25 ans augmente");
 
+  const repairedLegacyPdfSnapshot = repairVirtualScenarioDisplayKpis({
+    scenario_type: "BATTERY_VIRTUAL",
+    energy: {
+      production_kwh: 9152,
+      consumption_kwh: 10200,
+      pv_self_consumption_pct: 89.5,
+      solar_coverage_pct: 80.3,
+      site_autonomy_pct: 80.3,
+      energy_solar_used_kwh: 8190,
+      autoconsumption_kwh: 8190,
+      import_kwh: 2010,
+      billable_import_kwh: 2010,
+      grid_import_kwh: 2010,
+    },
+    finance: {
+      economie_year_1: 2001,
+      economie_total: 48078,
+      total_savings_25y: 48078,
+      estimated_annual_bill_eur: 733,
+      residual_bill_eur: 733,
+    },
+  });
+  assert(Math.abs((repairedLegacyPdfSnapshot.energy.site_autonomy_pct ?? 0) - 89.7) < 0.1, "PDF snapshot repair Hardy autonomie");
+  assert(Math.abs((repairedLegacyPdfSnapshot.energy.energy_grid_import_kwh ?? 0) - 1048) < 0.1, "PDF snapshot repair Hardy import");
+  assert(Math.abs((repairedLegacyPdfSnapshot.energy.energy_solar_used_kwh ?? 0) - 9152) < 0.1, "PDF snapshot repair Hardy energie utilisee");
+
   console.log("OK — energyKpisNormalize\n");
 }
 

@@ -7,6 +7,7 @@
 
 import { pool } from "../config/db.js";
 import * as quotePrepService from "./quotePrep/quotePrep.service.js";
+import { repairScenarioV2DisplayKpis } from "./scenarioV2DisplayRepair.service.js";
 
 /**
  * Construit le snapshot complet pour selected_scenario_snapshot.
@@ -20,7 +21,12 @@ export async function buildSelectedScenarioSnapshot({
   organizationId,
   dataJson,
 }) {
-  const scenario = (dataJson?.scenarios_v2 || []).find(
+  const scenariosV2 = repairScenarioV2DisplayKpis(dataJson?.scenarios_v2 || []);
+  const snapshotDataJson = {
+    ...(dataJson && typeof dataJson === "object" ? dataJson : {}),
+    scenarios_v2: scenariosV2,
+  };
+  const scenario = scenariosV2.find(
     (s) => (s.id || s.name) === scenarioId
   );
   if (!scenario) {
@@ -150,8 +156,8 @@ export async function buildSelectedScenarioSnapshot({
 
   /** Dernier calcul : cohérence PDF / site avec le compteur réellement utilisé (pas seulement leads à plat). */
   const meterSnap =
-    dataJson.meter_snapshot && typeof dataJson.meter_snapshot === "object"
-      ? dataJson.meter_snapshot
+    snapshotDataJson.meter_snapshot && typeof snapshotDataJson.meter_snapshot === "object"
+      ? snapshotDataJson.meter_snapshot
       : null;
   if (meterSnap) {
     if (meterSnap.meter_power_kva != null) {
@@ -377,8 +383,8 @@ export async function buildSelectedScenarioSnapshot({
     ...(meterSnap
       ? {
           study_meter: {
-            selected_meter_id: dataJson.selected_meter_id ?? meterSnap.selected_meter_id ?? null,
-            snapshot_captured_at: dataJson.meter_snapshot_captured_at ?? null,
+            selected_meter_id: snapshotDataJson.selected_meter_id ?? meterSnap.selected_meter_id ?? null,
+            snapshot_captured_at: snapshotDataJson.meter_snapshot_captured_at ?? null,
             snapshot: meterSnap,
           },
         }

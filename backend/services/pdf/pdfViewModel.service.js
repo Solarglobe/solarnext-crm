@@ -12,6 +12,10 @@ import { getLogoPath } from "../orgLogo.service.js";
 import { getAbsolutePath } from "../localStorage.service.js";
 import { mapSelectedScenarioSnapshotToPdfViewModel } from "./pdfViewModel.mapper.js";
 import { getLegalCgvForPdfRender } from "../legalCgv.service.js";
+import {
+  repairScenarioV2DisplayKpis,
+  repairVirtualScenarioDisplayKpis,
+} from "../scenarioV2DisplayRepair.service.js";
 
 /** Première série ≥ 8760 points trouvée sous les clés données (kW ou kWc selon le champ). */
 function firstHourlyArray8760(obj, keys) {
@@ -51,6 +55,7 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
   if (snapshot == null || typeof snapshot !== "object") {
     return { error: "SNAPSHOT_NOT_FOUND" };
   }
+  const repairedSnapshot = repairVirtualScenarioDisplayKpis(snapshot);
 
   const orgRowForPdf = await pool.query(
     `SELECT settings_json, pdf_cover_image_key, name, legal_name, trade_name, pdf_primary_color
@@ -100,6 +105,7 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
   }
 
   const dj = row.data_json && typeof row.data_json === "object" ? row.data_json : {};
+  const repairedScenariosV2 = repairScenarioV2DisplayKpis(dj.scenarios_v2 ?? null);
   const p5HourlyOpts = {
     p5_pv_hourly_kw_8760: firstHourlyArray8760(dj, ["pv_hourly_kw"]),
     p5_pv_hourly_shape_per_kwc_8760: firstHourlyArray8760(dj, [
@@ -114,11 +120,11 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
     ]),
   };
 
-  const viewModel = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
+  const viewModel = mapSelectedScenarioSnapshotToPdfViewModel(repairedSnapshot, {
     studyId,
     versionId,
     studyNumber,
-    scenarios_v2: row.data_json?.scenarios_v2 ?? null,
+    scenarios_v2: repairedScenariosV2,
     selected_scenario_id: selectedScenarioIdForMap ?? null,
     calpinage_layout_snapshot: calpinageLayoutSnapshot,
     economic_snapshot_config: economicSnapshotConfig,
@@ -126,7 +132,7 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
     ...p5HourlyOpts,
   });
 
-  viewModel.selected_scenario_snapshot = snapshot;
+  viewModel.selected_scenario_snapshot = repairedSnapshot;
   viewModel.calculation_confidence = dj.calculation_confidence ?? null;
 
   const orgRow = orgRowPdf;
