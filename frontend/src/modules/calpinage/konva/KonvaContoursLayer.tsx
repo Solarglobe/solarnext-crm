@@ -39,6 +39,13 @@ type Ridge = {
   roofRole: string;
 };
 
+type Trait = {
+  id: string;
+  a: ImgPt;
+  b: ImgPt;
+  roofRole: string;
+};
+
 type RoofExtensionSegment = { a: ImgPt; b: ImgPt };
 type RoofExtensionHips = { left?: RoofExtensionSegment; right?: RoofExtensionSegment };
 type RoofExtension = {
@@ -77,6 +84,7 @@ type WorldTransform = {
 
 type LayerSnap = {
   contours: Contour[];
+  traits: Trait[];
   ridges: Ridge[];
   roofExtensions: RoofExtension[];
   parametricDormers: ParametricDormer[];
@@ -98,6 +106,11 @@ const STYLE = {
   ridgeStroke: "#d97706",
   ridgeHaloWidth: 4.0,
   ridgeStrokeWidth: 2.0,
+  /* Aretier / trait */
+  traitHalo: "rgba(255, 255, 255, 0.85)",
+  traitStroke: "#0891b2",
+  traitHaloWidth: 3.5,
+  traitStrokeWidth: 1.6,
   /* Extensions / dormers (orange) */
   extensionStroke: "#F97316",
   extensionStrokeWidth: 1.8,
@@ -176,6 +189,7 @@ export function readLayerSnap(): LayerSnap | null {
   const st = w["CALPINAGE_STATE"] as
     | {
         contours?: Contour[];
+        traits?: Trait[];
         ridges?: Ridge[];
         roofExtensions?: RoofExtension[];
         parametricDormers?: ParametricDormer[];
@@ -193,6 +207,7 @@ export function readLayerSnap(): LayerSnap | null {
   if (imgH === 0) return null;
   return {
     contours: Array.isArray(st.contours) ? st.contours : [],
+    traits: Array.isArray(st.traits) ? st.traits : [],
     ridges: Array.isArray(st.ridges) ? st.ridges : [],
     roofExtensions: Array.isArray(st.roofExtensions) ? st.roofExtensions : [],
     parametricDormers: Array.isArray(st.parametricDormers) ? st.parametricDormers : [],
@@ -229,7 +244,7 @@ export function KonvaContoursLayer() {
 
   if (!snap) return null;
 
-  const { contours, ridges, roofExtensions, parametricDormers, worldTransform, imgH } = snap;
+  const { contours, traits, ridges, roofExtensions, parametricDormers, worldTransform, imgH } = snap;
   const roofExtensionIds = new Set(roofExtensions.map((rx) => rx.id));
 
   return (
@@ -273,6 +288,34 @@ export function KonvaContoursLayer() {
               strokeWidth={STYLE.roofStrokeWidth}
               strokeScaleEnabled={false}
               lineJoin="round"
+              lineCap="round"
+              listening={false}
+            />
+          </Group>
+        );
+      })}
+
+      {/* Traits / aretiers */}
+      {traits.map((t) => {
+        if (!t.a || !t.b || t.roofRole === "chienAssis") return null;
+
+        const pts = [t.a.x, imgH - t.a.y, t.b.x, imgH - t.b.y];
+
+        return (
+          <Group key={t.id} listening={false}>
+            <Line
+              points={pts}
+              stroke={STYLE.traitHalo}
+              strokeWidth={STYLE.traitHaloWidth}
+              strokeScaleEnabled={false}
+              lineCap="round"
+              listening={false}
+            />
+            <Line
+              points={pts}
+              stroke={STYLE.traitStroke}
+              strokeWidth={STYLE.traitStrokeWidth}
+              strokeScaleEnabled={false}
               lineCap="round"
               listening={false}
             />
