@@ -51,7 +51,7 @@
 
 .p12-hero__title {
   margin: 0 0 2.8mm;
-  font-size: 6.8mm;
+  font-size: 6.2mm;
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.12;
@@ -71,9 +71,9 @@
   flex-shrink: 0;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 2.6mm;
+  gap: 2.2mm;
   width: 100%;
-  padding: 2.5mm 3mm;
+  padding: 2.1mm 2.8mm;
   margin-bottom: 2mm;
   border-radius: 4mm;
   border: 0.35mm solid var(--p12-line-soft);
@@ -121,7 +121,7 @@
 
 .p12-card {
   border-radius: 5mm;
-  padding: 4.5mm 4.8mm 5.5mm;
+  padding: 3.6mm 4.2mm 4.2mm;
   min-height: auto;
   display: flex;
   flex-direction: column;
@@ -176,7 +176,7 @@
   flex-direction: row;
   align-items: flex-start;
   gap: 2mm;
-  padding: 1.75mm 0;
+  padding: 1.4mm 0;
   margin: 0;
   border-bottom: 0.22mm solid rgba(195, 152, 71, 0.12);
 }

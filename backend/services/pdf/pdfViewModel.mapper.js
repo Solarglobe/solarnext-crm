@@ -763,12 +763,21 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   };
 
   const orientationMap = { S: "Sud", SE: "Sud-Est", SO: "Sud-Ouest", SW: "Sud-Ouest", E: "Est", O: "Ouest", W: "Ouest" };
+  /* Orientation / inclinaison affichées au client :
+     1. référence PVGIS (azimut/inclinaison réellement utilisés pour le calcul de production —
+        convention 0 = Nord, 180 = Sud, cohérente avec la rose des vents du moteur p3b) ;
+     2. sinon lettre cardinale saisie (S/SO/…) mappée en toutes lettres ;
+     3. sinon "—" : un azimut numérique d'origine inconnue a déjà produit un cardinal faux
+        (toit Sud-Ouest affiché Ouest-Nord-Ouest) — mieux vaut absent que faux. */
+  const _p3bTilt = num(_pvgisRef.tiltDeg) ?? num(site.tilt_deg);
+  const _p3bAzimuth = num(_pvgisRef.azimuthDeg);
+  const _p3bOrientationLetter = orientationMap[String(site.orientation_deg || "").toUpperCase()] || null;
   const p3b_auto = {
     client: clientName,
     ref,
     date: dateDisplay,
-    inclinaison: num(site.tilt_deg) != null ? `${num(site.tilt_deg)}°` : "",
-    orientation: orientationMap[String(site.orientation_deg || "").toUpperCase()] || str(site.orientation_deg) || "",
+    inclinaison: _p3bTilt != null ? `${_p3bTilt}°` : "",
+    orientation: _p3bAzimuth != null ? _p3bAzimuth : (_p3bOrientationLetter || ""),
     surface_m2: num(installation.surface_panneaux_m2) ?? (numOrZero(installation.panneaux_nombre) * 2),
     nb_panneaux: numOrZero(installation.panneaux_nombre),
     layout_snapshot: options.calpinage_layout_snapshot ?? null,

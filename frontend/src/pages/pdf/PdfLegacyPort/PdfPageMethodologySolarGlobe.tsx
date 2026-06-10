@@ -188,10 +188,6 @@ export default function PdfPageMethodologySolarGlobe({
             Une chaîne de calcul documentée, du relevé d’implantation aux indicateurs de synthèse — pour estimer le
             projet avec rigueur et lisibilité.
           </p>
-          <p className="p-msg-hero__frame">
-            Cette méthodologie vise une estimation techniquement cohérente, reproductible entre dossiers, et non un simple
-            coefficient théorique déconnecté du projet.
-          </p>
         </header>
 
         <section className="p-msg-scope" aria-label="Périmètre pris en compte">
@@ -235,7 +231,6 @@ export default function PdfPageMethodologySolarGlobe({
           {BLOCKS.map((b) => (
             <article key={b.title} className="p-msg-card">
               <h2 className="p-msg-card__title">{b.title}</h2>
-              <p className="p-msg-card__tagline">{b.tagline}</p>
               <p className="p-msg-card__text">{b.body}</p>
             </article>
           ))}

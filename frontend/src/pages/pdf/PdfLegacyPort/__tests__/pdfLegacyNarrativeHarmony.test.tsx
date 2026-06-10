@@ -85,7 +85,7 @@ describe("PdfLegacyPort — harmonisation narrative / lexique", () => {
   it("méthodologie : calepinage explicite et bilan de production annuel", () => {
     const { container } = render(<PdfLegacyPort viewModel={viewModelWithP8} />);
     const m = container.querySelector("#p-methodology-solarglobe");
-    expect(m?.textContent).toMatch(/Plan de pose \(calepinage\)/);
+    expect(m?.textContent).toMatch(/Implantation réelle du projet/);
     expect(m?.textContent).toMatch(/Bilan de production annuel/);
   });
 });
