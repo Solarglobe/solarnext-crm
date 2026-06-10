@@ -34,8 +34,10 @@ import { simulateBattery8760 } from "../services/batteryService.js";
 import { computeVirtualBatteryAnnualCost } from "../services/virtualBatteryCreditModel.service.js";
 import {
   simulateVirtualBattery8760,
+  simulateVirtualBattery8760Rollover,
   aggregateVirtualBatteryMonthly,
   resolveVirtualBatteryCapacityKwh,
+  resolveVirtualBatteryCreditRolloverEnabled,
 } from "../services/virtualBattery8760.service.js";
 import { simulateVirtualBattery8760Unbounded } from "../services/virtualBatteryUnboundedSim.service.js";
 import {
@@ -1068,6 +1070,31 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           virtualScenario.residual_bill_eur = null;
           virtualScenario.surplus_revenue_eur = null;
         } else if (!virtualScenario._skipped) {
+          const vbYear1Sim = vbSim;
+          const rolloverEnabled = resolveVirtualBatteryCreditRolloverEnabled(vbInput);
+          let vbRollover = null;
+          if (rolloverEnabled) {
+            vbRollover = simulateVirtualBattery8760Rollover({
+              pv_hourly: ctx.pv.hourly,
+              conso_hourly: consoHourlyVirtual,
+              config: {
+                ...vbInput,
+                capacity_kwh: vbSim.virtual_battery_capacity_kwh ?? resolveVirtualBatteryCapacityKwh(vbInput),
+              },
+              years: 10,
+            });
+            if (vbRollover?.ok) {
+              vbSim = vbRollover.stabilized;
+            }
+          }
+          const vbStabilizedSim = vbSim;
+          virtualScenario.virtual_battery_rollover = buildVirtualBatteryRolloverMeta({
+            enabled: rolloverEnabled && vbRollover?.ok,
+            rollover: vbRollover?.ok ? vbRollover : null,
+            year1: vbYear1Sim,
+            stabilized: vbStabilizedSim,
+          });
+
           const monthlyVirt = aggregateMonthly(ctx.pv.hourly, consoHourlyVirtual, vbSim);
           const billableMonthly = aggregateVirtualBatteryMonthly(
             vbSim.virtual_battery_hourly_grid_import_kwh,
@@ -1185,9 +1212,15 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 ? vbDischarged / vbCapKwh
                 : null,
           };
+          virtualScenario.year1 = virtualScenario.virtual_battery_rollover?.year1 ?? null;
+          virtualScenario.stabilized = virtualScenario.virtual_battery_rollover?.stabilized ?? null;
+          virtualScenario.convergence_year = virtualScenario.virtual_battery_rollover?.convergence_year ?? 1;
+          virtualScenario.virtual_credit_start_kwh = virtualScenario.virtual_battery_rollover?.virtual_credit_start_kwh ?? 0;
+          virtualScenario.virtual_credit_end_kwh = virtualScenario.virtual_battery_rollover?.virtual_credit_end_kwh ?? remaining_credit_kwh;
 
           virtualScenario._virtualBattery8760 = {
             virtual_battery_capacity_kwh: vbSim.virtual_battery_capacity_kwh,
+            virtual_battery_credit_start_kwh: vbSim.virtual_battery_credit_start_kwh,
             virtual_battery_credit_end_kwh: vbSim.virtual_battery_credit_end_kwh,
             virtual_battery_total_charged_kwh: vbSim.virtual_battery_total_charged_kwh,
             virtual_battery_total_discharged_kwh: vbSim.virtual_battery_total_discharged_kwh,
@@ -1716,6 +1749,41 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
 // ======================================================================
 // BATTERY_VIRTUAL — structure stable avant merge finance / mapScenarioToV2
 // ======================================================================
+function summarizeVirtualBatteryYear(result) {
+  if (!result || typeof result !== "object") return null;
+  const production = Number(result._balance?.sum_pv ?? result.prod_kwh ?? 0);
+  const consumption = Number(result._balance?.sum_load ?? 0);
+  const auto = Number(result.auto_kwh ?? 0);
+  const gridImport = Number(result.grid_import_kwh ?? 0);
+  return {
+    autoconsumption_kwh: result.auto_kwh ?? null,
+    autoconsumption_pct:
+      production > 0 ? Math.round((auto / production) * 10000) / 100 : null,
+    autonomy_pct:
+      consumption > 0 ? Math.round(((consumption - gridImport) / consumption) * 10000) / 100 : null,
+    import_kwh: result.grid_import_kwh ?? null,
+    export_kwh: result.surplus_kwh ?? null,
+    credited_kwh: result.virtual_battery_total_charged_kwh ?? null,
+    used_credit_kwh: result.virtual_battery_total_discharged_kwh ?? null,
+    virtual_credit_start_kwh: result.virtual_battery_credit_start_kwh ?? 0,
+    virtual_credit_end_kwh: result.virtual_battery_credit_end_kwh ?? 0,
+  };
+}
+
+function buildVirtualBatteryRolloverMeta({ enabled, rollover, year1, stabilized }) {
+  return {
+    credit_rollover_enabled: enabled === true,
+    convergence_year: rollover?.convergence_year ?? 1,
+    converged: rollover?.converged ?? true,
+    years_simulated: rollover?.years ?? 1,
+    virtual_credit_start_kwh: stabilized?.virtual_battery_credit_start_kwh ?? 0,
+    virtual_credit_end_kwh: stabilized?.virtual_battery_credit_end_kwh ?? 0,
+    year1: summarizeVirtualBatteryYear(year1),
+    stabilized: summarizeVirtualBatteryYear(stabilized),
+    yearly: Array.isArray(rollover?.yearly) ? rollover.yearly : null,
+  };
+}
+
 function normalizeBatteryVirtualScenarioForPersistence(virtualScenario, baseScenario) {
   const baseEn = baseScenario?.energy || {};
   const baseProd =

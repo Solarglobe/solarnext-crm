@@ -25,6 +25,29 @@ export function resolveVirtualBatteryCapacityKwh(config) {
   return Number(cap);
 }
 
+export function resolveVirtualBatteryCreditRolloverEnabled(config) {
+  if (!config || typeof config !== "object") return true;
+  const explicit =
+    config.credit_rollover_enabled ??
+    config.creditRolloverEnabled ??
+    config.rollover_enabled ??
+    config.rolloverEnabled ??
+    config.carryover_enabled ??
+    config.carryoverEnabled;
+  if (explicit != null) return explicit === true || explicit === "true" || explicit === "oui";
+
+  const reset =
+    config.reset_credit_annually ??
+    config.resetCreditAnnually ??
+    config.annual_credit_reset ??
+    config.annualCreditReset ??
+    config.credit_expires_annually ??
+    config.creditExpiresAnnually;
+  if (reset != null) return !(reset === true || reset === "true" || reset === "oui");
+
+  return true;
+}
+
 /**
  * Agrège import facturable et flux virtuels par mois (12 lignes).
  * @param {number[]} gridImportHourly
@@ -83,7 +106,9 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
   // P1 standard : pas de crédit partiel — config.credit_ratio n’est pas appliqué (anciennes configs sans effet sur la sim).
   const creditRatio = 1;
 
-  let SOC = 0;
+  const initialCredit = config?.initial_credit_kwh ?? config?.initialCreditKwh ?? 0;
+  let SOC = Math.max(0, Math.min(capacity_kwh, Number(initialCredit) || 0));
+  const SOC_initial = SOC;
   const hourlyCharge = [];
   const hourlyDischarge = [];
   const hourlyOverflowExport = [];
@@ -147,6 +172,7 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
   return {
     ok: true,
     virtual_battery_capacity_kwh: capacity_kwh,
+    virtual_battery_credit_start_kwh: Math.round(SOC_initial * 1000) / 1000,
     virtual_battery_credit_end_kwh: Math.round(SOC * 1000) / 1000,
     virtual_battery_total_charged_kwh: Math.round(totalCharged * 1000) / 1000,
     virtual_battery_total_discharged_kwh: Math.round(totalDischarged * 1000) / 1000,
@@ -170,8 +196,75 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
       sum_load: loadTotal,
       sum_import: importTotal,
       sum_overflow: totalOverflowExport,
+      soc_start: SOC_initial,
       soc_end: SOC,
     },
+  };
+}
+
+export function simulateVirtualBattery8760Rollover({
+  pv_hourly,
+  conso_hourly,
+  config,
+  years = 10,
+  convergence_eps_kwh = 0.01,
+}) {
+  const capacity_kwh = resolveVirtualBatteryCapacityKwh(config);
+  if (capacity_kwh == null) {
+    return { ok: false, reason: "MISSING_VIRTUAL_CAPACITY_KWH" };
+  }
+
+  const nYears = Math.max(1, Math.floor(Number(years) || 10));
+  const yearly = [];
+  let creditStart = 0;
+
+  for (let year = 1; year <= nYears; year++) {
+    const result = simulateVirtualBattery8760({
+      pv_hourly,
+      conso_hourly,
+      config: { ...config, capacity_kwh, initial_credit_kwh: creditStart },
+    });
+    if (!result.ok) return result;
+    yearly.push({ year, result });
+    creditStart = result.virtual_battery_credit_end_kwh ?? 0;
+  }
+
+  let convergenceYear = null;
+  for (let i = 1; i < yearly.length; i++) {
+    const prev = yearly[i - 1].result;
+    const curr = yearly[i].result;
+    const stable =
+      Math.abs((curr.virtual_battery_credit_end_kwh ?? 0) - (prev.virtual_battery_credit_end_kwh ?? 0)) <= convergence_eps_kwh &&
+      Math.abs((curr.grid_import_kwh ?? 0) - (prev.grid_import_kwh ?? 0)) <= convergence_eps_kwh &&
+      Math.abs((curr.surplus_kwh ?? 0) - (prev.surplus_kwh ?? 0)) <= convergence_eps_kwh;
+    if (stable) {
+      convergenceYear = yearly[i].year;
+      break;
+    }
+  }
+
+  const stabilizedEntry =
+    convergenceYear != null
+      ? yearly.find((entry) => entry.year === convergenceYear)
+      : yearly[yearly.length - 1];
+
+  return {
+    ok: true,
+    years: nYears,
+    convergence_year: convergenceYear ?? nYears,
+    converged: convergenceYear != null,
+    year1: yearly[0].result,
+    stabilized: stabilizedEntry.result,
+    yearly: yearly.map(({ year, result }) => ({
+      year,
+      virtual_credit_start_kwh: result.virtual_battery_credit_start_kwh,
+      virtual_credit_end_kwh: result.virtual_battery_credit_end_kwh,
+      credited_kwh: result.virtual_battery_total_charged_kwh,
+      used_credit_kwh: result.virtual_battery_total_discharged_kwh,
+      import_kwh: result.grid_import_kwh,
+      export_kwh: result.surplus_kwh,
+      autoconsumption_kwh: result.auto_kwh,
+    })),
   };
 }
 
@@ -182,7 +275,7 @@ export function assertVirtualBatteryAnnualBalance(result, epsKwh = 1) {
   if (!result.ok) return { ok: true, skipped: true };
   const b = result._balance;
   if (!b) return { ok: false, reason: "NO_BALANCE" };
-  const left = b.sum_pv + b.sum_import;
+  const left = b.sum_pv + b.sum_import + (b.soc_start ?? 0);
   const right = b.sum_load + b.sum_overflow + b.soc_end;
   const delta = Math.abs(left - right);
   const idConso = Math.abs(b.sum_load - (result.auto_kwh + result.grid_import_kwh));
