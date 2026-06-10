@@ -209,15 +209,33 @@ function stabilizedVirtualReadModel(
   );
   const credited = finiteNumberOrNull(energy.credited_kwh);
   const restored = finiteNumberOrNull(energy.restored_kwh ?? energy.used_credit_kwh);
+  const directOrYear1PvUsed = finiteNumberOrNull(
+    energy.energy_solar_used_kwh ??
+      energy.total_pv_used_on_site_kwh ??
+      energy.autoconsumption_kwh
+  );
+  const inferredCreditableSurplus =
+    id === "BATTERY_VIRTUAL" &&
+    production != null &&
+    directOrYear1PvUsed != null &&
+    production > directOrYear1PvUsed
+      ? production - directOrYear1PvUsed
+      : null;
+  const usableAnnualCredit =
+    credited != null && credited > 0
+      ? credited
+      : inferredCreditableSurplus != null && inferredCreditableSurplus > 0
+        ? inferredCreditableSurplus
+        : null;
   const rolloverExplicit = scenario?.virtual_battery_rollover?.credit_rollover_enabled;
   const fallbackStabilizedImport =
     id === "BATTERY_VIRTUAL" &&
     currentImport != null &&
-    credited != null &&
-    credited > 0 &&
-    (restored == null || restored <= credited) &&
+    usableAnnualCredit != null &&
+    usableAnnualCredit > 0 &&
+    (restored == null || credited == null || restored <= credited) &&
     rolloverExplicit !== false
-      ? Math.max(0, currentImport - credited)
+      ? Math.max(0, currentImport - usableAnnualCredit)
       : null;
   const stabilizedImport = finiteNumberOrNull(
     stabilized?.grid_import_kwh ??
