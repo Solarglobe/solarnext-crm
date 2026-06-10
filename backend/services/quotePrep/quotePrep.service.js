@@ -139,7 +139,36 @@ async function buildTechnicalSummary(calpinageRow, calpinageDataRow = null) {
 
   const pans = payload.validatedRoofData?.pans;
   const pansArray = Array.isArray(pans) ? pans : [];
-  const firstPan = pansArray[0];
+
+  /* ORIENTATION-PAN-FIX : l'orientation/inclinaison du dossier doivent être celles du pan
+     qui PORTE les panneaux — pans[0] peut être une croupe (cas réel : toit Sud-Ouest
+     affiché « Ouest-Nord-Ouest (292°) » parce que pans[0] était la croupe ONO).
+     Comptage par pan : pans[].panelCount si présent, sinon frozenBlocks (panId → panels). */
+  const _panelsByPanId = {};
+  if (Array.isArray(payload.frozenBlocks)) {
+    for (const b of payload.frozenBlocks) {
+      const pid = b && b.panId != null && b.panId !== "" ? String(b.panId) : null;
+      if (!pid) continue;
+      _panelsByPanId[pid] = (_panelsByPanId[pid] ?? 0) + (Array.isArray(b.panels) ? b.panels.length : 0);
+    }
+  }
+  const _panPanelCount = (p) => {
+    const direct = Number(p?.panelCount ?? p?.panel_count);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    const viaBlocks = p && p.id != null ? _panelsByPanId[String(p.id)] : undefined;
+    return Number.isFinite(viaBlocks) ? viaBlocks : 0;
+  };
+  let _mainPan = null;
+  let _mainPanCount = -1;
+  for (const p of pansArray) {
+    const c = _panPanelCount(p);
+    if (c > _mainPanCount) {
+      _mainPan = p;
+      _mainPanCount = c;
+    }
+  }
+  /* Pan principal = pan le plus peuplé en panneaux ; sans panneaux posés → pans[0] (comportement historique). */
+  const firstPan = _mainPanCount > 0 ? _mainPan : pansArray[0];
   const orientationDeg =
     firstPan?.orientationDeg ?? firstPan?.orientation_deg ?? firstPan?.azimuth ?? null;
   const tiltDeg = firstPan?.tiltDeg ?? firstPan?.tilt_deg ?? firstPan?.tilt ?? null;
