@@ -64,6 +64,7 @@ import mailSyncRouter from "./routes/mailSync.routes.js";
 import mailThreadsRouter from "./routes/mailThreads.routes.js";
 import mailSignaturesRouter from "./routes/mailSignatures.routes.js";
 import mailTemplatesRouter from "./routes/mailTemplates.routes.js";
+import mailDraftsRouter from "./routes/mailDrafts.routes.js";
 import mailTrackingRouter from "./routes/mailTracking.routes.js";
 import mailPermissionsRouter from "./routes/mailPermissions.routes.js";
 import mailInternalRouter from "./routes/mailInternal.routes.js";
@@ -475,6 +476,7 @@ export function buildHttpApp() {
   app.use("/api/mail", mailThreadsRouter);
   app.use("/api/mail", mailSignaturesRouter);
   app.use("/api/mail", mailTemplatesRouter);
+  app.use("/api/mail", mailDraftsRouter);
   app.use("/api/mail", mailTrackingRouter);
   app.use("/api/mail", mailPermissionsRouter);
   app.use("/api/mail", mailInternalRouter);

@@ -3,12 +3,21 @@ import { Link } from "react-router-dom";
 import "./mail-composer.css";
 import type {
   MailAccountRow,
+  MailDraftRow,
   MailSignatureRow,
   MailTemplateRow,
   SendMailAttachmentPayload,
   ThreadMessage,
 } from "../../services/mailApi";
-import { getSignatures, getTemplates, renderMailTemplate, sendMail } from "../../services/mailApi";
+import {
+  createMailDraft,
+  deleteMailDraft,
+  getSignatures,
+  getTemplates,
+  renderMailTemplate,
+  sendMail,
+  updateMailDraft,
+} from "../../services/mailApi";
 import { buildMailComposerRenderContext } from "./mailComposerTemplateContext";
 import { MailComposerAttachments, readFileAsBase64, type LocalAttachment } from "./MailComposerAttachments";
 import { MailComposerRecipients } from "./MailComposerRecipients";
@@ -229,33 +238,6 @@ function cleanupOldMailDrafts(): void {
 }
 
 /**
- * Fusionne d’anciennes clés `mail_draft_new_*` vers `mail_draft_new` (garde le payload au updatedAt le plus récent).
- */
-function migrateObsoleteNewComposerKeys(mode: ComposerMode): void {
-  try {
-    const target = "mail_draft_new";
-    for (const oldKey of [`mail_draft_new_new`, `mail_draft_new_${mode}`]) {
-      if (oldKey === target) continue;
-      const raw = localStorage.getItem(oldKey);
-      if (!raw) continue;
-      const incoming = parseDraftStoredForRestore(raw);
-      const curRaw = localStorage.getItem(target);
-      const cur = curRaw ? parseDraftStoredForRestore(curRaw) : null;
-      if (incoming) {
-        if (!cur || incoming.updatedAt >= cur.updatedAt) {
-          localStorage.setItem(target, raw);
-        }
-      } else if (!curRaw) {
-        localStorage.setItem(target, raw);
-      }
-      localStorage.removeItem(oldKey);
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
-/**
  * Migre un éventuel brouillon V1 (clé par compte) vers la clé courante, une seule fois.
  */
 function tryMigrateLegacyDraftToV2(
@@ -316,6 +298,10 @@ export interface MailComposerProps {
   userEmail?: string | null;
   /** Préremplissage (document CRM, sujet, contexte lead/client) — sans dupliquer l’envoi. */
   initialPrefill?: MailComposerInitialPrefill | null;
+  /** Brouillon serveur à reprendre (page Brouillons). */
+  initialDraft?: MailDraftRow | null;
+  /** Notifie un changement de brouillon serveur (création/maj/suppression) pour rafraîchir la liste. */
+  onDraftsChanged?: () => void;
 }
 
 export const MailComposer = React.memo(function MailComposer({
@@ -332,6 +318,8 @@ export const MailComposer = React.memo(function MailComposer({
   crmLeadId = null,
   userEmail = null,
   initialPrefill = null,
+  initialDraft = null,
+  onDraftsChanged,
 }: MailComposerProps) {
   const mailBodyRef = useRef<MailHtmlEditorHandle>(null);
   const lastSigInjectKeyRef = useRef<string | null>(null);
@@ -427,6 +415,83 @@ export const MailComposer = React.memo(function MailComposer({
 
   const markDirty = useCallback(() => setIsDirty(true), []);
 
+  /**
+   * Mode « nouveau message » sans fil : brouillon persisté CÔTÉ SERVEUR (page Brouillons).
+   * Le compositeur s'ouvre toujours vierge ; un mail non terminé fermé est rangé en brouillon.
+   * Les réponses/transferts liés à un fil conservent le brouillon local par fil.
+   */
+  const isServerDraftMode = mode === "new" && !threadId;
+  const serverDraftIdRef = useRef<string | null>(initialDraft?.id ?? null);
+  const latestHtmlRef = useRef<string>(initialDraft?.body_html ?? "");
+  const sentRef = useRef(false);
+  const draftSaveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const composerValuesRef = useRef({ to: "", cc: "", bcc: "", subject: "", fromAccountId: "" });
+
+  useEffect(() => {
+    composerValuesRef.current = { to, cc, bcc, subject, fromAccountId };
+  }, [to, cc, bcc, subject, fromAccountId]);
+
+  /** Sauvegarde serveur sérialisée (évite la création de doublons en rafale). */
+  const runServerDraftSave = useCallback((): Promise<void> => {
+    const exec = async () => {
+      const vals = composerValuesRef.current;
+      const html = mailBodyRef.current?.getHTML() ?? latestHtmlRef.current;
+      latestHtmlRef.current = html;
+      const contentEmpty =
+        !vals.to.trim() &&
+        !vals.cc.trim() &&
+        !vals.bcc.trim() &&
+        !vals.subject.trim() &&
+        isBodyEmpty(stripMailSignatureFromHtml(html));
+      const existingId = serverDraftIdRef.current;
+      try {
+        if (contentEmpty) {
+          if (existingId) {
+            serverDraftIdRef.current = null;
+            await deleteMailDraft(existingId);
+            onDraftsChanged?.();
+          }
+          return;
+        }
+        const payload = {
+          mailAccountId: vals.fromAccountId || null,
+          to: vals.to,
+          cc: vals.cc,
+          bcc: vals.bcc,
+          subject: vals.subject,
+          bodyHtml: html,
+        };
+        if (existingId) {
+          await updateMailDraft(existingId, payload);
+        } else {
+          const created = await createMailDraft(payload);
+          serverDraftIdRef.current = created.id;
+        }
+        onDraftsChanged?.();
+      } catch {
+        /* réseau / session : silencieux, nouvelle tentative au prochain autosave */
+      }
+    };
+    const p = draftSaveChainRef.current.then(exec, exec);
+    draftSaveChainRef.current = p;
+    return p;
+  }, [onDraftsChanged]);
+
+  /** Sauvegarde silencieuse à la fermeture (X, clic hors panneau, navigation) — sauf après envoi. */
+  const runServerDraftSaveRef = useRef(runServerDraftSave);
+  useEffect(() => {
+    runServerDraftSaveRef.current = runServerDraftSave;
+  }, [runServerDraftSave]);
+  const isServerDraftModeRef = useRef(isServerDraftMode);
+  isServerDraftModeRef.current = isServerDraftMode;
+  useEffect(() => {
+    return () => {
+      if (isServerDraftModeRef.current && !sentRef.current) {
+        void runServerDraftSaveRef.current();
+      }
+    };
+  }, []);
+
   const persistDraftNow = useCallback(() => {
     if (!fromAccountId || sending) return;
     if (draftDebounceTimerRef.current != null) {
@@ -434,6 +499,20 @@ export const MailComposer = React.memo(function MailComposer({
       draftDebounceTimerRef.current = null;
     }
     setPersistBanner("saving");
+    if (isServerDraftMode) {
+      void runServerDraftSave().then(() => {
+        setIsDirty(false);
+        setPersistBanner("saved");
+        if (persistBannerHideTimerRef.current != null) {
+          window.clearTimeout(persistBannerHideTimerRef.current);
+        }
+        persistBannerHideTimerRef.current = window.setTimeout(() => {
+          setPersistBanner("idle");
+          persistBannerHideTimerRef.current = null;
+        }, 2500);
+      });
+      return;
+    }
     try {
       const key = draftStorageKey(threadId, mode);
       const payload: MailComposerDraftStored = {
@@ -460,7 +539,7 @@ export const MailComposer = React.memo(function MailComposer({
     } catch {
       setPersistBanner("idle");
     }
-  }, [fromAccountId, sending, threadId, mode, to, cc, bcc, subject]);
+  }, [fromAccountId, sending, threadId, mode, to, cc, bcc, subject, isServerDraftMode, runServerDraftSave]);
 
   const onToChange = useCallback(
     (v: string) => {
@@ -511,47 +590,69 @@ export const MailComposer = React.memo(function MailComposer({
     }
     lastHydratedIdRef.current = stableHydrateId;
 
-    if (!threadId) {
-      migrateObsoleteNewComposerKeys(mode);
-    }
+    if (isServerDraftMode) {
+      /*
+       * Nouveau message : JAMAIS de restauration localStorage — un nouveau mail
+       * est toujours vierge. Les brouillons vivent côté serveur (page Brouillons).
+       * Purge des anciennes clés locales pour les utilisateurs existants.
+       */
+      try {
+        localStorage.removeItem("mail_draft_new");
+        localStorage.removeItem("mail_draft_new_new");
+        localStorage.removeItem(`mail_draft_new_${mode}`);
+      } catch {
+        /* ignore */
+      }
 
-    const key = draftStorageKey(threadId, mode);
-    const skipDraftForCrmPrefill =
-      mode === "new" &&
-      !threadId &&
-      (Boolean(initialPrefill?.documents?.length) ||
-        Boolean(initialPrefill?.bodyHtml?.trim()) ||
-        Boolean(initialPrefill?.to?.trim()) ||
-        Boolean(initialPrefill?.crmLeadId?.trim()));
+      if (initialDraft) {
+        // Reprise d'un brouillon serveur depuis la page Brouillons.
+        setTo(initialDraft.to);
+        setCc(initialDraft.cc);
+        setBcc(initialDraft.bcc);
+        setSubject(initialDraft.subject);
+        setShowCc(Boolean(initialDraft.cc.trim()));
+        setShowBcc(Boolean(initialDraft.bcc.trim()));
+        setFromAccountId(
+          resolveAccountFromDraft(initialDraft.mail_account_id ?? "", accounts, preferredAccountId)
+        );
+        const html = initialDraft.body_html || "<p></p>";
+        setComposerInitialHtml(html);
+        latestHtmlRef.current = html;
+        setComposerBodyKey(`${stableHydrateId}-${Date.now()}`);
+        setIsDirty(false);
+        setRestoredNotice(false);
+        return;
+      }
+    } else {
+      const key = draftStorageKey(threadId, mode);
 
-    let raw: string | null = null;
-    if (!skipDraftForCrmPrefill) {
+      let raw: string | null = null;
       try {
         raw = localStorage.getItem(key);
       } catch {
         lastHydratedIdRef.current = null;
         return;
       }
-    }
 
-    let draft: MailComposerDraftStored | null = raw ? parseDraftStoredForRestore(raw) : null;
-    if (!draft && !skipDraftForCrmPrefill) {
-      draft = tryMigrateLegacyDraftToV2(accounts, threadId, mode);
-    }
+      let draft: MailComposerDraftStored | null = raw ? parseDraftStoredForRestore(raw) : null;
+      if (!draft) {
+        draft = tryMigrateLegacyDraftToV2(accounts, threadId, mode);
+      }
 
-    if (draft && !skipDraftForCrmPrefill) {
-      setTo(draft.to);
-      setCc(draft.cc);
-      setBcc(draft.bcc);
-      setSubject(draft.subject);
-      setShowCc(Boolean(draft.cc.trim()));
-      setShowBcc(Boolean(draft.bcc.trim()));
-      setFromAccountId(resolveAccountFromDraft(draft.accountId, accounts, preferredAccountId));
-      setComposerInitialHtml(draft.bodyHtml || "<p></p>");
-      setComposerBodyKey(`${stableHydrateId}-${Date.now()}`);
-      setIsDirty(false);
-      setRestoredNotice(true);
-      return;
+      if (draft) {
+        setTo(draft.to);
+        setCc(draft.cc);
+        setBcc(draft.bcc);
+        setSubject(draft.subject);
+        setShowCc(Boolean(draft.cc.trim()));
+        setShowBcc(Boolean(draft.bcc.trim()));
+        setFromAccountId(resolveAccountFromDraft(draft.accountId, accounts, preferredAccountId));
+        setComposerInitialHtml(draft.bodyHtml || "<p></p>");
+        setComposerBodyKey(`${stableHydrateId}-${Date.now()}`);
+        setIsDirty(false);
+        setRestoredNotice(true);
+        return;
+      }
     }
 
     setTo(initialPrefill?.to?.trim() ? initialPrefill.to.trim() : snapshot.to);
@@ -562,7 +663,9 @@ export const MailComposer = React.memo(function MailComposer({
     setShowCc(snapshot.showCc);
     setShowBcc(snapshot.showBcc);
     const htmlFromPrefill = initialPrefill?.bodyHtml?.trim();
-    setComposerInitialHtml(htmlFromPrefill ? htmlFromPrefill : snapshot.html || "<p></p>");
+    const defaultHtml = htmlFromPrefill ? htmlFromPrefill : snapshot.html || "<p></p>";
+    setComposerInitialHtml(defaultHtml);
+    latestHtmlRef.current = defaultHtml;
     setComposerBodyKey(`${stableHydrateId}-${Date.now()}`);
     setIsDirty(false);
     setRestoredNotice(false);
@@ -573,6 +676,8 @@ export const MailComposer = React.memo(function MailComposer({
     preferredAccountId,
     threadId,
     mode,
+    isServerDraftMode,
+    initialDraft,
     initialPrefill?.subject,
     initialPrefill?.documents,
     initialPrefill?.to,
@@ -688,6 +793,7 @@ export const MailComposer = React.memo(function MailComposer({
     lastSigInjectKeyRef.current = injectKey;
     const base = stripMailSignatureFromHtml(ed.getHTML());
     ed.setHTML(injectMailSignatureHtml(base, inner, mode), { silent: true });
+    latestHtmlRef.current = ed.getHTML();
     setEditorTick((x) => x + 1);
   }, [selectedSigId, sigList, mode, sigLoading, fromAccountId]);
 
@@ -939,6 +1045,16 @@ export const MailComposer = React.memo(function MailComposer({
     setSending(true);
     try {
       const res = await sendMail(payload);
+      sentRef.current = true;
+      if (serverDraftIdRef.current) {
+        const draftId = serverDraftIdRef.current;
+        serverDraftIdRef.current = null;
+        void deleteMailDraft(draftId)
+          .then(() => onDraftsChanged?.())
+          .catch(() => {
+            /* silencieux */
+          });
+      }
       try {
         localStorage.removeItem(draftStorageKey(threadId, mode));
       } catch {
@@ -968,7 +1084,7 @@ export const MailComposer = React.memo(function MailComposer({
     } finally {
       setSending(false);
     }
-  }, [validate, fromAccountId, to, cc, bcc, subject, attachments, mode, threadId, onSent]);
+  }, [validate, fromAccountId, to, cc, bcc, subject, attachments, mode, threadId, onSent, onDraftsChanged]);
 
   if (!accounts.length) {
     return (
@@ -1175,6 +1291,7 @@ export const MailComposer = React.memo(function MailComposer({
         onChange={() => {
           setError(null);
           markDirty();
+          latestHtmlRef.current = mailBodyRef.current?.getHTML() ?? latestHtmlRef.current;
           setEditorTick((x) => x + 1);
         }}
         onBlur={() => persistDraftNow()}

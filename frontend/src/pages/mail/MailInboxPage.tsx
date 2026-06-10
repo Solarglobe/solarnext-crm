@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import "./mail-inbox.css";
 import { PageHeader } from "../../components/ui";
@@ -8,6 +8,7 @@ import { MailThreadList } from "./MailThreadList";
 import { MailThreadViewer } from "./MailThreadViewer";
 import { MailComposer } from "./MailComposer";
 import { MailThreadOverlay } from "./MailThreadOverlay";
+import { MailDraftsList } from "./MailDraftsList";
 import type { MailComposerInitialPrefill } from "./MailComposer";
 import {
   archiveThread,
@@ -15,11 +16,13 @@ import {
   getInbox,
   getInboxUnreadSummary,
   getMailTags,
+  listMailDrafts,
   markThreadInboundAsRead,
   runMailSync,
   searchMailInbox,
   type InboxThreadItem,
   type MailAccountRow,
+  type MailDraftRow,
   type MailMailbox,
   type MailThreadTagRow,
   type ThreadDetailResponse,
@@ -84,6 +87,13 @@ export default function MailInboxPage() {
   const [composeNewKey, setComposeNewKey] = useState(0);
   /** Préremplissage (ex. envoi document depuis /documents). */
   const [composePrefill, setComposePrefill] = useState<MailComposerInitialPrefill | null>(null);
+  /** Vue « Brouillons » (brouillons serveur) à la place de la liste de conversations. */
+  const [draftsView, setDraftsView] = useState(false);
+  const [drafts, setDrafts] = useState<MailDraftRow[]>([]);
+  const [draftsLoading, setDraftsLoading] = useState(false);
+  const [draftsError, setDraftsError] = useState<string | null>(null);
+  /** Brouillon serveur repris dans le compositeur. */
+  const [composeDraft, setComposeDraft] = useState<MailDraftRow | null>(null);
   /** Présentation du compositeur : panneau droit ou modale plein écran (ex. devis). */
   const [composePresentation, setComposePresentation] = useState<"standalone" | "overlay">("standalone");
 
@@ -105,6 +115,23 @@ export default function MailInboxPage() {
       /* silencieux */
     }
   }, []);
+
+  const refreshDrafts = useCallback(async () => {
+    setDraftsLoading(true);
+    try {
+      const rows = await listMailDrafts();
+      setDrafts(rows);
+      setDraftsError(null);
+    } catch (e) {
+      setDraftsError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDraftsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshDrafts();
+  }, [refreshDrafts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,6 +211,7 @@ export default function MailInboxPage() {
   const closeCompose = useCallback(() => {
     setComposeNewOpen(false);
     setComposePrefill(null);
+    setComposeDraft(null);
     setComposePresentation("standalone");
   }, []);
 
@@ -380,6 +408,7 @@ export default function MailInboxPage() {
   const openNewMessage = useCallback(() => {
     if (composeNewOpen) return;
     setComposePrefill(null);
+    setComposeDraft(null);
     setComposePresentation("overlay");
     setSelectedThreadId(null);
     setComposeNewKey((k) => k + 1);
@@ -387,6 +416,34 @@ export default function MailInboxPage() {
     setOverlayOpen(false);
     setOverlayThread(null);
   }, [composeNewOpen]);
+
+  /** Reprise d'un brouillon serveur depuis la page Brouillons. */
+  const openDraftFromList = useCallback((d: MailDraftRow) => {
+    setComposeDraft(d);
+    setComposePrefill(null);
+    setComposePresentation("overlay");
+    setSelectedThreadId(null);
+    setOverlayOpen(false);
+    setOverlayThread(null);
+    setComposeNewKey((k) => k + 1);
+    setComposeNewOpen(true);
+  }, []);
+
+  const openDraftsView = useCallback(() => {
+    setDraftsView(true);
+    setSelectedThreadId(null);
+    setComposeNewOpen(false);
+    setComposePrefill(null);
+    setComposeDraft(null);
+    setComposePresentation("standalone");
+    setOverlayOpen(false);
+    setOverlayThread(null);
+    void refreshDrafts();
+  }, [refreshDrafts]);
+
+  const onDraftDeleted = useCallback((id: string) => {
+    setDrafts((prev) => prev.filter((d) => d.id !== id));
+  }, []);
 
   const selectThread = useCallback((id: string) => {
     setComposeNewOpen(false);
@@ -399,11 +456,13 @@ export default function MailInboxPage() {
     (info: { threadId: string | null }) => {
       setComposeNewOpen(false);
       setComposePrefill(null);
+      setComposeDraft(null);
       setComposePresentation("standalone");
       setOverlayOpen(false);
       setOverlayThread(null);
       void refreshUnreadSummary();
       if (info.threadId) {
+        setDraftsView(false);
         setSelectedThreadId(info.threadId);
         setPage(0);
         setThreads([]);
@@ -439,9 +498,11 @@ export default function MailInboxPage() {
 
   const onSelectMailbox = useCallback((m: MailMailbox) => {
     setMailbox(m);
+    setDraftsView(false);
     setSelectedThreadId(null);
     setComposeNewOpen(false);
     setComposePrefill(null);
+    setComposeDraft(null);
     setComposePresentation("standalone");
     setOverlayOpen(false);
     setOverlayThread(null);
@@ -451,19 +512,25 @@ export default function MailInboxPage() {
     <div className="mail-standard-page">
       <PageHeader
         eyebrow="Mail"
-        title={mailboxTitle(mailbox)}
+        title={draftsView ? "Brouillons" : mailboxTitle(mailbox)}
         actions={
           <button type="button" className="mail-inbox__new-btn" onClick={openNewMessage}>
             + Nouveau message
           </button>
         }
         meta={
-          <>
-            <span className="sn-badge sn-badge-neutral">{total} conversations</span>
-            {unreadSummary.totalUnread > 0 ? (
-              <span className="sn-badge sn-badge-info">{unreadSummary.totalUnread} non lus</span>
-            ) : null}
-          </>
+          draftsView ? (
+            <span className="sn-badge sn-badge-neutral">
+              {drafts.length} brouillon{drafts.length !== 1 ? "s" : ""}
+            </span>
+          ) : (
+            <>
+              <span className="sn-badge sn-badge-neutral">{total} conversations</span>
+              {unreadSummary.totalUnread > 0 ? (
+                <span className="sn-badge sn-badge-info">{unreadSummary.totalUnread} non lus</span>
+              ) : null}
+            </>
+          )
         }
       />
 
@@ -471,20 +538,36 @@ export default function MailInboxPage() {
         <aside className="mail-inbox__nav-mail" aria-label="Navigation boîte mail">
           <nav className="mail-inbox__nav-list">
             {FOLDER_NAV.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`mail-inbox__nav-item${mailbox === item.id ? " mail-inbox__nav-item--active" : ""}`}
-                onClick={() => onSelectMailbox(item.id)}
-                aria-current={mailbox === item.id ? "page" : undefined}
-              >
-                <span className="mail-inbox__nav-item-label">{item.label}</span>
-                {item.id === "inbox" && unreadSummary.totalUnread > 0 ? (
-                  <span className="sn-badge sn-badge-info mail-inbox__account-sn-tweak">
-                    {unreadSummary.totalUnread > 99 ? "99+" : unreadSummary.totalUnread}
-                  </span>
+              <Fragment key={item.id}>
+                <button
+                  type="button"
+                  className={`mail-inbox__nav-item${!draftsView && mailbox === item.id ? " mail-inbox__nav-item--active" : ""}`}
+                  onClick={() => onSelectMailbox(item.id)}
+                  aria-current={!draftsView && mailbox === item.id ? "page" : undefined}
+                >
+                  <span className="mail-inbox__nav-item-label">{item.label}</span>
+                  {item.id === "inbox" && unreadSummary.totalUnread > 0 ? (
+                    <span className="sn-badge sn-badge-info mail-inbox__account-sn-tweak">
+                      {unreadSummary.totalUnread > 99 ? "99+" : unreadSummary.totalUnread}
+                    </span>
+                  ) : null}
+                </button>
+                {item.id === "sent" ? (
+                  <button
+                    type="button"
+                    className={`mail-inbox__nav-item${draftsView ? " mail-inbox__nav-item--active" : ""}`}
+                    onClick={openDraftsView}
+                    aria-current={draftsView ? "page" : undefined}
+                  >
+                    <span className="mail-inbox__nav-item-label">Brouillons</span>
+                    {drafts.length > 0 ? (
+                      <span className="sn-badge sn-badge-neutral mail-inbox__account-sn-tweak">
+                        {drafts.length > 99 ? "99+" : drafts.length}
+                      </span>
+                    ) : null}
+                  </button>
                 ) : null}
-              </button>
+              </Fragment>
             ))}
             <NavLink
               to="/mail/outbox"
@@ -512,6 +595,16 @@ export default function MailInboxPage() {
         </aside>
 
         <section className="mail-inbox__list-panel">
+          {draftsView ? (
+            <MailDraftsList
+              drafts={drafts}
+              loading={draftsLoading}
+              error={draftsError}
+              onOpenDraft={openDraftFromList}
+              onDraftDeleted={onDraftDeleted}
+            />
+          ) : (
+            <>
           <div
             className="mail-inbox__search"
             title="Syntaxe : from:expéditeur · to:destinataire · has:attachment · client:nom · lead:nom — le reste est une recherche plein texte."
@@ -571,6 +664,8 @@ export default function MailInboxPage() {
               </button>
             </div>
           )}
+            </>
+          )}
         </section>
 
         {showRightColumn ? (
@@ -588,6 +683,8 @@ export default function MailInboxPage() {
                 crmLeadId={composePrefill?.crmLeadId ?? null}
                 crmClientId={composePrefill?.crmClientId ?? null}
                 initialPrefill={composePrefill}
+                initialDraft={composeDraft}
+                onDraftsChanged={refreshDrafts}
                 onClose={closeCompose}
                 onSent={handleNewMessageSent}
               />
@@ -642,6 +739,8 @@ export default function MailInboxPage() {
               crmLeadId={composePrefill?.crmLeadId ?? null}
               crmClientId={composePrefill?.crmClientId ?? null}
               initialPrefill={composePrefill}
+              initialDraft={composeDraft}
+              onDraftsChanged={refreshDrafts}
               onClose={closeCompose}
               onSent={handleNewMessageSent}
             />

@@ -1052,3 +1052,73 @@ export async function updateMailPermission(payload: {
   }
   return JSON.parse(text) as { success?: boolean; ok?: boolean; deleted?: boolean };
 }
+
+/* ------------------------------------------------------------------ */
+/* Brouillons mail (persistés serveur, personnels)                     */
+/* ------------------------------------------------------------------ */
+
+export interface MailDraftRow {
+  id: string;
+  mail_account_id: string | null;
+  to: string;
+  cc: string;
+  bcc: string;
+  subject: string;
+  body_html: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SaveMailDraftPayload {
+  mailAccountId?: string | null;
+  to: string;
+  cc: string;
+  bcc: string;
+  subject: string;
+  bodyHtml: string;
+}
+
+async function parseDraftResponse(res: Response, label: string): Promise<{ draft: MailDraftRow }> {
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = text;
+    try {
+      const j = JSON.parse(text) as { message?: string };
+      if (j.message) msg = j.message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg || `${label} ${res.status}`);
+  }
+  return JSON.parse(text) as { draft: MailDraftRow };
+}
+
+export async function listMailDrafts(): Promise<MailDraftRow[]> {
+  const res = await apiFetch(apiUrl("/drafts"));
+  if (!res.ok) throw new Error(`drafts ${res.status}`);
+  const j = (await res.json()) as { drafts?: MailDraftRow[] };
+  return j.drafts ?? [];
+}
+
+export async function createMailDraft(payload: SaveMailDraftPayload): Promise<MailDraftRow> {
+  const res = await apiFetch(apiUrl("/drafts"), {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const j = await parseDraftResponse(res, "draft create");
+  return j.draft;
+}
+
+export async function updateMailDraft(id: string, payload: SaveMailDraftPayload): Promise<MailDraftRow> {
+  const res = await apiFetch(apiUrl(`/drafts/${encodeURIComponent(id)}`), {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  const j = await parseDraftResponse(res, "draft update");
+  return j.draft;
+}
+
+export async function deleteMailDraft(id: string): Promise<void> {
+  const res = await apiFetch(apiUrl(`/drafts/${encodeURIComponent(id)}`), { method: "DELETE" });
+  if (!res.ok && res.status !== 404) throw new Error(`draft delete ${res.status}`);
+}
