@@ -68,6 +68,7 @@ export interface ScenarioV2Energy {
   grid_import_kwh?: number | null;
   grid_export_kwh?: number | null;
   energy_solar_used_kwh?: number | null;
+  total_pv_used_on_site_kwh?: number | null;
   site_solar_or_credit_used_kwh?: number | null;
   energy_grid_import_kwh?: number | null;
 }
@@ -108,6 +109,7 @@ export interface ScenarioV2 {
   battery_discharge_kwh?: number | null;
   /** Champs optionnels non normalisés par le mapper (affichage only si présents) */
   virtual_battery_finance?: {
+    provider_code?: string | null;
     hphc_allocation_status?: string | null;
   } | null;
   provider_tier_status?: string | null;
@@ -124,6 +126,13 @@ export interface ScenarioV2 {
     annual_throughput_kwh?: number | null;
     cycles_equivalent?: number | null;
     overflow_export_kwh?: number | null;
+  } | null;
+  stabilized?: Record<string, unknown> | null;
+  year1?: Record<string, unknown> | null;
+  virtual_battery_rollover?: {
+    credit_rollover_enabled?: boolean | null;
+    stabilized?: Record<string, unknown> | null;
+    year1?: Record<string, unknown> | null;
   } | null;
   [key: string]: unknown;
 }
@@ -170,6 +179,89 @@ function finiteNumberOrNull(v: unknown): number | null {
   if (v == null) return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function clampNumber(v: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, v));
+}
+
+function stabilizedVirtualReadModel(
+  id: ScenarioColumnId,
+  scenario: ScenarioV2 | null
+): ScenarioV2Energy {
+  const energy = scenario?.energy ?? {};
+  if (id !== "BATTERY_VIRTUAL" && id !== "BATTERY_HYBRID") return energy;
+
+  const stabilized =
+    scenario?.stabilized && typeof scenario.stabilized === "object"
+      ? scenario.stabilized
+      : scenario?.virtual_battery_rollover?.stabilized &&
+          typeof scenario.virtual_battery_rollover.stabilized === "object"
+        ? scenario.virtual_battery_rollover.stabilized
+        : null;
+  const production = finiteNumberOrNull(energy.production_kwh);
+  const consumption = finiteNumberOrNull(energy.consumption_kwh);
+  const currentImport = finiteNumberOrNull(
+    energy.energy_grid_import_kwh ??
+      energy.billable_import_kwh ??
+      energy.grid_import_kwh ??
+      energy.import_kwh
+  );
+  const credited = finiteNumberOrNull(energy.credited_kwh);
+  const restored = finiteNumberOrNull(energy.restored_kwh ?? energy.used_credit_kwh);
+  const rolloverExplicit = scenario?.virtual_battery_rollover?.credit_rollover_enabled;
+  const fallbackStabilizedImport =
+    id === "BATTERY_VIRTUAL" &&
+    currentImport != null &&
+    credited != null &&
+    credited > 0 &&
+    (restored == null || restored <= credited) &&
+    rolloverExplicit !== false
+      ? Math.max(0, currentImport - credited)
+      : null;
+  const stabilizedImport = finiteNumberOrNull(
+    stabilized?.grid_import_kwh ??
+      stabilized?.import_kwh ??
+      stabilized?.billable_import_kwh
+  ) ?? fallbackStabilizedImport;
+
+  if (consumption == null || consumption <= 0 || stabilizedImport == null) return energy;
+  if (currentImport != null && stabilizedImport >= currentImport) return energy;
+
+  const covered = clampNumber(consumption - stabilizedImport, 0, consumption);
+  const pvSelfCap = production != null && production > 0 ? production : covered;
+  const pvSelfConsumptionPct = production != null && production > 0
+    ? clampNumber((Math.min(covered, pvSelfCap) / production) * 100, 0, 100)
+    : energy.pv_self_consumption_pct ?? null;
+  const coveragePct = clampNumber((covered / consumption) * 100, 0, 100);
+  const discharged = finiteNumberOrNull(
+    stabilized?.used_credit_kwh ??
+      stabilized?.restored_kwh ??
+      stabilized?.virtual_battery_total_discharged_kwh
+  );
+  const charged = finiteNumberOrNull(
+    stabilized?.credited_kwh ??
+      stabilized?.virtual_battery_total_charged_kwh
+  );
+
+  return {
+    ...energy,
+    import_kwh: stabilizedImport,
+    billable_import_kwh: stabilizedImport,
+    grid_import_kwh: stabilizedImport,
+    energy_grid_import_kwh: stabilizedImport,
+    autoconsumption_kwh: covered,
+    total_pv_used_on_site_kwh: covered,
+    energy_solar_used_kwh: id === "BATTERY_VIRTUAL" ? covered : energy.energy_solar_used_kwh,
+    site_solar_or_credit_used_kwh: covered,
+    used_credit_kwh: discharged ?? energy.used_credit_kwh,
+    restored_kwh: discharged ?? energy.restored_kwh,
+    credited_kwh: charged ?? energy.credited_kwh,
+    pv_self_consumption_pct: pvSelfConsumptionPct,
+    solar_coverage_pct: coveragePct,
+    site_autonomy_pct: coveragePct,
+    self_production_pct: coveragePct,
+  };
 }
 
 /** Affichage uniquement : alias API puis champs déjà utilisés dans le comparatif. */
@@ -558,7 +650,7 @@ export default function ScenarioComparisonTable({
           const subtitle = COLUMN_SUBTITLES[id];
           const badge = resolveColumnBadge(id, scenario);
 
-          const energy = scenario?.energy ?? {};
+          const energy = stabilizedVirtualReadModel(id, scenario);
           const finance = scenario?.finance ?? {};
           const costs = scenario?.costs ?? {};
           const hardware = scenario?.hardware ?? {};
