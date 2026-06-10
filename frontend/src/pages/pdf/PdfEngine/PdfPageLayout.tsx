@@ -14,7 +14,7 @@
  *   P7–P9 1.5mm | P10 1.25mm | P11–P14 0
  */
 
-import React, { Children } from "react";
+import React, { Children, useEffect, useRef } from "react";
 import PdfHeader from "./PdfHeader";
 import PdfFooter from "./PdfFooter";
 import {
@@ -82,6 +82,59 @@ function computeHeightsFromRatios(ratios: number[], areaH: number, count: number
   return heights;
 }
 
+
+/**
+ * Garde anti-débordement (pages legacy) : si le contenu réel dépasse la hauteur
+ * A4 de la section (overflow:hidden = troncature silencieuse), on le signale :
+ *  - console.error capturable par Playwright / tests visuels ;
+ *  - attribut data-pdf-overflow="true" exploitable en CI.
+ * Aucune incidence visuelle en production.
+ */
+function LegacySection({
+  legacyPort,
+  className,
+  sectionStyle,
+  children,
+}: {
+  legacyPort: PdfPageLayoutLegacyPort;
+  className?: string;
+  sectionStyle: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => {
+      const overflowPx = Math.max(el.scrollHeight - el.clientHeight, 0);
+      if (overflowPx > 1) {
+        el.setAttribute("data-pdf-overflow", "true");
+        el.setAttribute("data-pdf-overflow-px", String(overflowPx));
+        // eslint-disable-next-line no-console
+        console.error(`[PDF-OVERFLOW] page #${legacyPort.id} : contenu tronqué de ${overflowPx}px (hauteur A4 dépassée)`);
+      } else {
+        el.removeAttribute("data-pdf-overflow");
+        el.removeAttribute("data-pdf-overflow-px");
+      }
+    };
+    const raf = requestAnimationFrame(check);
+    return () => cancelAnimationFrame(raf);
+  });
+  return (
+    <section
+      ref={ref}
+      id={legacyPort.id}
+      {...(legacyPort.dataEngine != null ? { "data-engine": legacyPort.dataEngine } : {})}
+      {...(legacyPort.dataReactPdf ? { "data-react-pdf": "true" } : {})}
+      className={className}
+      style={sectionStyle}
+    >
+      {legacyPort.header}
+      {children}
+    </section>
+  );
+}
+
 const LEGACY_FONT = '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
 
 export default function PdfPageLayout(props: PdfPageLayoutProps) {
@@ -111,16 +164,9 @@ export default function PdfPageLayout(props: PdfPageLayoutProps) {
     };
 
     return (
-      <section
-        id={legacyPort.id}
-        {...(legacyPort.dataEngine != null ? { "data-engine": legacyPort.dataEngine } : {})}
-        {...(legacyPort.dataReactPdf ? { "data-react-pdf": "true" } : {})}
-        className={className}
-        style={sectionStyle}
-      >
-        {legacyPort.header}
+      <LegacySection legacyPort={legacyPort} className={className} sectionStyle={sectionStyle}>
         {children}
-      </section>
+      </LegacySection>
     );
   }
 

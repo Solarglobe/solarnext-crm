@@ -51,6 +51,10 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
   const hasHybridBatteryPageData = hybridBatteryData != null && typeof hybridBatteryData === "object";
   const isVirtualBattery = selectedScenarioType.includes("VIRTUAL") || hasVirtualBatteryPageData;
   const isHybridBattery = selectedScenarioType.includes("HYBRID") || hasHybridBatteryPageData;
+  /* Lot D — la page Financement ne s'affiche que si un financement est configuré
+     (sinon : page entière de tirets « — Sur — » constatée en production). */
+  const p11Financing = (fr.p11 as { data?: { financing?: { enabled?: boolean } } } | undefined)?.data?.financing;
+  const hasFinancingPage = Boolean(p11Financing?.enabled);
   useLegacyPdfEngine(viewModel ?? null);
   const organization = (viewModel?.organization ?? {}) as {
     id?: string;
@@ -91,7 +95,7 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
       ) : null}
       {Boolean(fr.p9) && <PdfPage8 organization={organization} viewModel={viewModel} />}
       <PdfPage10 organization={organization} viewModel={viewModel} onReady={onP10Ready} />
-      <PdfPage11 organization={organization} viewModel={viewModel} />
+      {hasFinancingPage ? <PdfPage11 organization={organization} viewModel={viewModel} /> : null}
       <PdfPageMethodologySolarGlobe viewModel={viewModel} organization={organization} />
       <PdfPage12 organization={organization} viewModel={viewModel} />
       </div>

@@ -53,7 +53,7 @@ export default function ChartP5DayProfile({
     });
   }, [production_kw, consommation_kw, batterie_kw]);
 
-  const PADDING_LEFT = 85;
+  const PADDING_LEFT = 130;
   const PADDING_RIGHT = 55;
   const W = 2200;
   const H = 600;
@@ -152,18 +152,32 @@ export default function ChartP5DayProfile({
         </filter>
       </defs>
 
-      {[0, 1, 2, 3, 4, 5, 6].map((t) => {
-        const v = (maxY * t) / 6;
-        const y = H - PAD_B - (v / maxY) * (H - PAD_T - PAD_B);
-        return (
-          <g key={t}>
-            <line x1={PADDING_LEFT} x2={W - PADDING_RIGHT} y1={y} y2={y} stroke="rgba(0,0,0,.07)" />
-            <text x={PADDING_LEFT - 8} y={y + 4} textAnchor="end" fill="#555" fontSize={13} fontWeight={600}>
-              {maxY >= 20 ? Math.round(v) : Number(v.toFixed(2))}
-            </text>
-          </g>
-        );
-      })}
+      {(() => {
+        /* Graduations « rondes », virgule française (2,5 et non 2.5), police lisible. */
+        const step = (() => {
+          const raw = maxY / 5;
+          const mag = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 0.001))));
+          const norm = raw / mag;
+          return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+        })();
+        const ticks: number[] = [];
+        for (let v = 0; v <= maxY + step / 1000; v += step) ticks.push(v);
+        const fmtTick = (v: number) =>
+          maxY >= 20
+            ? Math.round(v).toLocaleString("fr-FR")
+            : (Math.round(v * 100) / 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+        return ticks.map((v) => {
+          const y = H - PAD_B - (v / maxY) * (H - PAD_T - PAD_B);
+          return (
+            <g key={v}>
+              <line x1={PADDING_LEFT} x2={W - PADDING_RIGHT} y1={y} y2={y} stroke="rgba(0,0,0,.07)" />
+              <text x={PADDING_LEFT - 10} y={y + 8} textAnchor="end" fill="#555" fontSize={26} fontWeight={600}>
+                {fmtTick(v)}
+              </text>
+            </g>
+          );
+        });
+      })()}
 
       <line x1={PADDING_LEFT} y1={H - PAD_B} x2={W - PADDING_RIGHT} y2={H - PAD_B} stroke="#999" />
 
@@ -174,7 +188,7 @@ export default function ChartP5DayProfile({
           y={H - 20}
           textAnchor="middle"
           fill="#222"
-          fontSize={14}
+          fontSize={24}
           fontWeight={700}
         >
           {h}h

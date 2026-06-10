@@ -51,7 +51,7 @@ export default function ChartP4Production({
     }));
   }, [production, consommation, autoconso, batterie]);
 
-  const PADDING_LEFT = 85;
+  const PADDING_LEFT = 130;
   const PADDING_RIGHT = 55;
   const W = 2200;
   const H = 600;
@@ -150,31 +150,41 @@ export default function ChartP4Production({
       </defs>
 
       {/* Grille */}
-      {[0, 1, 2, 3, 4, 5, 6].map((t) => {
-        const v = (maxY * t) / 6;
-        const y = H - PAD_B - (v / maxY) * (H - PAD_T - PAD_B);
-        return (
-          <g key={t}>
-            <line
-              x1={PADDING_LEFT}
-              x2={W - PADDING_RIGHT}
-              y1={y}
-              y2={y}
-              stroke="rgba(0,0,0,.07)"
-            />
-            <text
-              x={PADDING_LEFT - 8}
-              y={y + 4}
-              textAnchor="end"
-              fill="#555"
-              fontSize={13}
-              fontWeight={600}
-            >
-              {Math.round(v)}
-            </text>
-          </g>
-        );
-      })}
+      {(() => {
+        /* Graduations « rondes » (pas 1-2-5), format fr-FR, police lisible à l'impression. */
+        const step = (() => {
+          const raw = maxY / 5;
+          const mag = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
+          const norm = raw / mag;
+          return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+        })();
+        const ticks: number[] = [];
+        for (let v = 0; v <= maxY + 0.001; v += step) ticks.push(v);
+        return ticks.map((v) => {
+          const y = H - PAD_B - (v / maxY) * (H - PAD_T - PAD_B);
+          return (
+            <g key={v}>
+              <line
+                x1={PADDING_LEFT}
+                x2={W - PADDING_RIGHT}
+                y1={y}
+                y2={y}
+                stroke="rgba(0,0,0,.07)"
+              />
+              <text
+                x={PADDING_LEFT - 10}
+                y={y + 8}
+                textAnchor="end"
+                fill="#555"
+                fontSize={26}
+                fontWeight={600}
+              >
+                {Math.round(v).toLocaleString("fr-FR")}
+              </text>
+            </g>
+          );
+        });
+      })()}
 
       {/* Axe X */}
       <line
@@ -193,7 +203,7 @@ export default function ChartP4Production({
           y={H - 20}
           textAnchor="middle"
           fill="#222"
-          fontSize={14}
+          fontSize={26}
           fontWeight={700}
         >
           {m}

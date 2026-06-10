@@ -691,7 +691,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p2_economie_nette: formatCurrency0(economieTotal),
     p2_tri: num(financeActive.irr_pct) != null ? `${num(financeActive.irr_pct).toFixed(1)} %` : "—",
     p2_roi: `${roiYears} ans`,
-    p2_lcoe: lcoeVal != null ? `${lcoeVal.toFixed(2).replace(".", ",")} €/kWh` : "—",
+    p2_lcoe: lcoeVal != null ? `${lcoeVal.toFixed(3).replace(".", ",")} €/kWh` : "—",
     p2_prime: formatCurrency0(primeAmount),
     p2_reste_charge: formatCurrency0(resteACharge),
     p2_production: annualKwh > 0 ? `${Math.round(annualKwh).toLocaleString("fr-FR")} kWh` : "—",
@@ -963,6 +963,31 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const carsEquiv = Math.round(co2Evite / IMPACT_CAR_CO2_KG_PER_KM);
 
   const generatedAt = str(snapshot.computed_at) || str(snapshot.created_at) || new Date().toISOString();
+  /* Totaux annuels officiels partagés P6/P7/P8 — source unique : énergie du scénario sélectionné.
+     Évite les écarts d'1-2 kWh entre la somme des séries mensuelles (P6) et les champs annuels (P7/P8). */
+  const _energyFlowsShared =
+    selectedScenario?.energy && typeof selectedScenario.energy === "object"
+      ? { ...energy, ...selectedScenario.energy }
+      : energy;
+  const _sharedConsoKwh = num(_energyFlowsShared.consumption_kwh ?? _energyFlowsShared.conso) ?? consumptionKwh;
+  const _sharedAutoKwh =
+    num(_energyFlowsShared.total_pv_used_on_site_kwh) ??
+    num(_energyFlowsShared.autoconsumption_kwh) ??
+    num(_energyFlowsShared.auto) ??
+    null;
+  const _sharedRestoredKwh = num(_energyFlowsShared.restored_kwh) ?? num(_energyFlowsShared.used_credit_kwh) ?? 0;
+  const _sharedSolarUsedKwh =
+    _sharedAutoKwh != null
+      ? Math.max(0, (num(_energyFlowsShared.direct_self_consumption_kwh) ?? Math.max(0, _sharedAutoKwh - _sharedRestoredKwh)) + _sharedRestoredKwh)
+      : null;
+  const _sharedGridImportKwh =
+    num(_energyFlowsShared.energy_grid_import_kwh) ??
+    num(_energyFlowsShared.billable_import_kwh) ??
+    num(_energyFlowsShared.import_kwh) ??
+    num(_energyFlowsShared.import) ??
+    num(_energyFlowsShared.grid_import_kwh) ??
+    (_sharedSolarUsedKwh != null && _sharedConsoKwh != null ? Math.max(0, _sharedConsoKwh - _sharedSolarUsedKwh) : null);
+
   return {
     meta: {
       studyId: options.studyId ?? null,
@@ -1093,6 +1118,13 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           bat: batMonthly,
           grid: gridMonthly,
           tot: totMonthly,
+          /* Totaux officiels annuels (KPI) — le graphique reste sur les séries mensuelles. */
+          totals: {
+            conso_kwh: _sharedConsoKwh,
+            solar_used_kwh: _sharedSolarUsedKwh,
+            grid_import_kwh: _sharedGridImportKwh,
+            production_kwh: num(_energyFlowsShared.production_kwh ?? _energyFlowsShared.prod) ?? null,
+          },
         },
       },
       // P7 — source principale = selectedScenario.energy (scenarios_v2), fallback = snapshot.energy
@@ -1164,8 +1196,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           cGrid = partReseauP7;
           cPv = autonomiePct;
         }
-        let pBat = prodP7 > 0 && isBatScen ? Math.min(100, (creditedP7 / prodP7) * 100) : 0;
+        let pBat = prodP7 > 0 && isBatScen ? Math.round(Math.min(100, (creditedP7 / prodP7) * 100)) : 0;
         let pSurplusRounded = Math.round(surplusPctP7);
+        /* pBat arrondi AVANT la soustraction : p_auto_pct doit être un entier (affiché tel quel). */
         let pAuto = isBatScen
           ? Math.max(0, 100 - pBat - pSurplusRounded)
           : (selfConsP7 != null ? Math.round(selfConsP7) : 0);
@@ -1190,7 +1223,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             c_pv_pct: Math.round(cPv),
             c_bat_pct: Math.round(cBat),
             c_grid_pct: Math.round(cGrid),
-            p_auto_pct: pAuto,
+            p_auto_pct: Math.round(pAuto),
             p_bat_pct: Math.round(pBat),
             p_surplus_pct: pSurplusRounded,
           },
@@ -1200,6 +1233,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           autoconsumption_kwh: numOrZero(autoP7),
           production_kwh: numOrZero(prodP7),
           energy_solar_used_kwh: numOrZero(solarUsedP7),
+          energy_solar_used_direct_kwh: numOrZero(directP7),
           energy_grid_import_kwh: numOrZero(gridImportCanonicalP7),
           estimated_annual_bill_eur: estimatedAnnualBillP7,
           solar_coverage_pct: solarCoverageP7,
@@ -1765,7 +1799,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           horizon_years_finance: horizonYearsPdf,
           lcoe_eur_kwh: lcoeVal,
           nb_panels: numOrZero(installation.panneaux_nombre),
-          annual_production_kwh: annualKwh,
+          /* Source unique : même production que P3/P7 (scénario sélectionné), fallback canonique. */
+          annual_production_kwh: num(selectedScenario?.energy?.production_kwh) ?? annualKwh,
         },
         hyp: {
           pv_degrad: econDisplay.pv_degradation_pct,

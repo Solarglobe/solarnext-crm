@@ -85,7 +85,11 @@ export default function PdfPage3({
     if (powerEl) {
       powerEl.textContent =
         kwc != null && Number.isFinite(Number(kwc))
-          ? `${Number(kwc).toFixed(2)} kWc`
+          ? `${(() => {
+              const n = Number(kwc);
+              /* fr-FR : virgule, pas de décimales inutiles (8 → "8", 3.88 → "3,88") */
+              return n % 1 === 0 ? String(Math.round(n)) : n.toFixed(2).replace(/0$/, "").replace(".", ",");
+            })()} kWc`
           : "—";
     }
   }, [viewModel]);
@@ -203,7 +207,7 @@ export default function PdfPage3({
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
                 <span style={{ fontSize: "2.6mm", color: "#7a7a7a" }}>Surface utilisée</span>
-                <span id="p3b_surface" style={{ fontSize: "3.6mm", fontWeight: 600, color: "#333" }}>—</span> m²
+                <span style={{ whiteSpace: "nowrap" }}><span id="p3b_surface" style={{ fontSize: "3.6mm", fontWeight: 600, color: "#333" }}>—</span>&nbsp;m²</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
                 <span style={{ fontSize: "2.6mm", color: "#7a7a7a" }}>Nombre de panneaux</span>

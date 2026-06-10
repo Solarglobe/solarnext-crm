@@ -25,6 +25,20 @@ const viewModelWithP8 = {
         autoprod_pct: 60,
       },
     },
+    /* Lot D : la page Financement est conditionnelle — fixture avec financement actif
+       pour continuer à valider l'ordre complet p1 → … → p11 → méthodo → p12. */
+    p11: {
+      meta: { client: "Client Test", ref: "REF-1", date: "2026-03-30" },
+      data: {
+        capex_ttc: 12000,
+        kwc: 8,
+        battery_kwh: 0,
+        economies_annuelles_25: [],
+        financing: { enabled: true, monthly_payment_eur: 113, duration_months: 84 },
+        series: { economies_annuelles: [], paiement_annuel: [], reste_a_charge_annuel: [] },
+        kpi: {},
+      },
+    },
   },
   organization: {},
 };
@@ -43,7 +57,7 @@ describe("PdfLegacyPort — harmonisation narrative / lexique", () => {
     const { container } = render(<PdfLegacyPort viewModel={viewModelWithP8} />);
     const p10 = container.querySelector("#p10");
     expect(p10?.textContent).not.toMatch(/Indépendance énergétique/);
-    expect(p10?.textContent).toMatch(/Autonomie site/);
+    expect(p10?.textContent).toMatch(/Couverture solaire/);
   });
 
   it("P8 : badge et libellés gains nets / projection patrimoniale", () => {

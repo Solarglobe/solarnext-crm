@@ -11,13 +11,34 @@
     el.textContent = (val === null || val === undefined || val === "") ? "—" : String(val);
   }
 
-  /** Formate valeur numérique en degrés : max 2 décimales. Ex: 178.34567 → "178.35°" */
+  /** Degrés lisibles client : 1 décimale max, virgule française. Ex: 37.76 → "37,8°" ; 30 → "30°" */
   function formatDegrees(val) {
     if (val === null || val === undefined || val === "") return "—";
     var s = String(val).replace(/°/g, "").trim();
     var n = parseFloat(s);
-    if (Number.isFinite(n)) return Number(n).toFixed(2) + "°";
-    return s ? String(val) : "—";
+    if (!Number.isFinite(n)) return s ? String(val) : "—";
+    var one = Math.round(n * 10) / 10;
+    return (one % 1 === 0 ? String(Math.round(one)) : one.toFixed(1).replace(".", ",")) + "°";
+  }
+
+  /** Azimut (0 = Nord, 180 = Sud — convention moteur) → rose des vents française 16 directions. */
+  var CARDINALS_FR = [
+    "Nord", "Nord-Nord-Est", "Nord-Est", "Est-Nord-Est",
+    "Est", "Est-Sud-Est", "Sud-Est", "Sud-Sud-Est",
+    "Sud", "Sud-Sud-Ouest", "Sud-Ouest", "Ouest-Sud-Ouest",
+    "Ouest", "Ouest-Nord-Ouest", "Nord-Ouest", "Nord-Nord-Ouest",
+  ];
+  function formatOrientation(val) {
+    if (val === null || val === undefined || val === "") return "—";
+    var s = String(val).replace(/°/g, "").trim();
+    var n = parseFloat(s);
+    if (!Number.isFinite(n) || /[a-zA-Z]/.test(s)) {
+      /* Déjà textuel (backend mappe S/SE/SO… vers le nom complet) */
+      return s ? String(val) : "—";
+    }
+    var a = ((n % 360) + 360) % 360;
+    var cardinal = CARDINALS_FR[Math.round(a / 22.5) % 16];
+    return cardinal + " (" + Math.round(a) + "°)";
   }
 
   // --------------------------------------------------------------------------
@@ -35,7 +56,7 @@
 
     // Toiture — orientation et inclinaison avec 2 décimales max
     set("p3b_inclinaison", formatDegrees(a.inclinaison));
-    set("p3b_orientation", formatDegrees(a.orientation));
+    set("p3b_orientation", formatOrientation(a.orientation));
     set("p3b_surface", a.surface_m2);
     set("p3b_panneaux", a.nb_panneaux);
 

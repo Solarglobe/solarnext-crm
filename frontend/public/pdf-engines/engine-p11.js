@@ -53,7 +53,7 @@ console.log("P11 ENGINE LOADED");
     const W = 2400;
     const H = 700;
     /* Marges : innerH max + padL large pour graduations € très lisibles (axe Y premium). */
-    const padL = 78;
+    const padL = 170;
     const padR = 12;
     const padT = 2;
     /* Bas : marge pour axe X nettement sous les barres + années + sous-titre */
@@ -72,7 +72,14 @@ console.log("P11 ENGINE LOADED");
       maxV = Math.max(maxV, Number(eco[i]) || 0, Number(pay[i]) || 0);
     }
     if (maxV <= 0) maxV = 1;
-    const niceMax = maxV * 1.06;
+    /* Plafond « rond » : graduations à pas 1-2-5 (ex. 0 / 500 / 1 000 / 1 500 / 2 000 €). */
+    const _p11NiceStep = (raw) => {
+      const mag = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
+      const norm = raw / mag;
+      return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+    };
+    const gradStep = _p11NiceStep((maxV * 1.06) / 4);
+    const niceMax = gradStep * 4;
 
     function yBottom() {
       return padT + plotH;
@@ -169,7 +176,7 @@ console.log("P11 ENGINE LOADED");
           x: String(padL - 12),
           y: String(y + 8),
           fill: "#2e2c28",
-          "font-size": "36",
+          "font-size": "30",
           "font-weight": "700",
           "font-family": "system-ui, Segoe UI, sans-serif",
           "text-anchor": "end",

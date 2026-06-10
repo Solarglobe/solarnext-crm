@@ -565,7 +565,7 @@ export default function PdfPage2({
                         id: "p2_lcoe" as const,
                         title: (
                           <>
-                            LCOE <span style={{ color: "#999", fontWeight: 500 }}>(coût par kWh)</span>
+                            Coût de votre kWh solaire <span style={{ color: "#999", fontWeight: 500 }}>(LCOE)</span>
                           </>
                         ),
                       },

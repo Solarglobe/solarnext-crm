@@ -188,7 +188,7 @@ export default function PdfPage7VirtualBattery({
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", flex: 1, minHeight: 0 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "3.1mm", flexShrink: 0 }}>
           <div className="card soft" style={CARD_SOFT_BASE}>
-            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Énergie solaire utilisée</div>
+            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Énergie solaire utilisée (direct + batterie virtuelle)</div>
             <div style={{ fontSize: "6.5mm", fontWeight: 800, lineHeight: 1 }}>{fmtKwh(kpis.energy_solar_used_kwh ?? withBattery.pv_total_used_kwh)}</div>
             <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
               {`Vous utiliserez environ ${fmtKwh(kpis.energy_solar_used_kwh ?? withBattery.pv_total_used_kwh)} de votre production solaire`}
@@ -217,6 +217,51 @@ export default function PdfPage7VirtualBattery({
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3.1mm", flexShrink: 0 }}>
+        {(() => {
+          /* Avant / après batterie : le visuel qui justifie la page. */
+          const sans = num(data.without_battery?.autonomie_ratio);
+          const avec = num(data.with_virtual_battery?.autonomie_ratio);
+          if (sans == null || avec == null) return null;
+          const pctS = Math.round(sans * 100);
+          const pctA = Math.round(avec * 100);
+          const row = (label: string, pct: number, fill: string, bold: boolean) => (
+            <div style={{ display: "flex", alignItems: "center", gap: "3mm" }}>
+              <span style={{ width: "44mm", fontSize: "3mm", fontWeight: bold ? 700 : 500, color: "#333", flexShrink: 0 }}>
+                {label}
+              </span>
+              <div style={{ flex: 1, height: "6.5mm", borderRadius: "3.5mm", background: "#f1ede4", overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${Math.max(2, Math.min(100, pct))}%`,
+                    height: "100%",
+                    borderRadius: "3.5mm",
+                    background: fill,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    paddingRight: "2.4mm",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <span style={{ fontSize: "3.1mm", fontWeight: 800, color: "#fff" }}>{pct} %</span>
+                </div>
+              </div>
+            </div>
+          );
+          return (
+            <div
+              className="card soft"
+              style={{ ...CARD_SOFT_BASE, display: "flex", flexDirection: "column", gap: "2.2mm", flexShrink: 0 }}
+            >
+              <div style={{ fontWeight: 700, fontSize: "3.2mm", color: brandHex }}>
+                Ce que la batterie virtuelle change — couverture de vos besoins
+              </div>
+              {row("Sans batterie", pctS, "linear-gradient(90deg,#9ca3af,#6b7280)", false)}
+              {row("Avec batterie virtuelle", pctA, "linear-gradient(90deg,#34d399,#0b6e4f)", true)}
+            </div>
+          );
+        })()}
+
           <div className="card soft" style={CARD_SOFT_BASE}>
             <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Max théorique</div>
             <MetricRow label="Production" value={fmtKwh(maxTheoretical.production_kwh)} />

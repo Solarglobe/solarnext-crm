@@ -380,7 +380,18 @@
     });
     svg.appendChild(gLab);
 
-    const ticks = [yMin + (yMax - yMin) * 0.75, yMin + (yMax - yMin) * 0.5, yMin + (yMax - yMin) * 0.25];
+    /* Graduations « rondes » (multiples d'un pas 1-2-5) au lieu de 25/50/75 % du
+       domaine — fini les libellés arbitraires type « 19 k€ » ou « -1 k€ ». */
+    const niceStep = (raw) => {
+      const mag = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
+      const norm = raw / mag;
+      return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+    };
+    const stepY = niceStep((yMax - yMin) / 4);
+    const ticks = [];
+    for (let tv = Math.ceil(yMin / stepY) * stepY; tv <= yMax; tv += stepY) {
+      if (Math.abs(tv) > stepY / 2 || tv === 0) ticks.push(tv);
+    }
     const gY = document.createElementNS(ns, "g");
     gY.setAttribute("font-size", "21");
     gY.setAttribute("fill", AXIS_Y);

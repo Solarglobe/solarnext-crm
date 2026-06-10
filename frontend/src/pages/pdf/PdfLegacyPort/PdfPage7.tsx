@@ -101,17 +101,22 @@ export default function PdfPage7({
 
   const meta = p7.meta ?? {};
   const pct = p7.pct ?? {};
-  const cPv = safeNum(pct.c_pv_pct);
-  const cBat = safeNum(pct.c_bat_pct);
-  const cGrid = safeNum(pct.c_grid_pct);
-  const pAuto = safeNum(pct.p_auto_pct);
-  const pBat = safeNum(pct.p_bat_pct);
-  const pSurplusPct = safeNum(pct.p_surplus_pct);
+  /* Arrondi défensif : ces pourcentages sont affichés tels quels dans les barres
+     (un float brut type 50.96797507106932 % est déjà arrivé en production). */
+  const cPv = Math.round(safeNum(pct.c_pv_pct));
+  const cBat = Math.round(safeNum(pct.c_bat_pct));
+  const cGrid = Math.round(safeNum(pct.c_grid_pct));
+  const pAuto = Math.round(safeNum(pct.p_auto_pct));
+  const pBat = Math.round(safeNum(pct.p_bat_pct));
+  const pSurplusPct = Math.round(safeNum(pct.p_surplus_pct));
   const pSurplusKwh = p7.p_surplus ?? 0;
   const consoKwh = p7.consumption_kwh ?? 0;
   const autoKwh = p7.autoconsumption_kwh ?? 0;
   const prodKwh = p7.production_kwh ?? 0;
   const solarUsedKwh = safeNum((p7 as unknown as { energy_solar_used_kwh?: number }).energy_solar_used_kwh) || autoKwh;
+  const solarUsedDirectKwh = safeNum(
+    (p7 as unknown as { energy_solar_used_direct_kwh?: number }).energy_solar_used_direct_kwh
+  );
   const gridImportKwh = safeNum((p7 as unknown as { energy_grid_import_kwh?: number }).energy_grid_import_kwh) || (p7.c_grid ?? 0);
   const estimatedBillEur = safeNum((p7 as unknown as { estimated_annual_bill_eur?: number }).estimated_annual_bill_eur);
   const solarCoveragePct = consoKwh > 0 ? (solarUsedKwh / consoKwh) * 100 : 0;
@@ -321,15 +326,28 @@ export default function PdfPage7({
                 boxShadow: "0 0.75mm 2.2mm rgba(0,0,0,.04)",
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
-                Énergie solaire utilisée
-              </div>
-              <div style={{ fontSize: "7mm", lineHeight: 1, fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
-                {fmtKwh(solarUsedKwh)}
-              </div>
-              <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.6mm", lineHeight: 1.25 }}>
-                {`Vous utiliserez environ ${fmtKwh(solarUsedKwh)} de votre production solaire`}
-              </div>
+              {(() => {
+                /* Scénario batterie : cette carte montre le DIRECT uniquement — la page
+                   batterie suivante affiche le total direct + batterie. Libellés distincts
+                   pour éviter deux chiffres différents sous le même titre. */
+                const isBatteryScenario = cBat > 0 || pBat > 0;
+                const shownKwh = isBatteryScenario && solarUsedDirectKwh > 0 ? solarUsedDirectKwh : solarUsedKwh;
+                return (
+                  <>
+                    <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
+                      {isBatteryScenario ? "Énergie solaire utilisée en direct" : "Énergie solaire utilisée"}
+                    </div>
+                    <div style={{ fontSize: "7mm", lineHeight: 1, fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
+                      {fmtKwh(shownKwh)}
+                    </div>
+                    <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.6mm", lineHeight: 1.25 }}>
+                      {isBatteryScenario
+                        ? `${fmtKwh(shownKwh)} consommés au moment de la production — total avec batterie en page suivante`
+                        : `Vous utiliserez environ ${fmtKwh(shownKwh)} de votre production solaire`}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div

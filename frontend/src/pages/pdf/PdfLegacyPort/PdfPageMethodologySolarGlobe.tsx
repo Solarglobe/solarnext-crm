@@ -42,7 +42,6 @@ const WORKFLOW = [
 type MethodologyBlock = {
   title: string;
   tagline: string;
-  bullets: string[];
   body: string;
 };
 
@@ -50,72 +49,36 @@ const BLOCKS: MethodologyBlock[] = [
   {
     title: "Implantation réelle du projet",
     tagline: "Plan de pose (calepinage) et géométrie comme socle du calcul",
-    bullets: [
-      "Pans et géométrie du bâtiment support modélisés",
-      "Position réelle des modules sur le plan de pose",
-      "Orientation et inclinaison par zone ou par pan",
-      "Répartition du champ PV (puissance, densité)",
-    ],
     body:
       "Les paramètres géométriques ne sont pas des moyennes nationales : ils reflètent l’implantation telle que définie dans l’étude. Toute évolution de pose (déplacement, nombre de modules) modifie la chaîne de calcul en amont.",
   },
   {
     title: "Estimation de la production solaire",
     tagline: "Projection annuelle cohérente avec le champ modélisé",
-    bullets: [
-      "Exposition : azimut et pente des générateurs",
-      "Ressource solaire et ensoleillement du site",
-      "Technologie et puissance du générateur",
-      "Cohérence d’ensemble du parc de modules",
-    ],
     body:
       "La production annuelle estimée agrège des pas de temps représentatifs : elle vise une moyenne pertinente pour dimensionner et comparer des scénarios, pas une courbe journalière contractuelle.",
   },
   {
     title: "Environnement et ombrage",
     tagline: "Obstacles proches et horizon dans le même bilan",
-    bullets: [
-      "Obstacles de proximité (volumes, masques locaux)",
-      "Horizon lointain / relief lorsque les données le permettent",
-      "Prise en compte des masques solaires dans le modèle",
-      "Contribution à une baisse annuelle moyenne estimée",
-    ],
     body:
       "L’ombrage est intégré comme composante du rendement global : il complète implantation et ressource solaire. Il ne constitue pas à lui seul l’intégralité du dimensionnement économique.",
   },
   {
     title: "Autoconsommation et valorisation",
     tagline: "De la production brute à l’énergie utile",
-    bullets: [
-      "Profil de consommation et courbe de charge retenus",
-      "Part autoconsommée vs surplus selon les hypothèses",
-      "Logique de valorisation (économies, injection, etc.)",
-      "Cohérence entre usages déclarés et scénario chiffré",
-    ],
     body:
       "La valorisation énergétique relie production estimée et comportement du site. Elle reste conditionnée par les hypothèses de consommation et tarifaires saisies dans le dossier.",
   },
   {
     title: "Simulation économique",
     tagline: "Indicateurs structurés, pas une prévision de marché",
-    bullets: [
-      "Production et valorisation comme entrées du bilan",
-      "Investissement, aides et hypothèses du dossier",
-      "Comparaison de scénarios sur une base commune",
-      "Projection sur l’horizon d’analyse retenu",
-    ],
     body:
       "Les indicateurs économiques traduisent, sous forme synthétique, une chaîne de calcul documentée. Ils servent à arbitrer et à prioriser, sans figer les conditions futures de rémunération ou de contrat.",
   },
   {
     title: "Hypothèses et limites du modèle",
     tagline: "Estimation technique encadrée, décision éclairée",
-    bullets: [
-      "Résultats = estimations, pas mesures instrumentées",
-      "Aide au dimensionnement et à la comparaison",
-      "Non substitut à un relevé terrain ou à un audit chantier",
-      "Cadre d’usage : sérieux, transparent, non absolu",
-    ],
     body:
       "Le modèle vise la cohérence interne du dossier et la comparabilité entre variantes. Il ne prétend pas anticiper chaque aléa d’exploitation ni remplacer le jugement professionnel sur place.",
   },
@@ -225,11 +188,6 @@ export default function PdfPageMethodologySolarGlobe({
             Une chaîne de calcul documentée, du relevé d’implantation aux indicateurs de synthèse — pour estimer le
             projet avec rigueur et lisibilité.
           </p>
-          <p className="p-msg-hero__intro">
-            Les résultats de ce dossier ne découlent pas d’un ratio isolé : ils s’appuient sur des hypothèses techniques
-            et économiques cohérentes entre elles, calées sur l’implantation retenue. L’objectif est une estimation réaliste,
-            exploitable et comparable d’une étude à l’autre.
-          </p>
           <p className="p-msg-hero__frame">
             Cette méthodologie vise une estimation techniquement cohérente, reproductible entre dossiers, et non un simple
             coefficient théorique déconnecté du projet.
@@ -278,11 +236,6 @@ export default function PdfPageMethodologySolarGlobe({
             <article key={b.title} className="p-msg-card">
               <h2 className="p-msg-card__title">{b.title}</h2>
               <p className="p-msg-card__tagline">{b.tagline}</p>
-              <ul className="p-msg-card__bullets">
-                {b.bullets.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
               <p className="p-msg-card__text">{b.body}</p>
             </article>
           ))}

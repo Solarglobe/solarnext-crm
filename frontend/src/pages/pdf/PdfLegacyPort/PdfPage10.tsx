@@ -114,7 +114,7 @@ export default function PdfPage10({
   const subInk = "#374151";
   const softSub = "#4b5563";
 
-  const kpiValueSize = "11mm";
+  const kpiValueSize = "9.2mm";
 
   const kpiCards = [
     {
@@ -374,21 +374,21 @@ export default function PdfPage10({
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.65mm" }}>
             {[
               {
-                lab: "ROI",
+                lab: "Amortissement",
                 unit: "ans",
                 val: roi != null && Number.isFinite(roi) ? `${Math.round(roi)}` : "—",
                 w: roiBarPct,
                 grad: `linear-gradient(90deg, ${pdfBrandGoldLight(gold)}, ${gold})`,
               },
               {
-                lab: "TRI",
+                lab: "Rentabilité (TRI)",
                 unit: "%",
                 val: tri != null && Number.isFinite(tri) ? Number(tri).toFixed(1).replace(".", ",") : "—",
                 w: triBarPct,
                 grad: "linear-gradient(90deg,#8FB3FF,#0047AB)",
               },
               {
-                lab: "LCOE",
+                lab: "Coût kWh solaire (LCOE)",
                 unit: "€/kWh",
                 val: lcoe != null && Number.isFinite(lcoe) ? Number(lcoe).toFixed(3).replace(".", ",") : "—",
                 w: lcoeBarPct,
