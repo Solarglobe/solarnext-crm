@@ -745,8 +745,18 @@ function redraw(manager) {
   overlayCanvas.style.pointerEvents = "none";
   console.log("[DSM] canvas size:", overlayCanvas.width, overlayCanvas.height);
 
+  /* HEATMAP-3D-FIX : les polygonPx sont des coordonnées du canvas 2D, sans
+     correspondance dans l'espace 3D. L'event calpinage:viewmode ne suffit pas
+     (overlay activé alors qu'on est déjà en 3D → aucun event) : on garde sur
+     l'état courant à CHAQUE redraw. */
+  const heatmapViewMode3D =
+    typeof window !== "undefined" && window.__CALPINAGE_VIEW_MODE__ === "3D";
   const ctx = overlayCanvas.getContext("2d");
-  if (ctx) {
+  if (heatmapViewMode3D) {
+    overlayCanvas.style.display = "none";
+    if (ctx) ctx.clearRect(0, 0, cw, ch);
+  } else if (ctx) {
+    overlayCanvas.style.display = "";
     const panelsWithLoss = buildPanelsWithLoss();
     const globalLoss = getTotalLossPctFromShading(shading ?? null);
     drawRoofHeatmap(ctx, {
@@ -1082,6 +1092,14 @@ export function createDsmOverlayManager(container) {
     };
     window.addEventListener("calpinage:viewmode", viewModeHandler);
     manager._listeners.push({ el: window, type: "calpinage:viewmode", handler: viewModeHandler });
+    /* HEATMAP-3D-FIX : appliquer immédiatement le mode courant — l'overlay peut
+       être activé alors que la vue est déjà en 3D (aucun event de bascule à venir). */
+    viewModeHandler({
+      detail: {
+        mode:
+          typeof window !== "undefined" && window.__CALPINAGE_VIEW_MODE__ === "3D" ? "3D" : "2D",
+      },
+    });
 
     const { destroy: destroyInteraction } = createDsmInteractionLayer(root);
     manager._interactionLayerDestroy = destroyInteraction;
