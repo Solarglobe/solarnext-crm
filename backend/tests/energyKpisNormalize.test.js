@@ -184,6 +184,40 @@ function main() {
   assert(mappedHybrid.energy.energy_grid_import_kwh === 1224, "scenarios_v2 energy_grid_import_kwh preserved");
   assert(mappedHybrid.energy.site_solar_or_credit_used_kwh === 8976, "scenarios_v2 site solar or credit used preserved");
 
+  const mappedVirtualStalePct = mapScenarioToV2(
+    {
+      name: "BATTERY_VIRTUAL",
+      _skipped: false,
+      energy: {
+        production_kwh: 9146,
+        consumption_kwh: 10200,
+        total_pv_used_on_site_kwh: 9146,
+        autoconsumption_kwh: 9146,
+        import_kwh: 1054,
+        billable_import_kwh: 1054,
+        grid_import_kwh: 1054,
+        energy_grid_import_kwh: 1054,
+        site_autonomy_pct: 63.2,
+        solar_coverage_pct: 63.2,
+        pv_self_consumption_pct: 70.45,
+      },
+      prod_kwh: 9146,
+      conso_kwh: 10200,
+      auto_kwh: 9146,
+      import_kwh: 1054,
+      billable_import_kwh: 1054,
+      virtual_credit_start_kwh: 1648,
+      virtual_credit_end_kwh: 1648,
+    },
+    { pv: { kwc: 7, panelsCount: 18 } }
+  );
+  assert(Math.abs((mappedVirtualStalePct.energy.site_autonomy_pct ?? 0) - 89.67) < 0.05, "scenarios_v2 BV recompute autonomie, ignore stale pct");
+  assert(Math.abs((mappedVirtualStalePct.energy.solar_coverage_pct ?? 0) - 89.67) < 0.05, "scenarios_v2 BV recompute couverture, ignore stale pct");
+  assert(Math.abs((mappedVirtualStalePct.energy.pv_self_consumption_pct ?? 0) - 100) < 0.05, "scenarios_v2 BV recompute pv_self, ignore stale pct");
+  assert(mappedVirtualStalePct.energy.energy_grid_import_kwh === 1054, "scenarios_v2 BV import corrige preserved");
+  assert(mappedVirtualStalePct.energy.energy_solar_used_kwh === 9146, "scenarios_v2 BV energie PV utilisee corrigee");
+  assert(mappedVirtualStalePct.energy.site_solar_or_credit_used_kwh === 9146, "scenarios_v2 BV energie site couverte corrigee");
+
   console.log("OK — energyKpisNormalize\n");
 }
 

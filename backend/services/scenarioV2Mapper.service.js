@@ -91,23 +91,27 @@ export function mapScenarioToV2(scenario, ctx) {
     scenario.energy?.surplus,
     scenario.surplus_kwh
   );
+  const siteSolarOrCreditUsedForKpi =
+    isVirtualLike && consoKwh != null && importForKpi != null
+      ? clampKwh(consoKwh - importForKpi, 0, minPositiveCap(consoKwh, prodKwh))
+      : null;
 
   const kpiPayload = {
     production_kwh: prodKwh,
-    total_pv_used_on_site_kwh: pvUsedKwh,
+    total_pv_used_on_site_kwh: siteSolarOrCreditUsedForKpi ?? pvUsedKwh,
     consumption_kwh: consoKwh,
     grid_import_kwh: importForKpi,
     surplus_kwh: surplusKwhForKpi,
   };
 
   const pvSelfPct =
-    scenario.energy?.pv_self_consumption_pct ??
+    (!isVirtualLike ? scenario.energy?.pv_self_consumption_pct : null) ??
     computePvSelfConsumptionPct(kpiPayload);
   const siteAutPct =
-    scenario.energy?.site_autonomy_pct ??
+    (!isVirtualLike ? scenario.energy?.site_autonomy_pct : null) ??
     computeSiteAutonomyPct(kpiPayload);
   const solarCoverPct =
-    scenario.energy?.solar_coverage_pct ??
+    (!isVirtualLike ? scenario.energy?.solar_coverage_pct : null) ??
     computeSolarCoveragePct(kpiPayload);
   const exportPct =
     scenario.energy?.export_pct ??
