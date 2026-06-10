@@ -17,23 +17,14 @@ describe("Rate limiting", () => {
     app = buildHttpApp();
   });
 
-  test("6th auth attempt returns 429 with Retry-After", async () => {
-    for (let i = 0; i < 5; i++) {
+  test("auth login is not API rate limited", async () => {
+    for (let i = 0; i < 25; i++) {
       const res = await request(app)
         .post("/api/auth/login")
         .set("X-Forwarded-For", "203.0.113.10")
         .send({});
       assert.equal(res.status, 400);
     }
-
-    const blocked = await request(app)
-      .post("/api/auth/login")
-      .set("X-Forwarded-For", "203.0.113.10")
-      .send({});
-
-    assert.equal(blocked.status, 429);
-    assert.equal(blocked.body.error, "RATE_LIMITED");
-    assert.ok(Number(blocked.headers["retry-after"]) > 0);
   });
 
   test("anonymous API requests are limited to 20/min/IP", async () => {

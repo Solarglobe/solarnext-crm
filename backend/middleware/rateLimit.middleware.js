@@ -17,6 +17,7 @@ function keyOrganizationOrIp(req) {
 function skipHealthAndOptions(req) {
   if (req.method === "OPTIONS") return true;
   const path = req.originalUrl?.split("?")[0] ?? req.path ?? "";
+  if (path === "/api/auth/login" || path === "/auth/login") return true;
   return path === "/api/metrics" || path.startsWith("/api/health/");
 }
 

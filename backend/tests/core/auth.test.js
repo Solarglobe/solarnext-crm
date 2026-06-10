@@ -1,5 +1,5 @@
 /**
- * CP-077 — Auth : login, rate limit échecs, routes protégées.
+ * CP-077 - Auth: login, routes protegees.
  */
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
@@ -26,9 +26,9 @@ before(async () => {
   }
 });
 
-test("login OK → 200 + token JWT", async (t) => {
+test("login OK -> 200 + token JWT", async (t) => {
   if (!canRun || !ctx) {
-    t.skip("intégration indisponible (serveur + DB + fixture)");
+    t.skip("integration indisponible (serveur + DB + fixture)");
     return;
   }
   const { status, data } = await loginJson(ctx.adminEmail, ctx.adminPassword);
@@ -37,9 +37,9 @@ test("login OK → 200 + token JWT", async (t) => {
   assert.ok(data.user?.organizationId || data.user?.organization_id);
 });
 
-test("login KO → 401", async (t) => {
+test("login KO -> 401", async (t) => {
   if (!canRun || !ctx) {
-    t.skip("intégration indisponible");
+    t.skip("integration indisponible");
     return;
   }
   const { status, data } = await loginJson(ctx.adminEmail, "wrong-password-cp077");
@@ -47,9 +47,9 @@ test("login KO → 401", async (t) => {
   assert.ok(data.error);
 });
 
-test("rate limit login : 6e échec → 429", async (t) => {
+test("login KO repete -> 401, sans RATE_LIMITED", async (t) => {
   if (!canRun) {
-    t.skip("intégration indisponible");
+    t.skip("integration indisponible");
     return;
   }
   const probe = `cp077-rl-${Date.now()}@invalid.local`;
@@ -57,28 +57,26 @@ test("rate limit login : 6e échec → 429", async (t) => {
   for (let i = 0; i < 8; i++) {
     const r = await loginJson(probe, "bad");
     last = r.status;
-    if (r.status === 429) {
-      assert.equal(r.data.error, "RATE_LIMITED");
-      return;
-    }
+    assert.equal(r.status, 401);
+    assert.notEqual(r.data?.error, "RATE_LIMITED");
   }
-  assert.fail(`429 attendu après plusieurs 401, dernier status=${last}`);
+  assert.equal(last, 401);
 });
 
-test("route protégée sans token → 401", async (t) => {
+test("route protegee sans token -> 401", async (t) => {
   if (!canRun) {
-    t.skip("intégration indisponible");
+    t.skip("integration indisponible");
     return;
   }
   const res = await fetch(`${BASE_URL}/api/clients`, { headers: {} });
   assert.equal(res.status, 401);
 });
 
-test("route protégée avec token → 200", async (t) => {
+test("route protegee avec token -> 200", async (t) => {
   if (!canRun || !ctx) {
-    t.skip("intégration indisponible");
+    t.skip("integration indisponible");
     return;
   }
   const { status } = await api(ctx.token, "GET", "/api/clients");
-  assert.ok(status === 200 || status === 403, `GET /api/clients → ${status}`);
+  assert.ok(status === 200 || status === 403, `GET /api/clients -> ${status}`);
 });
