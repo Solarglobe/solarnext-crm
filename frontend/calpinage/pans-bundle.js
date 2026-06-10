@@ -1106,6 +1106,11 @@
     if (!state || !state.roof) return 0;
     if (state.roof.north != null && typeof state.roof.north.angleDeg === "number") return state.roof.north.angleDeg;
     if (state.roof.roof && state.roof.roof.north != null && typeof state.roof.roof.north.angleDeg === "number") return state.roof.roof.north.angleDeg;
+    /* NORTH-FALLBACK-FIX : nord absent mais bearing de capture connu → -bearing
+       (même convention que onCapture / readNorthAngleDegFromCalpinageRoof). */
+    if (state.roof.map && typeof state.roof.map.bearing === "number" && isFinite(state.roof.map.bearing)) {
+      return -state.roof.map.bearing;
+    }
     return 0;
   }
 

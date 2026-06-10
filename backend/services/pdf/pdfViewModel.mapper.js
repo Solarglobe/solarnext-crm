@@ -770,7 +770,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
      3. sinon "—" : un azimut numérique d'origine inconnue a déjà produit un cardinal faux
         (toit Sud-Ouest affiché Ouest-Nord-Ouest) — mieux vaut absent que faux. */
   const _p3bTilt = num(_pvgisRef.tiltDeg) ?? num(site.tilt_deg);
-  const _p3bAzimuth = num(_pvgisRef.azimuthDeg);
+  const _p3bAzimuth =
+    num(_pvgisRef.azimuthDeg) ??
+    /* fallback : azimut numérique du snapshot — fiable après revalidation du calpinage
+       (NORTH-FALLBACK-FIX) ; les dossiers non revalidés affichent leur valeur stockée. */
+    num(site.orientation_deg);
   const _p3bOrientationLetter = orientationMap[String(site.orientation_deg || "").toUpperCase()] || null;
   const p3b_auto = {
     client: clientName,

@@ -141,6 +141,12 @@ function readNorthAngleDegFromCalpinageRoof(roof) {
   if (Number.isFinite(n1)) return n1;
   var n2 = roof.roof && roof.roof.north && typeof roof.roof.north.angleDeg === "number" ? roof.roof.north.angleDeg : NaN;
   if (Number.isFinite(n2)) return n2;
+  /* NORTH-FALLBACK-FIX : nord absent (anciens dossiers / état partiel) mais bearing de capture
+     connu → même convention que la capture (north.angleDeg = -bearing, voir onCapture).
+     Sans ce fallback, les azimuts pans étaient calculés SANS rotation nord (toit Sud-Ouest
+     persisté ~292° au lieu de ~225° dès que la carte était tournée à la capture). */
+  var b = roof.map && typeof roof.map.bearing === "number" && Number.isFinite(roof.map.bearing) ? roof.map.bearing : NaN;
+  if (Number.isFinite(b)) return -b;
   return 0;
 }
 
@@ -4182,7 +4188,8 @@ export function initCalpinage(container, options = {}) {
 
       function imagePxToParametricDormerWorldM(p) {
         var mpp = getRoofExtensionMetersPerPixel();
-        var north = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.northAngleDeg) || CALPINAGE_STATE.northAngleDeg || 0;
+        /* NORTH-FALLBACK-FIX : roof.northAngleDeg n'existe nulle part (toujours 0) — lecteur central. */
+        var north = readNorthAngleDegFromCalpinageRoof(CALPINAGE_STATE.roof);
         var rad = (north * Math.PI) / 180;
         var x0 = p.x * mpp;
         var y0 = -p.y * mpp;
@@ -4194,7 +4201,8 @@ export function initCalpinage(container, options = {}) {
       /** Inverse de imagePxToParametricDormerWorldM — coordonnées monde (m) → pixel image. */
       function parametricDormerWorldMToImagePx(w) {
         var mpp = getRoofExtensionMetersPerPixel();
-        var north = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.northAngleDeg) || CALPINAGE_STATE.northAngleDeg || 0;
+        /* NORTH-FALLBACK-FIX : roof.northAngleDeg n'existe nulle part (toujours 0) — lecteur central. */
+        var north = readNorthAngleDegFromCalpinageRoof(CALPINAGE_STATE.roof);
         var rad = (north * Math.PI) / 180;
         var cos = Math.cos(rad);
         var sin = Math.sin(rad);
