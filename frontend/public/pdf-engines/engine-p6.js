@@ -174,7 +174,11 @@ function drawChart(dir, bat, grid, tot) {
     const totGrid  = (totals ? official(totals.grid_import_kwh) : null) ?? sum(grid);
     const totDir   = sum(dir);
     const totBat   = sum(bat);
-    const solarUsed = (totals ? official(totals.solar_used_kwh) : null) ?? (totDir + totBat);
+    const solarFromImport =
+      totConso != null && totGrid != null
+        ? Math.max(0, Math.min(totConso, totConso - totGrid))
+        : null;
+    const solarUsed = solarFromImport ?? (totals ? official(totals.solar_used_kwh) : null) ?? (totDir + totBat);
 
     const autonomie = totConso ? (1 - (totGrid/totConso)) : 0;
     /* Carte 3 : part de la PRODUCTION consommée sur place (l'autonomie, carte 1, est déjà

@@ -1,5 +1,5 @@
 /**
- * PDF V2 — Page batterie virtuelle conditionnelle.
+ * PDF V2 - Page batterie virtuelle conditionnelle.
  * Usage: node backend/tests/pdfVirtualBatteryPage.test.js
  */
 
@@ -70,18 +70,50 @@ function main() {
     selected_scenario_id: "BASE",
     scenarios_v2: scenariosV2,
   });
-  assert(vmBase.fullReport?.p7_virtual_battery == null, "BASE: la page batterie virtuelle doit etre absente");
+  assert(vmBase.fullReport?.p7_virtual_battery == null, "BASE: virtual battery page must be absent");
 
   const vmVirtual = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
     selected_scenario_id: "BATTERY_VIRTUAL",
     scenarios_v2: scenariosV2,
   });
   const page = vmVirtual.fullReport?.p7_virtual_battery;
-  assert(page != null, "BATTERY_VIRTUAL: la page batterie virtuelle doit etre presente");
-  assert(page.with_virtual_battery?.pv_total_used_kwh === 9200, "total PV utilisee doit venir des donnees moteur");
-  assert(page.contribution?.recovered_kwh === 4200, "energie recuperee doit venir de battery_discharge_kwh");
+  assert(page != null, "BATTERY_VIRTUAL: virtual battery page must be present");
+  assert(page.with_virtual_battery?.pv_total_used_kwh === 9200, "total PV used must come from engine data");
+  assert(page.contribution?.recovered_kwh === 4200, "recovered energy must come from battery_discharge_kwh");
 
-  console.log("OK — pdfVirtualBatteryPage.test");
+  const vmLegacyInconsistent = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
+    selected_scenario_id: "BATTERY_VIRTUAL",
+    scenarios_v2: [
+      scenariosV2[0],
+      {
+        id: "BATTERY_VIRTUAL",
+        energy: {
+          production_kwh: 9152,
+          consumption_kwh: 10200,
+          total_pv_used_on_site_kwh: 4733,
+          autoconsumption_kwh: 4733,
+          energy_solar_used_kwh: 4733,
+          import_kwh: 2010,
+          energy_grid_import_kwh: 1048,
+          billable_import_kwh: 1048,
+          site_autonomy_pct: 80.3,
+          solar_coverage_pct: 80.3,
+          pv_self_consumption_pct: 52,
+        },
+        finance: { estimated_annual_bill_eur: 392, residual_bill_eur: 392, annual_cashflows: [] },
+        production: { annual_kwh: 9152, monthly_kwh: Array(12).fill(763) },
+      },
+    ],
+  });
+  const p6Totals = vmLegacyInconsistent.fullReport?.p6?.p6?.totals;
+  const p7 = vmLegacyInconsistent.fullReport?.p7;
+  assert(Math.round(p6Totals?.solar_used_kwh) === 9152, "P6: covered kWh = consumption - canonical import");
+  assert(Math.round(p6Totals?.grid_import_kwh) === 1048, "P6: import = canonical import");
+  assert(Math.round(p7?.energy_solar_used_kwh) === 9152, "P7: covered kWh = consumption - canonical import");
+  assert(Math.round(p7?.energy_grid_import_kwh) === 1048, "P7: import = canonical import");
+  assert(Math.round(p7?.solar_coverage_pct) === 90, "P7: pct must match covered kWh");
+
+  console.log("OK - pdfVirtualBatteryPage.test");
 }
 
 main();

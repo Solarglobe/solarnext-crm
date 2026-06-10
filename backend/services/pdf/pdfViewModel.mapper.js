@@ -989,17 +989,19 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     num(_energyFlowsShared.auto) ??
     null;
   const _sharedRestoredKwh = num(_energyFlowsShared.restored_kwh) ?? num(_energyFlowsShared.used_credit_kwh) ?? 0;
-  const _sharedSolarUsedKwh =
-    _sharedAutoKwh != null
-      ? Math.max(0, (num(_energyFlowsShared.direct_self_consumption_kwh) ?? Math.max(0, _sharedAutoKwh - _sharedRestoredKwh)) + _sharedRestoredKwh)
-      : null;
   const _sharedGridImportKwh =
     num(_energyFlowsShared.energy_grid_import_kwh) ??
     num(_energyFlowsShared.billable_import_kwh) ??
+    num(_energyFlowsShared.grid_import_kwh) ??
     num(_energyFlowsShared.import_kwh) ??
     num(_energyFlowsShared.import) ??
-    num(_energyFlowsShared.grid_import_kwh) ??
-    (_sharedSolarUsedKwh != null && _sharedConsoKwh != null ? Math.max(0, _sharedConsoKwh - _sharedSolarUsedKwh) : null);
+    null;
+  const _sharedSolarUsedKwh =
+    _sharedConsoKwh != null && _sharedGridImportKwh != null
+      ? Math.max(0, Math.min(_sharedConsoKwh, _sharedConsoKwh - _sharedGridImportKwh))
+      : _sharedAutoKwh != null
+        ? Math.max(0, (num(_energyFlowsShared.direct_self_consumption_kwh) ?? Math.max(0, _sharedAutoKwh - _sharedRestoredKwh)) + _sharedRestoredKwh)
+        : null;
 
   return {
     meta: {
@@ -1161,9 +1163,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           num(energyP7.surplus_kwh ?? energyP7.surplus) ??
           Math.max(0, prodP7 - autoP7);
         const importP7 =
+          num(energyP7.energy_grid_import_kwh) ??
+          num(energyP7.billable_import_kwh) ??
+          num(energyP7.grid_import_kwh) ??
           num(energyP7.import_kwh) ??
           num(energyP7.import) ??
-          num(energyP7.grid_import_kwh) ??
           Math.max(0, consoP7 - autoP7);
         const selfConsP7 = resolvePvSelfConsumptionPct(energyP7);
         const autonomyP7 =
@@ -1182,11 +1186,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         const directP7 =
           num(energyP7.direct_self_consumption_kwh) ??
           Math.max(0, autoP7 - restoredP7);
-        const solarUsedP7 = directP7 + restoredP7;
-        const gridImportCanonicalP7 =
-          num(energyP7.energy_grid_import_kwh) ??
-          num(energyP7.billable_import_kwh) ??
-          importP7;
+        const gridImportCanonicalP7 = importP7;
+        const solarUsedP7 =
+          consoP7 > 0 && gridImportCanonicalP7 != null
+            ? Math.max(0, Math.min(consoP7, consoP7 - gridImportCanonicalP7))
+            : directP7 + restoredP7;
         const solarCoverageP7 =
           consoP7 > 0 ? Math.max(0, Math.min(100, (solarUsedP7 / consoP7) * 100)) : null;
         const estimatedAnnualBillP7 =
@@ -1194,7 +1198,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           num(scenarioForFinance?.finance?.residual_bill_eur) ??
           num(financeActive?.residual_bill_eur);
         let cBat = consoP7 > 0 && isBatScen ? Math.min(100, (restoredP7 / consoP7) * 100) : 0;
-        let cGrid = consoP7 > 0 ? Math.min(100, (importP7 / consoP7) * 100) : 0;
+        let cGrid = consoP7 > 0 ? Math.min(100, (gridImportCanonicalP7 / consoP7) * 100) : 0;
         let cPv = isBatScen ? Math.max(0, 100 - cBat - cGrid) : autonomiePct;
         if (isBatScen) {
           const cSum = cPv + cBat + cGrid;
@@ -1240,7 +1244,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             p_bat_pct: Math.round(pBat),
             p_surplus_pct: pSurplusRounded,
           },
-          c_grid: numOrZero(importP7),
+          c_grid: numOrZero(gridImportCanonicalP7),
           p_surplus: numOrZero(surplusP7),
           consumption_kwh: numOrZero(consoP7),
           autoconsumption_kwh: numOrZero(autoP7),
