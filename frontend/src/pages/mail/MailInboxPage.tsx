@@ -380,7 +380,7 @@ export default function MailInboxPage() {
   const openNewMessage = useCallback(() => {
     if (composeNewOpen) return;
     setComposePrefill(null);
-    setComposePresentation("standalone");
+    setComposePresentation("overlay");
     setSelectedThreadId(null);
     setComposeNewKey((k) => k + 1);
     setComposeNewOpen(true);

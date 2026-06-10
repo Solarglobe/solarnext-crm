@@ -1743,7 +1743,17 @@ button.mail-inbox-sn-tab:focus-visible {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
-/* Compositeur mail en overlay (préfill depuis devis, etc.) */
+/* Compositeur mail en modale centrée (nouveau message, réponses, transferts, préfill devis…) */
+@keyframes mail-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mail-overlay-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .mail-overlay {
   position: fixed;
   inset: 0;
@@ -1751,10 +1761,16 @@ button.mail-inbox-sn-tab:focus-visible {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 48px 16px;
+  padding: clamp(24px, 6vh, 64px) 16px;
   box-sizing: border-box;
   overflow: auto;
   pointer-events: auto;
+  animation: mail-overlay-in 0.18s ease-out;
+}
+
+/* Réponse ouverte au-dessus de l'overlay de lecture du fil (z-index 10050). */
+.mail-overlay--above {
+  z-index: 10070;
 }
 
 .mail-overlay__backdrop {
@@ -1763,16 +1779,19 @@ button.mail-inbox-sn-tab:focus-visible {
   border: none;
   padding: 0;
   margin: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   cursor: pointer;
 }
 
 .mail-overlay__panel {
   position: relative;
   z-index: 1;
-  width: min(900px, 100%);
+  width: min(880px, 100%);
   max-width: 100%;
   flex-shrink: 0;
+  animation: mail-overlay-panel-in 0.2s ease-out;
 }
 
 /* Phase 3.5 — mail CRM : surfaces uniquement sous html.theme-dark */

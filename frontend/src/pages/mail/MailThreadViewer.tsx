@@ -588,19 +588,25 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
           </>
         )}
         {composeMode && detail && (
-          <MailComposer
-            key={`${threadId}-${composeMode}`}
-            mode={composeMode}
-            accounts={accounts}
-            userEmail={meEmail}
-            threadId={threadId}
-            threadSubject={detail.thread.subject ?? inboxRow?.subject ?? null}
-            messages={detail.messages}
-            crmClientId={detail.thread.clientId}
-            crmLeadId={detail.thread.leadId}
-            onClose={() => setComposeMode(null)}
-            onSent={(r) => void handleComposerSent(r)}
-          />
+          <div className="mail-overlay" role="dialog" aria-modal="true" aria-label="Rédaction d’un message">
+            <div className="mail-overlay__backdrop" role="presentation" onClick={() => setComposeMode(null)} />
+            <div className="mail-overlay__panel">
+              <MailComposer
+                key={`${threadId}-${composeMode}`}
+                mode={composeMode}
+                layout="overlay"
+                accounts={accounts}
+                userEmail={meEmail}
+                threadId={threadId}
+                threadSubject={detail.thread.subject ?? inboxRow?.subject ?? null}
+                messages={detail.messages}
+                crmClientId={detail.thread.clientId}
+                crmLeadId={detail.thread.leadId}
+                onClose={() => setComposeMode(null)}
+                onSent={(r) => void handleComposerSent(r)}
+              />
+            </div>
+          </div>
         )}
       </div>
 
