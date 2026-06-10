@@ -5,6 +5,7 @@
 
 import { attachNormalizedEnergyKpiFields } from "../services/energyKpisNormalize.service.js";
 import { mapScenarioToV2 } from "../services/scenarioV2Mapper.service.js";
+import { repairVirtualScenarioDisplayKpis } from "../services/scenarioV2DisplayRepair.service.js";
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -254,6 +255,27 @@ function main() {
   assert(Math.abs((mappedVirtualCapture.energy.pv_self_consumption_pct ?? 0) - 100) < 0.05, "capture BV scenarios_v2 autoconsommation PV stabilisee");
   assert(mappedVirtualCapture.energy.energy_grid_import_kwh === 1048, "capture BV scenarios_v2 import stabilise");
   assert(mappedVirtualCapture.energy.site_solar_or_credit_used_kwh === 9152, "capture BV scenarios_v2 energie site couverte");
+
+  const repairedLegacyHardy = repairVirtualScenarioDisplayKpis({
+    id: "BATTERY_VIRTUAL",
+    energy: {
+      production_kwh: 9152,
+      consumption_kwh: 10200,
+      pv_self_consumption_pct: 70.4,
+      solar_coverage_pct: 63.2,
+      site_autonomy_pct: 63.2,
+      energy_solar_used_kwh: 6447,
+      autoconsumption_kwh: 6447,
+      import_kwh: 3753,
+      billable_import_kwh: 3753,
+      grid_import_kwh: 3753,
+    },
+  });
+  assert(Math.abs((repairedLegacyHardy.energy.site_autonomy_pct ?? 0) - 89.7) < 0.1, "API repair Hardy autonomie");
+  assert(Math.abs((repairedLegacyHardy.energy.solar_coverage_pct ?? 0) - 89.7) < 0.1, "API repair Hardy couverture");
+  assert(Math.abs((repairedLegacyHardy.energy.pv_self_consumption_pct ?? 0) - 100) < 0.1, "API repair Hardy autoconsommation PV");
+  assert(Math.abs((repairedLegacyHardy.energy.energy_grid_import_kwh ?? 0) - 1048) < 0.1, "API repair Hardy import");
+  assert(Math.abs((repairedLegacyHardy.energy.energy_solar_used_kwh ?? 0) - 9152) < 0.1, "API repair Hardy energie utilisee");
 
   console.log("OK — energyKpisNormalize\n");
 }

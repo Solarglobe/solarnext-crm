@@ -1,15 +1,16 @@
 /**
  * GET /api/studies/:studyId/versions/:versionId/scenarios
- * Lecture pure : retourne data_json.scenarios_v2 sans calcul ni fallback.
+ * Lecture scenarios_v2 : retourne le snapshot, avec réparation d'affichage pour anciens KPI BV.
  */
 
 import { getVersionById } from "../routes/studies/service.js";
+import { repairScenarioV2DisplayKpis } from "../services/scenarioV2DisplayRepair.service.js";
 
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 
 /**
  * GET /api/studies/:studyId/versions/:versionId/scenarios
- * Retourne scenarios_v2 tel quel. 404 si version inexistante ou scenarios_v2 absent.
+ * Retourne scenarios_v2. 404 si version inexistante ou scenarios_v2 absent.
  */
 export async function getStudyScenarios(req, res) {
   try {
@@ -36,9 +37,11 @@ export async function getStudyScenarios(req, res) {
       return res.status(404).json({ error: "SCENARIOS_NOT_GENERATED" });
     }
 
+    const scenariosForDisplay = repairScenarioV2DisplayKpis(scenarios_v2);
+
     return res.json({
       ok: true,
-      scenarios: scenarios_v2,
+      scenarios: scenariosForDisplay,
       is_locked: studyVersion.is_locked === true,
       selected_scenario_id: studyVersion.selected_scenario_id ?? null,
     });
