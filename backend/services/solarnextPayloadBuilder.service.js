@@ -824,6 +824,12 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       estimated_savings_annual: null,
       credit_ratio: 1,
       credit_cap_kwh: null,
+      credit_rollover_enabled:
+        vbNew.creditRolloverEnabled ??
+        vbNew.credit_rollover_enabled ??
+        vbNew.rolloverEnabled ??
+        vbNew.rollover_enabled ??
+        true,
       cost_basis: "credited",
     };
   } else {
@@ -861,6 +867,20 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
             estimated_savings_annual: vbConfig.estimated_savings_annual,
             credit_ratio: 1,
             credit_cap_kwh: vbConfig.credit_cap_kwh ?? null,
+            credit_rollover_enabled:
+              vbConfig.credit_rollover_enabled ??
+              vbConfig.creditRolloverEnabled ??
+              vbConfig.rollover_enabled ??
+              vbConfig.rolloverEnabled ??
+              vbConfig.carryover_enabled ??
+              vbConfig.carryoverEnabled ??
+              undefined,
+            reset_credit_annually:
+              vbConfig.reset_credit_annually ??
+              vbConfig.resetCreditAnnually ??
+              vbConfig.annual_credit_reset ??
+              vbConfig.annualCreditReset ??
+              undefined,
             cost_basis: vbConfig.cost_basis ?? "credited",
           }
         : { enabled: false };

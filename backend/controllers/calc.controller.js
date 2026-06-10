@@ -1447,12 +1447,34 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             scenarios.BATTERY_HYBRID = hybridScenario;
           } else {
             // Bilans énergie hybride — SANS double comptage
-            const vbCreditsUsed = vbSimH.virtual_battery_total_discharged_kwh ?? 0;
+            const vbYear1SimH = vbSimH;
+            const rolloverEnabledH = resolveVirtualBatteryCreditRolloverEnabled(vbInputH);
+            let vbRolloverH = null;
+            let vbSimHEffective = vbSimH;
+            if (rolloverEnabledH) {
+              vbRolloverH = simulateVirtualBattery8760Rollover({
+                pv_hourly: surplusAfterPhysical,
+                conso_hourly: importAfterPhysical,
+                config: { ...vbInputH, capacity_kwh: simCapacityKwhH },
+                years: 10,
+              });
+              if (vbRolloverH?.ok) {
+                vbSimHEffective = vbRolloverH.stabilized;
+              }
+            }
+            hybridScenario.virtual_battery_rollover = buildVirtualBatteryRolloverMeta({
+              enabled: rolloverEnabledH && vbRolloverH?.ok,
+              rollover: vbRolloverH?.ok ? vbRolloverH : null,
+              year1: vbYear1SimH,
+              stabilized: vbSimHEffective,
+            });
+
+            const vbCreditsUsed = vbSimHEffective.virtual_battery_total_discharged_kwh ?? 0;
             const hybridAutoKwh = battPhysicalResult.auto_kwh + vbCreditsUsed;
-            const hybridImportKwh = vbSimH.grid_import_kwh;
-            const hybridSurplusKwh = vbSimH.virtual_battery_overflow_export_kwh ?? vbSimH.surplus_kwh ?? 0;
-            const hybridCredited = vbSimH.virtual_battery_total_charged_kwh ?? 0;
-            const hybridRemainingCredit = vbSimH.virtual_battery_credit_end_kwh ?? 0;
+            const hybridImportKwh = vbSimHEffective.grid_import_kwh;
+            const hybridSurplusKwh = vbSimHEffective.virtual_battery_overflow_export_kwh ?? vbSimHEffective.surplus_kwh ?? 0;
+            const hybridCredited = vbSimHEffective.virtual_battery_total_charged_kwh ?? 0;
+            const hybridRemainingCredit = vbSimHEffective.virtual_battery_credit_end_kwh ?? 0;
 
             const baseScenarioH = scenarios.BASE;
             const production = baseScenarioH.energy?.production_kwh ?? baseScenarioH.energy?.prod ?? baseScenarioH.prod_kwh ?? 0;
@@ -1460,14 +1482,14 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
 
             // Agrégation mensuelle hybride (auto = physique + crédits VB utilisés)
             const hybridAutoHourly = battPhysicalResult.auto_hourly.map(
-              (a, h) => a + (vbSimH.virtual_battery_hourly_discharge_kwh[h] || 0)
+              (a, h) => a + (vbSimHEffective.virtual_battery_hourly_discharge_kwh[h] || 0)
             );
-            const hybridSurplusHourly = vbSimH.virtual_battery_hourly_overflow_export_kwh ?? Array(8760).fill(0);
+            const hybridSurplusHourly = vbSimHEffective.virtual_battery_hourly_overflow_export_kwh ?? Array(8760).fill(0);
             const monthlyHybrid = aggregateMonthly(ctx.pv.hourly, consoHourlyHybrid, {
               auto_hourly: hybridAutoHourly,
               surplus_hourly: hybridSurplusHourly,
               batt_discharge_hourly: battPhysicalResult.batt_discharge_hourly.map(
-                (d, h) => d + (vbSimH.virtual_battery_hourly_discharge_kwh[h] || 0)
+                (d, h) => d + (vbSimHEffective.virtual_battery_hourly_discharge_kwh[h] || 0)
               ),
             });
 
@@ -1479,10 +1501,10 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 contractType: contractTypeH,
                 installedKwc: installedKwcH,
                 meterKva: meterKvaH,
-                vbSim: vbSimH,
+                vbSim: vbSimHEffective,
                 unboundedRequiredCapacityKwh: requiredCapH,
                 selectedCapacityKwh: simCapacityKwhH,
-                hourlyDischargeKwh: vbSimH.virtual_battery_hourly_discharge_kwh,
+                hourlyDischargeKwh: vbSimHEffective.virtual_battery_hourly_discharge_kwh,
                 hphcHourlyIsHp: contractTypeH === "HPHC" ? vbInputH.hphc_hourly_slot_is_hp ?? null : null,
                 tariffElectricityPerKwh: tariffKwhH,
                 oaRatePerKwh: oaRateH,
@@ -1498,7 +1520,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 tariffElectricityPerKwh: tariffKwhH,
                 oaRatePerKwh: oaRateH,
                 includeActivationInVirtualYear1: false,
-                annual_virtual_discharge_kwh: vbSimH.virtual_battery_total_discharged_kwh,
+                annual_virtual_discharge_kwh: vbSimHEffective.virtual_battery_total_discharged_kwh,
               });
               subscriptionAnnualH = Number(p2WrapH.annual_recurring_provider_cost_ttc) || 0;
               hybridScenario._virtualBatteryQuote = {
@@ -1536,8 +1558,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               consumption_kwh: consumption,
               autoconsumption_kwh: hybridAutoKwh,
               import_kwh: hybridImportKwh,
-              // Import AVANT application des crédits VB : évite le double comptage (vbCreditsUsed déjà valorisé via hybridAutoKwh)
-              billable_import_kwh: importAfterPhysical.reduce((s, v) => s + (v || 0), 0),
+              billable_import_kwh: hybridImportKwh,
               surplus_kwh: hybridSurplusKwh,
               grid_import_kwh: hybridImportKwh,
               grid_export_kwh: hybridSurplusKwh,
@@ -1559,8 +1580,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             hybridScenario.surplus_kwh = hybridSurplusKwh;
             hybridScenario.conso_kwh = consumption;
             hybridScenario.import_kwh = hybridImportKwh;
-            // Import AVANT application des crédits VB : évite le double comptage (vbCreditsUsed déjà valorisé via hybridAutoKwh)
-            hybridScenario.billable_import_kwh = importAfterPhysical.reduce((s, v) => s + (v || 0), 0);
+            hybridScenario.billable_import_kwh = hybridImportKwh;
             hybridScenario.credited_kwh = hybridCredited;
             hybridScenario.used_credit_kwh = vbCreditsUsed;
             // Taux d'autoconsommation (auto / production) et couverture solaire (auto / conso) — cohérents avec BATTERY_PHYSICAL et BATTERY_VIRTUAL
@@ -1582,6 +1602,27 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               restored_kwh: vbCreditsUsed,
               overflow_export_kwh: hybridSurplusKwh,
               cycles_equivalent: simCapacityKwhH > 0 ? vbCreditsUsed / simCapacityKwhH : null,
+            };
+            hybridScenario.year1 = hybridScenario.virtual_battery_rollover?.year1 ?? null;
+            hybridScenario.stabilized = hybridScenario.virtual_battery_rollover?.stabilized ?? null;
+            hybridScenario.convergence_year = hybridScenario.virtual_battery_rollover?.convergence_year ?? 1;
+            hybridScenario.virtual_credit_start_kwh = hybridScenario.virtual_battery_rollover?.virtual_credit_start_kwh ?? 0;
+            hybridScenario.virtual_credit_end_kwh = hybridScenario.virtual_battery_rollover?.virtual_credit_end_kwh ?? hybridRemainingCredit;
+            hybridScenario._virtualBattery8760 = {
+              virtual_battery_capacity_kwh: vbSimHEffective.virtual_battery_capacity_kwh,
+              virtual_battery_credit_start_kwh: vbSimHEffective.virtual_battery_credit_start_kwh,
+              virtual_battery_credit_end_kwh: vbSimHEffective.virtual_battery_credit_end_kwh,
+              virtual_battery_total_charged_kwh: vbSimHEffective.virtual_battery_total_charged_kwh,
+              virtual_battery_total_discharged_kwh: vbSimHEffective.virtual_battery_total_discharged_kwh,
+              virtual_battery_overflow_export_kwh: vbSimHEffective.virtual_battery_overflow_export_kwh,
+              virtual_battery_hourly_charge_kwh: vbSimHEffective.virtual_battery_hourly_charge_kwh,
+              virtual_battery_hourly_discharge_kwh: vbSimHEffective.virtual_battery_hourly_discharge_kwh,
+              virtual_battery_hourly_credit_balance_kwh: vbSimHEffective.virtual_battery_hourly_credit_balance_kwh,
+              virtual_battery_hourly_overflow_export_kwh: vbSimHEffective.virtual_battery_hourly_overflow_export_kwh,
+              virtual_battery_hourly_grid_import_kwh: vbSimHEffective.virtual_battery_hourly_grid_import_kwh,
+              hourly_charge: vbSimHEffective.virtual_battery_hourly_charge_kwh,
+              hourly_discharge: vbSimHEffective.virtual_battery_hourly_discharge_kwh,
+              hourly_state: vbSimHEffective.virtual_battery_hourly_credit_balance_kwh,
             };
 
             hybridScenario._virtualBatteryP2 = {

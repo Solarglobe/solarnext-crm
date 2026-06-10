@@ -5,8 +5,10 @@
 
 import {
   simulateVirtualBattery8760,
+  simulateVirtualBattery8760Rollover,
   assertVirtualBatteryAnnualBalance,
   resolveVirtualBatteryCapacityKwh,
+  resolveVirtualBatteryCreditRolloverEnabled,
 } from "../services/virtualBattery8760.service.js";
 import { simulateBattery8760 } from "../services/batteryService.js";
 
@@ -226,6 +228,27 @@ function main() {
   assert(resolveVirtualBatteryCapacityKwh({ capacity_kwh: 12 }) === 12, "resolve capacity");
   assert(resolveVirtualBatteryCapacityKwh({ credit_cap_kwh: 8 }) === 8, "resolve credit_cap");
   assert(resolveVirtualBatteryCapacityKwh({}) === null, "resolve null");
+  assert(resolveVirtualBatteryCreditRolloverEnabled({}) === true, "rollover default true");
+  assert(resolveVirtualBatteryCreditRolloverEnabled({ reset_credit_annually: true }) === false, "rollover reset false");
+
+  // Cas 10 - report annuel : l'annee stabilisee peut differer de l'annee 1
+  {
+    const pv = zeros(H);
+    const load = zeros(H);
+    pv[4000] = 10;
+    load[1] = 5;
+    const r = simulateVirtualBattery8760Rollover({
+      pv_hourly: pv,
+      conso_hourly: load,
+      config: { capacity_kwh: 100 },
+      years: 10,
+    });
+    assert(r.ok, "cas10 ok");
+    assertApprox(r.year1.grid_import_kwh, 5, "cas10 annee 1 import");
+    assertApprox(r.stabilized.grid_import_kwh, 0, "cas10 stabilise import");
+    assert(r.convergence_year >= 2, "cas10 convergence >= 2");
+    console.log("OK Cas 10 - report annuel vers regime permanent");
+  }
 
   console.log("\n✅ Tous les tests virtualBattery8760 passent.");
 }

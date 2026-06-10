@@ -411,6 +411,22 @@ export function mapScenarioToV2(scenario, ctx) {
         : null,
     virtual_battery_8760:
       isVirtualLike ? (scenario._virtualBattery8760 ?? null) : null,
+    ...(isVirtualLike ? {
+      year1: scenario.year1 ?? scenario.virtual_battery_rollover?.year1 ?? null,
+      stabilized: scenario.stabilized ?? scenario.virtual_battery_rollover?.stabilized ?? null,
+      convergence_year: scenario.convergence_year ?? scenario.virtual_battery_rollover?.convergence_year ?? null,
+      virtual_credit_start_kwh:
+        scenario.virtual_credit_start_kwh ??
+        scenario.virtual_battery_rollover?.virtual_credit_start_kwh ??
+        scenario._virtualBattery8760?.virtual_battery_credit_start_kwh ??
+        null,
+      virtual_credit_end_kwh:
+        scenario.virtual_credit_end_kwh ??
+        scenario.virtual_battery_rollover?.virtual_credit_end_kwh ??
+        scenario._virtualBattery8760?.virtual_battery_credit_end_kwh ??
+        null,
+      virtual_battery_rollover: scenario.virtual_battery_rollover ?? null,
+    } : {}),
     ...(isVirtualLike && scenario.virtual_battery_finance && typeof scenario.virtual_battery_finance === "object"
       ? { virtual_battery_finance: scenario.virtual_battery_finance }
       : {}),
