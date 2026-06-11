@@ -20,6 +20,7 @@ import { Phase3ChecklistPanel } from "../Phase3ChecklistPanel";
 import { createDsmOverlayManager } from "../dsmOverlay";
 import "../dsmOverlay/dsmOverlay.css";
 import { apiFetch } from "../../../services/api";
+import { getCrmApiBase } from "../../../config/crmApiBase";
 import { getCurrentUser } from "../../../services/auth.service";
 import { useToast } from "../ui/useToast";
 
@@ -384,7 +385,10 @@ function ShadingPdfExportButton() {
       const user = await getCurrentUser();
       const orgId = user?.organizationId;
       if (!orgId) { toast.error("Impossible : orgId manquant"); setLoading(false); return; }
-      const url = `/internal/pdf/dsm-analysis/${studyId}?orgId=${encodeURIComponent(orgId)}&version=${encodeURIComponent(String(version))}`;
+      /* PDF-BASE-FIX : URL absolue vers l'API — en prod le chemin relatif partait sur le host
+       * frontend (SPA) qui renvoyait du HTML 200 → « Réponse invalide (attendu PDF) ».
+       * En dev getCrmApiBase() est vide → chemin relatif inchangé (proxy Vite). */
+      const url = `${getCrmApiBase()}/internal/pdf/dsm-analysis/${studyId}?orgId=${encodeURIComponent(orgId)}&version=${encodeURIComponent(String(version))}`;
       const response = await apiFetch(url, { method: "GET", credentials: "include" });
       if (!response.ok) {
         let errMsg = "Erreur lors de la génération du PDF";
