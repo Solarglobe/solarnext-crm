@@ -7,6 +7,8 @@ import {
   computeVirtualBatteryP2Finance,
   selectMySmartTier,
   urbanBaseEnergyPriceHt,
+  urbanBaseFixedSubscriptionMonthlyHt,
+  urbanHphcFixedSubscriptionMonthlyHt,
   splitDischargeHpHc,
   resolveP2ContractType,
 } from "../services/virtualBatteryP2Finance.service.js";
@@ -51,7 +53,11 @@ function main() {
       tariffElectricityPerKwh: 0.2,
       oaRatePerKwh: 0.05,
     });
-    assertApprox(r.virtual_battery_finance.annual_subscription_ht, 6 * 12 * 1.0, "abo stockage kWc");
+    assertApprox(
+      r.virtual_battery_finance.annual_subscription_ht,
+      6 * 12 * 1.0 + 15.48 * 12,
+      "abo Urban BASE 9 kVA + stockage kWc"
+    );
     assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.6, "contribution");
     const expectedDischarge = 100 * (0.1308 + 0.0484);
     assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expectedDischarge, "déstockage");
@@ -62,7 +68,11 @@ function main() {
   {
     assertApprox(urbanBaseEnergyPriceHt(6), 0.1308, "6 kVA LOW");
     assertApprox(urbanBaseEnergyPriceHt(12), 0.1297, "12 kVA HIGH");
-    console.log("✅ Test 1b Urban Base paliers 6 / 12 kVA");
+    assertApprox(urbanBaseFixedSubscriptionMonthlyHt(6), 12.6, "Urban BASE abo 6 kVA PDF");
+    assertApprox(urbanBaseFixedSubscriptionMonthlyHt(36), 39.55, "Urban BASE abo 36 kVA PDF");
+    assertApprox(urbanHphcFixedSubscriptionMonthlyHt(3), 12.6, "Urban HP/HC 3 kVA -> minimum publié 6 kVA");
+    assertApprox(urbanHphcFixedSubscriptionMonthlyHt(12), 18.52, "Urban HP/HC abo 12 kVA PDF");
+    console.log("✅ Test 1b Urban Base/HPHC paliers PDF");
   }
 
   // Test 2 — MyLight MyBattery Base
@@ -170,6 +180,11 @@ function main() {
     });
     assert(r.virtual_battery_finance.hphc_allocation_status === "PARTIAL_HPHC_ALLOCATION", "statut partial");
     assert(r.virtual_battery_finance.annual_virtual_discharge_cost_ht === null, "pas de coût déstockage inventé");
+    assertApprox(
+      r.virtual_battery_finance.annual_subscription_ht,
+      5 * 12 * 1.0 + 15.48 * 12,
+      "abo Urban HPHC 9 kVA + stockage kWc"
+    );
     console.log("✅ Test 4 HPHC sans ventilation");
   }
 
@@ -275,6 +290,11 @@ function main() {
       virtual_battery_settings: { providers: {} },
     });
     assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.6, "contrib legacy");
+    assertApprox(
+      r.virtual_battery_finance.annual_subscription_ht,
+      6 * 12 * 1.0 + 15.48 * 12,
+      "providers vides -> abo Urban BASE PDF"
+    );
     const expectedDischarge = 100 * (0.1308 + 0.0484);
     assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expectedDischarge, "déstockage legacy");
     console.log("✅ Test 9 providers vides → legacy P2");
@@ -303,6 +323,11 @@ function main() {
       },
     });
     assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.6, "ligne absente → legacy");
+    assertApprox(
+      r.virtual_battery_finance.annual_subscription_ht,
+      6 * 12 * 1.0 + 15.48 * 12,
+      "ligne absente -> abo Urban BASE PDF"
+    );
     assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, 50 * (0.1308 + 0.0484), "déstockage legacy");
     console.log("✅ Test 10 ligne kVA absente sous provider → legacy");
   }

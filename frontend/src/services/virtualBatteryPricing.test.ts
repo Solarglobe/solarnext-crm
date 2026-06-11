@@ -35,9 +35,24 @@ describe("resolveVirtualBatteryPricing", () => {
     });
     expect(result).not.toBeNull();
     expect(result!.aboStockageMonthly).toBeCloseTo(5, 2); // 1 €/kWc * 5
-    expect(result!.aboFournisseurMonthly).toBeCloseTo(16.9, 2); // Urban HPHC 12 kVA
+    expect(result!.aboFournisseurMonthly).toBeCloseTo(18.52, 2); // Urban HPHC 12 kVA PDF 01/02/2026
     expect(result!.contributionMonthly).toBeCloseTo(9.6 / 12, 2); // 0.8
     expect(result!.totalMonthly).toBeGreaterThan(0);
+  });
+
+  it("cas 2b: URBAN_SOLAR, BASE, kVA=30, valeurs PDF 01/02/2026", () => {
+    const result = resolveVirtualBatteryPricing(grids, {
+      provider: "URBAN_SOLAR",
+      contractType: "BASE",
+      meterPowerKva: 30,
+      pvPowerKwc: 6,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.aboStockageMonthly).toBeCloseTo(6, 2);
+    expect(result!.aboFournisseurMonthly).toBeCloseTo(34.33, 2);
+    expect(result!.restitutionPrice).toBeCloseTo(0.1297, 4);
+    expect(result!.reseauPrice).toBeCloseTo(0.0484, 4);
+    expect(result!.contributionMonthly).toBeCloseTo(9.6 / 12, 2);
   });
 
   it("cas 3: MYLIGHT_MYSMARTBATTERY, capacity=300 kWh", () => {

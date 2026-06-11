@@ -25,8 +25,11 @@ import {
   VIRTUAL_BATTERY_P2_VAT_RATE,
   MYSMART_CAPACITY_TIERS_HT,
   URBAN_BASE_KVA_STEPS,
+  URBAN_BASE_FIXED_SUBSCRIPTION_HT_BY_KVA,
   URBAN_BASE_ENERGY_LOW,
   URBAN_BASE_ENERGY_HIGH,
+  URBAN_HPHC_KVA_STEPS,
+  URBAN_HPHC_FIXED_SUBSCRIPTION_HT_BY_KVA,
   VIRTUAL_BATTERY_LEGACY_SUBSCRIPTION_EUR_PER_KWC_MONTH,
 } from "./core/engineConstants.js";
 
@@ -69,6 +72,23 @@ export function urbanBaseEnergyPriceHt(meterKva) {
   if (["3", "6", "9"].includes(key)) return URBAN_BASE_ENERGY_LOW;
   if (["12", "15", "18", "24", "30", "36"].includes(key)) return URBAN_BASE_ENERGY_HIGH;
   return null;
+}
+
+export function urbanBaseFixedSubscriptionMonthlyHt(meterKva) {
+  const step = meterKvaToNearestUrbanBaseStep(meterKva);
+  return Number(URBAN_BASE_FIXED_SUBSCRIPTION_HT_BY_KVA[step]) || 0;
+}
+
+export function meterKvaToNearestUrbanHphcStep(meterKva) {
+  const n = Math.max(6, Math.min(36, Math.round(Number(meterKva) || 0)));
+  return URBAN_HPHC_KVA_STEPS.reduce((prev, curr) =>
+    Math.abs(curr - n) < Math.abs(prev - n) ? curr : prev
+  );
+}
+
+export function urbanHphcFixedSubscriptionMonthlyHt(meterKva) {
+  const step = meterKvaToNearestUrbanHphcStep(meterKva);
+  return Number(URBAN_HPHC_FIXED_SUBSCRIPTION_HT_BY_KVA[step]) || 0;
 }
 
 /**
@@ -273,7 +293,14 @@ export function computeVirtualBatteryP2Finance(input) {
         notes.push("HPHC Urban : ventilation HP/HC décharge absente ou incomplète — pas de coût déstockage calculé.");
       }
     } else {
-      annual_subscription_ht = round2(installedKwc * VIRTUAL_BATTERY_LEGACY_SUBSCRIPTION_EUR_PER_KWC_MONTH * 12);
+      const fixedMonthlyHt =
+        contractType === "HPHC"
+          ? urbanHphcFixedSubscriptionMonthlyHt(meterKva)
+          : urbanBaseFixedSubscriptionMonthlyHt(meterKva);
+      annual_subscription_ht = round2(
+        installedKwc * VIRTUAL_BATTERY_LEGACY_SUBSCRIPTION_EUR_PER_KWC_MONTH * 12 +
+          fixedMonthlyHt * 12
+      );
       annual_autoproducer_contribution_ht = VB_LEGACY_DEFAULT_AUTOPROD_CONTRIBUTION_EUR_PER_YEAR_HT;
       if (contractType === "BASE") {
         const e = urbanBaseEnergyPriceHt(meterKva);

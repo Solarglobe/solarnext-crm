@@ -181,8 +181,30 @@ export const MYSMART_CAPACITY_TIERS_HT = [
 // HARD CONSTANT – NOT CONFIGURABLE FROM CRM
 // utilisé dans meterKvaToNearestUrbanBaseStep, urbanBaseEnergyPriceHt (virtualBatteryP2Finance.service.js)
 export const URBAN_BASE_KVA_STEPS = [3, 6, 9, 12, 15, 18, 24, 30, 36];
+export const URBAN_BASE_FIXED_SUBSCRIPTION_HT_BY_KVA = {
+  3: 9.96,
+  6: 12.6,
+  9: 15.48,
+  12: 18.23,
+  15: 20.79,
+  18: 23.45,
+  24: 29.15,
+  30: 34.33,
+  36: 39.55,
+};
 export const URBAN_BASE_ENERGY_LOW = 0.1308;
 export const URBAN_BASE_ENERGY_HIGH = 0.1297;
+export const URBAN_HPHC_KVA_STEPS = [6, 9, 12, 15, 18, 24, 30, 36];
+export const URBAN_HPHC_FIXED_SUBSCRIPTION_HT_BY_KVA = {
+  6: 12.6,
+  9: 15.48,
+  12: 18.52,
+  15: 21.9,
+  18: 25.27,
+  24: 32.01,
+  30: 38.76,
+  36: 45.5,
+};
 
 /** Abonnement legacy sans grille Urban/MyBattery : €/kWc/mois × 12 (virtualBatteryP2Finance.service.js) */
 export const VIRTUAL_BATTERY_LEGACY_SUBSCRIPTION_EUR_PER_KWC_MONTH = 1.0;

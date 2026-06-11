@@ -42,7 +42,7 @@ export const MYSMARTBATTERY_CAPACITY_TIERS_2026: CapacityTier[] = [
 
 // ——— Urban Solar BASE HT
 const URBAN_BASE_ABO: Record<string, number> = {
-  "3": 9.96, "6": 11.4, "9": 12.9, "12": 14.4, "15": 15.9, "18": 17.4, "24": 20.4, "30": 23.4, "36": 26.4,
+  "3": 9.96, "6": 12.60, "9": 15.48, "12": 18.23, "15": 20.79, "18": 23.45, "24": 29.15, "30": 34.33, "36": 39.55,
 };
 const URBAN_BASE_ENERGY_LOW = 0.1308;  // 3-9 kVA
 const URBAN_BASE_ENERGY_HIGH = 0.1297; // 12-36 kVA
@@ -51,8 +51,10 @@ const URBAN_BASE_ABO_KWC = 1.0;
 const URBAN_BASE_CONTRIBUTION = 9.6;
 
 // ——— Urban Solar HP/HC HT
+// Le PDF Urban Solar particulier HP/HC du 01/02/2026 publie les lignes 6-36 kVA.
+// Pour conserver une résolution déterministe si un compteur 3 kVA est fourni, on applique le minimum publié (6 kVA).
 const URBAN_HPHC_ABO: Record<string, number> = {
-  "3": 11.8, "6": 13.5, "9": 15.2, "12": 16.9, "15": 18.2, "18": 21.2, "24": 25.2, "30": 29.2, "36": 33.2,
+  "3": 12.60, "6": 12.60, "9": 15.48, "12": 18.52, "15": 21.90, "18": 25.27, "24": 32.01, "30": 38.76, "36": 45.50,
 };
 const URBAN_HPHC_ENERGY_HP = 0.1412;
 const URBAN_HPHC_ENERGY_HC = 0.1007;
