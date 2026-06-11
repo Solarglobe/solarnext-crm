@@ -740,17 +740,31 @@ export async function update(req, res) {
       updates.push(`civility = $${idx++}`);
       values.push(civility);
     }
+    // Pivot nom — PERSON : « Nom complet » (full_name) est le seul champ éditable
+    // dans la fiche détail. On le rend autoritaire en re-dérivant prénom/nom afin de
+    // resynchroniser tous les documents (factures, DP, devis…) qui lisent first_name/last_name.
+    const resolvedTypeForName = customer_type ?? existingLead.customer_type ?? "PERSON";
     if (full_name !== undefined) {
       updates.push(`full_name = $${idx++}`);
       values.push(full_name);
-    }
-    if (first_name !== undefined) {
-      updates.push(`first_name = $${idx++}`);
-      values.push(first_name);
-    }
-    if (last_name !== undefined) {
-      updates.push(`last_name = $${idx++}`);
-      values.push(last_name);
+      if (resolvedTypeForName !== "PRO") {
+        const _np = String(full_name ?? "").trim().split(/\s+/).filter(Boolean);
+        const _first = _np.length ? _np[0] : "";
+        const _last = _np.length > 1 ? _np.slice(1).join(" ") : "";
+        updates.push(`first_name = $${idx++}`);
+        values.push(_first);
+        updates.push(`last_name = $${idx++}`);
+        values.push(_last);
+      }
+    } else {
+      if (first_name !== undefined) {
+        updates.push(`first_name = $${idx++}`);
+        values.push(first_name);
+      }
+      if (last_name !== undefined) {
+        updates.push(`last_name = $${idx++}`);
+        values.push(last_name);
+      }
     }
     if (phone_mobile !== undefined) {
       updates.push(`phone_mobile = $${idx++}`);
