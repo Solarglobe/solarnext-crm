@@ -62,7 +62,7 @@ export async function buildSelectedScenarioSnapshot({
 
   if (leadId) {
     const leadRes = await pool.query(
-      `SELECT l.first_name, l.last_name, l.company_name, l.contact_first_name, l.contact_last_name,
+      `SELECT l.full_name, l.first_name, l.last_name, l.company_name, l.contact_first_name, l.contact_last_name,
               l.customer_type, l.site_address_id, l.meter_power_kva, l.grid_type
        FROM leads l
        WHERE l.id = $1 AND l.organization_id = $2 AND (l.archived_at IS NULL)`,
@@ -72,6 +72,11 @@ export async function buildSelectedScenarioSnapshot({
     if (lead) {
       leadResolved = true;
       const isProLead = (lead.customer_type ?? "PERSON") === "PRO";
+      const leadFullName =
+        lead.full_name != null && String(lead.full_name).trim() !== ""
+          ? String(lead.full_name).trim()
+          : null;
+      client.full_name = leadFullName;
       if (isProLead) {
         // PRO : nom principal = entreprise, prenom = contact
         client.nom = lead.company_name ?? null;

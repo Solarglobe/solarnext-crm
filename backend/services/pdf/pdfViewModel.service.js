@@ -23,6 +23,7 @@ async function resolveLivePdfClient(studyId, organizationId) {
        s.lead_id,
        s.client_id,
        l.customer_type AS lead_customer_type,
+       l.full_name AS lead_full_name,
        l.company_name AS lead_company_name,
        l.first_name AS lead_first_name,
        l.last_name AS lead_last_name,
@@ -57,9 +58,22 @@ async function resolveLivePdfClient(studyId, organizationId) {
   const row = res.rows[0];
   if (!row) return null;
 
-  if (row.lead_id && (row.lead_first_name != null || row.lead_last_name != null || row.lead_company_name != null)) {
+  if (
+    row.lead_id &&
+    (
+      row.lead_full_name != null ||
+      row.lead_first_name != null ||
+      row.lead_last_name != null ||
+      row.lead_company_name != null
+    )
+  ) {
     const isProLead = (row.lead_customer_type ?? "PERSON") === "PRO";
+    const leadFullName =
+      row.lead_full_name != null && String(row.lead_full_name).trim() !== ""
+        ? String(row.lead_full_name).trim()
+        : null;
     return {
+      full_name: leadFullName,
       nom: isProLead ? row.lead_company_name ?? null : row.lead_last_name ?? null,
       prenom: isProLead
         ? [row.lead_contact_first_name, row.lead_contact_last_name].filter(Boolean).join(" ") || null

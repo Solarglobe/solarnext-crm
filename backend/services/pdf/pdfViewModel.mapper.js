@@ -622,7 +622,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     econDisplay = { ...econDisplay, elec_growth_pct: snapshotElecGrowth };
   }
 
-  const clientName = str(meta.client_nom) || [str(client.prenom), str(client.nom)].filter(Boolean).join(" ") || "";
+  const clientName =
+    str(client.full_name) ||
+    [str(client.prenom), str(client.nom)].filter(Boolean).join(" ") ||
+    str(meta.client_nom) ||
+    "";
   const ref = options.studyNumber || "—";
   const dateDisplay = formatDateFr(snapshot.computed_at) || formatDateFr(snapshot.created_at) || "";
   const energyForKpis =
@@ -873,14 +877,80 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     surplusMonthly = monthly.map((p, i) => Math.max(0, numOrZero(p) - numOrZero(autoMonthly[i])));
   }
 
-  // P6 : batterie mensuelle — lue depuis scenarioMonthly si scénario batterie, sinon 0
-  const batMonthly = isBatteryScenario && Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12
+  const isVirtualLikeScenario = selectedKey === "BATTERY_VIRTUAL" || selectedKey === "BATTERY_HYBRID";
+  const officialConsoForP6 =
+    isVirtualLikeScenario && selectedScenario?.energy && typeof selectedScenario.energy === "object"
+      ? num(selectedScenario.energy.consumption_kwh ?? selectedScenario.energy.conso)
+      : null;
+  const officialGridImportForP6 =
+    isVirtualLikeScenario && selectedScenario?.energy && typeof selectedScenario.energy === "object"
+      ? canonicalGridImportKwh(selectedScenario.energy)
+      : null;
+  const billableMonthlyForP6 =
+    isVirtualLikeScenario
+      ? (
+          Array.isArray(selectedScenario?.energy?.billable_monthly)
+            ? selectedScenario.energy.billable_monthly
+            : Array.isArray(selectedScenario?.billable_monthly)
+              ? selectedScenario.billable_monthly
+              : null
+        )
+      : null;
+
+  if (isVirtualLikeScenario && officialConsoForP6 != null && officialConsoForP6 >= 0) {
+    const currentConsoSum = consoMonthly.reduce((a, b) => a + numOrZero(b), 0);
+    if (currentConsoSum > 0 && Math.abs(currentConsoSum - officialConsoForP6) > 1) {
+      const factor = officialConsoForP6 / currentConsoSum;
+      consoMonthly = consoMonthly.map((v) => numOrZero(v) * factor);
+    } else if (currentConsoSum <= 0) {
+      consoMonthly = uniformMonthly12FromTotal(officialConsoForP6);
+    }
+  }
+
+  let batMonthly = isBatteryScenario && Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12
     ? scenarioMonthly.slice(0, 12).map((m) => numOrZero(m.batt_kwh ?? m.batt))
     : Array(12).fill(0);
+  let gridMonthly = consoMonthly.map((c, i) => Math.max(0, c - Math.max(0, (autoMonthly[i] ?? 0) - (batMonthly[i] ?? 0)) - batMonthly[i]));
 
-  // dir = PV directe = auto - batterie (auto inclut direct + décharge batterie)
-  const dirMonthly = autoMonthly.map((a, i) => Math.max(0, (a ?? 0) - (batMonthly[i] ?? 0)));
-  const gridMonthly = consoMonthly.map((c, i) => Math.max(0, c - dirMonthly[i] - batMonthly[i]));
+  if (isVirtualLikeScenario) {
+    if (Array.isArray(billableMonthlyForP6) && billableMonthlyForP6.length >= 12) {
+      gridMonthly = billableMonthlyForP6
+        .slice(0, 12)
+        .map((m) => numOrZero(m.billable_import ?? m.import_kwh ?? m.import ?? m.grid_import_kwh));
+      const restoredMonthly = billableMonthlyForP6
+        .slice(0, 12)
+        .map((m, i) => num(m.used_credit ?? m.restored_kwh ?? m.discharge_kwh ?? m.batt_kwh ?? m.batt) ?? batMonthly[i] ?? 0);
+      batMonthly = restoredMonthly;
+    } else if (officialGridImportForP6 != null && officialGridImportForP6 >= 0) {
+      const currentGridSum = gridMonthly.reduce((a, b) => a + numOrZero(b), 0);
+      if (currentGridSum > 0) {
+        const factor = officialGridImportForP6 / currentGridSum;
+        gridMonthly = gridMonthly.map((v) => numOrZero(v) * factor);
+      } else {
+        gridMonthly = uniformMonthly12FromTotal(officialGridImportForP6);
+      }
+    }
+
+    const gridMonthlySum = gridMonthly.reduce((a, b) => a + numOrZero(b), 0);
+    if (
+      officialGridImportForP6 != null &&
+      officialGridImportForP6 >= 0 &&
+      gridMonthlySum > 0 &&
+      Math.abs(gridMonthlySum - officialGridImportForP6) > 1
+    ) {
+      const factor = officialGridImportForP6 / gridMonthlySum;
+      gridMonthly = gridMonthly.map((v) => numOrZero(v) * factor);
+    }
+  }
+
+  // dir = PV directe. Pour la batterie virtuelle, on recalcule depuis l'import facturable
+  // afin que le dessin mensuel raconte la même chose que les KPI annuels Urban Solar.
+  const dirMonthly = autoMonthly.map((a, i) => {
+    if (!isVirtualLikeScenario) return Math.max(0, (a ?? 0) - (batMonthly[i] ?? 0));
+    const covered = Math.max(0, numOrZero(consoMonthly[i]) - numOrZero(gridMonthly[i]));
+    batMonthly[i] = Math.min(Math.max(0, numOrZero(batMonthly[i])), covered);
+    return Math.max(0, covered - batMonthly[i]);
+  });
   const totMonthly = consoMonthly;
   const price = econDisplay.price_eur_kwh;
 

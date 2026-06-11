@@ -14,7 +14,7 @@ function buildSnapshot() {
     scenario_type: "BASE",
     created_at: new Date().toISOString(),
     meta: { client_nom: "Test PDF" },
-    client: { nom: "Client", prenom: "Test", ville: "Nantes", cp: "44000", adresse: "1 rue test" },
+    client: { full_name: "Nom complet fiche lead", nom: "Client", prenom: "Test", ville: "Nantes", cp: "44000", adresse: "1 rue test" },
     site: { type_reseau: "mono", puissance_compteur_kva: 9, lat: 47.2, lon: -1.55 },
     installation: { puissance_kwc: 6, panneaux_nombre: 12, production_annuelle_kwh: 13457 },
     equipment: {},
@@ -70,6 +70,7 @@ function main() {
     selected_scenario_id: "BASE",
     scenarios_v2: scenariosV2,
   });
+  assert(vmBase.client?.name === "Nom complet fiche lead", "PDF client name must prefer lead detail full_name over stale meta.client_nom");
   assert(vmBase.fullReport?.p7_virtual_battery == null, "BASE: virtual battery page must be absent");
 
   const vmVirtual = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
@@ -106,9 +107,19 @@ function main() {
     ],
   });
   const p6Totals = vmLegacyInconsistent.fullReport?.p6?.p6?.totals;
+  const p6Series = vmLegacyInconsistent.fullReport?.p6?.p6;
   const p7 = vmLegacyInconsistent.fullReport?.p7;
   assert(Math.round(p6Totals?.solar_used_kwh) === 9152, "P6: covered kWh = consumption - canonical import");
   assert(Math.round(p6Totals?.grid_import_kwh) === 1048, "P6: import = canonical import");
+  assert(Math.round(p6Series?.grid?.reduce((a, b) => a + b, 0)) === 1048, "P6 chart grid series must match canonical import");
+  assert(
+    Math.round(
+      p6Series?.dir?.reduce((a, b) => a + b, 0) +
+        p6Series?.bat?.reduce((a, b) => a + b, 0) +
+        p6Series?.grid?.reduce((a, b) => a + b, 0)
+    ) === 10200,
+    "P6 chart stacked series must match annual consumption"
+  );
   assert(Math.round(p7?.energy_solar_used_kwh) === 9152, "P7: covered kWh = consumption - canonical import");
   assert(Math.round(p7?.energy_grid_import_kwh) === 1048, "P7: import = canonical import");
   assert(Math.round(p7?.solar_coverage_pct) === 90, "P7: pct must match covered kWh");
