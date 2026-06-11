@@ -947,6 +947,14 @@ export default function StudyQuoteBuilder() {
     if (!studyId || !versionId || locked) return;
     setSaving(true);
     try {
+      // FIX FOURNISSEUR-BV : sauvegarde immediate du formulaire (fournisseur inclus)
+      // avant de lancer le calcul, pour neutraliser la sauvegarde differee (debounce)
+      // qui pouvait faire lire l'ancien fournisseur au moteur.
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      await persistDraft(economic);
       const res = await apiFetch(
         `${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/validate-devis-technique`,
         { method: "POST", headers: { "Content-Type": "application/json" } }
@@ -976,7 +984,7 @@ export default function StudyQuoteBuilder() {
     } finally {
       setSaving(false);
     }
-  }, [studyId, versionId, locked, navigate]);
+  }, [studyId, versionId, locked, navigate, persistDraft, economic]);
 
   /**
    * Gate marge négative : calcule la marge courante et affiche la confirmation

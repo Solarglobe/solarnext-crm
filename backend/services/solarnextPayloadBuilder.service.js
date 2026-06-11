@@ -885,6 +885,25 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
           }
         : { enabled: false };
   }
+  // FIX FOURNISSEUR-BV : garantir que le fournisseur choisi atteint le moteur P2.
+  // Sans cette propagation, la branche sans grille org perd provider_code et les
+  // 3 fournisseurs donnent un resultat identique. Le moteur applique alors ses
+  // tarifs legacy par fournisseur (differents).
+  if (vbNew?.provider) {
+    if (virtual_battery_input == null || virtual_battery_input.enabled !== true) {
+      virtual_battery_input = { ...(virtual_battery_input || {}), enabled: true };
+    }
+    if (virtual_battery_input.provider_code == null) {
+      virtual_battery_input.provider_code = vbNew.provider;
+    }
+    if (virtual_battery_input.contract_type == null) {
+      virtual_battery_input.contract_type = vbNew.contractType || "BASE";
+    }
+    const capFromVbNew = pickExplicitVirtualCapacityKwh(vbNew);
+    if (capFromVbNew != null && virtual_battery_input.capacity_kwh == null) {
+      virtual_battery_input.capacity_kwh = capFromVbNew;
+    }
+  }
   if (
     virtual_battery_input.enabled &&
     (virtual_battery_input.annual_subscription_ttc == null ||
