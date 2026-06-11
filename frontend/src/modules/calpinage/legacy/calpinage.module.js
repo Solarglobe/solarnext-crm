@@ -3017,6 +3017,8 @@ export function initCalpinage(container, options = {}) {
           espacementHorizontalCm: 2,
           espacementVerticalCm: 4.5,
           orientationPanneaux: "portrait",
+          /* SAFE-ZONE-V2 : marges par type d'élément (cm). Migration : init depuis distanceLimitesCm. */
+          margesCm: { faitageCm: 20, aretierCm: 20, egoutCm: 20, riveCm: 20, obstacleCm: 20 },
         },
         /** Panneaux déjà posés (Phase 3). Tant que length === 0, les paramètres PV restent modifiables. */
         placedPanels: [],
@@ -3748,6 +3750,8 @@ export function initCalpinage(container, options = {}) {
         marginOuterCm: 20,
         spacingXcm: 2,
         spacingYcm: 4.5,
+        /* SAFE-ZONE-V2 : marges par type (cm) — faîtage / arêtier (trait) / égout / rives / obstacles. */
+        margesCm: { faitageCm: 20, aretierCm: 20, egoutCm: 20, riveCm: 20, obstacleCm: 20 },
       };
 
       /** Flag : une fois true, PV_LAYOUT_RULES ne doit plus ??tre ?cras? par le state (Phase 3). */
@@ -4420,6 +4424,39 @@ export function initCalpinage(container, options = {}) {
           var fp = (pts || []).map(function (p) { return q(p && p.x) + "," + q(p && p.y); }).join(";");
           return String((rx && rx.id) || ("rx-" + index)) + "@" + support + "@" + q(height) + ":" + fp;
         }).sort().join("|");
+      }
+
+      /* ── SAFE-ZONE-V2 — segments structurels résolus (faîtages + traits) pour le moteur safe zone ── */
+      function getResolvedStructuralSegmentsForSafeZoneV2() {
+        var out = { ridges: [], traits: [] };
+        var rl = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r && r.roofRole !== "chienAssis" && r.a && r.b; });
+        for (var i = 0; i < rl.length; i++) {
+          var ra = typeof resolveRidgePoint === "function" ? resolveRidgePoint(rl[i].a) : rl[i].a;
+          var rb = typeof resolveRidgePoint === "function" ? resolveRidgePoint(rl[i].b) : rl[i].b;
+          if (ra && rb && typeof ra.x === "number" && typeof rb.x === "number" && typeof ra.y === "number" && typeof rb.y === "number") {
+            out.ridges.push({ id: rl[i].id, a: { x: ra.x, y: ra.y }, b: { x: rb.x, y: rb.y } });
+          }
+        }
+        var tl = (CALPINAGE_STATE.traits || []).filter(function (t) { return t && t.roofRole !== "chienAssis" && t.a && t.b; });
+        for (var j = 0; j < tl.length; j++) {
+          var ta = tl[j].a;
+          var tb = tl[j].b;
+          if (typeof ta.x === "number" && typeof tb.x === "number" && typeof ta.y === "number" && typeof tb.y === "number") {
+            out.traits.push({ id: tl[j].id, a: { x: ta.x, y: ta.y }, b: { x: tb.x, y: tb.y } });
+          }
+        }
+        return out;
+      }
+      /** Signature géométrique (cache key) : déplacer un faîtage/trait doit réinvalider la safe zone. */
+      function structuralSegmentsSignatureV2(st) {
+        if (!st) return "";
+        function q2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+        function sig(list, prefix) {
+          return (list || []).map(function (s) {
+            return prefix + (s.id != null ? String(s.id) : "?") + ":" + q2(s.a.x) + "," + q2(s.a.y) + "-" + q2(s.b.x) + "," + q2(s.b.y);
+          }).sort().join(";");
+        }
+        return sig(st.ridges, "r") + "|" + sig(st.traits, "t");
       }
 
       function hydrateRoofExtension2DFromV1IfPresent(rx) {
@@ -5709,6 +5746,40 @@ export function initCalpinage(container, options = {}) {
         return best;
       }
 
+      /* ── SAFE-ZONE-V2 — marges par type d'élément (cm) ─────────────────── */
+      var MARGES_CM_KEYS_V2 = ["faitageCm", "aretierCm", "egoutCm", "riveCm", "obstacleCm"];
+      /** Lit les clés valides (≥ 0) d'un objet margesCm. null si aucune. */
+      function readMargesCmV2(obj) {
+        if (!obj || typeof obj !== "object") return null;
+        var out = {};
+        var any = false;
+        for (var i = 0; i < MARGES_CM_KEYS_V2.length; i++) {
+          var k = MARGES_CM_KEYS_V2[i];
+          var v = Number(obj[k]);
+          if (Number.isFinite(v) && v >= 0) { out[k] = v; any = true; }
+        }
+        return any ? out : null;
+      }
+      /** Marges par défaut : toutes à fallbackCm (migration depuis distanceLimitesCm / marginOuterCm). */
+      function defaultMargesCmV2(fallbackCm) {
+        var fb = Number.isFinite(Number(fallbackCm)) && Number(fallbackCm) >= 0 ? Number(fallbackCm) : 20;
+        return { faitageCm: fb, aretierCm: fb, egoutCm: fb, riveCm: fb, obstacleCm: fb };
+      }
+      /** Signature stable pour cache key. */
+      function margesCmSignatureV2(m) {
+        if (!m) return "legacy";
+        return [m.faitageCm, m.aretierCm, m.egoutCm, m.riveCm, m.obstacleCm].join("_");
+      }
+      /** Garantit rules.margesCm complet (migration legacy → V2). */
+      function ensureRulesMargesCmV2(rules) {
+        if (!rules) return null;
+        var existing = readMargesCmV2(rules.margesCm);
+        rules.margesCm = existing
+          ? Object.assign(defaultMargesCmV2(rules.marginOuterCm), existing)
+          : defaultMargesCmV2(rules.marginOuterCm);
+        return rules.margesCm;
+      }
+
       /** Copie pvParams (snapshot) vers PV_LAYOUT_RULES (source de v?rit?). Utilis? une seule fois au chargement. */
       function mapPvParamsToRules(pvParams, rules) {
         if (!pvParams || !rules) return;
@@ -5716,6 +5787,11 @@ export function initCalpinage(container, options = {}) {
         if (typeof pvParams.espacementHorizontalCm === "number") rules.spacingXcm = Math.max(0, pvParams.espacementHorizontalCm);
         if (typeof pvParams.espacementVerticalCm === "number") rules.spacingYcm = Math.max(0, pvParams.espacementVerticalCm);
         if (pvParams.orientationPanneaux === "portrait" || pvParams.orientationPanneaux === "paysage" || pvParams.orientationPanneaux === "landscape") rules.orientation = (pvParams.orientationPanneaux === "paysage" || pvParams.orientationPanneaux === "landscape") ? "landscape" : "portrait";
+        /* SAFE-ZONE-V2 : margesCm persistées, sinon migration depuis distanceLimitesCm. */
+        var mv2 = readMargesCmV2(pvParams.margesCm);
+        rules.margesCm = mv2
+          ? Object.assign(defaultMargesCmV2(rules.marginOuterCm), mv2)
+          : defaultMargesCmV2(rules.marginOuterCm);
       }
 
       /** CP-005 — Catalogue panneaux SolarNext charg? via API /api/public/pv/panels */
@@ -6575,6 +6651,16 @@ export function initCalpinage(container, options = {}) {
         }
         var marginPx = Number.isFinite(rules.marginOuterCm) && mpp > 0 ? (rules.marginOuterCm / 100) / mpp : 0;
         var roofConstraints = { marginPx: marginPx, ridgeSegments: ridgeSegments, traitSegments: traitSegments, obstaclePolygons: obstaclePolygons };
+        /* SAFE-ZONE-V2 : marges par type → validation moteur alignée sur le contour rouge
+         * (remplace l'eps de contact faîtage/trait ≈ 0 cm et la marge obstacle absente en PITCHED). */
+        if (mpp > 0) {
+          var margesCtxV2 = ensureRulesMargesCmV2(rules);
+          if (margesCtxV2) {
+            roofConstraints.ridgeMarginPx = (margesCtxV2.faitageCm / 100) / mpp;
+            roofConstraints.traitMarginPx = (margesCtxV2.aretierCm / 100) / mpp;
+            roofConstraints.obstacleMarginPx = (margesCtxV2.obstacleCm / 100) / mpp;
+          }
+        }
         return {
           roofPolygon: pan.polygon,
           roofConstraints: roofConstraints,
@@ -7831,6 +7917,8 @@ export function initCalpinage(container, options = {}) {
         var max = opts.max;
         var step = opts.step != null ? opts.step : 1;
         var onApply = opts.onApply;
+        /* SAFE-ZONE-V2 : mode multi-champs — opts.fields = [{key,label,value}] ; onApply(key, {champ: valeur}). */
+        var fields = Array.isArray(opts.fields) && opts.fields.length > 0 ? opts.fields : null;
         if (!anchorEl || !key || typeof onApply !== "function") return;
         hideFloatingPopover();
         var root = ensureFloatingPopoverRoot();
@@ -7841,21 +7929,61 @@ export function initCalpinage(container, options = {}) {
         panel.style.cssText = "position:fixed;min-width:220px;padding:10px;background:#111;color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:10px;z-index:2147483647;box-sizing:border-box;";
         var label = document.createElement("div");
         label.style.cssText = "font-size:12px;font-weight:600;color:rgba(255,255,255,0.9);";
-        label.textContent = tech === "spacing-x" ? "Espacement entre panneaux (cm)" : tech === "spacing-y" ? "Espacement entre rangées (cm)" : "Marge extérieure (cm)";
+        label.textContent = opts.title || (tech === "spacing-x" ? "Espacement entre panneaux (cm)" : tech === "spacing-y" ? "Espacement entre rangées (cm)" : "Marge extérieure (cm)");
         panel.appendChild(label);
-        var inp = document.createElement("input");
-        inp.type = "number";
-        inp.min = String(min);
-        if (max != null) inp.max = String(max);
-        inp.step = String(step);
-        inp.value = String(Number.isFinite(value) ? value : (tech === "spacing-x" ? 2 : tech === "spacing-y" ? 4.5 : 20));
-        inp.style.cssText = "width:100%;margin-top:8px;padding:8px;box-sizing:border-box;background:#222;color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;";
-        panel.appendChild(inp);
+        var inp = null;
+        var fieldInputs = null;
+        if (fields) {
+          fieldInputs = {};
+          for (var fi = 0; fi < fields.length; fi++) {
+            (function (f) {
+              var row = document.createElement("div");
+              row.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;";
+              var fl = document.createElement("label");
+              fl.textContent = f.label;
+              fl.style.cssText = "flex:1;font-size:12px;color:rgba(255,255,255,0.85);";
+              var fin = document.createElement("input");
+              fin.type = "number";
+              fin.min = String(f.min != null ? f.min : min);
+              fin.step = String(f.step != null ? f.step : step);
+              fin.value = String(Number.isFinite(f.value) ? f.value : 20);
+              fin.setAttribute("aria-label", f.label);
+              fin.style.cssText = "width:84px;padding:6px 8px;box-sizing:border-box;background:#222;color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;";
+              row.appendChild(fl);
+              row.appendChild(fin);
+              panel.appendChild(row);
+              fieldInputs[f.key] = fin;
+            })(fields[fi]);
+          }
+        } else {
+          inp = document.createElement("input");
+          inp.type = "number";
+          inp.min = String(min);
+          if (max != null) inp.max = String(max);
+          inp.step = String(step);
+          inp.value = String(Number.isFinite(value) ? value : (tech === "spacing-x" ? 2 : tech === "spacing-y" ? 4.5 : 20));
+          inp.style.cssText = "width:100%;margin-top:8px;padding:8px;box-sizing:border-box;background:#222;color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;";
+          panel.appendChild(inp);
+        }
         var btn = document.createElement("button");
         btn.textContent = "Appliquer";
         btn.style.cssText = "margin-top:10px;width:100%;padding:8px 14px;background:#6366F1;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;";
         btn.addEventListener("click", function (e) {
           e.stopPropagation();
+          if (fieldInputs) {
+            var values = {};
+            for (var k2 in fieldInputs) {
+              var fv = Number(fieldInputs[k2].value);
+              if (!Number.isFinite(fv) || fv < min) return;
+              values[k2] = fv;
+            }
+            if (window.PV_LAYOUT_DEBUG && typeof console !== "undefined") {
+              console.info("[P3][FLOAT] apply multi", { key: key, values: values });
+            }
+            onApply(key, values);
+            hideFloatingPopover();
+            return;
+          }
           var v = Number(inp.value);
           if (!Number.isFinite(v) || v < min) return;
           if (window.PV_LAYOUT_DEBUG && typeof console !== "undefined") {
@@ -7913,6 +8041,40 @@ export function initCalpinage(container, options = {}) {
           addSafeListener(pill, "click", function (e) {
             e.stopPropagation();
             var rules = window.PV_LAYOUT_RULES || {};
+            /* SAFE-ZONE-V2 : la pill "Marge bord" ouvre les 5 marges par type. */
+            if (tech === "margin") {
+              var m = ensureRulesMargesCmV2(rules) || defaultMargesCmV2(rules.marginOuterCm);
+              showFloatingPopover({
+                anchorEl: pill,
+                tech: tech,
+                key: "margesCm",
+                title: "Marges de sécurité (cm)",
+                min: 0,
+                step: 1,
+                fields: [
+                  { key: "faitageCm", label: "Faîtage", value: m.faitageCm },
+                  { key: "aretierCm", label: "Arête (trait)", value: m.aretierCm },
+                  { key: "egoutCm", label: "Égout (bas de pente)", value: m.egoutCm },
+                  { key: "riveCm", label: "Rives", value: m.riveCm },
+                  { key: "obstacleCm", label: "Obstacles", value: m.obstacleCm },
+                ],
+                onApply: function (_k, values) {
+                  window.PV_LAYOUT_RULES = window.PV_LAYOUT_RULES || {};
+                  var merged = Object.assign(defaultMargesCmV2(window.PV_LAYOUT_RULES.marginOuterCm), readMargesCmV2(values) || {});
+                  window.PV_LAYOUT_RULES.margesCm = merged;
+                  /* marginOuterCm reste le fallback legacy (toit plat + anciens chemins) : aligné sur la marge contour max. */
+                  window.PV_LAYOUT_RULES.marginOuterCm = Math.max(merged.egoutCm, merged.riveCm);
+                  if (typeof applyPvLayoutRulesAndRecompute === "function") {
+                    applyPvLayoutRulesAndRecompute({ flatMarginSync: true });
+                  } else {
+                    if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
+                    if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
+                    else if (window.CALPINAGE_RENDER) window.CALPINAGE_RENDER();
+                  }
+                }
+              });
+              return;
+            }
             var value = rules[key];
             if (!Number.isFinite(value) || value < 0) value = techDefaults[tech] || 0;
             showFloatingPopover({
@@ -7964,6 +8126,9 @@ export function initCalpinage(container, options = {}) {
                 if (typeof o.espacementHorizontalCm === "number") rules.spacingXcm = Math.max(0, o.espacementHorizontalCm);
                 if (typeof o.espacementVerticalCm === "number") rules.spacingYcm = Math.max(0, o.spacingYcm);
                 if (o.orientationPanneaux === "portrait" || o.orientationPanneaux === "paysage" || o.orientationPanneaux === "landscape") rules.orientation = (o.orientationPanneaux === "paysage" || o.orientationPanneaux === "landscape") ? "landscape" : "portrait";
+                /* SAFE-ZONE-V2 : margesCm persistées (sinon migration via ensureRulesMargesCmV2 plus bas). */
+                var loadedMargesV2 = readMargesCmV2(o.margesCm);
+                if (loadedMargesV2) rules.margesCm = Object.assign(defaultMargesCmV2(rules.marginOuterCm), loadedMargesV2);
               }
               var savedPanelId = o.selectedPanelId;
               if (typeof savedPanelId === "string" && savedPanelId) {
@@ -8000,6 +8165,7 @@ export function initCalpinage(container, options = {}) {
           CALPINAGE_STATE.pvParams.espacementHorizontalCm = rules.spacingXcm;
           CALPINAGE_STATE.pvParams.espacementVerticalCm = rules.spacingYcm;
           CALPINAGE_STATE.pvParams.orientationPanneaux = (rules.orientation === "landscape" || rules.orientation === "portrait") ? rules.orientation : ((rules.orientation || "").toUpperCase() === "PAYSAGE" ? "landscape" : "portrait");
+          CALPINAGE_STATE.pvParams.margesCm = ensureRulesMargesCmV2(rules);
           if (window.PV_SELECTED_PANEL == null && specs.length > 0) {
             var chosenSpec = specs[0];
             window.PV_SELECTED_PANEL = buildPVSelectedPanel(chosenSpec);
@@ -8021,6 +8187,7 @@ export function initCalpinage(container, options = {}) {
         CALPINAGE_STATE.pvParams.distanceLimitesCm = rules.marginOuterCm;
         CALPINAGE_STATE.pvParams.espacementHorizontalCm = rules.spacingXcm;
         CALPINAGE_STATE.pvParams.espacementVerticalCm = rules.spacingYcm;
+        CALPINAGE_STATE.pvParams.margesCm = ensureRulesMargesCmV2(rules);
         var orientVal = (rules.orientation || "portrait").toString().toLowerCase();
         CALPINAGE_STATE.pvParams.orientationPanneaux = (orientVal === "landscape" || orientVal === "paysage") ? "landscape" : "portrait";
         try {
@@ -8029,6 +8196,7 @@ export function initCalpinage(container, options = {}) {
             marginOuterCm: rules.marginOuterCm,
             spacingXcm: rules.spacingXcm,
             spacingYcm: rules.spacingYcm,
+            margesCm: rules.margesCm,
           };
           if (window.PV_SELECTED_PANEL && window.PV_SELECTED_PANEL.id) payload.selectedPanelId = window.PV_SELECTED_PANEL.id;
           if (window.PV_SELECTED_INVERTER && window.PV_SELECTED_INVERTER.id) payload.selectedInverterId = window.PV_SELECTED_INVERTER.id;
@@ -10469,6 +10637,9 @@ export function initCalpinage(container, options = {}) {
             if (typeof data.pvParams.distanceLimitesCm === "number") CALPINAGE_STATE.pvParams.distanceLimitesCm = data.pvParams.distanceLimitesCm;
             if (typeof data.pvParams.espacementHorizontalCm === "number") CALPINAGE_STATE.pvParams.espacementHorizontalCm = data.pvParams.espacementHorizontalCm;
             if (typeof data.pvParams.espacementVerticalCm === "number") CALPINAGE_STATE.pvParams.espacementVerticalCm = data.pvParams.espacementVerticalCm;
+            /* SAFE-ZONE-V2 */
+            var dataMargesV2 = readMargesCmV2(data.pvParams.margesCm);
+            if (dataMargesV2) CALPINAGE_STATE.pvParams.margesCm = Object.assign(defaultMargesCmV2(CALPINAGE_STATE.pvParams.distanceLimitesCm), dataMargesV2);
             if (data.pvParams.orientationPanneaux === "portrait" || data.pvParams.orientationPanneaux === "paysage" || data.pvParams.orientationPanneaux === "landscape") CALPINAGE_STATE.pvParams.orientationPanneaux = data.pvParams.orientationPanneaux === "paysage" ? "landscape" : data.pvParams.orientationPanneaux;
           }
           /* PV_RULES_INITIALIZED = true UNE SEULE FOIS ici (apr?s mapping pvParams ??? PV_LAYOUT_RULES). Aucun autre endroit. */
@@ -11969,6 +12140,7 @@ export function initCalpinage(container, options = {}) {
             CALPINAGE_STATE.pvParams.distanceLimitesCm = window.PV_LAYOUT_RULES.marginOuterCm;
             CALPINAGE_STATE.pvParams.espacementHorizontalCm = window.PV_LAYOUT_RULES.spacingXcm;
             CALPINAGE_STATE.pvParams.espacementVerticalCm = window.PV_LAYOUT_RULES.spacingYcm;
+            CALPINAGE_STATE.pvParams.margesCm = ensureRulesMargesCmV2(window.PV_LAYOUT_RULES);
             var rulesOrient = (window.PV_LAYOUT_RULES.orientation || "portrait").toString().toLowerCase();
             CALPINAGE_STATE.pvParams.orientationPanneaux = (rulesOrient === "landscape" || rulesOrient === "paysage") ? "landscape" : "portrait";
           }
@@ -14111,7 +14283,18 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               ? "Espacement entre rangées (cm) — Paysage : rangées = axe largeur"
               : "Espacement entre rangées (cm) — Portrait : rangées = axe hauteur";
           }
-          if (vMargin) vMargin.textContent = String(rules.marginOuterCm || 20);
+          if (vMargin) {
+            /* SAFE-ZONE-V2 : affiche la plage des marges par type (valeur unique si toutes égales). */
+            var mDisp = readMargesCmV2(rules.margesCm);
+            if (mDisp) {
+              var vals = [mDisp.faitageCm, mDisp.aretierCm, mDisp.egoutCm, mDisp.riveCm, mDisp.obstacleCm].filter(function (x) { return Number.isFinite(x); });
+              var mn = Math.min.apply(null, vals);
+              var mx = Math.max.apply(null, vals);
+              vMargin.textContent = mn === mx ? String(mn) : (mn + "–" + mx);
+            } else {
+              vMargin.textContent = String(rules.marginOuterCm || 20);
+            }
+          }
           if (vModule && panelSelect) {
             var opt = panelSelect.options[panelSelect.selectedIndex];
             vModule.textContent = opt && opt.value ? (opt.textContent || "Choisir…") : "Choisir…";
@@ -14367,6 +14550,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             var pans = CALPINAGE_STATE.pans || (data && data.pans) || [];
             var rules = window.PV_LAYOUT_RULES || {};
             try {
+              /* SAFE-ZONE-V2 : mêmes opts que le rendu phase 3 (parité contour rouge ↔ autofill). */
+              var structAf = getResolvedStructuralSegmentsForSafeZoneV2();
               var fresh = computeSafeZonesFromCalpinageState({
                 pans: pans,
                 obstacles: CALPINAGE_STATE.obstacles || [],
@@ -14374,6 +14559,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 roofExtensions: CALPINAGE_STATE.roofExtensions || [],
                 marginOuterCm: Number(rules.marginOuterCm) || 0,
                 metersPerPixel: mpp,
+                ridges: structAf.ridges,
+                traits: structAf.traits,
+                margesCm: ensureRulesMargesCmV2(rules),
               });
               var sz2 = fresh.byPanId && fresh.byPanId[panId];
               if (!sz2 || !sz2.safeZonePolygonsPx || !sz2.safeZonePolygonsPx.length) return null;
@@ -24240,7 +24428,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 })
                 .sort()
                 .join(";");
-              var cacheKey = (panIds + "|" + obsIds + "|" + svIds + "|" + rxSig + "|" + marginOuterCm + "|" + mpp + "|" + flatRoofSig).replace(/\./g, "_");
+              /* SAFE-ZONE-V2 : marges par type + faîtages/traits résolus — intégrés à la cache key
+               * (déplacer un faîtage/trait ou changer une marge réinvalide la safe zone). */
+              var structV2 = getResolvedStructuralSegmentsForSafeZoneV2();
+              var margesV2 = ensureRulesMargesCmV2(rules);
+              var cacheKey = (panIds + "|" + obsIds + "|" + svIds + "|" + rxSig + "|" + marginOuterCm + "|" + mpp + "|" + flatRoofSig
+                + "|" + margesCmSignatureV2(margesV2) + "|" + structuralSegmentsSignatureV2(structV2)).replace(/\./g, "_");
               var safeZoneCache = safeZonePh3.cache;
               if (!safeZoneCache || safeZoneCache._key !== cacheKey) {
                 try {
@@ -24251,6 +24444,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     roofExtensions: roofExtensions,
                     marginOuterCm: marginOuterCm,
                     metersPerPixel: mpp,
+                    ridges: structV2.ridges,
+                    traits: structV2.traits,
+                    margesCm: margesV2,
                   });
                   safeZoneCache._key = cacheKey;
                   safeZoneCache._edgesByPanId = {};

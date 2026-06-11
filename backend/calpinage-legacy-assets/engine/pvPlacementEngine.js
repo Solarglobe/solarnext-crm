@@ -89,6 +89,9 @@
         marginPx: marginPx,
         ridgeSegments: roofConstraints.ridgeSegments || [],
         traitSegments: roofConstraints.traitSegments || [],
+        /* SAFE-ZONE-V2 : marges px par type (faitage / trait), alignees sur le contour rouge */
+        ridgeMarginPx: roofConstraints.ridgeMarginPx,
+        traitMarginPx: roofConstraints.traitMarginPx,
         obstaclePolygons: roofConstraints.obstaclePolygons || [],
         roofPolygon: roofPolygon,
         eps: roofConstraints.eps,
@@ -278,13 +281,23 @@
   }
 
   function validatePanelPolygonStep3Ridge(panelPoly, roofConstraints) {
-    var forbiddenSegs = roofConstraints
-      ? ((roofConstraints.ridgeSegments || []).concat(roofConstraints.traitSegments || []))
-      : [];
     var pvEps = (roofConstraints && roofConstraints.eps && typeof roofConstraints.eps.PV_IMG === "number")
       ? roofConstraints.eps.PV_IMG
       : 1e-6;
-    if (forbiddenSegs.length > 0 && minDistancePolygonToSegments(panelPoly, forbiddenSegs) < pvEps) {
+    /* SAFE-ZONE-V2 : si le contexte fournit une marge px par type (cm convertis par l'adaptateur UI),
+     * elle remplace l'eps de contact historique — coherence stricte avec le contour rouge. */
+    var ridgeSegs = roofConstraints ? (roofConstraints.ridgeSegments || []) : [];
+    var traitSegs = roofConstraints ? (roofConstraints.traitSegments || []) : [];
+    var ridgeMarginPx = (roofConstraints && Number.isFinite(roofConstraints.ridgeMarginPx) && roofConstraints.ridgeMarginPx > 0)
+      ? roofConstraints.ridgeMarginPx
+      : pvEps;
+    var traitMarginPx = (roofConstraints && Number.isFinite(roofConstraints.traitMarginPx) && roofConstraints.traitMarginPx > 0)
+      ? roofConstraints.traitMarginPx
+      : pvEps;
+    if (ridgeSegs.length > 0 && minDistancePolygonToSegments(panelPoly, ridgeSegs) < ridgeMarginPx) {
+      return false;
+    }
+    if (traitSegs.length > 0 && minDistancePolygonToSegments(panelPoly, traitSegs) < traitMarginPx) {
       return false;
     }
     return true;

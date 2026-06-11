@@ -19,6 +19,8 @@ import ClipperLib from "clipper-lib";
 const SCALE = 10000;
 const DEFAULT_EPS_AREA_PX2 = 25;
 const MITER_LIMIT = 2.5;
+/* SAFE-ZONE-V2 : tolerance d'arc des caps ronds (0.1 px en unites Clipper) — limite le nombre de sommets. */
+const ROUND_ARC_TOLERANCE = 0.1 * SCALE;
 
 /**
  * Convertit des points px (float) en path Clipper (int).
@@ -168,6 +170,95 @@ function offsetOutward(path, deltaPx) {
 }
 
 /**
+ * SAFE-ZONE-V2 — Buffer d'un segment ouvert (bande keepout).
+ * Semantique exacte : { p : dist(p, segment) <= deltaPx } via etOpenRound.
+ * (jtRound sans effet sur un segment a 2 points ; caps ronds aux extremites
+ * pour que la marge soit une vraie distance au segment, y compris aux coins.)
+ * @param {{x: number, y: number}} aPt
+ * @param {{x: number, y: number}} bPt
+ * @param {number} deltaPx - marge en px (> 0)
+ * @returns {Array<Array<{X: number, Y: number}>>}
+ */
+function bufferSegmentPx(aPt, bPt, deltaPx) {
+  if (!aPt || !bPt || !Number.isFinite(deltaPx) || deltaPx <= 0) return [];
+  const path = toClipperPath([aPt, bPt]);
+  if (path.length < 2 || (path[0].X === path[1].X && path[0].Y === path[1].Y)) return [];
+  const deltaInt = Math.round(deltaPx * SCALE);
+  if (deltaInt <= 0) return [];
+  const co = new ClipperLib.ClipperOffset(MITER_LIMIT, ROUND_ARC_TOLERANCE);
+  co.AddPath(path, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etOpenRound);
+  const solution = new ClipperLib.Paths();
+  co.Execute(solution, deltaInt);
+  return solution;
+}
+
+/**
+ * SAFE-ZONE-V2 — Construit les bandes keepout d'un pan en mode marges par arete.
+ *
+ * - edgeMarginsPx[i] = marge (px) de l'arete polygon[i] -> polygon[i+1]
+ *   (indexation sur le polygone OUVERT : le point de fermeture duplique est ignore).
+ *   Index absent / non fini -> fallbackMarginPx. Marge 0 -> pas de bande (pose au ras).
+ * - structuralSegmentsPx = faitages / aretes (traits) a respecter, y compris
+ *   STRICTEMENT INTERIEURS au pan : { a, b, marginPx } (ou marginCm + cmToPxFn).
+ *   Une bande hors du pan est neutralisee par la difference Clipper en aval.
+ *
+ * La safe zone finale = pan - union(bandes + obstacles dilates) : les coins entre
+ * deux aretes de marges differentes sont geres naturellement par l'union.
+ *
+ * @param {Array<{x: number, y: number}>} polygonPx
+ * @param {Array<number>|null} edgeMarginsPx
+ * @param {number} fallbackMarginPx
+ * @param {Array<{a: {x,y}, b: {x,y}, marginPx?: number, marginCm?: number}>} structuralSegmentsPx
+ * @param {((cm: number) => number)|null} cmToPxFn
+ * @returns {Array<Array<{X: number, Y: number}>>}
+ */
+function buildPerEdgeKeepoutBands(polygonPx, edgeMarginsPx, fallbackMarginPx, structuralSegmentsPx, cmToPxFn) {
+  const bands = [];
+  let verts = (polygonPx || [])
+    .map((p) => ({ x: Number(p && p.x), y: Number(p && p.y) }))
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (verts.length >= 2) {
+    const first = verts[0];
+    const last = verts[verts.length - 1];
+    if (Math.abs(first.x - last.x) < 1e-9 && Math.abs(first.y - last.y) < 1e-9) {
+      verts = verts.slice(0, -1);
+    }
+  }
+  const fallback = Number.isFinite(fallbackMarginPx) && fallbackMarginPx >= 0 ? fallbackMarginPx : 0;
+  const n = verts.length;
+  if (n >= 3) {
+    for (let i = 0; i < n; i++) {
+      const a = verts[i];
+      const b = verts[(i + 1) % n];
+      let m = fallback;
+      if (edgeMarginsPx && Number.isFinite(edgeMarginsPx[i]) && edgeMarginsPx[i] >= 0) {
+        m = edgeMarginsPx[i];
+      }
+      if (m > 0) {
+        const band = bufferSegmentPx(a, b, m);
+        for (let bi = 0; bi < band.length; bi++) bands.push(band[bi]);
+      }
+    }
+  }
+  const segs = structuralSegmentsPx || [];
+  for (let si = 0; si < segs.length; si++) {
+    const seg = segs[si];
+    if (!seg || !seg.a || !seg.b) continue;
+    let m = Number.isFinite(seg.marginPx) && seg.marginPx >= 0 ? seg.marginPx : null;
+    if (m === null && cmToPxFn && Number.isFinite(seg.marginCm) && seg.marginCm >= 0) {
+      const v = cmToPxFn(seg.marginCm);
+      if (Number.isFinite(v) && v >= 0) m = v;
+    }
+    if (m === null) m = fallback;
+    if (m > 0) {
+      const band = bufferSegmentPx(seg.a, seg.b, m);
+      for (let bj = 0; bj < band.length; bj++) bands.push(band[bj]);
+    }
+  }
+  return bands;
+}
+
+/**
  * Union de plusieurs paths.
  * @param {Array<Array<{X: number, Y: number}>>} paths
  * @returns {Array<Array<{X: number, Y: number}>>}
@@ -213,6 +304,13 @@ function differencePaths(subjectPath, clipPaths) {
  *   epsAreaPx2?: number
  * }} opts
  * Chaque pan peut porter marginOuterCm / obstacleMarginCm (px via cmToPxFn) pour inset / expansion obstacles par pan (toiture plate).
+ *
+ * SAFE-ZONE-V2 (marges par role d'arete) — actif si le pan porte au moins un de :
+ * - edgeMarginsPx: Array<number> — marge px par arete du polygone (ouvert), index i = arete [i]->[i+1] ;
+ * - structuralSegmentsPx: Array<{a,b,marginPx|marginCm}> — faitages / aretes (traits), y compris interieurs au pan ;
+ * - obstacleMarginPx: number — override px de l'expansion obstacles.
+ * En mode v2 la safe zone = polygone du pan - union(bandes keepout par arete + segments structurels + obstacles dilates),
+ * au lieu de l'inset uniforme historique. Sans ces champs, comportement inchange (retrocompat).
  * @returns {{
  *   byPanId: Record<string, { safeZonePolygonsPx: Array<Array<{x,y}>>, marginPxUsed: number, stats: Object }>,
  *   globalUnion?: Array<Array<{x,y}>>,
@@ -264,8 +362,23 @@ export function computeSafeZones(opts) {
       const vObs = cmToPxFn(pan.obstacleMarginCm);
       if (Number.isFinite(vObs) && vObs >= 0) obstacleExpandPx = vObs;
     }
+    if (Number.isFinite(pan.obstacleMarginPx) && pan.obstacleMarginPx >= 0) {
+      obstacleExpandPx = pan.obstacleMarginPx;
+    }
 
-    const insetResult = offsetInward(closedPan, insetMarginPx);
+    /* SAFE-ZONE-V2 : mode marges par arete si donnees presentes, sinon inset uniforme historique. */
+    const edgeMarginsPxRaw = Array.isArray(pan.edgeMarginsPx) ? pan.edgeMarginsPx : null;
+    const structuralSegmentsPx = Array.isArray(pan.structuralSegmentsPx) ? pan.structuralSegmentsPx : [];
+    const perEdgeMode = edgeMarginsPxRaw !== null || structuralSegmentsPx.length > 0;
+
+    let insetResult;
+    let keepoutBandPaths = [];
+    if (perEdgeMode) {
+      insetResult = [closedPan];
+      keepoutBandPaths = buildPerEdgeKeepoutBands(polygonPx, edgeMarginsPxRaw, insetMarginPx, structuralSegmentsPx, cmToPxFn);
+    } else {
+      insetResult = offsetInward(closedPan, insetMarginPx);
+    }
     if (!insetResult || insetResult.length === 0) {
       byPanId[pan.id] = { safeZonePolygonsPx: [], marginPxUsed: insetMarginPx, stats: { skipped: "inset empty" } };
       continue;
@@ -282,7 +395,7 @@ export function computeSafeZones(opts) {
       obstaclePaths.push(...expanded);
     }
 
-    const unionObs = unionPaths(obstaclePaths);
+    const unionObs = unionPaths(obstaclePaths.concat(keepoutBandPaths));
     let safeZonePaths = [];
     for (const insetPath of insetResult) {
       const diff = differencePaths(insetPath, unionObs);
@@ -321,6 +434,8 @@ export function computeSafeZones(opts) {
         polygonCount: safeZonePolygonsPx.length,
         totalAreaPx2: totalArea,
         insetAreaPx2: insetArea,
+        mode: perEdgeMode ? "per_edge_bands" : "uniform_inset",
+        keepoutBandCount: keepoutBandPaths.length,
       },
     };
   }
@@ -340,4 +455,4 @@ export function computeSafeZones(opts) {
   };
 }
 
-export { toClipperPath, fromClipperPath, polygonAreaAbs, SCALE };
+export { toClipperPath, fromClipperPath, polygonAreaAbs, SCALE, bufferSegmentPx, buildPerEdgeKeepoutBands };

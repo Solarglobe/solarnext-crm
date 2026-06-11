@@ -12,6 +12,164 @@ import { computeSafeZones, polygonAreaAbs } from "@shared/geometry/safeZoneEngin
 
 const TUBE_SEGMENTS = 24;
 
+/* ── SAFE-ZONE-V2 — marges par role d'arete ──────────────────────────────
+ * Roles : "faitage" | "aretier" | "egout" | "rive" | "bord" (contour non classifiable).
+ * Classification geometrique a posteriori : les faces de pans (phase 2) sont
+ * construites A PARTIR des segments contour/faitage/trait, donc une arete de pan
+ * issue d'un faitage/trait reste a distance quasi nulle du segment source.
+ * Couvre aussi les anciens dossiers sans edgeRoles persistes.
+ */
+const EDGE_ROLE_DIST_EPS_PX = 3;
+const EDGE_ROLE_COLLINEAR_COS = 0.94; /* ~20 deg */
+const EGOUT_PARALLEL_COS = 0.7; /* ~45 deg : arete contour ~parallele au faitage -> egout */
+
+function finiteXY(p) {
+  return !!p && Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.y));
+}
+
+const MARGES_CM_KEYS = ["faitageCm", "aretierCm", "egoutCm", "riveCm", "obstacleCm"];
+
+/** Retourne les cles valides (>= 0) de margesCm, ou null si aucune. */
+function sanitizeMargesCmPartial(m) {
+  if (!m || typeof m !== "object") return null;
+  const out = {};
+  let any = false;
+  for (const k of MARGES_CM_KEYS) {
+    const v = Number(m[k]);
+    if (Number.isFinite(v) && v >= 0) {
+      out[k] = v;
+      any = true;
+    }
+  }
+  return any ? out : null;
+}
+
+/** Complete les cles manquantes avec fallbackCm (retrocompat distanceLimitesCm). */
+function completeMargesCm(partial, fallbackCm) {
+  const fb = Number.isFinite(Number(fallbackCm)) && Number(fallbackCm) >= 0 ? Number(fallbackCm) : 0;
+  const out = {};
+  for (const k of MARGES_CM_KEYS) {
+    out[k] = partial && Number.isFinite(partial[k]) ? partial[k] : fb;
+  }
+  return out;
+}
+
+function marginCmForRole(role, m) {
+  if (role === "faitage") return m.faitageCm;
+  if (role === "aretier") return m.aretierCm;
+  if (role === "egout") return m.egoutCm;
+  if (role === "rive") return m.riveCm;
+  /* "bord" : contour sans faitage de reference -> marge la plus contraignante */
+  return Math.max(m.egoutCm, m.riveCm);
+}
+
+/** Fusionne ridges (role faitage) + traits (role aretier) en segments structurels. */
+function collectStructuralSegments(ridges, traits) {
+  const out = [];
+  const push = (seg, role) => {
+    if (!seg || !finiteXY(seg.a) || !finiteXY(seg.b)) return;
+    const a = { x: Number(seg.a.x), y: Number(seg.a.y) };
+    const b = { x: Number(seg.b.x), y: Number(seg.b.y) };
+    if (Math.hypot(b.x - a.x, b.y - a.y) < 1e-6) return;
+    out.push({ a, b, role });
+  };
+  for (const r of ridges || []) push(r, "faitage");
+  for (const t of traits || []) push(t, "aretier");
+  return out;
+}
+
+function distPointToSegmentPx(p, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 1e-12) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+/**
+ * Classifie chaque arete du polygone de pan (ouvert, index i = arete [i]->[i+1]).
+ * 1) arete a distance <= eps d'un segment structurel colineaire -> role du segment ;
+ * 2) sinon contour : ~parallele au faitage de reference -> "egout", sinon "rive" ;
+ * 3) sans faitage de reference -> "bord" (marge max egout/rive).
+ * @returns {{ roles: Array<string>, faitageDir: {x,y}|null }}
+ */
+function classifyPanEdgesV2(polygonPx, structSegs) {
+  let verts = (polygonPx || [])
+    .map((p) => ({ x: Number(p && p.x), y: Number(p && p.y) }))
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (verts.length >= 2) {
+    const f = verts[0];
+    const l = verts[verts.length - 1];
+    if (Math.abs(f.x - l.x) < 1e-9 && Math.abs(f.y - l.y) < 1e-9) verts = verts.slice(0, -1);
+  }
+  const n = verts.length;
+  const roles = [];
+  if (n < 3) return { roles, faitageDir: null };
+
+  let cx = 0;
+  let cy = 0;
+  for (const v of verts) {
+    cx += v.x;
+    cy += v.y;
+  }
+  cx /= n;
+  cy /= n;
+
+  /* Faitage de reference du pan : le plus long / le plus proche du centroide. */
+  let faitageDir = null;
+  let bestScore = -Infinity;
+  for (const s of structSegs || []) {
+    if (s.role !== "faitage") continue;
+    const len = Math.hypot(s.b.x - s.a.x, s.b.y - s.a.y);
+    const d = distPointToSegmentPx({ x: cx, y: cy }, s.a, s.b);
+    const score = len - d;
+    if (score > bestScore) {
+      bestScore = score;
+      faitageDir = { x: (s.b.x - s.a.x) / len, y: (s.b.y - s.a.y) / len };
+    }
+  }
+
+  for (let i = 0; i < n; i++) {
+    const a = verts[i];
+    const b = verts[(i + 1) % n];
+    const ex = b.x - a.x;
+    const ey = b.y - a.y;
+    const elen = Math.hypot(ex, ey);
+    if (elen < 1e-9) {
+      roles.push("rive");
+      continue;
+    }
+    const dir = { x: ex / elen, y: ey / elen };
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    let role = null;
+    let bestD = EDGE_ROLE_DIST_EPS_PX;
+    for (const s of structSegs || []) {
+      const slen = Math.hypot(s.b.x - s.a.x, s.b.y - s.a.y);
+      if (slen < 1e-9) continue;
+      const sdir = { x: (s.b.x - s.a.x) / slen, y: (s.b.y - s.a.y) / slen };
+      const cosA = Math.abs(dir.x * sdir.x + dir.y * sdir.y);
+      if (cosA < EDGE_ROLE_COLLINEAR_COS) continue;
+      const dMid = distPointToSegmentPx(mid, s.a, s.b);
+      if (dMid <= bestD) {
+        bestD = dMid;
+        role = s.role;
+      }
+    }
+    if (!role) {
+      if (faitageDir) {
+        const cosF = Math.abs(dir.x * faitageDir.x + dir.y * faitageDir.y);
+        role = cosF >= EGOUT_PARALLEL_COS ? "egout" : "rive";
+      } else {
+        role = "bord";
+      }
+    }
+    roles.push(role);
+  }
+  return { roles, faitageDir };
+}
+
 /**
  * Convertit un shadow volume en polygonPx (obstacle-like).
  * @param {Object} sv - { id, type, x, y, width, depth, rotation, shape }
@@ -319,6 +477,15 @@ export function computeSafeZonesFromCalpinageState(opts) {
   const metersPerPixel = opts?.metersPerPixel;
   const marginPxOverride = opts?.marginPxOverride;
 
+  /* SAFE-ZONE-V2 : marges par role si opts.margesCm present (sinon comportement historique). */
+  const margesPartialV2 = sanitizeMargesCmPartial(opts?.margesCm);
+  const margesCmV2 = margesPartialV2 ? completeMargesCm(margesPartialV2, marginOuterCm) : null;
+  const mppV2 = typeof metersPerPixel === "number" && metersPerPixel > 0 ? metersPerPixel : 1;
+  const cmToPxV2 = (cm) => (cm / 100) / mppV2;
+  const structSegsV2 = margesCmV2
+    ? collectStructuralSegments(opts?.ridges, opts?.traits)
+    : [];
+
   const pansForEngine = pans
     .map((p) => {
       const polygonPx = getPanPolygonPx(p);
@@ -332,6 +499,24 @@ export function computeSafeZonesFromCalpinageState(opts) {
         if (typeof fc.setbackObstacleCm === "number" && Number.isFinite(fc.setbackObstacleCm)) {
           base.obstacleMarginCm = Math.max(0, fc.setbackObstacleCm);
         }
+      }
+      /* SAFE-ZONE-V2 : pans inclines uniquement — FLAT garde ses setbacks dedies. */
+      if (margesCmV2 && p.roofType !== "FLAT") {
+        const panPartial = sanitizeMargesCmPartial(p.margesCm);
+        const mPan = panPartial ? Object.assign({}, margesCmV2, panPartial) : margesCmV2;
+        const cls = classifyPanEdgesV2(polygonPx, structSegsV2);
+        if (cls.roles.length >= 3) {
+          base.edgeMarginsPx = cls.roles.map((role) => cmToPxV2(marginCmForRole(role, mPan)));
+          base.edgeRolesV2 = cls.roles;
+        }
+        if (structSegsV2.length > 0) {
+          base.structuralSegmentsPx = structSegsV2.map((s) => ({
+            a: s.a,
+            b: s.b,
+            marginPx: cmToPxV2(s.role === "faitage" ? mPan.faitageCm : mPan.aretierCm),
+          }));
+        }
+        base.obstacleMarginPx = cmToPxV2(mPan.obstacleCm);
       }
       return base;
     })
@@ -367,4 +552,4 @@ export function computeSafeZonesFromCalpinageState(opts) {
   });
 }
 
-export { computeSafeZones };
+export { computeSafeZones, classifyPanEdgesV2, sanitizeMargesCmPartial, completeMargesCm, marginCmForRole };
