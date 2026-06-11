@@ -81,6 +81,30 @@ function createCompositeCalpinageCanvas(baseCanvas: HTMLCanvasElement): HTMLCanv
   return composite;
 }
 
+/**
+ * VALIDATE-3D-FIX — Le snapshot PDF capture le canvas de dessin 2D (#calpinage-canvas-el).
+ * En vue 3D ce canvas est masqué (display:none) → capture impossible, validation interrompue.
+ * On rebascule donc en vue plan et on attend que le canvas soit réaffiché et dimensionné avant
+ * la capture (réplique automatique du contournement manuel « repasser en vue plan »).
+ */
+async function ensurePlanViewForSnapshot(): Promise<void> {
+  const w = window as unknown as {
+    __CALPINAGE_VIEW_MODE__?: string;
+    __calpinageSwitchTo2D?: () => void;
+  };
+  if (w.__CALPINAGE_VIEW_MODE__ !== "3D") return;
+  if (typeof w.__calpinageSwitchTo2D !== "function") return;
+  w.__calpinageSwitchTo2D();
+  // Attendre (max ~30 frames) que le canvas 2D soit visible et dimensionné avant capture.
+  for (let i = 0; i < 30; i++) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const c = document.querySelector<HTMLCanvasElement>("#calpinage-canvas-el");
+    if (!c) continue;
+    const rect = c.getBoundingClientRect();
+    if (c.width > 0 && c.height > 0 && rect.width > 0 && rect.height > 0) break;
+  }
+}
+
 async function captureCalpinageSnapshot(): Promise<string | null> {
   emitCalpinageTrace("capture_called", {});
   const canvas =
@@ -378,6 +402,8 @@ export default function CalpinageOverlay({
         if (debugValidate) console.log("[VALIDATE] saveToBackend end (status 200/201)");
 
         /* 2. Capture canvas de dessin calpinage (pas la carte — requis pour le PDF) */
+        // VALIDATE-3D-FIX : garantir la vue plan (canvas 2D visible) avant la capture snapshot.
+        await ensurePlanViewForSnapshot();
         const layoutSnapshotBase64 = await captureCalpinageSnapshot();
         if (!layoutSnapshotBase64) {
           emitCalpinageTrace("validate_aborted_no_snapshot", { studyId, versionId });
