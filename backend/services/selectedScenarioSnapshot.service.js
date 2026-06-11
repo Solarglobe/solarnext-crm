@@ -58,6 +58,8 @@ export async function buildSelectedScenarioSnapshot({
     type_reseau: null,
   };
 
+  let leadResolved = false;
+
   if (leadId) {
     const leadRes = await pool.query(
       `SELECT l.first_name, l.last_name, l.company_name, l.contact_first_name, l.contact_last_name,
@@ -68,6 +70,7 @@ export async function buildSelectedScenarioSnapshot({
     );
     const lead = leadRes.rows[0] || null;
     if (lead) {
+      leadResolved = true;
       const isProLead = (lead.customer_type ?? "PERSON") === "PRO";
       if (isProLead) {
         // PRO : nom principal = entreprise, prenom = contact
@@ -109,7 +112,9 @@ export async function buildSelectedScenarioSnapshot({
       }
     }
 
-    if (clientId) {
+  }
+
+  if (!leadResolved && clientId) {
       const clientRes = await pool.query(
         `SELECT first_name, last_name, company_name
          FROM clients WHERE id = $1 AND organization_id = $2`,
@@ -128,7 +133,6 @@ export async function buildSelectedScenarioSnapshot({
           if (c.first_name != null) client.prenom = c.first_name;
         }
       }
-    }
   }
 
   let technical = null;

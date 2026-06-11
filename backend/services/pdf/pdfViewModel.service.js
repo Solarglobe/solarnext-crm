@@ -17,6 +17,78 @@ import {
   repairVirtualScenarioDisplayKpis,
 } from "../scenarioV2DisplayRepair.service.js";
 
+async function resolveLivePdfClient(studyId, organizationId) {
+  const res = await pool.query(
+    `SELECT
+       s.lead_id,
+       s.client_id,
+       l.customer_type AS lead_customer_type,
+       l.company_name AS lead_company_name,
+       l.first_name AS lead_first_name,
+       l.last_name AS lead_last_name,
+       l.contact_first_name AS lead_contact_first_name,
+       l.contact_last_name AS lead_contact_last_name,
+       a.formatted_address AS lead_formatted_address,
+       a.address_line1 AS lead_address_line1,
+       a.address_line2 AS lead_address_line2,
+       a.postal_code AS lead_postal_code,
+       a.city AS lead_city,
+       c.company_name AS client_company_name,
+       c.first_name AS client_first_name,
+       c.last_name AS client_last_name
+     FROM studies s
+     LEFT JOIN leads l
+       ON l.id = s.lead_id
+      AND l.organization_id = s.organization_id
+      AND (l.archived_at IS NULL)
+     LEFT JOIN addresses a
+       ON a.id = l.site_address_id
+      AND a.organization_id = l.organization_id
+     LEFT JOIN clients c
+       ON c.id = s.client_id
+      AND c.organization_id = s.organization_id
+     WHERE s.id = $1
+       AND s.organization_id = $2
+       AND (s.archived_at IS NULL)
+       AND (s.deleted_at IS NULL)
+     LIMIT 1`,
+    [studyId, organizationId]
+  );
+  const row = res.rows[0];
+  if (!row) return null;
+
+  if (row.lead_id && (row.lead_first_name != null || row.lead_last_name != null || row.lead_company_name != null)) {
+    const isProLead = (row.lead_customer_type ?? "PERSON") === "PRO";
+    return {
+      nom: isProLead ? row.lead_company_name ?? null : row.lead_last_name ?? null,
+      prenom: isProLead
+        ? [row.lead_contact_first_name, row.lead_contact_last_name].filter(Boolean).join(" ") || null
+        : row.lead_first_name ?? null,
+      adresse:
+        row.lead_formatted_address ||
+        [row.lead_address_line1, row.lead_address_line2].filter(Boolean).join(", ") ||
+        null,
+      cp: row.lead_postal_code ?? null,
+      ville: row.lead_city ?? null,
+    };
+  }
+
+  if (row.client_id) {
+    if (row.client_company_name != null) {
+      return {
+        nom: row.client_company_name,
+        prenom: [row.client_first_name, row.client_last_name].filter(Boolean).join(" ") || null,
+      };
+    }
+    return {
+      nom: row.client_last_name ?? null,
+      prenom: row.client_first_name ?? null,
+    };
+  }
+
+  return null;
+}
+
 /** Première série ≥ 8760 points trouvée sous les clés données (kW ou kWc selon le champ). */
 function firstHourlyArray8760(obj, keys) {
   if (!obj || typeof obj !== "object") return null;
@@ -55,7 +127,17 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
   if (snapshot == null || typeof snapshot !== "object") {
     return { error: "SNAPSHOT_NOT_FOUND" };
   }
-  const repairedSnapshot = repairVirtualScenarioDisplayKpis(snapshot);
+  let repairedSnapshot = repairVirtualScenarioDisplayKpis(snapshot);
+  const liveClient = await resolveLivePdfClient(studyId, organizationId);
+  if (liveClient) {
+    repairedSnapshot = {
+      ...repairedSnapshot,
+      client: {
+        ...(repairedSnapshot.client && typeof repairedSnapshot.client === "object" ? repairedSnapshot.client : {}),
+        ...liveClient,
+      },
+    };
+  }
 
   const orgRowForPdf = await pool.query(
     `SELECT settings_json, pdf_cover_image_key, name, legal_name, trade_name, pdf_primary_color
