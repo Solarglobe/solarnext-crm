@@ -87,7 +87,7 @@ test("P2 : required > max palier → cap simulation au dernier palier (réel fou
   assert.equal(r.source, "provider_grid_tier_capped_at_max");
 });
 
-test("P2 : aucune source → null (URBAN sans payload ni physique)", () => {
+test("P2 : Urban Solar sans capacite saisie utilise la capacite requise calculee", () => {
   const r = resolveP2VirtualBatterySimulationCapacityKwh({
     vbInput: { enabled: true },
     ctx: { settings: { pv: { virtual_battery: {} } }, battery_input: { enabled: false } },
@@ -95,8 +95,20 @@ test("P2 : aucune source → null (URBAN sans payload ni physique)", () => {
     requiredCapacityKwhFromUnbounded: 40,
     allowPhysicalBatteryFallback: true,
   });
-  assert.equal(r.capacity_kwh, null);
-  assert.equal(r.source, null);
+  assert.equal(r.capacity_kwh, 40);
+  assert.equal(r.source, "provider_unlimited_required_capacity");
+});
+
+test("P2 : MyLight MyBattery sans capacite saisie utilise la capacite requise calculee", () => {
+  const r = resolveP2VirtualBatterySimulationCapacityKwh({
+    vbInput: { enabled: true },
+    ctx: { settings: { pv: { virtual_battery: {} } }, battery_input: { enabled: false } },
+    providerCodeUpper: "MYLIGHT_MYBATTERY",
+    requiredCapacityKwhFromUnbounded: 27.5,
+    allowPhysicalBatteryFallback: true,
+  });
+  assert.equal(r.capacity_kwh, 27.5);
+  assert.equal(r.source, "provider_unlimited_required_capacity");
 });
 
 test("commercial : _vb_commercial_enforce_no_unbounded force le refus d’unbounded même sous NODE_ENV=test", () => {

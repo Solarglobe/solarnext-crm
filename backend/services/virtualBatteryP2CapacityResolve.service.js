@@ -10,8 +10,11 @@ import {
 } from "./pv/virtualBatteryGridResolve.service.js";
 
 /**
- * @typedef {"contractual_input"|"physical_battery_fallback"|"provider_grid_tier"|"provider_grid_tier_capped_at_max"} VbP2CapacitySource
+ * @typedef {"contractual_input"|"physical_battery_fallback"|"provider_grid_tier"|"provider_grid_tier_capped_at_max"|"provider_unlimited_required_capacity"} VbP2CapacitySource
  */
+
+const VB_CAPACITY_MIN_KWH = 1e-9;
+const P2_UNLIMITED_CAPACITY_PROVIDER_CODES = new Set(["URBAN_SOLAR", "MYLIGHT_MYBATTERY"]);
 
 /**
  * @param {{
@@ -46,6 +49,16 @@ export function resolveP2VirtualBatterySimulationCapacityKwh({
   }
 
   const pc = String(providerCodeUpper || "").toUpperCase();
+  if (P2_UNLIMITED_CAPACITY_PROVIDER_CODES.has(pc)) {
+    const req = Number(requiredCapacityKwhFromUnbounded);
+    if (Number.isFinite(req) && req >= 0) {
+      return {
+        capacity_kwh: Math.max(req, VB_CAPACITY_MIN_KWH),
+        source: "provider_unlimited_required_capacity",
+      };
+    }
+  }
+
   if (pc === "MYLIGHT_MYSMARTBATTERY") {
     const grids = ctx?.settings?.pv?.virtual_battery;
     if (vbHasExploitableProviderGrid(grids)) {

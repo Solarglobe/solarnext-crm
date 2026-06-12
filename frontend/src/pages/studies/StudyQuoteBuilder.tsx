@@ -703,10 +703,11 @@ export default function StudyQuoteBuilder() {
   const [leadCustomerType, setLeadCustomerType] = useState<"PERSON" | "PRO">("PERSON");
   const [orgPvVirtualBattery, setOrgPvVirtualBattery] = useState<PvVirtualBatterySettings | null>(null);
 
-  const locked = status === "READY_FOR_STUDY";
-  const catalogModalOpen = catalogModalMode !== null;
-  const [negativeMarginConfirmOpen, setNegativeMarginConfirmOpen] = useState(false);
-  const [commercialQuoteBusy, setCommercialQuoteBusy] = useState(false);
+  const locked = status === "READY_FOR_STUDY";
+  const catalogModalOpen = catalogModalMode !== null;
+  const [negativeMarginConfirmOpen, setNegativeMarginConfirmOpen] = useState(false);
+  const [commercialQuoteBusy, setCommercialQuoteBusy] = useState(false);
+  const [validatingDevis, setValidatingDevis] = useState(false);
   /** Après changement de compteur d’étude : rappel de recalcul (pas de run auto). */
   const [studyRecalcRecommended, setStudyRecalcRecommended] = useState(false);
 
@@ -943,10 +944,11 @@ export default function StudyQuoteBuilder() {
    * Valide le devis technique — avec gate marge négative si applicable.
    * Appelé directement par le bouton "Valider" ET par la confirmation modale.
    */
-  const doValidateDevisTechnique = useCallback(async () => {
-    if (!studyId || !versionId || locked) return;
-    setSaving(true);
-    try {
+  const doValidateDevisTechnique = useCallback(async () => {
+    if (!studyId || !versionId || locked || validatingDevis) return;
+    setValidatingDevis(true);
+    setSaving(true);
+    try {
       // FIX FOURNISSEUR-BV : sauvegarde immediate du formulaire (fournisseur inclus)
       // avant de lancer le calcul, pour neutraliser la sauvegarde differee (debounce)
       // qui pouvait faire lire l'ancien fournisseur au moteur.
@@ -981,10 +983,11 @@ export default function StudyQuoteBuilder() {
         showToast(confirmationMessage, true, { variant: "premium", durationMs: 5200 });
         navigate(`/studies/${studyId}`);
       }
-    } finally {
-      setSaving(false);
-    }
-  }, [studyId, versionId, locked, navigate, persistDraft, economic]);
+    } finally {
+      setValidatingDevis(false);
+      setSaving(false);
+    }
+  }, [studyId, versionId, locked, validatingDevis, navigate, persistDraft, economic]);
 
   /**
    * Gate marge négative : calcule la marge courante et affiche la confirmation
@@ -1785,20 +1788,28 @@ export default function StudyQuoteBuilder() {
             Retour à l&apos;étude
           </button>
           <div className="sqb-workbench-footer__actions">
-            {locked ? (
-              <button type="button" className="sn-btn sn-btn-outline-gold sn-btn-sm" onClick={handleFork} disabled={saving}>
-                Nouvelle version (v+1)
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="sn-btn sn-btn-primary sn-btn-sm"
-                onClick={handleValidateDevisTechnique}
-                disabled={saving}
-              >
-                {saving ? "Calcul…" : "Valider le devis technique"}
-              </button>
-            )}
+            {validatingDevis && (
+              <div className="sqb-validation-wait" role="status" aria-live="polite">
+                <span className="sqb-validation-wait__spinner" aria-hidden="true" />
+                <span>
+                  Validation du devis technique en cours. Les calculs peuvent prendre quelques instants, merci de patienter.
+                </span>
+              </div>
+            )}
+            {locked ? (
+              <button type="button" className="sn-btn sn-btn-outline-gold sn-btn-sm" onClick={handleFork} disabled={saving || validatingDevis}>
+                Nouvelle version (v+1)
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="sn-btn sn-btn-primary sn-btn-sm"
+                onClick={handleValidateDevisTechnique}
+                disabled={saving || validatingDevis}
+              >
+                {validatingDevis ? "Validation en cours…" : saving ? "Calcul…" : "Valider le devis technique"}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1827,10 +1838,12 @@ export default function StudyQuoteBuilder() {
           materialWarnTauxPct != null ? `${fmtPctFr(materialWarnTauxPct, 1, 1)} %` : "—"
         } (taux sur prix de vente matériel HT).\n\nVous vendez en dessous du prix de revient.\n\nVoulez-vous valider quand même ?`}
         confirmLabel="Valider malgré tout"
-        cancelLabel="Annuler"
-        variant="warning"
-        elevation="base"
-        onCancel={() => setNegativeMarginConfirmOpen(false)}
+        cancelLabel="Annuler"
+        variant="warning"
+        elevation="base"
+        confirmDisabled={validatingDevis}
+        cancelDisabled={validatingDevis}
+        onCancel={() => setNegativeMarginConfirmOpen(false)}
         onConfirm={() => {
           setNegativeMarginConfirmOpen(false);
           doValidateDevisTechnique();

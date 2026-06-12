@@ -825,6 +825,37 @@ html.theme-dark .sqb-battery-power--capped {
   flex-wrap: wrap;
   gap: 8px 10px;
   margin-left: auto;
+  justify-content: flex-end;
+}
+
+.sqb-validation-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(100%, 34rem);
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--brand-gold) 34%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--brand-gold) 12%, var(--surface-2));
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.sqb-validation-wait__spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border: 2px solid color-mix(in srgb, var(--brand-gold) 26%, transparent);
+  border-top-color: var(--brand-gold);
+  border-radius: 50%;
+  animation: sqb-validation-spin 0.8s linear infinite;
+}
+
+@keyframes sqb-validation-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Inputs compacts (page) */

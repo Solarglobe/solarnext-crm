@@ -45,6 +45,7 @@ import {
   computeVirtualBatteryBusiness,
   resolveP2ContractType,
 } from "../services/virtualBatteryP2Finance.service.js";
+import { resolveP2VirtualBatterySimulationCapacityKwh } from "../services/virtualBatteryP2CapacityResolve.service.js";
 import { mapScenarioToV2 } from "../services/scenarioV2Mapper.service.js";
 import { attachNormalizedEnergyKpiFields } from "../services/energyKpisNormalize.service.js";
 import * as financeService from "../services/financeService.js";
@@ -936,7 +937,18 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             const pc = String(providerRaw).toUpperCase();
             let simCapacityKwh;
             const selectedCapForCommercialGate = resolveVirtualBatteryCapacityKwh(vbInput);
-            if (selectedCapForCommercialGate == null && !isCommercialUnboundedVirtualBatteryAllowed(ctx)) {
+            const resolvedP2Capacity = resolveP2VirtualBatterySimulationCapacityKwh({
+              vbInput,
+              ctx,
+              providerCodeUpper: pc,
+              requiredCapacityKwhFromUnbounded: requiredCap,
+              allowPhysicalBatteryFallback: false,
+            });
+            if (
+              resolvedP2Capacity.capacity_kwh == null &&
+              selectedCapForCommercialGate == null &&
+              !isCommercialUnboundedVirtualBatteryAllowed(ctx)
+            ) {
               virtualScenario._virtualBatteryP2 = {
                 required_capacity_kwh: requiredCap,
                 provider_tier_status: "BLOCKED_UNBOUNDED_COMMERCIAL",
@@ -976,7 +988,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                   ];
                 }
               } else {
-                simCapacityKwh = Math.max(requiredCap, VB_CAPACITY_MIN_KWH);
+                simCapacityKwh = resolvedP2Capacity.capacity_kwh ?? Math.max(requiredCap, VB_CAPACITY_MIN_KWH);
                 vbSim = simulateVirtualBattery8760({
                   pv_hourly: ctx.pv.hourly,
                   conso_hourly: consoHourlyVirtual,
@@ -988,10 +1000,11 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                   simulation_capacity_kwh: simCapacityKwh,
                   provider_tier_status: "OK",
                   auto_selected_capacity_from_required: true,
+                  capacity_source: resolvedP2Capacity.source ?? "required_capacity",
                 };
               }
             } else if (!virtualScenario._skipped) {
-              simCapacityKwh = Math.max(requiredCap, VB_CAPACITY_MIN_KWH);
+              simCapacityKwh = resolvedP2Capacity.capacity_kwh ?? Math.max(requiredCap, VB_CAPACITY_MIN_KWH);
               vbSim = simulateVirtualBattery8760({
                 pv_hourly: ctx.pv.hourly,
                 conso_hourly: consoHourlyVirtual,
@@ -1004,6 +1017,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 required_capacity_kwh: requiredCap,
                 simulation_capacity_kwh: simCapacityKwh,
                 capacity_auto_from_unbounded: true,
+                capacity_source: resolvedP2Capacity.source ?? "required_capacity",
               };
               if (!Array.isArray(virtualScenario.finance_warnings)) virtualScenario.finance_warnings = [];
               virtualScenario.finance_warnings.push("VB_CAPACITY_AUTO_UNBOUNDED");
@@ -1417,10 +1431,24 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
         } else {
           const requiredCapH = unboundedH.required_capacity_kwh;
           const selectedContractCapH = resolveVirtualBatteryCapacityKwh(vbInputH);
+          const resolvedP2CapacityH = useP2H
+            ? resolveP2VirtualBatterySimulationCapacityKwh({
+                vbInput: vbInputH,
+                ctx,
+                providerCodeUpper: String(providerRawH).toUpperCase(),
+                requiredCapacityKwhFromUnbounded: requiredCapH,
+                allowPhysicalBatteryFallback: false,
+              })
+            : { capacity_kwh: null, source: null };
           // La gate commerciale ne s'applique qu'aux fournisseurs P2 (cohérent avec BATTERY_VIRTUAL
           // qui applique cette restriction uniquement dans le bloc if (useP2)).
           // Pour les non-P2, on utilise Math.max(requiredCapH, VB_CAPACITY_MIN_KWH) comme simCapacity.
-          if (useP2H && selectedContractCapH == null && !isCommercialUnboundedVirtualBatteryAllowed(ctx)) {
+          if (
+            useP2H &&
+            resolvedP2CapacityH.capacity_kwh == null &&
+            selectedContractCapH == null &&
+            !isCommercialUnboundedVirtualBatteryAllowed(ctx)
+          ) {
             hybridScenario._virtualBatteryP2 = {
               required_capacity_kwh: requiredCapH,
               provider_tier_status: "BLOCKED_UNBOUNDED_COMMERCIAL",
@@ -1433,7 +1461,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           if (!hybridScenario._skipped) {
           const simCapacityKwhH = selectedContractCapH != null && selectedContractCapH > 0
             ? selectedContractCapH
-            : Math.max(requiredCapH, VB_CAPACITY_MIN_KWH);
+            : resolvedP2CapacityH.capacity_kwh ?? Math.max(requiredCapH, VB_CAPACITY_MIN_KWH);
 
           const vbSimH = simulateVirtualBattery8760({
             pv_hourly: surplusAfterPhysical,
@@ -1650,6 +1678,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               required_capacity_kwh: requiredCapH,
               simulation_capacity_kwh: simCapacityKwhH,
               provider_tier_status: "OK",
+              capacity_source: resolvedP2CapacityH.source ?? "required_capacity",
               note: "capacity_reduced_by_physical_battery",
             };
 
