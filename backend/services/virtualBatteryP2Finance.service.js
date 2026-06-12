@@ -413,11 +413,13 @@ export function computeVirtualBatteryP2Finance(input) {
   const oa = Number(input.oaRatePerKwh) || 0;
 
   const importKwhVirt = Number.isFinite(billableImport) ? billableImport : 0;
-  const annual_grid_import_cost_ht = round2(importKwhVirt * tariff);
-  const annual_grid_import_cost_ttc = htToTtc(annual_grid_import_cost_ht);
+  // `tariffElectricityPerKwh` is the customer-side price already used by the
+  // finance engine. Do not apply VAT again on the residual grid import.
+  const annual_grid_import_cost_ttc = round2(importKwhVirt * tariff);
+  const annual_grid_import_cost_ht = round2(annual_grid_import_cost_ttc / (1 + VAT));
 
   const annual_overflow_export_revenue_ht = round2(overflowKwh * oa);
-  const annual_overflow_export_revenue_ttc = htToTtc(annual_overflow_export_revenue_ht);
+  const annual_overflow_export_revenue_ttc = annual_overflow_export_revenue_ht;
 
   const hphcPartial =
     contractType === "HPHC" &&

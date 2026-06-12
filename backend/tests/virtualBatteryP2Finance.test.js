@@ -77,7 +77,7 @@ function main() {
 
   // Test 2 — MyLight MyBattery Base
   {
-    const vb = mockVbSim({ discharged: 50 });
+    const vb = mockVbSim({ discharged: 50, importKwh: 1000 });
     const r = computeVirtualBatteryP2Finance({
       providerCode: "MYLIGHT_MYBATTERY",
       contractType: "BASE",
@@ -93,6 +93,7 @@ function main() {
     assertApprox(r.virtual_battery_finance.annual_subscription_ht, 72, "abo MyBattery");
     assertApprox(r.virtual_battery_finance.annual_activation_fee_ht, 232.5, "activation");
     assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, 50 * 0.07925, "déstockage MyBatt");
+    assertApprox(r.virtual_battery_finance.annual_grid_import_cost_ttc, 200, "import reseau TTC sans double TVA");
     console.log("✅ Test 2 MyBattery Base");
   }
 

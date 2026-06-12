@@ -276,6 +276,35 @@ function main() {
   assert(mappedVirtualCapture.energy.energy_grid_import_kwh === 1048, "capture BV scenarios_v2 import stabilise");
   assert(mappedVirtualCapture.energy.site_solar_or_credit_used_kwh === 9152, "capture BV scenarios_v2 energie site couverte");
 
+  const mappedVirtualP2Bill = mapScenarioToV2(
+    {
+      name: "BATTERY_VIRTUAL",
+      _skipped: false,
+      energy: {
+        production_kwh: 7473,
+        consumption_kwh: 10200,
+        total_pv_used_on_site_kwh: 7473,
+        autoconsumption_kwh: 7473,
+        import_kwh: 2727,
+        billable_import_kwh: 2727,
+        grid_import_kwh: 2727,
+        energy_grid_import_kwh: 2727,
+      },
+      prod_kwh: 7473,
+      conso_kwh: 10200,
+      auto_kwh: 7473,
+      import_kwh: 2727,
+      virtual_battery_finance: {
+        provider_code: "MYLIGHT_MYBATTERY",
+        annual_grid_import_cost_ttc: 532,
+        annual_total_virtual_cost_ttc: 985,
+        annual_overflow_export_revenue_ttc: 0,
+      },
+    },
+    { pv: { kwc: 7, panelsCount: 18 } }
+  );
+  assert(mappedVirtualP2Bill.finance.estimated_annual_bill_eur === 1517, "BV facture = import reseau + fournisseur virtuel");
+
   const repairedLegacyHardy = repairVirtualScenarioDisplayKpis({
     id: "BATTERY_VIRTUAL",
     energy: {

@@ -273,10 +273,9 @@ export function mapScenarioToV2(scenario, ctx) {
   };
   if (id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID") {
     const vf = scenario.virtual_battery_finance;
-    const billFromP2 =
+    const p2TotalBill =
       vf && typeof vf === "object"
-        ? firstFiniteNum(
-            vf.annual_total_virtual_cost_ttc,
+        ? round2(
             (Number(vf.annual_grid_import_cost_ttc) || 0) +
               (Number(vf.annual_total_virtual_cost_ttc) || 0) -
               (Number(vf.annual_overflow_export_revenue_ttc) || 0)
@@ -284,7 +283,7 @@ export function mapScenarioToV2(scenario, ctx) {
         : null;
     finance.estimated_annual_bill_eur = round2(
       firstFiniteNum(
-        billFromP2,
+        p2TotalBill,
         scenario.finance?.residual_bill_eur,
         scenario.residual_bill_eur,
         finance.residual_bill_eur
