@@ -185,6 +185,37 @@ function clampNumber(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
 
+function firstFiniteNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    const n = finiteNumberOrNull(value);
+    if (n != null) return n;
+  }
+  return null;
+}
+
+function gridImportKwhForDisplay(energy: ScenarioV2Energy): number | null {
+  const explicit = firstFiniteNumber(
+    energy.energy_grid_import_kwh,
+    energy.billable_import_kwh,
+    energy.grid_import_kwh,
+    energy.import_kwh
+  );
+  if (explicit != null) return Math.max(0, explicit);
+
+  const conso = finiteNumberOrNull(energy.consumption_kwh);
+  const solarUsed = firstFiniteNumber(
+    energy.site_solar_or_credit_used_kwh,
+    energy.energy_solar_used_kwh,
+    energy.total_pv_used_on_site_kwh,
+    energy.autoconsumption_kwh
+  );
+  if (conso != null && solarUsed != null) {
+    return Math.max(0, conso - solarUsed);
+  }
+
+  return null;
+}
+
 function stabilizedVirtualReadModel(
   id: ScenarioColumnId,
   scenario: ScenarioV2 | null
@@ -201,12 +232,7 @@ function stabilizedVirtualReadModel(
         : null;
   const production = finiteNumberOrNull(energy.production_kwh);
   const consumption = finiteNumberOrNull(energy.consumption_kwh);
-  const currentImport = finiteNumberOrNull(
-    energy.energy_grid_import_kwh ??
-      energy.billable_import_kwh ??
-      energy.grid_import_kwh ??
-      energy.import_kwh
-  );
+  const currentImport = gridImportKwhForDisplay(energy);
   const credited = finiteNumberOrNull(energy.credited_kwh);
   const restored = finiteNumberOrNull(energy.restored_kwh ?? energy.used_credit_kwh);
   const directOrYear1PvUsed = finiteNumberOrNull(
@@ -672,24 +698,13 @@ export default function ScenarioComparisonTable({
           const finance = scenario?.finance ?? {};
           const costs = scenario?.costs ?? {};
           const hardware = scenario?.hardware ?? {};
-          const billableImportKwh =
-            scenario?.energy?.energy_grid_import_kwh ??
-            scenario?.energy?.billable_import_kwh ??
-            scenario?.energy?.grid_import_kwh ??
-            0;
-
           const autoKwh =
             energy.energy_solar_used_kwh != null && Number.isFinite(Number(energy.energy_solar_used_kwh))
               ? Number(energy.energy_solar_used_kwh)
               : energy.autoconsumption_kwh != null && Number.isFinite(Number(energy.autoconsumption_kwh))
                 ? Number(energy.autoconsumption_kwh)
                 : null;
-          const importKwh =
-            energy.import_kwh != null && Number.isFinite(Number(energy.import_kwh))
-              ? Number(energy.import_kwh)
-              : energy.billable_import_kwh != null && Number.isFinite(Number(energy.billable_import_kwh))
-                ? Number(energy.billable_import_kwh)
-                : null;
+          const importKwh = gridImportKwhForDisplay(energy);
           const consoKwh =
             energy.consumption_kwh != null && Number.isFinite(Number(energy.consumption_kwh))
               ? Number(energy.consumption_kwh)
@@ -734,10 +749,7 @@ export default function ScenarioComparisonTable({
               : energy.energy_solar_used_kwh != null && Number.isFinite(Number(energy.energy_solar_used_kwh))
               ? Number(energy.energy_solar_used_kwh)
               : autoKwh;
-          const gridToBuyKwh =
-            energy.energy_grid_import_kwh != null && Number.isFinite(Number(energy.energy_grid_import_kwh))
-              ? Number(energy.energy_grid_import_kwh)
-              : billableImportKwh;
+          const gridToBuyKwh = gridImportKwhForDisplay(energy);
           const solarCoveragePct =
             solarUsedKwh != null && consoKwh != null && consoKwh > 0
               ? (solarUsedKwh / consoKwh) * 100

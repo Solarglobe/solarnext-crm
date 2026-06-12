@@ -29,6 +29,26 @@ function main() {
   assert(base.energy.pv_self_consumption_pct === 40, "BASE pv_self = 4000/10000");
   assert(base.energy.autoconsumption_kwh === 4000, "BASE autoconsumption_kwh = total utilisé");
 
+  const mappedBaseImportKwh = mapScenarioToV2(
+    {
+      name: "BASE",
+      energy: {
+        production_kwh: 7473,
+        consumption_kwh: 10200,
+        autoconsumption_kwh: 2782,
+        surplus_kwh: 4691,
+        import_kwh: 7418,
+      },
+      prod_kwh: 7473,
+      conso_kwh: 10200,
+      auto_kwh: 2782,
+      import_kwh: 7418,
+    },
+    { pv: { kwc: 6, panelsCount: 14 } }
+  );
+  assert(mappedBaseImportKwh.energy.import_kwh === 7418, "mapper BASE conserve import_kwh");
+  assert(mappedBaseImportKwh.energy.energy_grid_import_kwh === 7418, "mapper BASE expose energy_grid_import_kwh");
+
   const phys = {
     name: "BATTERY_PHYSICAL",
     _skipped: false,

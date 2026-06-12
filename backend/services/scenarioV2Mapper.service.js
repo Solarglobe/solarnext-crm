@@ -72,7 +72,13 @@ export function mapScenarioToV2(scenario, ctx) {
   // BATTERY_VIRTUAL / BATTERY_HYBRID : afficher l'import facturé (billable_import_kwh = import_kwh)
   const importKwhDisplay = isVirtualLike
     ? (scenario.energy?.import_kwh ?? scenario.import_kwh ?? scenario.energy?.billable_import_kwh ?? scenario.billable_import_kwh ?? scenario.energy?.import ?? null)
-    : (scenario.energy?.import ?? null);
+    : (scenario.energy?.energy_grid_import_kwh ??
+        scenario.energy?.billable_import_kwh ??
+        scenario.energy?.grid_import_kwh ??
+        scenario.energy?.import_kwh ??
+        scenario.import_kwh ??
+        scenario.energy?.import ??
+        null);
 
   const pvUsedKwhRaw = firstFiniteNum(
     scenario.energy?.total_pv_used_on_site_kwh,
@@ -128,6 +134,9 @@ export function mapScenarioToV2(scenario, ctx) {
     autoconsumption_kwh: pvUsedKwh ?? autoKwh,
     surplus_kwh: scenario.energy?.surplus ?? scenario.surplus_kwh ?? null,
     import_kwh: importKwhDisplay,
+    billable_import_kwh: importKwhDisplay,
+    grid_import_kwh: importKwhDisplay,
+    energy_grid_import_kwh: importKwhDisplay,
     monthly: scenario.energy?.monthly ?? null,
     /** Alias legacy — voir pv_self_consumption_pct. */
     self_consumption_pct: selfConsumptionPctAlias,
