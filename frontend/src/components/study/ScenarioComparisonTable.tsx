@@ -148,7 +148,7 @@ const COLUMN_SUBTITLES: Record<string, string> = {
   BASE: "Photovoltaïque seul, sans stockage.",
   BATTERY_PHYSICAL: "Stockage local + gestion du surplus.",
   BATTERY_VIRTUAL: "Crédit de votre surplus, utilisé plus tard.",
-  BATTERY_HYBRID: "Batterie physique + crédit du surplus résiduel.",
+  BATTERY_HYBRID: "Physique + crédit du surplus résiduel. Intérêt : autonomie et secours en cas de coupure — pas l'économie €/an maximale.",
 };
 
 function formatCurrency(v: number | null | undefined): string {

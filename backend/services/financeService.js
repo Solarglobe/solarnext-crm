@@ -386,8 +386,14 @@ function computeAnnualBillAfterSolarYear1(sc, priceEurKwh) {
   if (vf && typeof vf === "object") {
     const gridImportCost = Number(vf.annual_grid_import_cost_ttc) || 0;
     const virtualCost = Number(vf.annual_total_virtual_cost_ttc) || 0;
-    const overflowRevenue = Number(vf.annual_overflow_export_revenue_ttc) || 0;
-    return Math.max(0, gridImportCost + virtualCost - overflowRevenue);
+    // §5 FIX — Cohérence inter-scénarios : l'« économie année 1 » est définie comme une
+    // économie sur facture HORS revente de surplus (cf. scenarioYear1BillSavings.test.mjs +
+    // economie_an1_definition = "bill_before_solar_minus_bill_after_solar_year1"). Les scénarios
+    // BASE / BATTERY_PHYSICAL ne créditent PAS le revenu OA dans ce KPI ; on ne crédite donc pas
+    // non plus le revenu d'export du surplus résiduel (overflow) pour BATTERY_VIRTUAL / HYBRID,
+    // sinon la comparaison entre cartes est faussée (pommes/oranges). Le revenu de revente reste
+    // bien pris en compte ailleurs (gain_oa dans les cashflows → economie_25a / TRI).
+    return Math.max(0, gridImportCost + virtualCost);
   }
 
   const explicitBill = firstFiniteNumber(
