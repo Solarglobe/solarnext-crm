@@ -373,6 +373,68 @@ function buildCashflows(params) {
 // ======================================================================
 // IRR (taux de rentabilité interne)
 // ======================================================================
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function computeAnnualBillAfterSolarYear1(sc, priceEurKwh) {
+  const vf = sc?.virtual_battery_finance;
+  if (vf && typeof vf === "object") {
+    const gridImportCost = Number(vf.annual_grid_import_cost_ttc) || 0;
+    const virtualCost = Number(vf.annual_total_virtual_cost_ttc) || 0;
+    const overflowRevenue = Number(vf.annual_overflow_export_revenue_ttc) || 0;
+    return Math.max(0, gridImportCost + virtualCost - overflowRevenue);
+  }
+
+  const explicitBill = firstFiniteNumber(
+    sc?.finance?.estimated_annual_bill_eur,
+    sc?.finance?.remaining_bill_eur,
+    sc?.finance?.residual_bill_eur,
+    sc?.residual_bill_eur
+  );
+  if (explicitBill != null) return Math.max(0, explicitBill);
+
+  const importKwh = firstFiniteNumber(
+    sc?.billable_import_kwh,
+    sc?.energy?.billable_import_kwh,
+    sc?.energy?.energy_grid_import_kwh,
+    sc?.energy?.grid_import_kwh,
+    sc?.import_kwh,
+    sc?.energy?.import_kwh,
+    sc?.energy?.import
+  );
+  if (importKwh == null) return null;
+
+  const virtualAnnualCost =
+    sc?.name === "BATTERY_VIRTUAL" || sc?.name === "BATTERY_HYBRID"
+      ? firstFiniteNumber(
+          sc?.costs?.battery_virtual_annual_cost,
+          sc?._virtualBatteryQuote?.annual_cost_ttc
+        ) ?? 0
+      : 0;
+
+  return Math.max(0, importKwh * priceEurKwh + virtualAnnualCost);
+}
+
+function computeBillSavingsYear1(sc, priceEurKwh) {
+  const consumptionKwh = firstFiniteNumber(
+    sc?.conso_kwh,
+    sc?.energy?.consumption_kwh,
+    sc?.energy?.conso
+  );
+  if (consumptionKwh == null || consumptionKwh < 0) return null;
+
+  const billBeforeSolar = consumptionKwh * priceEurKwh;
+  const billAfterSolar = computeAnnualBillAfterSolarYear1(sc, priceEurKwh);
+  if (billAfterSolar == null) return null;
+
+  return Math.max(0, billBeforeSolar - billAfterSolar);
+}
+
 function irr(values, guess = 0.1) {
   let rate = guess;
 
@@ -603,7 +665,8 @@ export async function computeFinance(ctx, scenarios) {
       });
 
       const horizonY = Number(econ.horizon_years) || 25;
-      const annualSavings = flows[0]?.total_eur ?? null;
+      const year1NetCashflow = flows[0]?.total_eur ?? null;
+      const annualSavings = computeBillSavingsYear1(sc, econ.price_eur_kwh) ?? year1NetCashflow;
       if (process.env.NODE_ENV !== "production") {
         console.log("[D3] scenario", key, "capex_ttc =", capex_ttc, "capex_net =", capex_net, "annual savings =", annualSavings, "flows length =", flows?.length);
         console.log("[D3] flows =", flows);
@@ -615,7 +678,8 @@ export async function computeFinance(ctx, scenarios) {
           tag: `TRACE_FINANCE_${key}`,
           capex_ttc,
           capex_net,
-          year1_total_eur: flows[0]?.total_eur ?? null,
+          year1_total_eur: year1NetCashflow,
+          year1_bill_savings_eur: annualSavings,
           gain_25a: lastFlow?.cumul_eur ?? null,
           cumul_gains_end: lastFlow?.cumul_gains_eur ?? null,
           roi_years,
@@ -643,7 +707,7 @@ export async function computeFinance(ctx, scenarios) {
         roi_years,
         irr_pct: irr_pct !== null ? round(irr_pct * 100, 2) : null,
         lcoe_eur_kwh: lcoe_eur ? round(lcoe_eur, 4) : null,
-        economie_an1: round(flows[0].total_eur, 0),
+        economie_an1: round(annualSavings, 0),
         gain_25a: flows[flows.length - 1].cumul_eur,
         economie_25a: flows[flows.length - 1].cumul_eur,
         economie_horizon_years: horizonY,
@@ -656,6 +720,8 @@ export async function computeFinance(ctx, scenarios) {
           elec_growth_missing: econ.elec_growth_missing,
           economie_total_label: `Gain net cumulé sur ${horizonY} ans`,
           cumul_eur_definition: "net_after_capex_ttc",
+          economie_an1_definition: "bill_before_solar_minus_bill_after_solar_year1",
+          year1_net_cashflow_eur: round(year1NetCashflow, 2),
           prime_disclaimer:
             "Prime et tarifs d'obligation d'achat : sous réserve d'éligibilité du projet et des tarifs en vigueur à la date de mise en service.",
         },
