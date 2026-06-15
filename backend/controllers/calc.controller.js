@@ -46,6 +46,7 @@ import {
   resolveP2ContractType,
 } from "../services/virtualBatteryP2Finance.service.js";
 import { resolveP2VirtualBatterySimulationCapacityKwh } from "../services/virtualBatteryP2CapacityResolve.service.js";
+import { resolveHpHcHourlyMask } from "../services/pv/hphcMask.service.js";
 import { mapScenarioToV2 } from "../services/scenarioV2Mapper.service.js";
 import { attachNormalizedEnergyKpiFields } from "../services/energyKpisNormalize.service.js";
 import * as financeService from "../services/financeService.js";
@@ -1262,7 +1263,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 virtualScenario._virtualBatteryP2?.simulation_capacity_kwh ??
                 null,
               hourlyDischargeKwh: vbSim.virtual_battery_hourly_discharge_kwh,
-              hphcHourlyIsHp: contractType === "HPHC" ? vbInput.hphc_hourly_slot_is_hp ?? null : null,
+              hphcHourlyIsHp: contractType === "HPHC" ? (vbInput.hphc_hourly_slot_is_hp ?? resolveHpHcHourlyMask(vbInput, ctx)) : null,
               tariffElectricityPerKwh: tariffKwh,
               oaRatePerKwh: oaRate,
               virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
@@ -1544,7 +1545,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 unboundedRequiredCapacityKwh: requiredCapH,
                 selectedCapacityKwh: simCapacityKwhH,
                 hourlyDischargeKwh: vbSimHEffective.virtual_battery_hourly_discharge_kwh,
-                hphcHourlyIsHp: contractTypeH === "HPHC" ? vbInputH.hphc_hourly_slot_is_hp ?? null : null,
+                hphcHourlyIsHp: contractTypeH === "HPHC" ? (vbInputH.hphc_hourly_slot_is_hp ?? resolveHpHcHourlyMask(vbInputH, ctx)) : null,
                 tariffElectricityPerKwh: tariffKwhH,
                 oaRatePerKwh: oaRateH,
                 virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
