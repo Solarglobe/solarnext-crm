@@ -258,6 +258,9 @@ function buildCashflows(params) {
     virtual_battery_import_savings: virtualImportSavings = null,
     virtual_battery_mode = false,
     virtual_overflow_export_kwh = 0,
+    // HYBRIDE : taux de restitution €/kWh (acheminement+accise) appliqué à l'énergie que la
+    // batterie physique dégradée cède au crédit virtuel. 0 → comportement rétrocompatible.
+    virtual_restitution_rate_eur_kwh = 0,
     // Dégradation physique batterie (BATTERY_PHYSICAL uniquement).
     // battery_contribution_y1 : part de auto_y1 provenant de la décharge batterie (kWh an 1).
     // Si absent ou 0 → comportement identique à avant (rétrocompatible).
@@ -301,6 +304,10 @@ function buildCashflows(params) {
   let _vbImportSavings = (isVirtualBattery && virtualImportSavings != null && Number.isFinite(Number(virtualImportSavings)))
     ? Number(virtualImportSavings)
     : null;
+  // HYBRIDE — énergie cumulée cédée par la batterie physique (dégradation) et reprise par le crédit
+  // virtuel. Valorisée nette de restitution (prix − acheminement/accise), pas au prix plein.
+  let _transferredFromPhysicalKwh = 0;
+  const _virtRestitRate = Math.max(0, Number(virtual_restitution_rate_eur_kwh) || 0);
 
   for (let y = 1; y <= horizon_years; y++) {
     // LID (Light-Induced Degradation) : perte irréversible en toute première année seulement.
@@ -319,7 +326,13 @@ function buildCashflows(params) {
       ? Math.max(0, _vbImportSavings) * price  // dégradé chaque année (voir init _vbImportSavings)
       : 0;
 
-    let total = gain_auto + gain_oa + import_savings_eur;
+    // HYBRIDE : énergie cédée par le physique dégradé, récupérée par le virtuel à sa valeur nette
+    // (prix évité − restitution). Évite à la fois de la perdre (ancien bug) et de la sur-créditer.
+    const transferred_recovery_eur = (isVirtualBattery && _vbImportSavings !== null)
+      ? _transferredFromPhysicalKwh * Math.max(0, price - _virtRestitRate)
+      : 0;
+
+    let total = gain_auto + gain_oa + import_savings_eur + transferred_recovery_eur;
 
     if (y === 1) total += prime_eur;
 
@@ -357,13 +370,22 @@ function buildCashflows(params) {
     price *= 1 + elec_growth_pct / 100;
     prod *= 1 - pv_degradation_pct / 100;
     // PV direct auto suit la dégradation PV ; contribution batterie suit sa propre dégradation physique
+    const _battContribBefore = _battContrib;
     _battContrib *= 1 - battery_degradation_pct / 100;
+    const _battContribLost = Math.max(0, _battContribBefore - _battContrib);
     auto = prod * _pvDirectRatio + _battContrib;
     surplus = Math.max(0, prod - auto);  // garde : évite surplus négatif (edge cases batterie / round-trip)
     // BUG A/B FIX — dégrader overflow VB et import_savings VB au même rythme que le PV
     if (isVirtualBattery) {
       _vbOverflow *= 1 - pv_degradation_pct / 100;
-      if (_vbImportSavings !== null) _vbImportSavings *= 1 - pv_degradation_pct / 100;
+      if (_vbImportSavings !== null) {
+        _vbImportSavings *= 1 - pv_degradation_pct / 100;
+        // HYBRIDE — l'énergie que la batterie physique ne capte plus en se dégradant retourne au
+        // crédit virtuel (lossless). On l'accumule (et elle suit la dégradation PV) pour la
+        // récupérer à sa valeur nette les années suivantes, au lieu de la perdre (ancien bug).
+        // Sans effet pour BATTERY_VIRTUAL (battery_contribution_y1 = 0 → _battContribLost = 0).
+        _transferredFromPhysicalKwh = (_transferredFromPhysicalKwh + _battContribLost) * (1 - pv_degradation_pct / 100);
+      }
     }
   }
 
@@ -603,6 +625,14 @@ export async function computeFinance(ctx, scenarios) {
           ? (sc.battery?.annual_discharge_kwh ?? 0)
           : 0;
 
+      // Taux de restitution €/kWh TTC (acheminement+accise) déduit du coût VB année 1 / décharge VB année 1.
+      // Sert à valoriser, nette de restitution, l'énergie que le physique cède au virtuel en se dégradant.
+      const _vfForRate = sc.virtual_battery_finance;
+      const virtualRestitutionRatePerKwh =
+        _vfForRate && virtualImportSavingsKwh != null && virtualImportSavingsKwh > 0
+          ? Math.max(0, (Number(_vfForRate.annual_virtual_discharge_cost_ttc) || 0) / virtualImportSavingsKwh)
+          : 0;
+
       let flows = buildCashflows({
         prod_y1,
         auto_y1,
@@ -625,7 +655,8 @@ export async function computeFinance(ctx, scenarios) {
           0,
         battery_contribution_y1: _battContribY1,
         battery_degradation_pct: econ.battery_degradation_pct,
-        pv_degradation_first_year_pct: econ.pv_degradation_first_year_pct
+        pv_degradation_first_year_pct: econ.pv_degradation_first_year_pct,
+        virtual_restitution_rate_eur_kwh: virtualRestitutionRatePerKwh
       });
 
       const _isVbScenario = sc.name === "BATTERY_VIRTUAL" || sc.name === "BATTERY_HYBRID";
