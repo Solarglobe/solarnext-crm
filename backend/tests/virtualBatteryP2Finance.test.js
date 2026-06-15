@@ -59,8 +59,10 @@ function main() {
       "abo Urban BASE 9 kVA + stockage kWc"
     );
     assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.6, "contribution");
-    const expectedDischarge = 100 * (0.1308 + 0.0484);
-    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expectedDischarge, "déstockage");
+    // FIX restitution Urban : déstockage = acheminement + accise (PDF note 7 + PDF MyBattery accise),
+    // le prix énergie (0.1308) n'est PAS facturé sur l'énergie déjà créditée.
+    const expectedDischarge = 100 * (0.0484 + 0.02998);
+    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expectedDischarge, "déstockage = acheminement + accise");
     console.log("✅ Test 1 Urban Base (9 kVA)");
   }
 
@@ -218,10 +220,11 @@ function main() {
       oaRatePerKwh: 0.05,
     });
     assert(r.virtual_battery_finance.hphc_allocation_status === "OK", "HPHC OK");
+    // FIX restitution Urban : acheminement HP/HC + accise, pas le prix énergie (PDF note 7).
     const expected =
-      10 * (0.1412 + 0.0494) +
-      30 * (0.1007 + 0.035);
-    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expected, "coût HPHC ventilé");
+      10 * (0.0494 + 0.02998) +
+      30 * (0.0350 + 0.02998);
+    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expected, "coût HPHC ventilé = acheminement + accise");
     console.log("✅ Test 4b HPHC avec masque");
   }
 
@@ -296,8 +299,8 @@ function main() {
       6 * 12 * 1.0 + 15.48 * 12,
       "providers vides -> abo Urban BASE PDF"
     );
-    const expectedDischarge = 100 * (0.1308 + 0.0484);
-    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expectedDischarge, "déstockage legacy");
+    const expectedDischarge = 100 * (0.0484 + 0.02998);
+    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expectedDischarge, "déstockage legacy = acheminement + accise");
     console.log("✅ Test 9 providers vides → legacy P2");
   }
 
@@ -329,7 +332,7 @@ function main() {
       6 * 12 * 1.0 + 15.48 * 12,
       "ligne absente -> abo Urban BASE PDF"
     );
-    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, 50 * (0.1308 + 0.0484), "déstockage legacy");
+    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, 50 * (0.0484 + 0.02998), "déstockage legacy = acheminement + accise");
     console.log("✅ Test 10 ligne kVA absente sous provider → legacy");
   }
 

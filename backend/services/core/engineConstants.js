@@ -156,9 +156,21 @@ export const VB_LEGACY_MYBATTERY_BASE_DISCHARGE_EUR_PER_KWH_HT = 0.07925;
 export const VB_LEGACY_MYBATTERY_HPHC_HP_DISCHARGE_EUR_PER_KWH_HT = 0.08025;
 export const VB_LEGACY_MYBATTERY_HPHC_HC_DISCHARGE_EUR_PER_KWH_HT = 0.06585;
 export const VB_LEGACY_URBAN_BASE_GRID_FEE_EUR_PER_KWH_HT = 0.0484;
-/** Sommes legacy HP/HC Urban (énergie + réseau) — inchangé vs 0.1412+0.0494 et 0.1007+0.035 */
+/** Sommes legacy HP/HC Urban (énergie + réseau) — conservé pour rétrocompat / référence prix énergie. */
 export const VB_LEGACY_URBAN_HPHC_HP_DISCHARGE_SUM_HT = 0.1412 + 0.0494;
 export const VB_LEGACY_URBAN_HPHC_HC_DISCHARGE_SUM_HT = 0.1007 + 0.035;
+/**
+ * Acheminement Stockage Virtuel Urban HP/HC — €/kWh HT (PDF "TARIFS-BV-PARTICULIER-HPHC", note 7).
+ * SEUL coût dû à la restitution des kWh stockés : le prix énergie n'est PAS facturé au déstockage.
+ */
+export const VB_LEGACY_URBAN_HPHC_HP_RESEAU_HT = 0.0494;
+export const VB_LEGACY_URBAN_HPHC_HC_RESEAU_HT = 0.0350;
+/**
+ * Accise sur l'électricité (ex-TICFE) — €/kWh HT. Due sur toute énergie consommée, y compris
+ * l'énergie restituée depuis la batterie virtuelle (PDF MyLight MyBattery : « Accise 2,998 cts € HT »).
+ * Coût restitution = acheminement (TURPE) + accise.
+ */
+export const VB_ACCISE_EUR_PER_KWH_HT = 0.02998;
 
 // HARD CONSTANT – NOT CONFIGURABLE FROM CRM
 // utilisé dans computeVirtualBatteryP2Finance (virtualBatteryP2Finance.service.js)

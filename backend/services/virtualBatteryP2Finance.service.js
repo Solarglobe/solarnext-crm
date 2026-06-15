@@ -6,8 +6,6 @@
 import {
   vbGetSegmentRow,
   vbSelectMySmartTierFromGrid,
-  vbBaseDischargeRatePerKwhFromRow,
-  vbHphcDischargeRatesFromRow,
   vbHasExploitableProviderGrid,
 } from "./pv/virtualBatteryGridResolve.service.js";
 import {
@@ -18,8 +16,6 @@ import {
   VB_LEGACY_MYBATTERY_HPHC_HP_DISCHARGE_EUR_PER_KWH_HT,
   VB_LEGACY_MYBATTERY_HPHC_HC_DISCHARGE_EUR_PER_KWH_HT,
   VB_LEGACY_URBAN_BASE_GRID_FEE_EUR_PER_KWH_HT,
-  VB_LEGACY_URBAN_HPHC_HP_DISCHARGE_SUM_HT,
-  VB_LEGACY_URBAN_HPHC_HC_DISCHARGE_SUM_HT,
 } from "./pv/virtualBatteryLegacyDefaults.js";
 import {
   VIRTUAL_BATTERY_P2_VAT_RATE,
@@ -31,6 +27,9 @@ import {
   URBAN_HPHC_KVA_STEPS,
   URBAN_HPHC_FIXED_SUBSCRIPTION_HT_BY_KVA,
   VIRTUAL_BATTERY_LEGACY_SUBSCRIPTION_EUR_PER_KWC_MONTH,
+  VB_LEGACY_URBAN_HPHC_HP_RESEAU_HT,
+  VB_LEGACY_URBAN_HPHC_HC_RESEAU_HT,
+  VB_ACCISE_EUR_PER_KWH_HT,
 } from "./core/engineConstants.js";
 
 export { MYSMART_CAPACITY_TIERS_HT };
@@ -49,6 +48,14 @@ function round2(x) {
 
 function htToTtc(ht) {
   return round2(ht * (1 + VAT));
+}
+
+/**
+ * Coût de restitution €/kWh HT = acheminement (TURPE) + accise (PDF Urban note 7 / PDF MyBattery).
+ * Le prix d'achat de l'énergie n'entre PAS dans la restitution : l'énergie restituée est le crédit du client.
+ */
+function restitutionRateHt(acheminementHt) {
+  return (Number(acheminementHt) || 0) + VB_ACCISE_EUR_PER_KWH_HT;
 }
 
 /**
@@ -269,25 +276,22 @@ export function computeVirtualBatteryP2Finance(input) {
       );
       annual_autoproducer_contribution_ht = round2(Number(rowUrban.contribution_eur_per_year) || 0);
       if (contractType === "BASE") {
-        const rate = vbBaseDischargeRatePerKwhFromRow(rowUrban);
-        if (rate != null) {
-          annual_virtual_discharge_cost_ht = round2(discharged * rate);
-        } else {
-          annual_virtual_discharge_cost_ht = null;
-          notes.push("Urban BASE : ligne grille sans restitution/réseau €/kWh — coût déstockage non calculé.");
-        }
+        // FIX restitution Urban (PDF note 7) : le déstockage = acheminement stockage virtuel
+        // + accise (colonnes "Acheminement Stockage Virtuel" / "Accise"). Le prix énergie
+        // (colonne "Prix énergie") est le tarif d'ACHAT réseau classique et n'entre PAS
+        // dans le coût de restitution de l'énergie déjà créditée.
+        const reseau = Number(rowUrban.reseau_eur_per_kwh);
+        const acheminement = Number.isFinite(reseau) ? reseau : urbanBaseGridFeeHt();
+        annual_virtual_discharge_cost_ht = round2(discharged * restitutionRateHt(acheminement));
       } else if (hphc_allocation_status === "OK" && discharged_hp_kwh != null && discharged_hc_kwh != null) {
-        const rates = vbHphcDischargeRatesFromRow(rowUrban);
-        if (rates != null) {
-          annual_virtual_discharge_cost_ht = round2(
-            discharged_hp_kwh * rates.hp + discharged_hc_kwh * rates.hc
-          );
-        } else {
-          annual_virtual_discharge_cost_ht = round2(
-            discharged_hp_kwh * VB_LEGACY_URBAN_HPHC_HP_DISCHARGE_SUM_HT +
-              discharged_hc_kwh * VB_LEGACY_URBAN_HPHC_HC_DISCHARGE_SUM_HT
-          );
-        }
+        // Acheminement HP/HC + accise, pas le prix énergie.
+        const nhp = Number(rowUrban.reseau_hp_eur_per_kwh);
+        const nhc = Number(rowUrban.reseau_hc_eur_per_kwh);
+        const achHp = Number.isFinite(nhp) ? nhp : VB_LEGACY_URBAN_HPHC_HP_RESEAU_HT;
+        const achHc = Number.isFinite(nhc) ? nhc : VB_LEGACY_URBAN_HPHC_HC_RESEAU_HT;
+        annual_virtual_discharge_cost_ht = round2(
+          discharged_hp_kwh * restitutionRateHt(achHp) + discharged_hc_kwh * restitutionRateHt(achHc)
+        );
       } else {
         annual_virtual_discharge_cost_ht = null;
         notes.push("HPHC Urban : ventilation HP/HC décharge absente ou incomplète — pas de coût déstockage calculé.");
@@ -303,20 +307,14 @@ export function computeVirtualBatteryP2Finance(input) {
       );
       annual_autoproducer_contribution_ht = VB_LEGACY_DEFAULT_AUTOPROD_CONTRIBUTION_EUR_PER_YEAR_HT;
       if (contractType === "BASE") {
-        const e = urbanBaseEnergyPriceHt(meterKva);
-        const g = urbanBaseGridFeeHt();
-        if (e == null) {
-          annual_virtual_discharge_cost_ht = null;
-          notes.push(
-            "Urban BASE : prix énergie déstockée TO_CONFIRM (palier kVA non résolu dans la grille 3–36 kVA alignée CRM)."
-          );
-        } else {
-          annual_virtual_discharge_cost_ht = round2(discharged * (e + g));
-        }
+        // FIX restitution Urban (PDF note 7) : déstockage = acheminement stockage virtuel + accise.
+        // Le prix énergie (urbanBaseEnergyPriceHt) est le tarif d'ACHAT réseau et n'entre PAS
+        // dans le coût de restitution de l'énergie déjà créditée.
+        annual_virtual_discharge_cost_ht = round2(discharged * restitutionRateHt(urbanBaseGridFeeHt()));
       } else if (hphc_allocation_status === "OK" && discharged_hp_kwh != null && discharged_hc_kwh != null) {
         annual_virtual_discharge_cost_ht = round2(
-          discharged_hp_kwh * VB_LEGACY_URBAN_HPHC_HP_DISCHARGE_SUM_HT +
-            discharged_hc_kwh * VB_LEGACY_URBAN_HPHC_HC_DISCHARGE_SUM_HT
+          discharged_hp_kwh * restitutionRateHt(VB_LEGACY_URBAN_HPHC_HP_RESEAU_HT) +
+            discharged_hc_kwh * restitutionRateHt(VB_LEGACY_URBAN_HPHC_HC_RESEAU_HT)
         );
       } else {
         annual_virtual_discharge_cost_ht = null;
@@ -333,25 +331,17 @@ export function computeVirtualBatteryP2Finance(input) {
           (Number(rowMb.abonnement_fixed_month) || 0) * 12
       );
       annual_autoproducer_contribution_ht = round2(Number(rowMb.contribution_eur_per_year) || 0);
+      // FIX restitution MyBattery : déstockage = acheminement + accise (PDF MyBattery).
+      // Les constantes legacy MyBattery encodent déjà acheminement+accise (≈0,079/0,080/0,066).
+      // On ne lit PAS restitution_energy/restitution_hp de la grille : ces champs contiennent le
+      // PRIX ÉNERGIE (0,16 €/kWh HP) et leur ajout au réseau double-comptait (bug grille).
       if (contractType === "BASE") {
-        const rate = vbBaseDischargeRatePerKwhFromRow(rowMb);
-        if (rate != null) {
-          annual_virtual_discharge_cost_ht = round2(discharged * rate);
-        } else {
-          annual_virtual_discharge_cost_ht = round2(discharged * VB_LEGACY_MYBATTERY_BASE_DISCHARGE_EUR_PER_KWH_HT);
-        }
+        annual_virtual_discharge_cost_ht = round2(discharged * VB_LEGACY_MYBATTERY_BASE_DISCHARGE_EUR_PER_KWH_HT);
       } else if (hphc_allocation_status === "OK" && discharged_hp_kwh != null && discharged_hc_kwh != null) {
-        const rates = vbHphcDischargeRatesFromRow(rowMb);
-        if (rates != null) {
-          annual_virtual_discharge_cost_ht = round2(
-            discharged_hp_kwh * rates.hp + discharged_hc_kwh * rates.hc
-          );
-        } else {
-          annual_virtual_discharge_cost_ht = round2(
-            discharged_hp_kwh * VB_LEGACY_MYBATTERY_HPHC_HP_DISCHARGE_EUR_PER_KWH_HT +
-              discharged_hc_kwh * VB_LEGACY_MYBATTERY_HPHC_HC_DISCHARGE_EUR_PER_KWH_HT
-          );
-        }
+        annual_virtual_discharge_cost_ht = round2(
+          discharged_hp_kwh * VB_LEGACY_MYBATTERY_HPHC_HP_DISCHARGE_EUR_PER_KWH_HT +
+            discharged_hc_kwh * VB_LEGACY_MYBATTERY_HPHC_HC_DISCHARGE_EUR_PER_KWH_HT
+        );
       } else {
         annual_virtual_discharge_cost_ht = null;
         notes.push("HPHC MyBattery : ventilation HP/HC décharge absente — pas de coût déstockage calculé.");
