@@ -270,9 +270,11 @@ export function computeVirtualBatteryP2Finance(input) {
     annual_activation_fee_ht = 0;
     const rowUrban = useGrid ? vbGetSegmentRow(grids, providerCode, contractType, meterKva) : null;
     if (rowUrban && rowUrban.enabled) {
+      // FIX abonnement : on ne compte QUE l'abonnement spécifique au stockage (1 €/kWc).
+      // La part fixe compteur (abonnement_fixed_month) REMPLACE l'abonnement EDF du client —
+      // il la paie dans tous les scénarios → ne pas la compter comme surcoût batterie virtuelle.
       annual_subscription_ht = round2(
-        installedKwc * (Number(rowUrban.abonnement_per_kwc_month) || 0) * 12 +
-          (Number(rowUrban.abonnement_fixed_month) || 0) * 12
+        installedKwc * (Number(rowUrban.abonnement_per_kwc_month) || 0) * 12
       );
       annual_autoproducer_contribution_ht = round2(Number(rowUrban.contribution_eur_per_year) || 0);
       if (contractType === "BASE") {
@@ -297,13 +299,10 @@ export function computeVirtualBatteryP2Finance(input) {
         notes.push("HPHC Urban : ventilation HP/HC décharge absente ou incomplète — pas de coût déstockage calculé.");
       }
     } else {
-      const fixedMonthlyHt =
-        contractType === "HPHC"
-          ? urbanHphcFixedSubscriptionMonthlyHt(meterKva)
-          : urbanBaseFixedSubscriptionMonthlyHt(meterKva);
+      // FIX abonnement : seulement l'abonnement stockage (1 €/kWc). La part fixe compteur
+      // remplace l'abonnement EDF (payée dans tous les cas) → exclue du coût batterie virtuelle.
       annual_subscription_ht = round2(
-        installedKwc * VIRTUAL_BATTERY_LEGACY_SUBSCRIPTION_EUR_PER_KWC_MONTH * 12 +
-          fixedMonthlyHt * 12
+        installedKwc * VIRTUAL_BATTERY_LEGACY_SUBSCRIPTION_EUR_PER_KWC_MONTH * 12
       );
       annual_autoproducer_contribution_ht = VB_LEGACY_DEFAULT_AUTOPROD_CONTRIBUTION_EUR_PER_YEAR_HT;
       if (contractType === "BASE") {
@@ -326,9 +325,10 @@ export function computeVirtualBatteryP2Finance(input) {
     annual_activation_fee_ht = VB_LEGACY_MYBATTERY_ACTIVATION_FEE_HT;
     const rowMb = useGrid ? vbGetSegmentRow(grids, providerCode, contractType, meterKva) : null;
     if (rowMb && rowMb.enabled) {
+      // FIX abonnement MyBattery : PDF = « Abonnement 1,20 € TTC/mois/kWc » uniquement.
+      // Pas de part fixe compteur à compter (mylight devient fournisseur, remplace l'abonnement EDF).
       annual_subscription_ht = round2(
-        installedKwc * (Number(rowMb.abonnement_per_kwc_month) || 0) * 12 +
-          (Number(rowMb.abonnement_fixed_month) || 0) * 12
+        installedKwc * (Number(rowMb.abonnement_per_kwc_month) || 0) * 12
       );
       annual_autoproducer_contribution_ht = round2(Number(rowMb.contribution_eur_per_year) || 0);
       // FIX restitution MyBattery : déstockage = acheminement + accise (PDF MyBattery).

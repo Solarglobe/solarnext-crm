@@ -539,12 +539,21 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
   if (configKeyUsed && process.env.NODE_ENV !== "production") {
     console.log("[solarnextPayloadBuilder] battery physical price source:", configKeyUsed);
   }
+  // TVA batterie physique = 20 % (confirmé). Convertit un prix HT (catalogue CRM =
+  // purchase_price_ht / battery_unit_price_ht) en TTC, pour l'additionner au CAPEX PV (TTC).
+  const BATTERY_VAT_RATE = 0.20;
   const pickPriceTtc = (cfg) => {
     if (!cfg || typeof cfg !== "object") return null;
+    // 1) Prix TTC explicite → utilisé tel quel (déjà un total).
     const v = cfg.price_ttc ?? cfg.priceTtc ?? cfg.total_ttc ?? cfg.totalTtc;
     if (v != null && Number.isFinite(Number(v))) return Number(v);
-    if (cfg.price != null && Number.isFinite(Number(cfg.price)))
-      return Number(cfg.price) * (Number(cfg.qty) ?? 1);
+    // 2) FIX CAPEX : prix stocké en HT (devis technique / catalogue) → conversion TTC (×1,20).
+    //    Avant, un prix batterie HT était additionné à un CAPEX PV TTC → CAPEX sous-estimé.
+    const ht = cfg.price_ht ?? cfg.priceHt ?? cfg.price;
+    if (ht != null && Number.isFinite(Number(ht))) {
+      const qty = Number.isFinite(Number(cfg.qty)) ? Number(cfg.qty) : 1;
+      return Number(ht) * qty * (1 + BATTERY_VAT_RATE);
+    }
     return null;
   };
   const batteryPhysicalPriceTtcRaw = pickPriceTtc(batteryPhysicalConfig);

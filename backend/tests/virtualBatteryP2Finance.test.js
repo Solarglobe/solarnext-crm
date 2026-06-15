@@ -53,10 +53,11 @@ function main() {
       tariffElectricityPerKwh: 0.2,
       oaRatePerKwh: 0.05,
     });
+    // FIX abonnement : seulement le stockage 1 €/kWc (la part fixe compteur remplace l'abo EDF, non comptée).
     assertApprox(
       r.virtual_battery_finance.annual_subscription_ht,
-      6 * 12 * 1.0 + 15.48 * 12,
-      "abo Urban BASE 9 kVA + stockage kWc"
+      6 * 12 * 1.0,
+      "abo Urban BASE = stockage kWc seul (sans part compteur)"
     );
     assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.6, "contribution");
     // FIX restitution Urban : déstockage = acheminement + accise (PDF note 7 + PDF MyBattery accise),
@@ -185,8 +186,8 @@ function main() {
     assert(r.virtual_battery_finance.annual_virtual_discharge_cost_ht === null, "pas de coût déstockage inventé");
     assertApprox(
       r.virtual_battery_finance.annual_subscription_ht,
-      5 * 12 * 1.0 + 15.48 * 12,
-      "abo Urban HPHC 9 kVA + stockage kWc"
+      5 * 12 * 1.0,
+      "abo Urban HPHC = stockage kWc seul (sans part compteur)"
     );
     console.log("✅ Test 4 HPHC sans ventilation");
   }
@@ -296,8 +297,8 @@ function main() {
     assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.6, "contrib legacy");
     assertApprox(
       r.virtual_battery_finance.annual_subscription_ht,
-      6 * 12 * 1.0 + 15.48 * 12,
-      "providers vides -> abo Urban BASE PDF"
+      6 * 12 * 1.0,
+      "providers vides -> abo stockage seul (sans part compteur)"
     );
     const expectedDischarge = 100 * (0.0484 + 0.02998);
     assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expectedDischarge, "déstockage legacy = acheminement + accise");
@@ -329,8 +330,8 @@ function main() {
     assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.6, "ligne absente → legacy");
     assertApprox(
       r.virtual_battery_finance.annual_subscription_ht,
-      6 * 12 * 1.0 + 15.48 * 12,
-      "ligne absente -> abo Urban BASE PDF"
+      6 * 12 * 1.0,
+      "ligne absente -> abo stockage seul (sans part compteur)"
     );
     assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, 50 * (0.0484 + 0.02998), "déstockage legacy = acheminement + accise");
     console.log("✅ Test 10 ligne kVA absente sous provider → legacy");
