@@ -120,6 +120,24 @@ export async function enqueueOutboundMail(p) {
 
   const ccList = parseAddressList(cc);
   const bccList = parseAddressList(bcc);
+
+  // Validation serveur des adresses destinataires (le front filtre déjà, mais on refuse aussi
+  // côté back : un envoi avec une adresse invalide est rejeté immédiatement, pas mis en file).
+  const extractEmail = (s) => {
+    const m = String(s).match(/<([^>]+)>/);
+    return (m ? m[1] : String(s)).trim();
+  };
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  for (const [field, list] of [["to", toList], ["cc", ccList], ["bcc", bccList]]) {
+    for (const addr of list) {
+      if (!EMAIL_RE.test(extractEmail(addr))) {
+        const err = new Error(`Adresse email invalide dans « ${field} » : ${addr}`);
+        err.code = SmtpErrorCodes.INVALID_CONFIG;
+        throw err;
+      }
+    }
+  }
+
   const attachmentRows = await buildAttachmentRows(attachments);
 
   const maxAttempts = (() => {
