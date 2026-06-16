@@ -467,17 +467,6 @@ export default function PdfPage10({
                 <li style={{ marginBottom: "0.55mm" }}>
                   Production annuelle estimée : <strong style={{ color: ink }}>{prodKwh != null ? `${fmtInt(prodKwh)} kWh` : "—"}</strong>
                 </li>
-                <li style={{ marginBottom: "0.55mm" }}>
-                  {safeAutoPct >= 50 ? (
-                    <>
-                      Plus de la moitié de votre consommation est couverte par votre installation solaire
-                    </>
-                  ) : (
-                    <>
-                      Vous couvrez environ <strong style={{ color: gold }}>{fmtPct(safeAutoPct)}</strong> de vos besoins avec votre installation solaire
-                    </>
-                  )}
-                </li>
                 <li>
                   {safeAutoAu >= 50 ? (
                     <>Plus de la moitié de votre consommation est couverte par votre installation solaire</>

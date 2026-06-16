@@ -734,7 +734,13 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p2_lcoe: lcoeVal != null ? `${lcoeVal.toFixed(3).replace(".", ",")} €/kWh` : "—",
     p2_prime: formatCurrency0(primeAmount),
     p2_reste_charge: formatCurrency0(resteACharge),
-    p2_production: annualKwh > 0 ? `${Math.round(annualKwh).toLocaleString("fr-FR")} kWh` : "—",
+    // Production page 2 = production du scénario sélectionné (celle des cartes, ~9114 kWh),
+    // et non annualKwh qui peut provenir d'un champ "production.annual_kwh" légèrement différent
+    // (gross/théorique ~9161) → harmonisation : même chiffre partout.
+    p2_production: (() => {
+      const p2Prod = num(selectedScenario?.energy?.production_kwh) ?? num(energy?.production_kwh) ?? annualKwh;
+      return p2Prod > 0 ? `${Math.round(p2Prod).toLocaleString("fr-FR")} kWh` : "—";
+    })(),
   };
 
   // ── P_SHADING — Analyse d'ombrage ─────────────────────────────────────────
