@@ -388,6 +388,8 @@ export interface SendMailPayload {
   references?: string[] | null;
   attachments?: SendMailAttachmentPayload[];
   fromName?: string | null;
+  /** Clé d'idempotence (uuid) : évite les doublons d'envoi (double-clic / retry réseau). */
+  idempotencyKey?: string | null;
 }
 
 export interface SendMailResponse {
@@ -415,6 +417,7 @@ export async function sendMail(payload: SendMailPayload): Promise<SendMailRespon
       references: payload.references?.length ? payload.references : undefined,
       attachments: payload.attachments,
       fromName: payload.fromName,
+      idempotency_key: payload.idempotencyKey ?? undefined,
     }),
   });
   const text = await res.text();

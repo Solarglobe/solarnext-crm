@@ -51,8 +51,11 @@ export async function enqueueOutboundMail(p) {
     attachments,
     fromName,
     max_attempts: maxAttemptsRaw,
+    idempotency_key: idempotencyKeyRaw,
+    idempotencyKey: idempotencyKeyAlt,
   } = body || {};
 
+  const idempotencyKey = (idempotencyKeyRaw || idempotencyKeyAlt || "").toString().trim() || null;
   const mailAccountId = mailAccountIdRaw || mailAccountIdAlt;
   if (!mailAccountId || typeof mailAccountId !== "string") {
     const err = new Error("mail_account_id requis");
@@ -83,6 +86,27 @@ export async function enqueueOutboundMail(p) {
       const err = new Error("Envoi refusé pour ce compte");
       err.code = "MAIL_SEND_DENIED";
       throw err;
+    }
+  }
+
+  // Idempotence : si un envoi avec la même clé existe déjà pour l'org, on renvoie ce job
+  // au lieu d'en créer un second (double-clic / retry réseau / réémission après réponse perdue).
+  if (idempotencyKey) {
+    const existing = await pool.query(
+      `SELECT id, status, mail_message_id, mail_thread_id
+         FROM mail_outbox WHERE organization_id = $1 AND idempotency_key = $2 LIMIT 1`,
+      [organizationId, idempotencyKey]
+    );
+    if (existing.rows.length > 0) {
+      const r = existing.rows[0];
+      return {
+        success: true,
+        outboxId: r.id,
+        messageId: r.mail_message_id ?? null,
+        threadId: r.mail_thread_id ?? null,
+        status: r.status,
+        idempotent: true,
+      };
     }
   }
 
@@ -150,13 +174,15 @@ export async function enqueueOutboundMail(p) {
         organization_id, mail_account_id, created_by, mail_message_id, mail_thread_id,
         to_json, cc_json, bcc_json, subject, body_html, body_text, from_name,
         in_reply_to, reply_to, references_json, tracking_enabled,
-        status, attempt_count, max_attempts, next_attempt_at
+        status, attempt_count, max_attempts, next_attempt_at, idempotency_key
       ) VALUES (
         $1, $2, $3, $4, $5,
         $6::jsonb, $7::jsonb, $8::jsonb, $9, $10, $11, $12,
         $13, $14, $15::jsonb, $16,
-        'queued', 0, $17, now()
+        'queued', 0, $17, now(), $18
       )
+      ON CONFLICT (organization_id, idempotency_key) WHERE idempotency_key IS NOT NULL
+        DO NOTHING
       RETURNING id, status`,
       [
         organizationId,
@@ -176,8 +202,29 @@ export async function enqueueOutboundMail(p) {
         refs?.length ? JSON.stringify(refs) : null,
         trackingEnabled,
         maxAttempts,
+        idempotencyKey,
       ]
     );
+
+    // Course : un envoi concurrent a déjà pris la clé d'idempotence. On annule la création
+    // (message/thread de cette transaction) et on renvoie le job existant — pas de doublon.
+    if (ins.rows.length === 0) {
+      await client.query("ROLLBACK");
+      const existing = await pool.query(
+        `SELECT id, status, mail_message_id, mail_thread_id
+           FROM mail_outbox WHERE organization_id = $1 AND idempotency_key = $2 LIMIT 1`,
+        [organizationId, idempotencyKey]
+      );
+      const r = existing.rows[0] || {};
+      return {
+        success: true,
+        outboxId: r.id ?? null,
+        messageId: r.mail_message_id ?? null,
+        threadId: r.mail_thread_id ?? null,
+        status: r.status ?? "queued",
+        idempotent: true,
+      };
+    }
 
     await client.query("COMMIT");
 

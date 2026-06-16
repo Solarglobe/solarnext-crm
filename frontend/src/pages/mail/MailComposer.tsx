@@ -424,6 +424,9 @@ export const MailComposer = React.memo(function MailComposer({
   const serverDraftIdRef = useRef<string | null>(initialDraft?.id ?? null);
   const latestHtmlRef = useRef<string>(initialDraft?.body_html ?? "");
   const sentRef = useRef(false);
+  // Clé d'idempotence : générée une fois par tentative d'envoi, réutilisée si l'utilisateur
+  // réessaie après une erreur (le back dédoublonne), remise à zéro après un envoi réussi.
+  const idempotencyKeyRef = useRef<string | null>(null);
   const draftSaveChainRef = useRef<Promise<void>>(Promise.resolve());
   const composerValuesRef = useRef({ to: "", cc: "", bcc: "", subject: "", fromAccountId: "" });
 
@@ -1028,6 +1031,7 @@ export const MailComposer = React.memo(function MailComposer({
     }
 
     const meta = replyMetaRef.current;
+    if (!idempotencyKeyRef.current) idempotencyKeyRef.current = createEditorInstanceId();
     const payload = {
       mailAccountId: fromAccountId,
       to: toList,
@@ -1040,12 +1044,14 @@ export const MailComposer = React.memo(function MailComposer({
       inReplyTo: mode === "reply" || mode === "replyAll" ? meta.inReplyTo ?? undefined : undefined,
       references:
         (mode === "reply" || mode === "replyAll") && meta.references.length ? meta.references : undefined,
+      idempotencyKey: idempotencyKeyRef.current,
     };
 
     setSending(true);
     try {
       const res = await sendMail(payload);
       sentRef.current = true;
+      idempotencyKeyRef.current = null; // envoi abouti → la prochaine tentative aura une nouvelle clé
       if (serverDraftIdRef.current) {
         const draftId = serverDraftIdRef.current;
         serverDraftIdRef.current = null;
