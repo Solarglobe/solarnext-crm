@@ -1710,7 +1710,7 @@ export function useLeadDetail() {
       const accounts = await fetchMailAccounts();
       if (accounts.length > 0) {
         navigate("/mail", {
-          state: { mailComposePrefill: { crmLeadId: leadId, composePresentation: "overlay" } },
+          state: { mailComposePrefill: { to: addr, crmLeadId: leadId, composePresentation: "overlay" } },
         });
       } else { window.location.href = `mailto:${encodeURIComponent(addr)}`; }
     } catch { window.location.href = `mailto:${encodeURIComponent(addr)}`; }
