@@ -30,6 +30,10 @@ const row = {
   cycle_life: 6000,
   chemistry: "LFP",
   nominal_voltage_v: 48,
+  scalable: true,
+  max_modules: 3,
+  max_system_charge_kw: 10.5,
+  max_system_discharge_kw: 10.5,
 };
 
 function main() {
@@ -45,6 +49,10 @@ function main() {
   assert(m.roundtrip_efficiency_pct === 92, "roundtrip_efficiency_pct");
   assert(m.brand === "ACME", "brand");
   assert(m.model_ref === "BAT-10", "model_ref");
+  assert(m.scalable === true, "scalable from catalogue");
+  assert(m.max_modules === 3, "max_modules from catalogue");
+  assert(m.max_system_charge_kw === 10.5, "max_system_charge_kw from catalogue");
+  assert(m.max_system_discharge_kw === 10.5, "max_system_discharge_kw from catalogue");
 
   const noop = mergeBatteryInputWithCatalogRow(base, null);
   assert(noop.capacity_kwh === 7, "sans ligne catalogue = inchangé");
