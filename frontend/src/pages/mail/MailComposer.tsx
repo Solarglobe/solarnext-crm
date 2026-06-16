@@ -695,8 +695,8 @@ export const MailComposer = React.memo(function MailComposer({
       try {
         const res = await apiFetch(`${mailApiRoot()}/api/leads/${encodeURIComponent(lid.trim())}`);
         if (!res.ok || cancelled) return;
-        const lead = (await res.json()) as { email?: string | null };
-        const em = typeof lead.email === "string" ? lead.email.trim() : "";
+        const j = (await res.json()) as { lead?: { email?: string | null } | null; email?: string | null };
+        const em = (j?.lead?.email ?? j?.email ?? "").toString().trim();
         if (em) {
           setTo((prev) => (prev.trim() ? prev : em));
         }
