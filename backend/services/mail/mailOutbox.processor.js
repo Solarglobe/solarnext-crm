@@ -21,6 +21,9 @@ import logger from "../../app/core/logger.js";
 
 const BATCH = Math.min(Math.max(Number(process.env.MAIL_OUTBOX_BATCH) || 8, 1), 32);
 
+/** Délai au-delà duquel un job resté en 'sending' est considéré comme bloqué (worker interrompu). */
+const STUCK_SENDING_MINUTES = Math.min(Math.max(Number(process.env.MAIL_OUTBOX_STUCK_MINUTES) || 10, 2), 120);
+
 /**
  * @param {import('pg').PoolClient} client
  * @param {number} limit
@@ -320,6 +323,75 @@ async function handleOutboxDeliveryFailure(job, err) {
     },
     msg.slice(0, 500)
   );
+}
+
+/**
+ * Reaper : récupère les jobs restés bloqués en 'sending' (worker arrêté/planté en plein envoi).
+ * Sans lui, ces jobs ne sont JAMAIS repris (claimOutboxJobs ne prend que queued/retrying).
+ * Transition atomique (race-safe : WHERE status='sending'), l'attempt interrompu est compté
+ * pour éviter une boucle infinie ; au-delà de max_attempts → 'failed', sinon 'retrying'.
+ * @param {number} [maxMinutes]
+ */
+export async function reapStuckSendingJobs(maxMinutes = STUCK_SENDING_MINUTES) {
+  const reaped = await pool.query(
+    `UPDATE mail_outbox SET
+        status = CASE WHEN attempt_count + 1 >= max_attempts
+                      THEN 'failed'::mail_outbox_status
+                      ELSE 'retrying'::mail_outbox_status END,
+        attempt_count = attempt_count + 1,
+        last_error = 'Job bloqué en envoi (worker interrompu) — repris automatiquement',
+        next_attempt_at = now(),
+        updated_at = now()
+      WHERE status = 'sending'
+        AND last_attempt_at < now() - ($1 * interval '1 minute')
+      RETURNING id, status, organization_id, mail_message_id, mail_thread_id`,
+    [maxMinutes]
+  );
+  if (reaped.rows.length === 0) return { reaped: 0 };
+
+  // Aligne le statut du message CRM (file vs échec) — best-effort, par job.
+  for (const row of reaped.rows) {
+    if (!row.mail_thread_id) continue;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (row.status === "failed") {
+        await markOutboundMessageFailedInTransaction(client, {
+          organizationId: String(row.organization_id),
+          messageId: String(row.mail_message_id),
+          threadId: String(row.mail_thread_id),
+          failureCode: "WORKER_INTERRUPTED",
+          failureReason: "Envoi interrompu (worker arrêté pendant l'envoi)",
+          providerResponse: null,
+        });
+      } else {
+        await markOutboundMessageQueuedInTransaction(client, {
+          organizationId: String(row.organization_id),
+          messageId: String(row.mail_message_id),
+          threadId: String(row.mail_thread_id),
+        });
+      }
+      await client.query("COMMIT");
+    } catch (e) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        /* ignore */
+      }
+      logger.error(
+        { evt: "MAIL_OUTBOX_REAP_MSG_ERR", outboxId: row.id },
+        e instanceof Error ? e.message : String(e)
+      );
+    } finally {
+      client.release();
+    }
+  }
+
+  logger.warn(
+    { evt: "MAIL_OUTBOX_REAPED", count: reaped.rows.length, maxMinutes },
+    "Jobs d'envoi bloqués en 'sending' repris"
+  );
+  return { reaped: reaped.rows.length };
 }
 
 /**
