@@ -689,7 +689,18 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   //                        garantit la cohérence : eco_Y = sans_Y - avec_Y pour chaque jalon
   //   • économie NETTE  = economieTotal (après capex)  → bénéfice réel de l'investissement
   //                        stockée dans p2_economie_nette pour usage séparé si besoin
-  const gridCostWithSolar = Math.round(factureRestante * horizonYearsPdf);
+  // FIX cohérence projection 25 ans : la "facture avec solaire" doit inclure TOUS les coûts annuels
+  // du scénario, pas seulement l'achat réseau. Pour la batterie virtuelle/hybride, ajouter le coût
+  // de service (abonnement stockage + contribution + restitution/déstockage), sinon la facture avec
+  // solaire est sous-estimée (≈212 €/an au lieu de ≈767 €/an) → gains gonflés.
+  const vbAnnualServiceCostTtc = numOrZero(
+    financeActive.virtual_battery_finance?.annual_total_virtual_cost_ttc ??
+      finance.virtual_battery_finance?.annual_total_virtual_cost_ttc ??
+      financeActive._virtualBatteryQuote?.annual_cost_ttc ??
+      finance._virtualBatteryQuote?.annual_cost_ttc
+  );
+  const annualBillWithSolar = factureRestante + vbAnnualServiceCostTtc;
+  const gridCostWithSolar = Math.round(annualBillWithSolar * horizonYearsPdf);
   const gridCostWithoutSolar = Math.round(economieTotal + gridCostWithSolar + capex);
   // Économie brute = différence pure de factures électricité (sans investissement)
   const economieGross = gridCostWithoutSolar - gridCostWithSolar;
@@ -1152,7 +1163,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       selfConsumptionRate: pvSelfConsumptionPct,
       autonomyRate: autonomyPct,
       annualElectricityBillBefore: null,
-      annualElectricityBillAfter: num(financeActive.facture_restante ?? finance.facture_restante),
+      // Facture annuelle après solaire = facture complète (achat réseau + coûts batterie virtuelle),
+      // cohérente avec la projection 25 ans et le détail restitution/abonnement. annualBillWithSolar
+      // = factureRestante + coût service VB (0 si pas de batterie virtuelle).
+      annualElectricityBillAfter: annualBillWithSolar > 0 ? Math.round(annualBillWithSolar) : num(financeActive.facture_restante ?? finance.facture_restante),
       residual_bill_virtual_breakdown:
         finance.residual_bill_virtual_breakdown ??
         buildResidualBillVirtualVmFromScenario(selectedScenario),

@@ -45,7 +45,9 @@ export default function PdfPage3({ data }: { data?: P3Data }) {
           <tr><td>TVA matériel</td><td>{num(offer.tva_materiel_eur).toLocaleString("fr-FR")} €</td></tr>
           <tr><td>TVA pose</td><td>{num(offer.tva_pose_eur).toLocaleString("fr-FR")} €</td></tr>
           <tr><td><strong>Total TTC</strong></td><td><strong>{num(offer.total_ttc).toLocaleString("fr-FR")} €</strong></td></tr>
-          <tr><td>Prime</td><td>{num(offer.prime).toLocaleString("fr-FR")} €</td></tr>
+          {num(offer.prime) > 0 ? (
+            <tr><td>Prime</td><td>{num(offer.prime).toLocaleString("fr-FR")} €</td></tr>
+          ) : null}
           <tr><td><strong>Reste à charge</strong></td><td><strong>{num(offer.reste).toLocaleString("fr-FR")} €</strong></td></tr>
         </tbody>
       </table>

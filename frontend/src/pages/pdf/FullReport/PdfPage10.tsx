@@ -98,7 +98,7 @@ export default function PdfPage10({ data }: { data?: P10Data }) {
           {num(data.hyp.horizon_years) != null ? (
             <div className="pdf-value">Horizon : {num(data.hyp.horizon_years)} ans</div>
           ) : null}
-          {num(data.hyp.prime_autoconso_eur) != null ? (
+          {(num(data.hyp.prime_autoconso_eur) ?? 0) > 0 ? (
             <div className="pdf-value">
               Prime autoconsommation (affichage) : {num(data.hyp.prime_autoconso_eur)?.toLocaleString("fr-FR")} €
             </div>

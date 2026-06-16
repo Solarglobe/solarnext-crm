@@ -779,34 +779,7 @@ export default function PdfPage2({
               alignItems: "center",
             }}
           >
-            <div
-              style={{ flex: 1, whiteSpace: "nowrap" as const, overflow: "hidden" }}
-            >
-              <span
-                className="p2-label"
-                style={{
-                  fontSize: "2.75mm",
-                  color: "#777",
-                  marginRight: "0.85mm",
-                  fontWeight: 600,
-                }}
-              >
-                Aide État
-              </span>
-              <span style={{ color: "#666", fontWeight: 500 }}>Prime</span>
-              <span
-                id="p2_prime"
-                style={{
-                  marginLeft: "0.85mm",
-                  fontWeight: 800,
-                  fontSize: "3.45mm",
-                  color: "#1a1a1a",
-                  letterSpacing: "-0.02em",
-                }}
-              >
-                —
-              </span>
-            </div>
+            {/* Bloc "Aide État / Prime" retiré : plus de prime à l'autoconsommation. */}
             <div
               style={{ flex: 1, whiteSpace: "nowrap" as const, overflow: "hidden" }}
             >
