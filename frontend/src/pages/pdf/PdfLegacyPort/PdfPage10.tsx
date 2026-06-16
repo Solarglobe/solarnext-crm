@@ -94,7 +94,6 @@ export default function PdfPage10({
   const gains25 = best.gains_25_eur as number | undefined;
   const nbPanels = best.nb_panels as number | undefined;
   const prodKwh = best.annual_production_kwh as number | undefined;
-  const safeAutoPct = (best.autoprod_pct as number | undefined) ?? 0;
   const safeAutoAu = (best.autonomy_pct as number | undefined) ?? 0;
 
   const roiBarPct = clamp01((MAX.ROI - (roi ?? MAX.ROI)) / MAX.ROI) * 100;
