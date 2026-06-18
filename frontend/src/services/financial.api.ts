@@ -464,20 +464,35 @@ export async function postFinalizeQuoteSigned(
   return res.json();
 }
 
-/** OTP signature : envoi du code email au client (présentiel). */
+/** OTP signature : envoi du code au client (présentiel), par email ou SMS. */
 export async function postRequestQuoteSignatureOtp(
-  quoteId: string
-): Promise<{ sent: boolean; emailMasked?: string; ttlMinutes?: number; reason?: string }> {
+  quoteId: string,
+  channel: "email" | "sms" = "email"
+): Promise<{
+  sent: boolean;
+  channel?: "email" | "sms";
+  destinationMasked?: string;
+  emailMasked?: string;
+  ttlMinutes?: number;
+  reason?: string;
+}> {
   const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(quoteId)}/signature-otp/request`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
+    body: JSON.stringify({ channel }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error((data as { error?: string }).error || `Erreur ${res.status}`);
   }
-  return data as { sent: boolean; emailMasked?: string; ttlMinutes?: number; reason?: string };
+  return data as {
+    sent: boolean;
+    channel?: "email" | "sms";
+    destinationMasked?: string;
+    emailMasked?: string;
+    ttlMinutes?: number;
+    reason?: string;
+  };
 }
 
 /** OTP signature : vérification du code saisi par le client. */

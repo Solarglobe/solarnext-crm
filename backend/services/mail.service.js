@@ -150,13 +150,13 @@ export async function sendNewSessionAlertEmail({ to, location, device }) {
 }
 
 /**
- * OTP signature devis — code 6 chiffres envoyé au client avant signature (preuve d'identification).
+ * OTP signature devis — contenu de l'email (sujet/texte/html), réutilisable quel que soit
+ * le transport (SMTP système ou boîte mail CRM de l'organisation).
  */
-export async function sendQuoteSignatureOtpEmail({ to, code, quoteNumber, issuerName }) {
+export function buildQuoteSignatureOtpEmailContent({ code, quoteNumber, issuerName }) {
   const ref = quoteNumber ? ` n° ${quoteNumber}` : "";
   const issuer = issuerName || "votre installateur";
-  return sendSystemMail({
-    to,
+  return {
     subject: `Code de signature du devis${ref} : ${code}`,
     text: `Votre code de signature pour le devis${ref} (${issuer}) est : ${code}. Il est valable 10 minutes. Communiquez-le uniquement au conseiller present avec vous. Si vous n'etes pas en train de signer un devis, ignorez cet email.`,
     html: shellHtml(`
@@ -165,7 +165,14 @@ export async function sendQuoteSignatureOtpEmail({ to, code, quoteNumber, issuer
       <p style="margin:0 0 8px">Ce code est valable <strong>10 minutes</strong>. Saisissez-le sur l'écran de signature présenté par votre conseiller.</p>
       <p style="margin:0;color:#64748b;font-size:13px">Si vous n'êtes pas en train de signer un devis, ignorez cet email.</p>
     `),
-  });
+  };
+}
+
+/**
+ * OTP signature devis — code 6 chiffres envoyé via le SMTP système (repli).
+ */
+export async function sendQuoteSignatureOtpEmail({ to, code, quoteNumber, issuerName }) {
+  return sendSystemMail({ to, ...buildQuoteSignatureOtpEmailContent({ code, quoteNumber, issuerName }) });
 }
 
 /**

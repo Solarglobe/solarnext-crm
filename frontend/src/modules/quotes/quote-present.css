@@ -353,6 +353,34 @@
   color: #e2b35c;
   opacity: 1;
 }
+.qp-otp-channel {
+  display: inline-flex;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 4px;
+  border: 1px solid rgba(195, 152, 71, 0.35);
+  border-radius: 10px;
+}
+.qp-otp-channel-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.75;
+}
+.qp-otp-channel-opt input {
+  accent-color: #c39847;
+  margin: 0;
+}
+.qp-otp-channel-opt--on {
+  background: rgba(195, 152, 71, 0.18);
+  opacity: 1;
+  font-weight: 600;
+}
 
 /* --- Checklist ordonnée des étapes de signature --- */
 .qp-steps {

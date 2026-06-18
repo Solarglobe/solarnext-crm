@@ -145,8 +145,14 @@ export async function appendSignatureCertificatePage(pdfBuffer, ev) {
 
   section("Signataire (client)");
   kv("Nom", ev.signerName);
-  kv("Email vérifié (OTP)", ev.otp?.email ?? "—");
-  kv("Vérification OTP", ev.otp ? `Code à usage unique envoyé par email, validé le ${ev.otp.verifiedAtLabel}` : "Non réalisée");
+  const otpChannelLabel = ev.otp?.channel === "sms" ? "SMS" : "Email";
+  kv(`${otpChannelLabel} vérifié (OTP)`, ev.otp?.destination ?? ev.otp?.email ?? "—");
+  kv(
+    "Vérification OTP",
+    ev.otp
+      ? `Code à usage unique envoyé par ${ev.otp.channel === "sms" ? "SMS" : "email"}, validé le ${ev.otp.verifiedAtLabel}`
+      : "Non réalisée"
+  );
   kv("Lieu de signature", ev.signaturePlace);
   y -= 8;
 

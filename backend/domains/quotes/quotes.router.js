@@ -216,7 +216,9 @@ router.post(
   heavyUserRateLimiter,
   async (req, res) => {
     try {
-      const data = await requestQuoteSignatureOtp(req.params.id, orgId(req), userId(req), {});
+      const data = await requestQuoteSignatureOtp(req.params.id, orgId(req), userId(req), {
+        channel: req.body?.channel === "sms" ? "sms" : "email",
+      });
       res.json(data);
     } catch (e) {
       res.status(e.statusCode || 500).json({ error: e.message });

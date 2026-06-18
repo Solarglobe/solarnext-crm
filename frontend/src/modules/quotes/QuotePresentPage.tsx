@@ -65,7 +65,8 @@ export default function QuotePresentPage() {
   const [cgvScrolledEndAt, setCgvScrolledEndAt] = useState<string | null>(null);
   const [cgvAccepted, setCgvAccepted] = useState(false);
   const [otpStatus, setOtpStatus] = useState<"idle" | "sent" | "verified" | "unavailable">("idle");
-  const [otpEmailMasked, setOtpEmailMasked] = useState<string | null>(null);
+  const [otpChannel, setOtpChannel] = useState<"email" | "sms">("email");
+  const [otpDestMasked, setOtpDestMasked] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState("");
   const [otpBusy, setOtpBusy] = useState(false);
   const [otpMsg, setOtpMsg] = useState<string | null>(null);
@@ -147,7 +148,7 @@ export default function QuotePresentPage() {
     setOtpStatus("idle");
     setOtpCode("");
     setOtpMsg(null);
-    setOtpEmailMasked(null);
+    setOtpDestMasked(null);
     setSignaturePlace("");
     let cancelled = false;
     void (async () => {
@@ -440,8 +441,12 @@ export default function QuotePresentPage() {
   const cgvOk = !cgvInfo || (cgvAccepted && cgvScrolledEndAt != null);
   const otpOk = otpStatus === "verified" || otpStatus === "unavailable";
 
-  /** Email client destinataire du code de vérification (affiché avant envoi). */
-  const clientEmail = String(((payload?.recipient || {}) as Record<string, unknown>).email ?? "").trim();
+  /** Coordonnées client destinataires du code de vérification (affichées avant envoi). */
+  const clientRecipient = (payload?.recipient || {}) as Record<string, unknown>;
+  const clientEmail = String(clientRecipient.email ?? "").trim();
+  const clientPhone = String(
+    clientRecipient.phone_mobile ?? clientRecipient.phone ?? clientRecipient.phone_landline ?? ""
+  ).trim();
 
   const canUseSignaturePads = !isFinalizeLocked && docMode !== null;
   /**
@@ -471,23 +476,41 @@ export default function QuotePresentPage() {
     if (!id) return;
     setOtpBusy(true);
     setOtpMsg(null);
+    const viaSms = otpChannel === "sms";
     try {
-      const r = await postRequestQuoteSignatureOtp(id);
+      const r = await postRequestQuoteSignatureOtp(id, otpChannel);
+      const masked = r.destinationMasked ?? r.emailMasked ?? null;
       if (r.sent) {
         setOtpStatus("sent");
-        setOtpEmailMasked(r.emailMasked ?? null);
-        setOtpMsg(`Code envoyé à ${r.emailMasked ?? "l'email du client"} — valable ${r.ttlMinutes ?? 10} minutes.`);
+        setOtpDestMasked(masked);
+        setOtpMsg(
+          `Code envoyé ${viaSms ? "par SMS au" : "par email à"} ${masked ?? (viaSms ? "numéro du client" : "l'email du client")} — valable ${r.ttlMinutes ?? 10} minutes.`
+        );
       } else {
         setOtpStatus("unavailable");
-        setOtpMsg("Aucun email client sur ce dossier — vérification par code impossible (elle sera consignée comme telle).");
+        setOtpMsg(
+          viaSms
+            ? "Aucun mobile client sur ce dossier — vérification par SMS impossible (elle sera consignée comme telle)."
+            : "Aucun email client sur ce dossier — vérification par email impossible (elle sera consignée comme telle)."
+        );
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Envoi du code impossible.";
-      if (msg.includes("SMTP")) setOtpStatus("unavailable");
+      if (/SMTP|SMS|boîte mail|configur/i.test(msg)) setOtpStatus("unavailable");
       setOtpMsg(msg);
     } finally {
       setOtpBusy(false);
     }
+  };
+
+  /** Changer de canal réinitialise l'OTP en cours (re-envoi nécessaire sur le nouveau canal). */
+  const onChangeOtpChannel = (next: "email" | "sms") => {
+    if (next === otpChannel) return;
+    setOtpChannel(next);
+    setOtpStatus("idle");
+    setOtpCode("");
+    setOtpMsg(null);
+    setOtpDestMasked(null);
   };
 
   const onVerifyOtp = async () => {
@@ -522,7 +545,7 @@ export default function QuotePresentPage() {
       return;
     }
     if (!otpOk) {
-      window.alert("Vérification d'identité requise : envoyez le code email au client et validez-le.");
+      window.alert("Vérification d'identité requise : envoyez le code (email ou SMS) au client et validez-le.");
       return;
     }
     setFinalizeBusy(true);
@@ -697,10 +720,10 @@ export default function QuotePresentPage() {
               <span className="qp-step__label">
                 Identité du signataire{" "}
                 {otpStatus === "verified"
-                  ? "✓ vérifiée (code email)"
+                  ? `✓ vérifiée (code ${otpChannel === "sms" ? "SMS" : "email"})`
                   : otpStatus === "unavailable"
-                    ? "— email indisponible (consignée comme telle)"
-                    : "— code email à valider"}
+                    ? "— canal indisponible (consignée comme telle)"
+                    : `— code ${otpChannel === "sms" ? "SMS" : "email"} à valider`}
               </span>
             </li>
             <li
@@ -835,31 +858,70 @@ export default function QuotePresentPage() {
         <section className="qp-otp-gate qp-no-print" aria-labelledby="qp-otp-title">
           <h3 id="qp-otp-title">Étape 3 — Vérification d&apos;identité du signataire</h3>
           <p className="qp-otp-hint">
-            Dernière étape avant signature : un code à 6 chiffres est envoyé au client par email. Une fois validé,
-            les cadres de signature se déverrouillent sur le devis ci-dessus.
+            Dernière étape avant signature : un code à 6 chiffres est envoyé au client (email ou SMS). Une fois
+            validé, les cadres de signature se déverrouillent sur le devis ci-dessus.
           </p>
           {otpStatus === "verified" ? (
             <p className="qp-sign-ok">
-              Identité vérifiée par code email{otpEmailMasked ? ` (${otpEmailMasked})` : ""}.
+              Identité vérifiée par {otpChannel === "sms" ? "SMS" : "email"}
+              {otpDestMasked ? ` (${otpDestMasked})` : ""}.
             </p>
           ) : (
             <>
-              <p className={`qp-otp-dest${clientEmail ? "" : " qp-otp-dest--missing"}`}>
-                {clientEmail ? (
-                  <>
-                    Le code sera envoyé à : <strong>{clientEmail}</strong>. Si cette adresse n&apos;est pas la bonne,
-                    corrigez l&apos;email sur la fiche du dossier client avant l&apos;envoi.
-                  </>
-                ) : (
-                  <>
-                    ⚠ Aucun email enregistré sur ce dossier : la vérification par code est impossible (elle sera
-                    consignée comme « non vérifiée »). Ajoutez l&apos;email du client sur sa fiche pour l&apos;activer.
-                  </>
-                )}
-              </p>
+              <div className="qp-otp-channel" role="radiogroup" aria-label="Canal d'envoi du code">
+                <label className={`qp-otp-channel-opt${otpChannel === "email" ? " qp-otp-channel-opt--on" : ""}`}>
+                  <input
+                    type="radio"
+                    name="otp-channel"
+                    checked={otpChannel === "email"}
+                    onChange={() => onChangeOtpChannel("email")}
+                  />
+                  <span>Email</span>
+                </label>
+                <label className={`qp-otp-channel-opt${otpChannel === "sms" ? " qp-otp-channel-opt--on" : ""}`}>
+                  <input
+                    type="radio"
+                    name="otp-channel"
+                    checked={otpChannel === "sms"}
+                    onChange={() => onChangeOtpChannel("sms")}
+                  />
+                  <span>SMS</span>
+                </label>
+              </div>
+              {otpChannel === "sms" ? (
+                <p className={`qp-otp-dest${clientPhone ? "" : " qp-otp-dest--missing"}`}>
+                  {clientPhone ? (
+                    <>
+                      Le code sera envoyé par SMS au : <strong>{clientPhone}</strong>. Si ce numéro n&apos;est pas le
+                      bon, corrigez le mobile sur la fiche du dossier client avant l&apos;envoi.
+                    </>
+                  ) : (
+                    <>
+                      ⚠ Aucun mobile visible sur ce dossier. L&apos;envoi tentera le numéro enregistré côté fiche
+                      client s&apos;il existe ; sinon ajoutez le mobile (ou choisissez le canal email).
+                    </>
+                  )}
+                </p>
+              ) : (
+                <p className={`qp-otp-dest${clientEmail ? "" : " qp-otp-dest--missing"}`}>
+                  {clientEmail ? (
+                    <>
+                      Le code sera envoyé par email à : <strong>{clientEmail}</strong>. Si cette adresse n&apos;est
+                      pas la bonne, corrigez l&apos;email sur la fiche du dossier client avant l&apos;envoi.
+                    </>
+                  ) : (
+                    <>
+                      ⚠ Aucun email enregistré sur ce dossier : la vérification par email est impossible. Ajoutez
+                      l&apos;email du client sur sa fiche, ou choisissez le canal SMS.
+                    </>
+                  )}
+                </p>
+              )}
               <div className="qp-otp-row">
                 <Button type="button" variant="outlineGold" size="sm" disabled={otpBusy} onClick={() => void onSendOtp()}>
-                  {otpStatus === "sent" ? "Renvoyer le code" : "Envoyer le code par email au client"}
+                  {otpStatus === "sent"
+                    ? "Renvoyer le code"
+                    : `Envoyer le code par ${otpChannel === "sms" ? "SMS" : "email"} au client`}
                 </Button>
               {otpStatus === "sent" ? (
                 <>
