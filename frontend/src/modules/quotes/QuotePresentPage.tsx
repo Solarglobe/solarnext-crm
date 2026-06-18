@@ -440,7 +440,16 @@ export default function QuotePresentPage() {
   const cgvOk = !cgvInfo || (cgvAccepted && cgvScrolledEndAt != null);
   const otpOk = otpStatus === "verified" || otpStatus === "unavailable";
 
+  /** Email client destinataire du code de vérification (affiché avant envoi). */
+  const clientEmail = String(((payload?.recipient || {}) as Record<string, unknown>).email ?? "").trim();
+
   const canUseSignaturePads = !isFinalizeLocked && docMode !== null;
+  /**
+   * Ordre imposé : on ne peut signer qu'après « Bon pour accord » (1), CGV acceptées (2)
+   * et identité vérifiée par code email (3). Les pads de signature restent verrouillés sinon.
+   */
+  const signaturePrereqsDone = clientReadApproved && cgvOk && otpOk;
+  const signaturesUnlocked = canUseSignaturePads && signaturePrereqsDone;
   /** PDF signé : une seule action serveur (figement si besoin + PDF + accepté). */
   const canFinalizeSigned =
     !isFinalizeLocked && docMode !== null && bothSignedLocal && clientReadApproved && cgvOk && otpOk && !finalizeBusy;
@@ -668,25 +677,48 @@ export default function QuotePresentPage() {
             Devis signé — PDF officiel avec signatures enregistré dans le dossier.
           </span>
         ) : (
-          <>
-            <span className={sigClient ? "qp-sign-ok" : "qp-sign-missing"}>
-              Signature client : {sigClient ? "OK" : "manquante"}
-            </span>
-            <span className={sigCompany ? "qp-sign-ok" : "qp-sign-missing"}>
-              Signature entreprise : {sigCompany ? "OK" : "manquante"}
-            </span>
-            <span className={clientReadApproved ? "qp-sign-ok" : "qp-sign-missing"}>
-              Lu et approuvé : {clientReadApproved ? "oui" : "à cocher sur le document"}
-            </span>
-            {cgvInfo ? (
-              <span className={cgvOk ? "qp-sign-ok" : "qp-sign-missing"}>
-                CGV : {cgvOk ? "lues et acceptées" : "à faire défiler et accepter"}
+          <ol className="qp-steps" aria-label="Étapes de signature à suivre dans l'ordre">
+            <li className={`qp-step${clientReadApproved ? " qp-step--done" : ""}`}>
+              <span className="qp-step__n">1</span>
+              <span className="qp-step__label">
+                Bon pour accord {clientReadApproved ? "✓" : "— à cocher sur le devis"}
               </span>
+            </li>
+            {cgvInfo ? (
+              <li className={`qp-step${cgvOk ? " qp-step--done" : ""}`}>
+                <span className="qp-step__n">2</span>
+                <span className="qp-step__label">
+                  CGV lues et acceptées {cgvOk ? "✓" : "— à faire défiler et accepter"}
+                </span>
+              </li>
             ) : null}
-            <span className={otpOk ? "qp-sign-ok" : "qp-sign-missing"}>
-              Code email : {otpStatus === "verified" ? "vérifié" : otpStatus === "unavailable" ? "indisponible" : "à valider"}
-            </span>
-          </>
+            <li className={`qp-step${otpOk ? " qp-step--done" : ""}`}>
+              <span className="qp-step__n">{cgvInfo ? 3 : 2}</span>
+              <span className="qp-step__label">
+                Identité du signataire{" "}
+                {otpStatus === "verified"
+                  ? "✓ vérifiée (code email)"
+                  : otpStatus === "unavailable"
+                    ? "— email indisponible (consignée comme telle)"
+                    : "— code email à valider"}
+              </span>
+            </li>
+            <li
+              className={`qp-step${
+                bothSignedLocal ? " qp-step--done" : signaturesUnlocked ? " qp-step--ready" : " qp-step--locked"
+              }`}
+            >
+              <span className="qp-step__n">{cgvInfo ? 4 : 3}</span>
+              <span className="qp-step__label">
+                Signatures{" "}
+                {bothSignedLocal
+                  ? "✓ (client + entreprise)"
+                  : signaturesUnlocked
+                    ? "— déverrouillées, à apposer sur le devis"
+                    : "🔒 disponibles après les étapes précédentes"}
+              </span>
+            </li>
+          </ol>
         )}
       </div>
 
@@ -730,7 +762,12 @@ export default function QuotePresentPage() {
           brandColor={brandColor}
           logoSrc={logoBlobUrl}
           issuerFallbackName={issuerFallbackName}
-          interactiveSignatures={canUseSignaturePads}
+          interactiveSignatures={signaturesUnlocked}
+          signatureLockedHint={
+            canUseSignaturePads && !signaturesUnlocked
+              ? "🔒 Disponible après les étapes 1 à 3 ci-dessous (Bon pour accord, CGV, vérification d'identité)"
+              : null
+          }
           signatureClientImage={displaySigClient}
           signatureCompanyImage={displaySigCompany}
           onSignatureClientClick={() => openSignaturePad("client")}
@@ -742,7 +779,7 @@ export default function QuotePresentPage() {
 
       {cgvInfo && !isFinalizeLocked ? (
         <section className="qp-cgv-gate qp-no-print" aria-labelledby="qp-cgv-title">
-          <h3 id="qp-cgv-title">Conditions Générales de Vente</h3>
+          <h3 id="qp-cgv-title">Étape 2 — Conditions Générales de Vente</h3>
           <p className="qp-cgv-hint">
             À faire lire au client avant signature : faites défiler le document jusqu&apos;en bas pour débloquer la case
             d&apos;acceptation.
@@ -796,16 +833,34 @@ export default function QuotePresentPage() {
 
       {!isFinalizeLocked && docMode !== null ? (
         <section className="qp-otp-gate qp-no-print" aria-labelledby="qp-otp-title">
-          <h3 id="qp-otp-title">Vérification d&apos;identité du signataire</h3>
+          <h3 id="qp-otp-title">Étape 3 — Vérification d&apos;identité du signataire</h3>
+          <p className="qp-otp-hint">
+            Dernière étape avant signature : un code à 6 chiffres est envoyé au client par email. Une fois validé,
+            les cadres de signature se déverrouillent sur le devis ci-dessus.
+          </p>
           {otpStatus === "verified" ? (
             <p className="qp-sign-ok">
               Identité vérifiée par code email{otpEmailMasked ? ` (${otpEmailMasked})` : ""}.
             </p>
           ) : (
-            <div className="qp-otp-row">
-              <Button type="button" variant="outlineGold" size="sm" disabled={otpBusy} onClick={() => void onSendOtp()}>
-                {otpStatus === "sent" ? "Renvoyer le code" : "Envoyer le code par email au client"}
-              </Button>
+            <>
+              <p className={`qp-otp-dest${clientEmail ? "" : " qp-otp-dest--missing"}`}>
+                {clientEmail ? (
+                  <>
+                    Le code sera envoyé à : <strong>{clientEmail}</strong>. Si cette adresse n&apos;est pas la bonne,
+                    corrigez l&apos;email sur la fiche du dossier client avant l&apos;envoi.
+                  </>
+                ) : (
+                  <>
+                    ⚠ Aucun email enregistré sur ce dossier : la vérification par code est impossible (elle sera
+                    consignée comme « non vérifiée »). Ajoutez l&apos;email du client sur sa fiche pour l&apos;activer.
+                  </>
+                )}
+              </p>
+              <div className="qp-otp-row">
+                <Button type="button" variant="outlineGold" size="sm" disabled={otpBusy} onClick={() => void onSendOtp()}>
+                  {otpStatus === "sent" ? "Renvoyer le code" : "Envoyer le code par email au client"}
+                </Button>
               {otpStatus === "sent" ? (
                 <>
                   <input
@@ -827,7 +882,8 @@ export default function QuotePresentPage() {
                   </Button>
                 </>
               ) : null}
-            </div>
+              </div>
+            </>
           )}
           {otpMsg ? <p className="qp-otp-msg">{otpMsg}</p> : null}
           <label className="qp-place-label">

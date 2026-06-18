@@ -333,3 +333,73 @@
   color: inherit;
   font-size: 13px;
 }
+
+/* --- Étape 3 : info verification identité --- */
+.qp-otp-hint {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  opacity: 0.8;
+}
+.qp-otp-dest {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+.qp-otp-dest strong {
+  color: #e2b35c;
+}
+.qp-otp-dest--missing {
+  color: #e2b35c;
+  opacity: 1;
+}
+
+/* --- Checklist ordonnée des étapes de signature --- */
+.qp-steps {
+  flex: 1 1 100%;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+.qp-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  opacity: 0.8;
+}
+.qp-step__n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(195, 152, 71, 0.6);
+  font-size: 0.72rem;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+.qp-step--done {
+  opacity: 1;
+  color: var(--sn-success, #2e7d32);
+}
+.qp-step--done .qp-step__n {
+  border-color: var(--sn-success, #2e7d32);
+  background: var(--sn-success, #2e7d32);
+  color: #fff;
+}
+.qp-step--ready {
+  opacity: 1;
+  color: #e2b35c;
+}
+.qp-step--ready .qp-step__n {
+  border-color: #e2b35c;
+  color: #e2b35c;
+}
+.qp-step--locked {
+  opacity: 0.6;
+}

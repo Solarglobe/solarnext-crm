@@ -1,5 +1,6 @@
 /**
  * Rendu devis unique — PDF Playwright + page Présenter (même DOM / CSS, A4).
+ * Signatures interactives : verrouillées tant que prérequis (accord + CGV + identité) non remplis.
  */
 
 import React from "react";
@@ -51,6 +52,8 @@ export interface QuoteDocumentViewProps {
   onSignatureCompanyImageError?: () => void;
   onSignatureClientClick?: () => void;
   onSignatureCompanyClick?: () => void;
+  /** Présenter : message affiché dans le cadre quand la signature est verrouillée (prérequis non remplis). */
+  signatureLockedHint?: string | null;
   /** Case « lu et approuvé » — Présenter : contrôlée par le parent ; PDF : affichage seul */
   clientReadApproved?: boolean;
   onClientReadApprovedChange?: (checked: boolean) => void;
@@ -139,6 +142,7 @@ export function QuoteDocumentView({
   onSignatureCompanyImageError,
   onSignatureClientClick,
   onSignatureCompanyClick,
+  signatureLockedHint = null,
   clientReadApproved = false,
   onClientReadApprovedChange,
   pdfRootId = "financial-quote-pdf-root",
@@ -490,7 +494,7 @@ export function QuoteDocumentView({
                       onImageLoad={onSignatureClientImageLoad}
                       onImageError={onSignatureClientImageError}
                       onClick={onSignatureClientClick}
-                      emptyHint={interactiveSignatures ? "Cliquer pour ouvrir la signature" : " "}
+                      emptyHint={interactiveSignatures ? "Cliquer pour ouvrir la signature" : (signatureLockedHint ?? " ")}
                       openPadAriaLabel="Ouvrir la zone de signature agrandie — signature client"
                       readAckLine={clientSigAckLine}
                     />
@@ -501,7 +505,7 @@ export function QuoteDocumentView({
                       onImageLoad={onSignatureCompanyImageLoad}
                       onImageError={onSignatureCompanyImageError}
                       onClick={onSignatureCompanyClick}
-                      emptyHint={interactiveSignatures ? "Cliquer pour ouvrir la signature" : " "}
+                      emptyHint={interactiveSignatures ? "Cliquer pour ouvrir la signature" : (signatureLockedHint ?? " ")}
                       openPadAriaLabel="Ouvrir la zone de signature agrandie — signature entreprise"
                       readAckLine={companySigAckLine}
                     />
@@ -518,7 +522,6 @@ export function QuoteDocumentView({
             </div>
           </div>
         </section>
-      </div>
 
 
       <section className="fq-consumer-legal" aria-label="Informations légales consommateur">
@@ -570,6 +573,7 @@ export function QuoteDocumentView({
       </section>
 
       <PdfCgvSection legalCgv={payload.legal_cgv} />
+      </div>
 
       {variant === "pdf" ? (
         <div id="pdf-ready" data-status={pdfReadyMarker ? "ready" : "pending"} aria-hidden="true" />
