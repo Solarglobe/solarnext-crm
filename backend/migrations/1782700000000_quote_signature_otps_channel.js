@@ -1,7 +1,9 @@
 /**
- * OTP signature devis — multi-canal (email | sms).
- * Ajoute le canal d'envoi et une destination générique (email OU téléphone),
- * tout en conservant la colonne `email` historique (back-compat / NOT NULL).
+ * OTP signature devis - multi-canal (email | sms).
+ *
+ * Ajoute le canal d'envoi et une destination generique (email OU telephone),
+ * tout en conservant la colonne `email` historique pour compatibilite avec
+ * les lignes existantes.
  */
 
 export const shorthands = undefined;
@@ -13,21 +15,32 @@ export const up = (pgm) => {
       ADD COLUMN IF NOT EXISTS channel text NOT NULL DEFAULT 'email',
       ADD COLUMN IF NOT EXISTS destination text;
   `);
-  // Backfill : les lignes existantes sont des envois email.
+
   pgm.sql(`
     UPDATE quote_signature_otps
-      SET destination = email
-      WHERE destination IS NULL;
+       SET destination = email
+     WHERE destination IS NULL;
   `);
-  // L'email historique n'est plus obligatoire (un SMS n'a pas d'email).
+
   pgm.sql(`
     ALTER TABLE quote_signature_otps
       ALTER COLUMN email DROP NOT NULL;
   `);
+
   pgm.sql(`
-    ALTER TABLE quote_signature_otps
-      ADD CONSTRAINT quote_signature_otps_channel_chk
-      CHECK (channel IN ('email', 'sms'));
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conname = 'quote_signature_otps_channel_chk'
+           AND conrelid = 'quote_signature_otps'::regclass
+      ) THEN
+        ALTER TABLE quote_signature_otps
+          ADD CONSTRAINT quote_signature_otps_channel_chk
+          CHECK (channel IN ('email', 'sms'));
+      END IF;
+    END $$;
   `);
 };
 
