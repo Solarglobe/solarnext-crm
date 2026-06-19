@@ -459,6 +459,17 @@ html.theme-light .mail-composer-att__row {
   color: #9ca3af;
 }
 
+.mail-composer-att__total {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: #9ca3af;
+}
+
+.mail-composer-att__total--over {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .mail-composer-att__rm {
   border: none;
   background: transparent;

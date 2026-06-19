@@ -29,6 +29,8 @@ export interface MailComposerAttachmentsProps {
   onAdd: (files: File[]) => void;
   onRemove: (id: string) => void;
   disabled?: boolean;
+  /** Seuil (octets) au-delà duquel l'envoi sera refusé — affiche un avertissement visible. */
+  maxTotalBytes?: number;
 }
 
 export const MailComposerAttachments = React.memo(function MailComposerAttachments({
@@ -36,8 +38,11 @@ export const MailComposerAttachments = React.memo(function MailComposerAttachmen
   onAdd,
   onRemove,
   disabled,
+  maxTotalBytes,
 }: MailComposerAttachmentsProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const totalBytes = items.reduce((sum, it) => sum + (it.file?.size || 0), 0);
+  const overLimit = maxTotalBytes != null && totalBytes > maxTotalBytes;
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,6 +85,18 @@ export const MailComposerAttachments = React.memo(function MailComposerAttachmen
             </li>
           ))}
         </ul>
+      )}
+      {items.length > 0 && (
+        <p
+          className={`mail-composer-att__total${overLimit ? " mail-composer-att__total--over" : ""}`}
+          aria-live="polite"
+        >
+          Total : {formatSize(totalBytes)}
+          {maxTotalBytes != null ? ` / ${formatSize(maxTotalBytes)} max` : ""}
+          {overLimit
+            ? " — trop volumineux, l'envoi sera refusé. Compressez les fichiers ou envoyez un lien."
+            : ""}
+        </p>
       )}
     </div>
   );

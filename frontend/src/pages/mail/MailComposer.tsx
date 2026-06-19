@@ -110,6 +110,14 @@ const MAIL_DRAFT_SCHEMA_V3 = 3;
 const DRAFT_MAX_RESTORE_AGE_MS = 24 * 60 * 60 * 1000;
 const DRAFT_STALE_PURGE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Garde-fou pièces jointes : au-delà, les serveurs de messagerie (et le proxy) refusent l'envoi.
+ * On bloque AVANT l'envoi avec un message clair, plutôt que de laisser l'envoi échouer en silence
+ * et retomber en brouillon. 20 Mo bruts ≈ ~27 Mo encodés (base64 +33 %), proche du plafond usuel.
+ */
+const MAX_TOTAL_ATTACHMENT_MB = 20;
+const MAX_TOTAL_ATTACHMENT_BYTES = MAX_TOTAL_ATTACHMENT_MB * 1024 * 1024;
+
 type MailComposerDraftV1 = {
   v: typeof MAIL_DRAFT_SCHEMA_V1;
   to: string;
@@ -1009,6 +1017,18 @@ export const MailComposer = React.memo(function MailComposer({
       setError(v);
       return;
     }
+    // Garde-fou taille des pièces jointes : on bloque avant l'envoi (sinon échec silencieux → brouillon).
+    const totalAttachmentBytes = attachments.reduce((sum, a) => sum + (a.file?.size || 0), 0);
+    if (totalAttachmentBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+      const mb = (totalAttachmentBytes / (1024 * 1024)).toFixed(1);
+      setError(
+        `Pièces jointes trop volumineuses : ${mb} Mo (maximum ${MAX_TOTAL_ATTACHMENT_MB} Mo). ` +
+          `Les serveurs de messagerie refusent les e-mails trop lourds : compressez les PDF, ` +
+          `n'en joignez qu'un, ou envoyez un lien de téléchargement.`
+      );
+      return;
+    }
+
     const htmlRaw = mailBodyRef.current?.getHTML() || "";
     const bodyHtml = sanitizeComposerHtml(htmlRaw);
     const bodyText = htmlToPlainText(htmlRaw);
@@ -1303,7 +1323,13 @@ export const MailComposer = React.memo(function MailComposer({
         onBlur={() => persistDraftNow()}
       />
 
-      <MailComposerAttachments items={attachments} onAdd={addFiles} onRemove={removeFile} disabled={sending} />
+      <MailComposerAttachments
+        items={attachments}
+        onAdd={addFiles}
+        onRemove={removeFile}
+        disabled={sending}
+        maxTotalBytes={MAX_TOTAL_ATTACHMENT_BYTES}
+      />
 
       {error && <div className="mail-composer__err">{error}</div>}
       <div className="mail-composer__footer">
