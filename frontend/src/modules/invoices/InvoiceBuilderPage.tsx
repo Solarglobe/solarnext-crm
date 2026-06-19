@@ -958,6 +958,7 @@ export default function InvoiceBuilderPage() {
               paymentTerms={state.meta.payment_terms}
               issueDate={state.header.issue_date}
               dueDate={state.header.due_date}
+              invoiceTotalTtc={displayTtc}
               onChange={(field, value) => {
                 if (field === "notes") dispatch({ type: "SET_META", payload: { notes: value } });
                 else if (field === "payment_terms") dispatch({ type: "SET_META", payload: { payment_terms: value } });
