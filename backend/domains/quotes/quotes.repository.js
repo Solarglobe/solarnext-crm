@@ -1701,8 +1701,6 @@ export async function getOfficialQuotePdf(quoteId, organizationId, userId, inten
 
   if (intent === "lead_document") {
     let pdfBuffer;
-  let bodySha256 = null;
-  let finalPdfSha256 = null;
     let reusedSigned = false;
     let reusedUnsigned = false;
     let sourceTag = "regenerated";
@@ -2261,6 +2259,8 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
   const renderToken = createFinancialQuoteRenderToken(quoteId, organizationId);
   const rendererUrl = buildFinancialQuoteRendererUrl(quoteId, renderToken, { quoteSigned: true });
   let pdfBuffer;
+  let bodySha256 = null;
+  let finalPdfSha256 = null;
   try {
     pdfBuffer = await generatePdfFromFinancialQuoteUrl(rendererUrl);
     /* PDF devis signé (QUOTE) : même annexes légales que le devis non signé. */

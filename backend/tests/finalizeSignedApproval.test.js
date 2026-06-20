@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import {
   assertFinalizeSignedClientReadApproval,
   assertSignaturePadReadAcceptance,
+  finalizeQuoteSigned,
 } from "../routes/quotes/service.js";
 
 test("assertFinalizeSignedClientReadApproval : absent → 400", () => {
@@ -41,4 +42,12 @@ test("assertSignaturePadReadAcceptance : absent → 400", () => {
 
 test("assertSignaturePadReadAcceptance : accepted true OK", () => {
   assert.doesNotThrow(() => assertSignaturePadReadAcceptance({ accepted: true }, "Signature client"));
+});
+
+test("finalizeQuoteSigned declare les empreintes PDF dans sa propre portee", () => {
+  const source = finalizeQuoteSigned.toString();
+  assert.match(source, /let bodySha256\s*=\s*null/);
+  assert.match(source, /let finalPdfSha256\s*=\s*null/);
+  assert.ok(source.indexOf("let bodySha256") < source.indexOf("bodySha256 = sha256Hex"));
+  assert.ok(source.indexOf("let finalPdfSha256") < source.indexOf("finalPdfSha256 = sha256Hex"));
 });
