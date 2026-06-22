@@ -17567,6 +17567,11 @@ async function captureDP2Map() {
       return;
     }
 
+    if (!state.module || !state.module.panel_id) {
+      alert("Veuillez sélectionner le module photovoltaïque (marque et modèle) avant de générer la DP3.");
+      return;
+    }
+
     const dp3Data = {
       client: buildPdfClientFromDP1Context(),
       typeKey: state.typeKey ?? null,
