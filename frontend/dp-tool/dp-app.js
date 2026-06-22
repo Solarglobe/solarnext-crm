@@ -5271,8 +5271,179 @@ function dpReconcilePanelModel(model, cache) {
   return null;
 }
 
-function dpPopulatePvPanelSelectOptions(selectEl, selectedPanelId) {
+/** Texte indexé pour la recherche d'un module (marque, modèle, puissance). */
+function dpPvSearchableText(row) {
+  if (!row) return "";
+  const pw = Number(row.power_wc);
+  return `${String(row.brand || "")} ${String(row.model_ref || "")} ${Number.isFinite(pw) ? Math.round(pw) : ""}`
+    .toLowerCase();
+}
+
+/** Marques distinctes (triées) présentes dans le catalogue chargé. */
+function dpPvDistinctBrands() {
+  const rows = (window.DP_PV_PANELS_CACHE && window.DP_PV_PANELS_CACHE.rows) || [];
+  const set = new Set();
+  for (const r of rows) {
+    const b = String(r && r.brand ? r.brand : "").trim();
+    if (b) set.add(b);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, "fr"));
+}
+
+/** Carte cliquable d'un module : vignette photo + marque/modèle + puissance/dimensions. */
+function dpBuildPanelCard(selectEl, row, selected) {
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "dp-pv-card";
+  card.style.cssText =
+    "display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:6px 8px;border:1px solid " +
+    (selected ? "#2563eb" : "#e5e7eb") +
+    ";background:" +
+    (selected ? "#eff6ff" : "#fff") +
+    ";border-radius:6px;cursor:pointer;";
+
+  const thumb = document.createElement("div");
+  thumb.style.cssText =
+    "flex:0 0 auto;width:44px;height:44px;border-radius:4px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#9ca3af;font-size:11px;";
+  const url = String(row && row.image_url ? row.image_url : "").trim();
+  if (url) {
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = "";
+    img.loading = "lazy";
+    img.style.cssText = "max-width:100%;max-height:100%;object-fit:contain;";
+    img.onerror = () => {
+      thumb.textContent = "—";
+    };
+    thumb.appendChild(img);
+  } else {
+    thumb.textContent = "—";
+  }
+
+  const txt = document.createElement("div");
+  txt.style.cssText = "min-width:0;flex:1 1 auto;";
+  const pw = Number(row.power_wc);
+  const title = document.createElement("div");
+  title.style.cssText =
+    "font-size:13px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+  title.textContent = `${String(row.brand || "").trim()} ${String(row.model_ref || "").trim()}`.trim() || "Module";
+  const sub = document.createElement("div");
+  sub.style.cssText = "font-size:12px;color:#6b7280;";
+  const dims = row.width_mm && row.height_mm ? `  ·  ${row.width_mm}×${row.height_mm} mm` : "";
+  sub.textContent = (Number.isFinite(pw) ? Math.round(pw) + " Wc" : "") + dims;
+  txt.appendChild(title);
+  txt.appendChild(sub);
+
+  card.appendChild(thumb);
+  card.appendChild(txt);
+
+  card.addEventListener("click", () => {
+    selectEl.__dpPvSelectedId = String(row.id);
+    selectEl.value = String(row.id);
+    selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+    dpRenderPanelPickerList(selectEl);
+  });
+  return card;
+}
+
+/** (Re)remplit le menu marque + la liste à vignettes selon les filtres et la sélection courante. */
+function dpRenderPanelPickerList(selectEl) {
+  const pk = selectEl && selectEl.__dpPicker;
+  if (!pk) return;
+  const rows = (window.DP_PV_PANELS_CACHE && window.DP_PV_PANELS_CACHE.rows) || [];
+
+  const curBrand = pk.brandSel.value || "";
+  const brands = dpPvDistinctBrands();
+  pk.brandSel.textContent = "";
+  const ob = document.createElement("option");
+  ob.value = "";
+  ob.textContent = "Toutes les marques";
+  pk.brandSel.appendChild(ob);
+  for (const b of brands) {
+    const o = document.createElement("option");
+    o.value = b;
+    o.textContent = b;
+    pk.brandSel.appendChild(o);
+  }
+  pk.brandSel.value = brands.includes(curBrand) ? curBrand : "";
+
+  const brandFilter = pk.brandSel.value;
+  const terms = String(pk.search.value || "").toLowerCase().split(/\s+/).filter(Boolean);
+  const selectedId = selectEl.value || selectEl.__dpPvSelectedId || "";
+
+  pk.list.textContent = "";
+  let shown = 0;
+  for (const row of rows) {
+    if (!dpPvRowToPanelModel(row)) continue;
+    if (brandFilter && String(row.brand || "").trim() !== brandFilter) continue;
+    if (terms.length && !terms.every((t) => dpPvSearchableText(row).includes(t))) continue;
+    pk.list.appendChild(dpBuildPanelCard(selectEl, row, String(row.id) === selectedId));
+    shown++;
+  }
+  if (shown === 0) {
+    const empty = document.createElement("div");
+    empty.style.cssText = "padding:10px;color:#6b7280;font-size:13px;";
+    empty.textContent = "Aucun module ne correspond.";
+    pk.list.appendChild(empty);
+  }
+}
+
+/** Construit (une seule fois) le picker enrichi (filtre marque + recherche + liste vignettes). Le <select> natif reste caché et sert de source de valeur. */
+function dpAttachPanelPicker(selectEl) {
+  if (!selectEl) return null;
+  if (selectEl.dataset.dpPvPickerBound === "1") return selectEl.__dpPicker || null;
+  selectEl.style.display = "none";
+
+  const wrap = document.createElement("div");
+  wrap.className = "dp-pv-picker";
+  wrap.style.cssText = "border:1px solid #cbd2dc;border-radius:8px;padding:8px;background:#fff;";
+
+  const controls = document.createElement("div");
+  controls.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;";
+
+  const brandSel = document.createElement("select");
+  brandSel.className = "dp-pv-picker-brand";
+  brandSel.style.cssText =
+    "flex:0 0 auto;min-width:150px;padding:7px 10px;font-size:13px;border:1px solid #cbd2dc;border-radius:6px;";
+
+  const search = document.createElement("input");
+  search.type = "search";
+  search.className = "dp-pv-picker-search";
+  search.placeholder = "Rechercher (modèle, puissance)…";
+  search.autocomplete = "off";
+  search.style.cssText =
+    "flex:1 1 160px;min-width:140px;box-sizing:border-box;padding:7px 10px;font-size:13px;border:1px solid #cbd2dc;border-radius:6px;";
+
+  controls.appendChild(brandSel);
+  controls.appendChild(search);
+
+  const list = document.createElement("div");
+  list.className = "dp-pv-picker-list";
+  list.style.cssText = "max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:6px;";
+
+  wrap.appendChild(controls);
+  wrap.appendChild(list);
+  if (selectEl.parentNode) selectEl.parentNode.insertBefore(wrap, selectEl);
+
+  selectEl.dataset.dpPvPickerBound = "1";
+  selectEl.__dpPicker = { wrap, brandSel, search, list };
+
+  const rerender = () => dpRenderPanelPickerList(selectEl);
+  brandSel.addEventListener("change", rerender);
+  search.addEventListener("input", rerender);
+
+  return selectEl.__dpPicker;
+}
+
+function dpPopulatePvPanelSelectOptions(selectEl, selectedPanelId, _filterTextArg) {
   if (!selectEl) return;
+  dpAttachPanelPicker(selectEl);
+  const want =
+    selectedPanelId != null && String(selectedPanelId) !== ""
+      ? String(selectedPanelId)
+      : selectEl.__dpPvSelectedId || "";
+  selectEl.__dpPvSelectedId = want;
+  /** Le <select> natif (caché) conserve TOUTES les options : source de valeur + compatibilité change. */
   const rows = (window.DP_PV_PANELS_CACHE && window.DP_PV_PANELS_CACHE.rows) || [];
   selectEl.textContent = "";
   const opt0 = document.createElement("option");
@@ -5280,19 +5451,14 @@ function dpPopulatePvPanelSelectOptions(selectEl, selectedPanelId) {
   opt0.textContent = "— Sélectionner un module —";
   selectEl.appendChild(opt0);
   for (const row of rows) {
-    const m = dpPvRowToPanelModel(row);
-    if (!m) continue;
+    if (!dpPvRowToPanelModel(row)) continue;
     const o = document.createElement("option");
     o.value = String(row.id);
     o.textContent = dpPvFormatSelectLabel(row);
     selectEl.appendChild(o);
   }
-  const want = selectedPanelId != null && String(selectedPanelId) !== "" ? String(selectedPanelId) : "";
-  if (want && [...selectEl.options].some((op) => op.value === want)) {
-    selectEl.value = want;
-  } else {
-    selectEl.value = "";
-  }
+  selectEl.value = want && [...selectEl.options].some((op) => op.value === want) ? want : "";
+  dpRenderPanelPickerList(selectEl);
 }
 
 function dpModelFromPanelSelectValue(value) {

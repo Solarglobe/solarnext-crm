@@ -9,7 +9,6 @@ import {
   buildRecipientLines,
   formatDateFrLong,
   formatEurLeading,
-  formatEurUnknown,
   formatTvaRowLabelFromTotals,
   formatTodayFrNumeric,
   quoteValidityHintFr,
@@ -215,6 +214,23 @@ export function QuoteDocumentView({
     Boolean(payload.notes?.trim());
 
   const hasPaymentBlock = Boolean(payload.deposit_display) || Boolean(payload.payment_terms?.trim());
+  /**
+   * Échéancier SolarGlobe — calculé UNIQUEMENT sur le total SolarGlobe TTC (section A = payload.totals.total_ttc),
+   * jamais sur le coût global indicatif (section C). Affichage uniquement ; aucun calcul de total modifié.
+   * Acompte : repris du dépôt figé (déjà calculé sur la section A) s'il existe, sinon 50 % par défaut.
+   */
+  const sgTtcPay = Number(totals.total_ttc) || 0;
+  const ddPay = payload.deposit_display;
+  const acompteTtcPay =
+    ddPay && ddPay.amount_ttc != null ? Number(ddPay.amount_ttc) : Math.round(sgTtcPay * 0.5 * 100) / 100;
+  const acomptePctPay =
+    ddPay && String(ddPay.mode || "").toUpperCase() === "PERCENT" && ddPay.percent != null
+      ? Number(ddPay.percent)
+      : sgTtcPay > 0
+        ? Math.round((acompteTtcPay / sgTtcPay) * 100)
+        : 50;
+  const soldePctPay = Math.max(0, 100 - acomptePctPay);
+  const soldeTtcPay = Math.round((sgTtcPay - acompteTtcPay) * 100) / 100;
   const totalDiscountFromLines = solarglobeLines.reduce((sum, row) => {
     const kind = String(row.line_kind ?? "").trim().toUpperCase();
     if (kind !== "DOCUMENT_DISCOUNT") return sum;
@@ -544,28 +560,40 @@ export function QuoteDocumentView({
             ) : null}
 
             <div className="fq-payment-sign-flow">
-              {hasPaymentBlock ? (
+              {hasPaymentBlock || sgTtcPay > 0 ? (
                 <section className="fq-payment-section" aria-labelledby="fq-pay-title">
                   <h3 id="fq-pay-title" className="fq-erp-gold-heading">
                     Modalités de paiement
                   </h3>
                   <div className="fq-payment-body">
-                    {payload.deposit_display ? (
-                      <div className="fq-deposit">
-                        {String(payload.deposit_display.mode || "").toUpperCase() === "PERCENT" ? (
-                          <p>
-                            Acompte : {Number(payload.deposit_display.percent ?? 0).toLocaleString("fr-FR")} % du TTC
-                            {payload.deposit_display.amount_ttc != null ? (
-                              <> (soit {formatEurUnknown(payload.deposit_display.amount_ttc)} TTC)</>
-                            ) : null}
-                          </p>
-                        ) : (
-                          <p>Acompte : {formatEurUnknown(payload.deposit_display.amount_ttc)} TTC</p>
-                        )}
-                        {payload.deposit_display.note ? (
-                          <p className="fq-deposit-note">{payload.deposit_display.note}</p>
-                        ) : null}
+                    {sgTtcPay > 0 ? (
+                      <div className="fq-echeancier-solarglobe">
+                        <p style={{ fontWeight: 700, margin: "0 0 4px" }}>Échéancier de paiement SolarGlobe</p>
+                        <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>
+                          <li>
+                            {acomptePctPay} % du montant SolarGlobe TTC à la signature du devis / à la commande
+                            {acompteTtcPay > 0 ? <> — soit {formatEurLeading(acompteTtcPay)} TTC</> : null}, encaissé
+                            après expiration du délai légal applicable aux contrats conclus hors établissement.
+                          </li>
+                          <li>
+                            {soldePctPay} % du montant SolarGlobe TTC restant dû après validation du Consuel
+                            {soldeTtcPay > 0 ? <> — soit {formatEurLeading(soldeTtcPay)} TTC</> : null}.
+                          </li>
+                        </ul>
                       </div>
+                    ) : null}
+                    {hasInstaller ? (
+                      <div className="fq-echeancier-pose">
+                        <p style={{ fontWeight: 700, margin: "6px 0 4px" }}>Paiement de la pose</p>
+                        <p style={{ margin: 0 }}>
+                          La prestation de pose est réglée à 100 % directement par le Client à l’installateur RGE
+                          indépendant après installation, selon les modalités prévues dans le devis séparé de
+                          l’installateur. SolarGlobe n’encaisse aucune somme au titre de la pose.
+                        </p>
+                      </div>
+                    ) : null}
+                    {payload.deposit_display?.note ? (
+                      <p className="fq-deposit-note">{String(payload.deposit_display.note)}</p>
                     ) : null}
                     {payload.payment_terms ? <p>{payload.payment_terms}</p> : null}
                   </div>
