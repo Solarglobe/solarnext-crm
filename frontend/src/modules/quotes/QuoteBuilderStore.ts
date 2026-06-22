@@ -4,6 +4,7 @@ import type {
   QuoteBuilderMeta,
   QuoteLineSource,
   QuoteLineType,
+  QuoteBillingParty,
 } from "./quote.types";
 import { discountPercentFromHt, grossHtFromLine } from "./quoteCalc";
 import { parseDepositFromMeta } from "./quoteDeposit";
@@ -156,6 +157,19 @@ function lineKindFromSnapshot(row: Record<string, unknown>): string | null {
   }
 }
 
+/** Lit billing_party depuis la colonne API, sinon le snapshot ; défaut SOLARGLOBE (non rétroactif). */
+function billingPartyFromRow(row: Record<string, unknown>): QuoteBillingParty {
+  if (String(row.billing_party ?? "").trim().toUpperCase() === "INSTALLER_RGE") return "INSTALLER_RGE";
+  try {
+    const raw = row.snapshot_json;
+    const snap = typeof raw === "string" ? (JSON.parse(raw) as Record<string, unknown>) : (raw as Record<string, unknown>);
+    if (String(snap?.billing_party ?? "").trim().toUpperCase() === "INSTALLER_RGE") return "INSTALLER_RGE";
+  } catch {
+    /* ignore */
+  }
+  return "SOLARGLOBE";
+}
+
 export function mapApiItemsToLines(rows: Record<string, unknown>[]): QuoteLine[] {
   return rows.map((row, i) => {
     const gross = grossHtFromLine({
@@ -184,6 +198,7 @@ export function mapApiItemsToLines(rows: Record<string, unknown>[]): QuoteLine[]
       line_discount_percent: discountPercentFromHt(gross, discHt),
       position: Number(row.position) || i + 1,
       line_kind: lineKindFromSnapshot(row),
+      billing_party: billingPartyFromRow(row),
       ...(purchase_unit_price_ht_cents !== undefined ? { purchase_unit_price_ht_cents } : {}),
     };
     return line;
@@ -210,6 +225,7 @@ export function linesToSaveItems(lines: QuoteLine[]) {
         discount_ht,
         line_source,
         catalog_item_id: l.type === "catalog" ? l.catalog_item_id ?? undefined : undefined,
+        billing_party: l.billing_party === "INSTALLER_RGE" ? "INSTALLER_RGE" : "SOLARGLOBE",
         ...(ref ? { reference: ref } : {}),
         ...(lineKind ? { line_kind: lineKind } : {}),
       };

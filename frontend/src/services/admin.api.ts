@@ -607,6 +607,8 @@ export interface QuoteCatalogItem {
   sale_price_ht_cents: number;
   purchase_price_ht_cents: number;
   default_vat_rate_bps: number;
+  /** Qui facture l'article : SolarGlobe (défaut) ou pose installateur RGE indépendant (hors total). */
+  billing_party: "SOLARGLOBE" | "INSTALLER_RGE";
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -634,6 +636,7 @@ export async function adminCreateQuoteCatalogItem(body: {
   sale_price_ht_cents?: number;
   purchase_price_ht_cents?: number;
   default_vat_rate_bps?: number;
+  billing_party?: "SOLARGLOBE" | "INSTALLER_RGE";
 }): Promise<{ item: QuoteCatalogItem }> {
   const res = await apiFetch(apiUrl(`${BASE}/quote-catalog`), {
     method: "POST",
@@ -652,6 +655,7 @@ export async function adminPatchQuoteCatalogItem(
     sale_price_ht_cents: number;
     purchase_price_ht_cents: number;
     default_vat_rate_bps: number;
+    billing_party: "SOLARGLOBE" | "INSTALLER_RGE";
   }>
 ): Promise<{ item: QuoteCatalogItem }> {
   const res = await apiFetch(apiUrl(`${BASE}/quote-catalog/${id}`), {

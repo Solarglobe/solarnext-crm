@@ -4,6 +4,7 @@
  */
 
 import { pool } from "../config/db.js";
+import { normalizeBillingParty } from "./finance/quoteBillingParty.js";
 
 const PRICING_MODE_FIXED = "FIXED";
 const PRICING_MODE_UNIT = "UNIT";
@@ -25,6 +26,8 @@ export function buildQuoteItemSnapshotFromCatalogItem(catalogItemRow) {
     description: catalogItemRow.description ?? "",
     category: catalogItemRow.category ?? "OTHER",
     pricing_mode: catalogItemRow.pricing_mode ?? "FIXED",
+    /** Hérite de l'article catalogue → la ligne pose RGE arrive automatiquement en INSTALLER_RGE. */
+    billing_party: normalizeBillingParty(catalogItemRow.billing_party),
     source: {
       catalogItemId: catalogItemRow.id ?? null
     }
@@ -123,32 +126,64 @@ export async function computeQuoteTotalsFromLines({ quoteId, orgId, client = nul
       throw err;
     }
   }
-  /** Source de vérité : montants persistés par ligne (incl. remise ligne discount_ht → total_line_*). */
+  /**
+   * Sync colonne billing_party depuis snapshot_json (source d'écriture des lignes) avant répartition.
+   * Si le snapshot ne porte pas la clé (anciennes lignes), on conserve la valeur colonne (défaut SOLARGLOBE).
+   */
+  await q.query(
+    `UPDATE quote_lines
+     SET billing_party = CASE
+       WHEN UPPER(snapshot_json->>'billing_party') = 'INSTALLER_RGE' THEN 'INSTALLER_RGE'
+       WHEN snapshot_json->>'billing_party' IS NOT NULL THEN 'SOLARGLOBE'
+       ELSE billing_party END
+     WHERE quote_id = $1 AND organization_id = $2`,
+    [quoteId, orgId]
+  );
+
+  /**
+   * Source de vérité : montants persistés par ligne, RÉPARTIS par billing_party.
+   * - SolarGlobe (tout sauf INSTALLER_RGE) → quotes.total_ht/vat/ttc = SEUL total facturable/encaissable.
+   * - INSTALLER_RGE (pose installateur indépendant) → quotes.total_installer_* = estimation indicative,
+   *   jamais incluse dans le total facturable SolarGlobe, jamais copiée en facture.
+   */
+  const SG = `COALESCE(billing_party, 'SOLARGLOBE') <> 'INSTALLER_RGE'`;
+  const INST = `COALESCE(billing_party, 'SOLARGLOBE') = 'INSTALLER_RGE'`;
   const res = await q.query(
     `SELECT
-       COALESCE(SUM(total_line_ht) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::float8 AS th,
-       COALESCE(SUM(total_line_vat) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::float8 AS tv,
-       COALESCE(SUM(total_line_ttc) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::float8 AS ttc
+       COALESCE(SUM(total_line_ht)  FILTER (WHERE is_active IS DISTINCT FROM false AND ${SG}), 0)::float8 AS sg_th,
+       COALESCE(SUM(total_line_vat) FILTER (WHERE is_active IS DISTINCT FROM false AND ${SG}), 0)::float8 AS sg_tv,
+       COALESCE(SUM(total_line_ttc) FILTER (WHERE is_active IS DISTINCT FROM false AND ${SG}), 0)::float8 AS sg_ttc,
+       COALESCE(SUM(total_line_ht)  FILTER (WHERE is_active IS DISTINCT FROM false AND ${INST}), 0)::float8 AS in_th,
+       COALESCE(SUM(total_line_vat) FILTER (WHERE is_active IS DISTINCT FROM false AND ${INST}), 0)::float8 AS in_tv,
+       COALESCE(SUM(total_line_ttc) FILTER (WHERE is_active IS DISTINCT FROM false AND ${INST}), 0)::float8 AS in_ttc
      FROM quote_lines
      WHERE quote_id = $1 AND organization_id = $2`,
     [quoteId, orgId]
   );
-  const row = res.rows[0] || { th: 0, tv: 0, ttc: 0 };
-  const th = Number(row.th) || 0;
-  const tv = Number(row.tv) || 0;
-  const ttc = Number(row.ttc) || 0;
+  const row = res.rows[0] || {};
+  const th = Number(row.sg_th) || 0;
+  const tv = Number(row.sg_tv) || 0;
+  const ttc = Number(row.sg_ttc) || 0;
+  const inTh = Number(row.in_th) || 0;
+  const inTv = Number(row.in_tv) || 0;
+  const inTtc = Number(row.in_ttc) || 0;
 
   await q.query(
     `UPDATE quotes
-     SET total_ht = $1, total_vat = $2, total_ttc = $3, discount_ht = 0, updated_at = now()
+     SET total_ht = $1, total_vat = $2, total_ttc = $3, discount_ht = 0,
+         total_installer_ht = $6, total_installer_vat = $7, total_installer_ttc = $8,
+         updated_at = now()
      WHERE id = $4 AND organization_id = $5`,
-    [th, tv, ttc, quoteId, orgId]
+    [th, tv, ttc, quoteId, orgId, inTh, inTv, inTtc]
   );
 
   return {
     total_ht_cents: Math.round(th * 100),
     total_vat_cents: Math.round(tv * 100),
     total_ttc_cents: Math.round(ttc * 100),
+    total_installer_ht_cents: Math.round(inTh * 100),
+    total_installer_vat_cents: Math.round(inTv * 100),
+    total_installer_ttc_cents: Math.round(inTtc * 100),
   };
 }
 
@@ -165,14 +200,16 @@ const QUOTE_HEADER_LINE_TOLERANCE = 0.01;
  * @param {import("pg").PoolClient} client
  */
 export async function assertQuoteLinesMatchHeaderOrThrow(client, quoteId, orgId) {
+  /** En-tête total_* = lignes SolarGlobe uniquement (les lignes INSTALLER_RGE sont exclues du facturable). */
+  const SG = `COALESCE(ql.billing_party, 'SOLARGLOBE') <> 'INSTALLER_RGE'`;
   const r = await client.query(
     `SELECT
        q.total_ht::float8 AS th,
        q.total_vat::float8 AS tv,
        q.total_ttc::float8 AS ttc,
-       COALESCE(SUM(ql.total_line_ht) FILTER (WHERE ql.is_active IS DISTINCT FROM false), 0)::float8 AS sht,
-       COALESCE(SUM(ql.total_line_vat) FILTER (WHERE ql.is_active IS DISTINCT FROM false), 0)::float8 AS sv,
-       COALESCE(SUM(ql.total_line_ttc) FILTER (WHERE ql.is_active IS DISTINCT FROM false), 0)::float8 AS sttc
+       COALESCE(SUM(ql.total_line_ht) FILTER (WHERE ql.is_active IS DISTINCT FROM false AND ${SG}), 0)::float8 AS sht,
+       COALESCE(SUM(ql.total_line_vat) FILTER (WHERE ql.is_active IS DISTINCT FROM false AND ${SG}), 0)::float8 AS sv,
+       COALESCE(SUM(ql.total_line_ttc) FILTER (WHERE ql.is_active IS DISTINCT FROM false AND ${SG}), 0)::float8 AS sttc
      FROM quotes q
      LEFT JOIN quote_lines ql ON ql.quote_id = q.id AND ql.organization_id = q.organization_id
      WHERE q.id = $1 AND q.organization_id = $2

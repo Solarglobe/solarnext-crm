@@ -41,24 +41,47 @@ export function computeExpectedDepositTtc(deposit: QuoteDeposit, totalTtc: numbe
   return round2(Math.min(ttc, Math.max(0, v)));
 }
 
+/** Une ligne est-elle facturée par l'installateur RGE (hors total SolarGlobe) ? */
+export function isInstallerRgeQuoteLine(line: Pick<QuoteLine, "billing_party">): boolean {
+  return String(line?.billing_party ?? "").trim().toUpperCase() === "INSTALLER_RGE";
+}
+
 export function computeQuoteTotals(lines: QuoteLine[]): QuoteTotals {
   let subHt = 0;
   let subVat = 0;
   let subTtc = 0;
+  let instHt = 0;
+  let instVat = 0;
+  let instTtc = 0;
   for (const ln of lines) {
     const a = computeLineAmounts(ln);
-    subHt = round2(subHt + a.net_ht);
-    subVat = round2(subVat + a.total_tva);
-    subTtc = round2(subTtc + a.total_ttc);
+    if (isInstallerRgeQuoteLine(ln)) {
+      instHt = round2(instHt + a.net_ht);
+      instVat = round2(instVat + a.total_tva);
+      instTtc = round2(instTtc + a.total_ttc);
+    } else {
+      subHt = round2(subHt + a.net_ht);
+      subVat = round2(subVat + a.total_tva);
+      subTtc = round2(subTtc + a.total_ttc);
+    }
   }
   return {
     subtotal_ht: subHt,
     subtotal_tva: subVat,
     subtotal_ttc: subTtc,
+    // A — SolarGlobe facturable
     total_ht: subHt,
     total_tva: subVat,
     total_ttc: subTtc,
     applied_global_discount_ht: 0,
+    // B — estimation pose installateur RGE
+    total_installer_ht: instHt,
+    total_installer_tva: instVat,
+    total_installer_ttc: instTtc,
+    // C — coût global indicatif projet
+    total_project_indicative_ht: round2(subHt + instHt),
+    total_project_indicative_tva: round2(subVat + instVat),
+    total_project_indicative_ttc: round2(subTtc + instTtc),
   };
 }
 

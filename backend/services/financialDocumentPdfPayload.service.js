@@ -29,6 +29,9 @@ export function buildQuotePdfPayloadFromSnapshot(snapshot) {
     recipient: snapshot.recipient_snapshot,
     lines: snapshot.lines,
     totals: snapshot.totals,
+    /** Bloc B (pose installateur RGE) et bloc C (coût global indicatif) — peuvent être absents (anciens snapshots). */
+    installer_totals: snapshot.installer_totals ?? null,
+    project_indicative_totals: snapshot.project_indicative_totals ?? null,
     refs: snapshot.refs,
     notes: snapshot.notes ?? null,
     commercial_notes: snapshot.commercial_notes ?? null,

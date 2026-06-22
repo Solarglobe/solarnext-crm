@@ -45,6 +45,14 @@ export default function QuoteSummaryPanel({
   const expectedTtc = computeExpectedDepositTtc(deposit, totals.total_ttc);
   const hasDeposit = deposit.value > 0 && Number.isFinite(deposit.value);
   const untilLabel = formatValidUntilIso(validUntil);
+  /** Bloc B/C : visible uniquement si une estimation pose installateur RGE est présente. */
+  const installerTtc = Number(totals.total_installer_ttc) || 0;
+  const hasInstaller = installerTtc > 0.0001;
+  const projectIndicativeTtc = Number(totals.total_project_indicative_ttc) || totals.total_ttc;
+  /** Échéancier SolarGlobe : calculé UNIQUEMENT sur le Total SolarGlobe TTC (jamais le coût global indicatif). */
+  const sgTtc = Number(totals.total_ttc) || 0;
+  const echeancierAcompteTtc = hasDeposit && expectedTtc > 0 ? expectedTtc : 0;
+  const echeancierSoldeTtc = Math.max(0, Math.round((sgTtc - echeancierAcompteTtc) * 100) / 100);
 
   return (
     <section className="qb-pricing-panel qb-pricing-panel--commercial" aria-labelledby="qb-pricing-title">
@@ -87,7 +95,7 @@ export default function QuoteSummaryPanel({
 
         <div className="qb-pricing-panel__hero">
           <div className="qb-pricing-hero-card">
-            <p className="qb-pricing-hero-label">Total TTC</p>
+            <p className="qb-pricing-hero-label">{hasInstaller ? "Total SolarGlobe TTC" : "Total TTC"}</p>
             <p className="qb-pricing-hero-value qb-pricing-hero-value--primary">{eur(totals.total_ttc)}</p>
             {hasDeposit ? (
               <div className="qb-pricing-hero-deposit">
@@ -109,6 +117,62 @@ export default function QuoteSummaryPanel({
             )}
           </div>
         </div>
+      </div>
+
+      {hasInstaller ? (
+        <div
+          className="qb-pricing-billing-split"
+          style={{ marginTop: 12, padding: "10px 12px", border: "1px solid #e2e2e2", borderRadius: 8, background: "#fafafa" }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+            <span>Total SolarGlobe (facturé par SolarGlobe)</span>
+            <strong>{eur(totals.total_ttc)} TTC</strong>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 4, color: "#6b5300" }}>
+            <span>Estimation pose installateur RGE (hors total SolarGlobe)</span>
+            <strong>{eur(installerTtc)} TTC</strong>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 13,
+              marginTop: 6,
+              paddingTop: 6,
+              borderTop: "1px dashed #ccc",
+              color: "#555",
+            }}
+          >
+            <span>Coût global indicatif du projet</span>
+            <strong>{eur(projectIndicativeTtc)} TTC</strong>
+          </div>
+          <p style={{ fontSize: 11, color: "#777", margin: "6px 0 0", fontStyle: "italic" }}>
+            Le coût global est indicatif et ne constitue pas le montant facturé par SolarGlobe.
+          </p>
+        </div>
+      ) : null}
+
+      <div
+        className="qb-pricing-echeancier"
+        style={{ marginTop: 12, padding: "10px 12px", border: "1px solid #e2e2e2", borderRadius: 8 }}
+      >
+        <p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: 13 }}>
+          Échéancier SolarGlobe (sur Total SolarGlobe TTC)
+        </p>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+          <span>Acompte à la commande</span>
+          <strong>{echeancierAcompteTtc > 0 ? `${eur(echeancierAcompteTtc)} TTC` : "à définir"}</strong>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 4 }}>
+          <span>Solde après Consuel</span>
+          <strong>{eur(echeancierSoldeTtc)} TTC</strong>
+        </div>
+        {hasInstaller ? (
+          <p style={{ fontSize: 11, color: "#6b5300", margin: "6px 0 0", fontStyle: "italic" }}>
+            Pose installateur : réglée séparément, directement à l’installateur RGE après intervention, selon son
+            devis (hors échéancier SolarGlobe).
+          </p>
+        ) : null}
       </div>
 
       <div className="qb-pricing-meta" role="status">

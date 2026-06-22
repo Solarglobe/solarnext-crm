@@ -156,6 +156,31 @@ export function QuoteDocumentView({
   const currency = (payload.currency as string) || "EUR";
   const showLinePricing = payload.pdf_display?.show_line_pricing !== false;
 
+  /**
+   * Séparation A/B/C : lignes SolarGlobe (facturables) vs lignes pose installateur RGE (indicatif).
+   * total_* = SolarGlobe (Stage 1) ; les blocs B/C viennent du payload, avec repli calculé
+   * sur les lignes pour les anciens snapshots dépourvus de ces blocs.
+   */
+  const isInstallerLine = (row: Record<string, unknown>) =>
+    String(row?.billing_party ?? "").trim().toUpperCase() === "INSTALLER_RGE";
+  const solarglobeLines = lines.filter((r) => !isInstallerLine(r));
+  const installerLines = lines.filter(isInstallerLine);
+  const hasInstaller = installerLines.length > 0;
+  const sumLines = (arr: Array<Record<string, unknown>>, key: string) =>
+    arr.reduce((s, r) => s + (Number(r?.[key]) || 0), 0);
+  const num2 = (v: unknown) => Math.round((Number(v) || 0) * 100) / 100;
+  const installerTotals = (payload.installer_totals as Record<string, unknown> | null) ?? {
+    total_ht: num2(sumLines(installerLines, "total_line_ht")),
+    total_vat: num2(sumLines(installerLines, "total_line_vat")),
+    total_ttc: num2(sumLines(installerLines, "total_line_ttc")),
+  };
+  const projectIndicativeTotals = (payload.project_indicative_totals as Record<string, unknown> | null) ?? {
+    total_ht: num2((Number(totals.total_ht) || 0) + (Number(installerTotals.total_ht) || 0)),
+    total_vat: num2((Number(totals.total_vat) || 0) + (Number(installerTotals.total_vat) || 0)),
+    total_ttc: num2((Number(totals.total_ttc) || 0) + (Number(installerTotals.total_ttc) || 0)),
+  };
+  const installerTvaLabel = formatTvaRowLabelFromTotals(installerTotals.total_ht, installerTotals.total_vat);
+
   const companyName = String(issuer.display_name || issuer.legal_name || issuer.trade_name || "").trim() || "—";
 
   const showOfficial = showOfficialQuoteNumber !== false;
@@ -190,7 +215,7 @@ export function QuoteDocumentView({
     Boolean(payload.notes?.trim());
 
   const hasPaymentBlock = Boolean(payload.deposit_display) || Boolean(payload.payment_terms?.trim());
-  const totalDiscountFromLines = lines.reduce((sum, row) => {
+  const totalDiscountFromLines = solarglobeLines.reduce((sum, row) => {
     const kind = String(row.line_kind ?? "").trim().toUpperCase();
     if (kind !== "DOCUMENT_DISCOUNT") return sum;
     const lineHt = Number(row.total_line_ht);
@@ -209,8 +234,8 @@ export function QuoteDocumentView({
   const companySigAckLine = showSigReadAck ? formatSignatureReadAckLine(payload.signature_company_read_acceptance) : null;
 
   const lineTbodies = (condensed: boolean) =>
-    lines.map((row, idx) => {
-      const isLast = idx === lines.length - 1;
+    solarglobeLines.map((row, idx) => {
+      const isLast = idx === solarglobeLines.length - 1;
       const label = condensed
         ? String(row.label ?? "—").trim() || "—"
         : String(row.label ?? "—");
@@ -321,7 +346,9 @@ export function QuoteDocumentView({
             </div>
           </div>
 
-          <h2 className="fq-erp-offer-title">Détail de l&apos;offre</h2>
+          <h2 className="fq-erp-offer-title">
+            {hasInstaller ? "A — Prestations SolarGlobe" : "Détail de l’offre"}
+          </h2>
 
           {showLinePricing ? (
             <div className="fq-table-wrap">
@@ -375,7 +402,7 @@ export function QuoteDocumentView({
             <div className="fq-totals">
               <div className="fq-totals-inner">
                 <div className="fq-totals-row">
-                  <span>Total HT</span>
+                  <span>{hasInstaller ? "Total SolarGlobe HT" : "Total HT"}</span>
                   <span>{formatEurLeading(totals.total_ht)}</span>
                 </div>
                 {totalDiscountFromLines > 0.0001 ? (
@@ -385,15 +412,113 @@ export function QuoteDocumentView({
                   </div>
                 ) : null}
                 <div className="fq-totals-row">
-                  <span>{tvaLabel}</span>
+                  <span>{hasInstaller ? `${tvaLabel} (SolarGlobe)` : tvaLabel}</span>
                   <span>{formatEurLeading(totals.total_vat)}</span>
                 </div>
                 <div className="fq-totals-row fq-totals-row--sep fq-totals-row--emph">
-                  <span>Total TTC ({currency})</span>
+                  <span>{hasInstaller ? `Total SolarGlobe TTC (${currency})` : `Total TTC (${currency})`}</span>
                   <span>{formatEurLeading(totals.total_ttc)}</span>
                 </div>
               </div>
             </div>
+
+            {hasInstaller ? (
+              <>
+                {/* B — Pose par installateur RGE indépendant (hors total facturable SolarGlobe). */}
+                <section className="fq-installer-block" aria-label="Pose par installateur RGE indépendant">
+                  <h2 className="fq-erp-offer-title fq-installer-title">
+                    B — Pose par installateur RGE indépendant
+                  </h2>
+                  {showLinePricing ? (
+                    <div className="fq-table-wrap">
+                      <table className="sn-ui-table fq-table">
+                        <thead>
+                          <tr>
+                            <th>Nom et description</th>
+                            <th className="fq-center">Qté</th>
+                            <th className="fq-num">PU HT</th>
+                            <th className="fq-num">Total HT</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {installerLines.map((row, idx) => (
+                            <tr key={idx}>
+                              <td>
+                                <div className="fq-line-desc">
+                                  {String(row.label ?? "—")}
+                                  {row.description ? (
+                                    <div className="fq-line-desc-body">{String(row.description)}</div>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="fq-center">
+                                {row.quantity != null ? Number(row.quantity).toLocaleString("fr-FR") : "—"}
+                              </td>
+                              <td className="fq-num">{formatEurLeading(row.unit_price_ht)}</td>
+                              <td className="fq-num">{formatEurLeading(row.total_line_ht)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <ul className="fq-installer-condensed">
+                      {installerLines.map((row, idx) => (
+                        <li key={idx}>{String(row.label ?? "—")}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="fq-totals">
+                    <div className="fq-totals-inner">
+                      <div className="fq-totals-row">
+                        <span>Estimation pose HT</span>
+                        <span>{formatEurLeading(installerTotals.total_ht)}</span>
+                      </div>
+                      <div className="fq-totals-row">
+                        <span>{installerTvaLabel} (estimative)</span>
+                        <span>{formatEurLeading(installerTotals.total_vat)}</span>
+                      </div>
+                      <div className="fq-totals-row fq-totals-row--sep fq-totals-row--emph">
+                        <span>Estimation pose TTC ({currency})</span>
+                        <span>{formatEurLeading(installerTotals.total_ttc)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="fq-installer-mention" role="note">
+                    Prestation réalisée et facturée directement par un installateur RGE indépendant. Non incluse
+                    dans le total SolarGlobe. Devis séparé à signer avec l’installateur. Paiement direct du client
+                    à l’installateur après intervention.
+                  </p>
+                </section>
+
+                {/* C — Coût global indicatif du projet (SolarGlobe + estimation pose). */}
+                <section className="fq-project-indicative-block" aria-label="Coût global indicatif du projet">
+                  <h2 className="fq-erp-offer-title fq-installer-title">
+                    C — Coût global indicatif du projet
+                  </h2>
+                  <div className="fq-totals">
+                    <div className="fq-totals-inner">
+                      <div className="fq-totals-row">
+                        <span>Total SolarGlobe TTC</span>
+                        <span>{formatEurLeading(totals.total_ttc)}</span>
+                      </div>
+                      <div className="fq-totals-row">
+                        <span>+ Estimation pose installateur TTC</span>
+                        <span>{formatEurLeading(installerTotals.total_ttc)}</span>
+                      </div>
+                      <div className="fq-totals-row fq-totals-row--sep fq-totals-row--emph">
+                        <span>= Coût global indicatif TTC ({currency})</span>
+                        <span>{formatEurLeading(projectIndicativeTotals.total_ttc)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="fq-installer-mention" role="note">
+                    Ce coût global est donné à titre indicatif pour présenter le budget complet du projet. Il ne
+                    constitue pas le montant facturé par SolarGlobe.
+                  </p>
+                </section>
+              </>
+            ) : null}
 
             {hasAnnexes ? (
               <div className="fq-quote-annexes">

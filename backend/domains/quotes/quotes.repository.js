@@ -33,6 +33,7 @@ import {
 } from "../studies/financial/scenarioQuoteCoherence.js";
 
 import { computeFinancialLineDbFields } from "../../services/finance/financialLine.js";
+import { normalizeBillingParty, BILLING_PARTY_SOLARGLOBE } from "../../services/finance/quoteBillingParty.js";
 import { roundMoney2 } from "../../services/finance/moneyRounding.js";
 import { isQuoteEditable } from "../../services/finance/financialImmutability.js";
 import { allocateNextDocumentNumber } from "../../services/documentSequence.service.js";
@@ -728,12 +729,17 @@ function buildQuoteLineSnapshotJsonForWrite(it) {
   const lineSource = it.line_source === "study_prep" ? "study_prep" : "manual";
   const refRaw = it.reference != null ? String(it.reference).trim() : "";
   const ref = refRaw ? refRaw.slice(0, 120) : null;
+  /** Les remises document restent toujours SolarGlobe ; sinon on respecte le choix de la ligne. */
+  const billingParty = it.line_kind === QUOTE_LINE_KIND_DOCUMENT_DISCOUNT
+    ? BILLING_PARTY_SOLARGLOBE
+    : normalizeBillingParty(it.billing_party);
   const snapObj = {
     name: it.label ?? "",
     description: it.description ?? "",
     ...(ref ? { reference: ref } : {}),
     category: "OTHER",
     line_source: lineSource,
+    billing_party: billingParty,
     source: it.catalog_item_id ? { catalogItemId: it.catalog_item_id } : {},
     ...(it.line_kind ? { line_kind: it.line_kind } : {}),
   };

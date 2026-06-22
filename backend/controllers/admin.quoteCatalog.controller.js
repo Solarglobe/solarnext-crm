@@ -81,6 +81,15 @@ function validatePost(body) {
   if (body.is_active !== undefined) {
     errors.push("is_active cannot be set on create; use activate/deactivate endpoints");
   }
+  let billing_party = "SOLARGLOBE";
+  if (body.billing_party !== undefined) {
+    const bp = String(body.billing_party).trim().toUpperCase();
+    if (bp !== "SOLARGLOBE" && bp !== "INSTALLER_RGE") {
+      errors.push("billing_party must be SOLARGLOBE or INSTALLER_RGE");
+    } else {
+      billing_party = bp;
+    }
+  }
   if (errors.length) {
     return { ok: false, errors };
   }
@@ -93,7 +102,8 @@ function validatePost(body) {
       pricing_mode,
       sale_price_ht_cents: sale_price_ht_cents ?? 0,
       purchase_price_ht_cents: purchase_price_ht_cents ?? 0,
-      default_vat_rate_bps: default_vat_rate_bps ?? 2000
+      default_vat_rate_bps: default_vat_rate_bps ?? 2000,
+      billing_party
     }
   };
 }
@@ -162,6 +172,12 @@ function validatePatch(body) {
     if (v === undefined || v < 0 || v > 30000)
       errors.push("default_vat_rate_bps must be between 0 and 30000");
     else patch.default_vat_rate_bps = v;
+  }
+  if (body.billing_party !== undefined) {
+    const bp = String(body.billing_party).trim().toUpperCase();
+    if (bp !== "SOLARGLOBE" && bp !== "INSTALLER_RGE")
+      errors.push("billing_party must be SOLARGLOBE or INSTALLER_RGE");
+    else patch.billing_party = bp;
   }
   if (errors.length) {
     return { ok: false, errors };

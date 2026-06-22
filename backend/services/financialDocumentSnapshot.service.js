@@ -5,6 +5,10 @@
 
 import { createHash } from "crypto";
 import { buildQuotePdfPayloadFromSnapshot } from "./financialDocumentPdfPayload.service.js";
+import {
+  normalizeBillingParty,
+  splitQuoteTotalsByBillingParty,
+} from "./finance/quoteBillingParty.js";
 
 export const FINANCIAL_DOCUMENT_SNAPSHOT_SCHEMA_VERSION = 1;
 
@@ -122,11 +126,13 @@ export function mapQuoteLine(row) {
   const rawLineKind = snap?.line_kind;
   const line_kind =
     typeof rawLineKind === "string" && rawLineKind.trim() ? rawLineKind.trim() : null;
+  const billing_party = normalizeBillingParty(row.billing_party ?? snap?.billing_party);
   return {
     label: row.label ?? null,
     description: row.description ?? null,
     reference,
     line_kind,
+    billing_party,
     quantity: num(row.quantity),
     unit_price_ht: num(row.unit_price_ht),
     discount_ht: num(row.discount_ht),
@@ -186,7 +192,8 @@ function computeDocumentDiscountHtFromSnapshotLines(lines) {
 }
 
 function warnIfQuoteSnapshotTotalsInconsistent(context, lines, totals) {
-  const calc = computeQuoteTotalsFromSnapshotLines(lines);
+  /** totals.* figés = SolarGlobe facturable → comparer au bloc SolarGlobe, pas à la somme brute. */
+  const calc = splitQuoteTotalsByBillingParty(lines).solarglobe;
   const dtH = roundMoney2(Math.abs(roundMoney2(Number(totals?.total_ht) || 0) - calc.total_ht));
   const dtV = roundMoney2(Math.abs(roundMoney2(Number(totals?.total_vat) || 0) - calc.total_vat));
   const dtT = roundMoney2(Math.abs(roundMoney2(Number(totals?.total_ttc) || 0) - calc.total_ttc));
@@ -223,7 +230,9 @@ export function buildOfficialQuoteDocumentSnapshot(opts) {
   const recipient = parseJsonb(quoteRow.recipient_snapshot);
   const meta = parseJsonb(quoteRow.metadata_json);
   const mappedLines = (lineRows || []).map(mapQuoteLine);
-  const computedTotals = computeQuoteTotalsFromSnapshotLines(mappedLines);
+  /** Répartition A/B/C : total_* = SolarGlobe facturable ; pose installateur = bloc séparé indicatif. */
+  const __billingSplit = splitQuoteTotalsByBillingParty(mappedLines);
+  const computedTotals = __billingSplit.solarglobe;
   const computedDiscountHt = computeDocumentDiscountHtFromSnapshotLines(mappedLines);
   const effectiveTtc = computedTotals.total_ttc > 0 ? computedTotals.total_ttc : (Number(quoteRow.total_ttc) || 0);
   const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, effectiveTtc);
@@ -255,6 +264,10 @@ export function buildOfficialQuoteDocumentSnapshot(opts) {
       total_ttc: computedTotals.total_ttc,
       discount_ht: computedDiscountHt,
     },
+    /** Bloc B — estimation pose installateur RGE (indicatif, hors total facturable SolarGlobe). */
+    installer_totals: __billingSplit.installer,
+    /** Bloc C — coût global indicatif projet (SolarGlobe + estimation pose). */
+    project_indicative_totals: __billingSplit.project_indicative,
     /** Acompte structuré figé (même source que metadata_json.deposit au moment du gel). */
     deposit,
     /** Libellés / montants calculés pour affichage PDF (évite dépendance au live). */
@@ -542,7 +555,9 @@ export function buildQuotePdfPayloadForLivePreview(
 ) {
   const meta = parseJsonb(quoteRow.metadata_json);
   const mappedLines = (lineRows || []).map(mapQuoteLine);
-  const computedTotals = computeQuoteTotalsFromSnapshotLines(mappedLines);
+  /** Répartition A/B/C : total_* = SolarGlobe facturable ; pose installateur = bloc séparé indicatif. */
+  const __billingSplit = splitQuoteTotalsByBillingParty(mappedLines);
+  const computedTotals = __billingSplit.solarglobe;
   const computedDiscountHt = computeDocumentDiscountHtFromSnapshotLines(mappedLines);
   const effectiveTtc = computedTotals.total_ttc > 0 ? computedTotals.total_ttc : (Number(quoteRow.total_ttc) || 0);
   const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, effectiveTtc);
@@ -574,6 +589,10 @@ export function buildQuotePdfPayloadForLivePreview(
       total_ttc: computedTotals.total_ttc,
       discount_ht: computedDiscountHt,
     },
+    /** Bloc B — estimation pose installateur RGE (indicatif, hors total facturable SolarGlobe). */
+    installer_totals: __billingSplit.installer,
+    /** Bloc C — coût global indicatif projet (SolarGlobe + estimation pose). */
+    project_indicative_totals: __billingSplit.project_indicative,
     deposit,
     deposit_display,
     pdf_display: {

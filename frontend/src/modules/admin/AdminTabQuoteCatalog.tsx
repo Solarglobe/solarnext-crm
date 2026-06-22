@@ -226,6 +226,7 @@ export function AdminTabQuoteCatalog() {
   const [formSaleCents, setFormSaleCents] = useState<number>(0);
   const [formPurchaseCents, setFormPurchaseCents] = useState<number>(0);
   const [formVatPercent, setFormVatPercent] = useState<number>(20);
+  const [formBillingParty, setFormBillingParty] = useState<"SOLARGLOBE" | "INSTALLER_RGE">("SOLARGLOBE");
   const [quitConfirmOpen, setQuitConfirmOpen] = useState(false);
   const formInitialRef = useRef<string>("");
   const catalogNameInputRef = useRef<HTMLInputElement>(null);
@@ -280,6 +281,7 @@ export function AdminTabQuoteCatalog() {
     setFormSaleCents(0);
     setFormPurchaseCents(0);
     setFormVatPercent(20);
+    setFormBillingParty("SOLARGLOBE");
     setQuitConfirmOpen(false);
     formInitialRef.current = JSON.stringify({
       name: "", description: "", category: "PANEL", pricingMode: "FIXED",
@@ -308,6 +310,7 @@ export function AdminTabQuoteCatalog() {
     setFormSaleCents(draft.sale_price_ht_cents);
     setFormPurchaseCents(draft.purchase_price_ht_cents);
     setFormVatPercent(draft.default_vat_rate_bps / 100);
+    setFormBillingParty("SOLARGLOBE");
     setQuitConfirmOpen(false);
     formInitialRef.current = JSON.stringify({
       name: draft.name,
@@ -359,6 +362,7 @@ export function AdminTabQuoteCatalog() {
     setFormSaleCents(item.sale_price_ht_cents);
     setFormPurchaseCents(item.purchase_price_ht_cents);
     setFormVatPercent(item.default_vat_rate_bps / 100);
+    setFormBillingParty(item.billing_party === "INSTALLER_RGE" ? "INSTALLER_RGE" : "SOLARGLOBE");
     setQuitConfirmOpen(false);
     formInitialRef.current = JSON.stringify({
       name: item.name,
@@ -415,6 +419,7 @@ export function AdminTabQuoteCatalog() {
           sale_price_ht_cents: Math.round(formSaleCents),
           purchase_price_ht_cents: Math.round(formPurchaseCents),
           default_vat_rate_bps: vatBps,
+          billing_party: formBillingParty,
         });
       } else {
         await adminCreateQuoteCatalogItem({
@@ -425,6 +430,7 @@ export function AdminTabQuoteCatalog() {
           sale_price_ht_cents: Math.round(formSaleCents),
           purchase_price_ht_cents: Math.round(formPurchaseCents),
           default_vat_rate_bps: vatBps,
+          billing_party: formBillingParty,
         });
       }
       focusCatalogNameOnOpenRef.current = false;
@@ -772,6 +778,25 @@ export function AdminTabQuoteCatalog() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="qc-modal-label" htmlFor="qc-billing-party">
+                  Facturation
+                </label>
+                <select
+                  id="qc-billing-party"
+                  value={formBillingParty}
+                  onChange={(e) => setFormBillingParty(e.target.value as "SOLARGLOBE" | "INSTALLER_RGE")}
+                  className="qc-modal-input"
+                >
+                  <option value="SOLARGLOBE">Facturé par SolarGlobe</option>
+                  <option value="INSTALLER_RGE">Installateur RGE indépendant (hors total SolarGlobe)</option>
+                </select>
+                {formBillingParty === "INSTALLER_RGE" ? (
+                  <p className="qc-modal-field-hint" style={{ fontSize: 11, color: "#6b5300", margin: "4px 0 0" }}>
+                    Les lignes issues de cet article seront placées hors du total SolarGlobe et ne seront jamais facturées par SolarGlobe.
+                  </p>
+                ) : null}
               </div>
               <div className="qc-modal-field-span-2">
                 <label className="qc-modal-label" htmlFor="qc-desc">

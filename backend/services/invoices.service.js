@@ -10,6 +10,7 @@ import {
   isInvoiceEditable,
 } from "../services/finance/financialImmutability.js";
 import { computeFinancialLineDbFields } from "../services/finance/financialLine.js";
+import { normalizeBillingParty, BILLING_PARTY_INSTALLER_RGE } from "../services/finance/quoteBillingParty.js";
 import {
   computeInvoiceBalance,
   suggestInvoiceStatusFromAmounts,
@@ -896,11 +897,17 @@ async function sumQuoteDepositTtcIssued(client, quoteId, organizationId) {
  * Resynchronise quotes.total_* pour éviter les écarts entre en-tête et lignes.
  */
 async function recomputeQuoteTotalsFromLines(client, quoteId, organizationId) {
+  /** total_* = SolarGlobe facturable uniquement (les lignes INSTALLER_RGE n'entrent jamais dans le facturable). */
+  const SG = `COALESCE(billing_party, 'SOLARGLOBE') <> 'INSTALLER_RGE'`;
+  const INST = `COALESCE(billing_party, 'SOLARGLOBE') = 'INSTALLER_RGE'`;
   const r = await client.query(
     `SELECT
-       COALESCE(SUM(total_line_ht) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::numeric AS total_ht,
-       COALESCE(SUM(total_line_vat) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::numeric AS total_vat,
-       COALESCE(SUM(total_line_ttc) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::numeric AS total_ttc
+       COALESCE(SUM(total_line_ht)  FILTER (WHERE is_active IS DISTINCT FROM false AND ${SG}), 0)::numeric AS total_ht,
+       COALESCE(SUM(total_line_vat) FILTER (WHERE is_active IS DISTINCT FROM false AND ${SG}), 0)::numeric AS total_vat,
+       COALESCE(SUM(total_line_ttc) FILTER (WHERE is_active IS DISTINCT FROM false AND ${SG}), 0)::numeric AS total_ttc,
+       COALESCE(SUM(total_line_ht)  FILTER (WHERE is_active IS DISTINCT FROM false AND ${INST}), 0)::numeric AS inst_ht,
+       COALESCE(SUM(total_line_vat) FILTER (WHERE is_active IS DISTINCT FROM false AND ${INST}), 0)::numeric AS inst_vat,
+       COALESCE(SUM(total_line_ttc) FILTER (WHERE is_active IS DISTINCT FROM false AND ${INST}), 0)::numeric AS inst_ttc
      FROM quote_lines
      WHERE quote_id = $1 AND organization_id = $2`,
     [quoteId, organizationId]
@@ -908,12 +915,17 @@ async function recomputeQuoteTotalsFromLines(client, quoteId, organizationId) {
   const total_ht = roundMoney2(Number(r.rows[0]?.total_ht) || 0);
   const total_vat = roundMoney2(Number(r.rows[0]?.total_vat) || 0);
   const total_ttc = roundMoney2(Number(r.rows[0]?.total_ttc) || 0);
+  const inst_ht = roundMoney2(Number(r.rows[0]?.inst_ht) || 0);
+  const inst_vat = roundMoney2(Number(r.rows[0]?.inst_vat) || 0);
+  const inst_ttc = roundMoney2(Number(r.rows[0]?.inst_ttc) || 0);
 
   await client.query(
     `UPDATE quotes
-     SET total_ht = $1, total_vat = $2, total_ttc = $3, updated_at = now()
+     SET total_ht = $1, total_vat = $2, total_ttc = $3,
+         total_installer_ht = $6, total_installer_vat = $7, total_installer_ttc = $8,
+         updated_at = now()
      WHERE id = $4 AND organization_id = $5`,
-    [total_ht, total_vat, total_ttc, quoteId, organizationId]
+    [total_ht, total_vat, total_ttc, quoteId, organizationId, inst_ht, inst_vat, inst_ttc]
   );
 
   return { total_ht, total_vat, total_ttc };
@@ -1526,7 +1538,22 @@ export async function createPreparedStandardInvoiceFromQuote(quoteId, organizati
     throw new Error("Préparation invalide : au moins une ligne est requise.");
   }
 
-  const preparedLines = preparedLinesRaw.map((line, idx) => {
+  /**
+   * GARDE-FOU : une ligne pose installateur RGE (billing_party=INSTALLER_RGE) n'est JAMAIS
+   * facturée par SolarGlobe → on la retire de la préparation avant copie en facture.
+   */
+  const preparedLinesBillable = preparedLinesRaw.filter(
+    (line) =>
+      normalizeBillingParty(line?.billing_party ?? line?.snapshot_json?.billing_party) !==
+      BILLING_PARTY_INSTALLER_RGE
+  );
+  if (preparedLinesBillable.length < 1) {
+    throw new Error(
+      "Préparation invalide : aucune ligne facturable par SolarGlobe (les lignes pose installateur RGE ne peuvent pas être facturées par SolarGlobe)."
+    );
+  }
+
+  const preparedLines = preparedLinesBillable.map((line, idx) => {
     const label = String(line?.label ?? line?.description ?? `Ligne ${idx + 1}`).trim();
     const description = String(line?.description ?? line?.label ?? label).trim();
     const quantity = Number(line?.quantity);
@@ -1547,6 +1574,7 @@ export async function createPreparedStandardInvoiceFromQuote(quoteId, organizati
         ...(line?.snapshot_json && typeof line.snapshot_json === "object" && !Array.isArray(line.snapshot_json)
           ? line.snapshot_json
           : {}),
+        billing_party: "SOLARGLOBE",
         invoice_preparation_source: "prepared_standard",
       },
     };

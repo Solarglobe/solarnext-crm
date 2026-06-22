@@ -4,6 +4,7 @@
  */
 
 import { pool } from "../config/db.js";
+import { normalizeBillingParty } from "./finance/quoteBillingParty.js";
 
 const CATEGORIES = [
   "PANEL",
@@ -22,7 +23,7 @@ const CATEGORIES = [
 const PRICING_MODES = ["FIXED", "UNIT", "PERCENT_TOTAL"];
 
 const COLS =
-  "id, organization_id, name, description, category, pricing_mode, sale_price_ht_cents, purchase_price_ht_cents, default_vat_rate_bps, is_active, created_at, updated_at";
+  "id, organization_id, name, description, category, pricing_mode, sale_price_ht_cents, purchase_price_ht_cents, default_vat_rate_bps, billing_party, is_active, created_at, updated_at";
 
 /**
  * @param {{ orgId: string, includeInactive?: boolean, q?: string, category?: string }}
@@ -71,14 +72,15 @@ export async function createQuoteCatalogItem({ orgId, payload }) {
     pricing_mode = "FIXED",
     sale_price_ht_cents = 0,
     purchase_price_ht_cents = 0,
-    default_vat_rate_bps = 2000
+    default_vat_rate_bps = 2000,
+    billing_party = "SOLARGLOBE"
   } = payload;
 
   const result = await pool.query(
     `INSERT INTO quote_catalog_items (
       organization_id, name, description, category, pricing_mode,
-      sale_price_ht_cents, purchase_price_ht_cents, default_vat_rate_bps
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      sale_price_ht_cents, purchase_price_ht_cents, default_vat_rate_bps, billing_party
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING ${COLS}`,
     [
       orgId,
@@ -88,7 +90,8 @@ export async function createQuoteCatalogItem({ orgId, payload }) {
       pricing_mode,
       sale_price_ht_cents,
       purchase_price_ht_cents,
-      default_vat_rate_bps
+      default_vat_rate_bps,
+      normalizeBillingParty(billing_party)
     ]
   );
   return result.rows[0];
@@ -105,7 +108,8 @@ export async function patchQuoteCatalogItem({ orgId, id, patch }) {
     "pricing_mode",
     "sale_price_ht_cents",
     "purchase_price_ht_cents",
-    "default_vat_rate_bps"
+    "default_vat_rate_bps",
+    "billing_party"
   ];
   const setClauses = [];
   const values = [];
@@ -117,6 +121,9 @@ export async function patchQuoteCatalogItem({ orgId, id, patch }) {
     if (key === "description") {
       setClauses.push(`description = $${idx}`);
       values.push(val === "" ? null : val);
+    } else if (key === "billing_party") {
+      setClauses.push(`billing_party = $${idx}`);
+      values.push(normalizeBillingParty(val));
     } else if (key === "name" || key === "category" || key === "pricing_mode") {
       setClauses.push(`${key} = $${idx}`);
       values.push(val);

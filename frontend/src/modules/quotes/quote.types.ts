@@ -7,6 +7,9 @@ export type QuoteLineType = "catalog" | "custom";
 /** Origine de la ligne : import étude (remplaçable par « mise à jour depuis l’étude ») vs manuel. */
 export type QuoteLineSource = "study_prep" | "manual";
 
+/** Qui facture la ligne : SolarGlobe (facturable) vs pose installateur RGE indépendant (hors total SolarGlobe). */
+export type QuoteBillingParty = "SOLARGLOBE" | "INSTALLER_RGE";
+
 export interface QuoteLine {
   id: string;
   type: QuoteLineType;
@@ -30,18 +33,29 @@ export interface QuoteLine {
   purchase_unit_price_ht_cents?: number | null;
   /** Type métier snapshot (ex. DOCUMENT_DISCOUNT). */
   line_kind?: string | null;
+  /** Facturé par SolarGlobe (défaut) ou pose installateur RGE indépendant (hors total SolarGlobe). */
+  billing_party?: QuoteBillingParty;
 }
 
 export interface QuoteTotals {
+  /** total_* = SolarGlobe facturable uniquement (exclut les lignes INSTALLER_RGE). */
   total_ht: number;
   total_tva: number;
   total_ttc: number;
-  /** Sous-totaux lignes avant remise globale */
+  /** Sous-totaux lignes SolarGlobe avant remise globale */
   subtotal_ht: number;
   subtotal_tva: number;
   subtotal_ttc: number;
   /** Montant HT de remise document appliqué (après calcul) */
   applied_global_discount_ht: number;
+  /** Bloc B — estimation pose installateur RGE (indicatif, hors facturable). */
+  total_installer_ht: number;
+  total_installer_tva: number;
+  total_installer_ttc: number;
+  /** Bloc C — coût global indicatif projet (SolarGlobe + estimation pose). */
+  total_project_indicative_ht: number;
+  total_project_indicative_tva: number;
+  total_project_indicative_ttc: number;
 }
 
 /** Acompte structuré (metadata_json.deposit) — PERCENT = % du TTC document, AMOUNT = montant TTC fixe */

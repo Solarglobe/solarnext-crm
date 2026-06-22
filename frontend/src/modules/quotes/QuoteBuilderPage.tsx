@@ -513,6 +513,8 @@ export default function QuoteBuilderPage() {
       tva_percent: vat,
       line_discount_percent: 0,
       position: state.lines.length + 1,
+      /** Hérite de l'article catalogue → pose RGE marquée INSTALLER_RGE arrive déjà hors total SolarGlobe. */
+      billing_party: String(c.billing_party ?? "").trim().toUpperCase() === "INSTALLER_RGE" ? "INSTALLER_RGE" : "SOLARGLOBE",
       ...(Number.isFinite(pCents) && pCents > 0 ? { purchase_unit_price_ht_cents: Math.floor(pCents) } : {}),
     };
     dispatch({ type: "ADD_LINE", line });

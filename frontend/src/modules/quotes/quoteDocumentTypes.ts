@@ -49,6 +49,10 @@ export interface QuotePdfPayload {
   recipient?: Record<string, unknown>;
   lines?: Array<Record<string, unknown>>;
   totals?: Record<string, unknown>;
+  /** Bloc B — estimation pose installateur RGE (hors total facturable SolarGlobe). */
+  installer_totals?: Record<string, unknown> | null;
+  /** Bloc C — coût global indicatif projet (SolarGlobe + estimation pose). */
+  project_indicative_totals?: Record<string, unknown> | null;
   refs?: Record<string, unknown>;
   deposit?: Record<string, unknown> | null;
   deposit_display?: QuotePdfDepositDisplay | null;

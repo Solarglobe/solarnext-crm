@@ -9,8 +9,8 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { QuoteLine } from "./quote.types";
-import { VAT_OPTIONS, computeLineAmounts } from "./quoteCalc";
+import type { QuoteLine, QuoteBillingParty } from "./quote.types";
+import { VAT_OPTIONS, computeLineAmounts, isInstallerRgeQuoteLine } from "./quoteCalc";
 import { QUOTE_CATALOG_DESCRIPTION_MAX_CHARS } from "../../services/admin.api";
 import LocaleNumberInput from "./LocaleNumberInput";
 
@@ -32,16 +32,18 @@ function SortableRow({
   onRemove: (id: string) => void;
 }) {
   const isDocumentDiscount = String(line.line_kind || "").toUpperCase() === "DOCUMENT_DISCOUNT";
+  const isInstaller = isInstallerRgeQuoteLine(line);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: line.id });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
+    ...(isInstaller ? { background: "#fffaf0", boxShadow: "inset 4px 0 0 #b08900" } : {}),
   };
   const a = computeLineAmounts(line);
   const hidePrices = !docShowLinePricing ? " qb-line-cell--doc-hidden" : "";
   return (
-    <tr ref={setNodeRef} style={style} className={`qb-line${isDocumentDiscount ? " qb-line--document-discount" : ""}`}>
+    <tr ref={setNodeRef} style={style} className={`qb-line${isDocumentDiscount ? " qb-line--document-discount" : ""}${isInstaller ? " qb-line--installer" : ""}`}>
       <td className="qb-col-drag">
         <button type="button" className="qb-drag-handle" disabled={!canEdit} {...attributes} {...listeners} aria-label="Déplacer la ligne">
           ⋮⋮
@@ -55,6 +57,37 @@ function SortableRow({
           onChange={(e) => onChange(line.id, { label: e.target.value })}
           aria-label="Libellé"
         />
+        {!isDocumentDiscount ? (
+          <div className="qb-line-billing" style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+            <select
+              className="sn-input qb-line-input qb-line-billing-select"
+              disabled={!canEdit}
+              value={isInstaller ? "INSTALLER_RGE" : "SOLARGLOBE"}
+              onChange={(e) => onChange(line.id, { billing_party: e.target.value as QuoteBillingParty })}
+              aria-label="Facturation de la ligne"
+              style={{ fontSize: 11 }}
+            >
+              <option value="SOLARGLOBE">Facturé par SolarGlobe</option>
+              <option value="INSTALLER_RGE">Installateur RGE indépendant (hors total SolarGlobe)</option>
+            </select>
+            <span
+              className={`qb-billing-badge ${isInstaller ? "qb-billing-badge--installer" : "qb-billing-badge--solarglobe"}`}
+              style={{
+                alignSelf: "flex-start",
+                fontSize: 10,
+                fontWeight: 700,
+                lineHeight: 1.3,
+                padding: "2px 8px",
+                borderRadius: 999,
+                color: isInstaller ? "#6b5300" : "#0a6b3b",
+                background: isInstaller ? "#fff2cc" : "#e3f5ea",
+                border: `1px solid ${isInstaller ? "#d4a900" : "#46b377"}`,
+              }}
+            >
+              {isInstaller ? "Hors total SolarGlobe — Installateur RGE" : "Facturé par SolarGlobe"}
+            </span>
+          </div>
+        ) : null}
       </td>
       <td className="qb-col-ref">
         <input
