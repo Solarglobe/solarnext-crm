@@ -197,7 +197,7 @@
     var stampHeaders = { "Content-Type": "application/json" };
     try {
       var stampTok =
-        typeof global.localStorage !== "undefined" && global.localStorage.getItem("solarnext_token");
+        typeof global.localStorage !== "undefined" && global.__solarnextDpAuthToken();
       if (stampTok) stampHeaders.Authorization = "Bearer " + stampTok;
     } catch (_authE) {}
     if (typeof global.__solarnextDpApplySuperAdminContextHeaders === "function") {

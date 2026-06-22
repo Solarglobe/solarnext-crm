@@ -165,7 +165,7 @@ function __solarnextDpMergeCrmAuthHeaders(headers) {
 function __solarnextDpAuthHeadersJson() {
   var h = { "Content-Type": "application/json" };
   try {
-    var token = typeof localStorage !== "undefined" && localStorage.getItem("solarnext_token");
+    var token = typeof localStorage !== "undefined" && __solarnextDpAuthToken();
     if (token) h.Authorization = "Bearer " + token;
   } catch (e) {}
   __solarnextDpMergeCrmAuthHeaders(h);
@@ -175,7 +175,7 @@ function __solarnextDpAuthHeadersJson() {
 function __solarnextDpAuthHeadersBearerOnly() {
   var h = {};
   try {
-    var token = typeof localStorage !== "undefined" && localStorage.getItem("solarnext_token");
+    var token = typeof localStorage !== "undefined" && __solarnextDpAuthToken();
     if (token) h.Authorization = "Bearer " + token;
   } catch (e) {}
   __solarnextDpMergeCrmAuthHeaders(h);
@@ -361,7 +361,7 @@ async function __solarnextDpFetchPdfThenOpenOrDownload(res, defaultDownloadName)
 
 async function __solarnextDpPersistCerfaPdfBytes(pdfBytes) {
   var lid = __solarnextDpLeadIdForPdfPayload();
-  var token = typeof localStorage !== "undefined" && localStorage.getItem("solarnext_token");
+  var token = typeof localStorage !== "undefined" && __solarnextDpAuthToken();
   if (!lid || !token) return;
   try {
     var fd = new FormData();

@@ -176,7 +176,7 @@
 
   function getAuthHeaders() {
     var token =
-      typeof localStorage !== "undefined" ? localStorage.getItem("solarnext_token") : null;
+      typeof localStorage !== "undefined" ? __solarnextDpAuthToken() : null;
     var h = { "Content-Type": "application/json" };
     if (token) h.Authorization = "Bearer " + token;
     if (typeof global.__solarnextDpApplySuperAdminContextHeaders === "function") {
@@ -1273,7 +1273,7 @@
       syncRuntimeIntoDraft();
     } catch (_) {}
     var token =
-      typeof localStorage !== "undefined" ? localStorage.getItem("solarnext_token") : null;
+      typeof localStorage !== "undefined" ? __solarnextDpAuthToken() : null;
     var body;
     try {
       if (

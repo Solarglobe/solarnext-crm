@@ -29,6 +29,17 @@ export function getAuthToken(): string | null {
   return accessTokenMemory;
 }
 
+/**
+ * Pont d'authentification pour l'outil DP legacy (dp-tool/*.js).
+ * Le JWT est désormais en mémoire (plus dans localStorage) : les scripts DP
+ * doivent lire le token via ce getter window, sinon leurs requêtes partent
+ * sans Bearer → backend « Token manquant ».
+ */
+if (typeof window !== "undefined") {
+  (window as unknown as { __solarnextGetAuthToken?: () => string | null }).__solarnextGetAuthToken =
+    getAuthToken;
+}
+
 export function authHeaders(): HeadersInit {
   const base: Record<string, string> = { "Content-Type": "application/json" };
   applyOrganizationHeaders(base);

@@ -23,5 +23,18 @@
     }
   }
 
+  function __snReadDpAuthToken() {
+    try {
+      if (typeof global.__solarnextGetAuthToken === "function") {
+        var t = global.__solarnextGetAuthToken();
+        if (t) return t;
+      }
+    } catch (e) {}
+    try {
+      if (typeof global.localStorage !== "undefined") return global.localStorage.getItem("solarnext_token");
+    } catch (e2) {}
+    return null;
+  }
+  global.__solarnextDpAuthToken = __snReadDpAuthToken;
   global.__solarnextDpApplySuperAdminContextHeaders = applySuperAdminContextHeaders;
 })(typeof window !== "undefined" ? window : this);
