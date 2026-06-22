@@ -4214,19 +4214,24 @@ function dp2SyncActiveVersionBeforeDraft() {
   try {
     dp2RebuildContourDisplayCacheFromFeatures();
   } catch (_) {}
-  const versions = dp2EnsureVersionsArray();
+  dp2EnsureVersionsArray();
   let id = s.dp2ActiveVersionId;
-  if (!id && versions.length) {
-    id = versions[versions.length - 1].id;
+  if (!id && Array.isArray(s.dp2Versions) && s.dp2Versions.length) {
+    id = s.dp2Versions[s.dp2Versions.length - 1].id;
     s.dp2ActiveVersionId = id;
   }
   if (!id) return;
-  const idx = dp2FindVersionIndexById(id);
-  if (idx < 0) return;
   const stateJson = dp2CloneWorkingStateForVersionJson();
   const snap = collectDP2FinalPlanImageSync();
-  const prev = versions[idx] || {};
-  versions[idx] = {
+  // FIX stale-array : relire la liste VIVE juste avant d'ecrire. dp2EnsureVersionsArray()
+  // (via dp2SanitizeVersionsInPlace) remplace s.dp2Versions par un nouveau tableau ; toute
+  // reference capturee plus tot serait perimee et l'ecriture serait perdue (version vide).
+  const liveVersions = s.dp2Versions;
+  if (!Array.isArray(liveVersions)) return;
+  const idx = liveVersions.findIndex((v) => v && v.id === id);
+  if (idx < 0) return;
+  const prev = liveVersions[idx] || {};
+  liveVersions[idx] = {
     id: prev.id || id,
     createdAt: prev.createdAt || new Date().toISOString(),
     snapshot_image: snap != null ? snap : (prev.snapshot_image != null ? prev.snapshot_image : null),
@@ -12452,7 +12457,28 @@ function renderDP2FromState() {
 
   const hideIndividualPanels = dp2GetDisplayMode() === "simple";
 
-  if (typeof dp2BuildingRenderUsesFeatures === "function" && dp2BuildingRenderUsesFeatures()) {
+  // Le contour bati est dessine par OpenLayers UNIQUEMENT quand le calque OL est la
+  // surface reellement affichee. En mode image figee (reouverture d'une version validee :
+  // l'image capturee recouvre la carte, ou carte demontee), le calque OL est masque/absent :
+  // le canvas doit alors tracer le contour lui-meme, sinon seules les cotes apparaissent.
+  const __dp2CapWrap = document.getElementById("dp2-captured-image-wrap");
+  const __dp2CapImg = document.getElementById("dp2-captured-image");
+  const __dp2CapturedShown = !!(
+    __dp2CapWrap &&
+    __dp2CapWrap.style.display !== "none" &&
+    __dp2CapImg &&
+    typeof __dp2CapImg.src === "string" &&
+    __dp2CapImg.src.indexOf("data:image") === 0
+  );
+  const __dp2OlBuildingLive =
+    !!(window.DP2_MAP && window.DP2_MAP.dp2BuildingVectorSource && typeof ol !== "undefined") &&
+    !__dp2CapturedShown &&
+    !(
+      window.DP2_MAP.dp2BuildingVectorLayer &&
+      typeof window.DP2_MAP.dp2BuildingVectorLayer.getVisible === "function" &&
+      !window.DP2_MAP.dp2BuildingVectorLayer.getVisible()
+    );
+  if (typeof dp2BuildingRenderUsesFeatures === "function" && dp2BuildingRenderUsesFeatures() && __dp2OlBuildingLive) {
     try {
       dp2RenderFeaturesOL();
     } catch (e) {
