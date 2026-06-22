@@ -1,6 +1,6 @@
 <!-- ======================================================
      pages/mandat.html
-     Mandat de représentation — signature obligatoire avant PDF
+     Mandat de représentation — lecture + OTP + signature obligatoires avant PDF
 ====================================================== -->
 
 <section class="dp-page">
@@ -43,7 +43,8 @@
   <div class="dp-section">
     <h2>Signature et export</h2>
     <p>
-      Signez le mandat (même principe que sur le devis), puis téléchargez le PDF officiel.
+      Le client lit le mandat, reçoit un <strong>code de vérification</strong> (e-mail ou SMS),
+      puis signe. Le PDF officiel signé est ensuite téléchargeable.
     </p>
   </div>
 
@@ -67,35 +68,70 @@
 
 </section>
 
-<!-- Modal signature — logique mandat-signature.js (pad aligné devis) -->
+<!-- Modal signature — logique mandat-signature.js (aperçu PDF + OTP + pad) -->
 <div id="mandat-sign-modal" class="mandat-sign-modal" hidden aria-labelledby="mandat-sign-title">
   <div class="mandat-sign-modal__backdrop" aria-hidden="true"></div>
   <div class="mandat-sign-modal__panel" role="dialog" aria-modal="true">
     <div class="mandat-sign-modal__head">
-      <h2 id="mandat-sign-title">Signature du mandant</h2>
+      <h2 id="mandat-sign-title">Signature du mandat de représentation</h2>
       <button type="button" class="mandat-sign-modal__close" id="mandat-sign-close-x" aria-label="Fermer">×</button>
     </div>
     <div class="mandat-sign-modal__body">
-      <div class="mandat-sign-name-row">
-        <label>
-          Prénom
-          <input type="text" id="mandat-sign-prenom" name="mandat_prenom" autocomplete="given-name" />
-        </label>
-        <label>
-          Nom
-          <input type="text" id="mandat-sign-nom" name="mandat_nom" autocomplete="family-name" />
+
+      <!-- Étape 1 : lecture du mandat -->
+      <div class="mandat-sign-step">
+        <p class="mandat-sign-step-title"><strong>1.</strong> Lecture du mandat</p>
+        <div id="mandat-preview-wrap" style="border:1px solid #cbd2dc;border-radius:6px;overflow:hidden;background:#f8fafc;">
+          <iframe id="mandat-preview-frame" title="Aperçu du mandat" style="width:100%;height:340px;border:0;display:none;"></iframe>
+          <div id="mandat-preview-status" style="padding:14px;font-size:13px;color:#6b7280;">Chargement de l’aperçu du mandat…</div>
+        </div>
+        <label class="mandat-sign-read-accept" for="mandat-sign-read-approve" style="display:flex;gap:8px;align-items:flex-start;margin-top:8px;">
+          <input type="checkbox" id="mandat-sign-read-approve" autocomplete="off" />
+          <span>Je reconnais avoir lu et accepté ce document</span>
         </label>
       </div>
-      <p class="mandat-sign-hint">
-        Signez dans le cadre ci-dessous (souris, stylet ou doigt). Le tracé sera intégré au PDF du mandat.
-      </p>
-      <div class="quote-signature-pad-canvas-wrap">
-        <canvas id="mandat-signature-canvas" class="quote-signature-pad-canvas" width="720" height="320"></canvas>
+
+      <!-- Étape 2 : vérification d'identité (OTP) -->
+      <div class="mandat-sign-step" style="margin-top:14px;border-top:1px solid #eef1f5;padding-top:12px;">
+        <p class="mandat-sign-step-title"><strong>2.</strong> Vérification du client par code</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+          <select id="mandat-otp-channel" style="padding:7px 10px;font-size:13px;border:1px solid #cbd2dc;border-radius:6px;">
+            <option value="email">Code par e-mail</option>
+            <option value="sms">Code par SMS</option>
+          </select>
+          <button type="button" id="mandat-otp-send" class="mandat-sign-modal__btn-ghost">Envoyer le code</button>
+          <span id="mandat-otp-status" style="font-size:12px;color:#6b7280;"></span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;">
+          <input type="text" id="mandat-otp-code" inputmode="numeric" maxlength="6" placeholder="Code à 6 chiffres"
+                 autocomplete="one-time-code"
+                 style="width:160px;padding:7px 10px;font-size:14px;letter-spacing:2px;border:1px solid #cbd2dc;border-radius:6px;" />
+          <button type="button" id="mandat-otp-verify" class="mandat-sign-modal__btn-ghost">Vérifier le code</button>
+          <span id="mandat-otp-verified" style="display:none;font-size:13px;font-weight:600;color:#0a6b3b;">✓ Identité vérifiée</span>
+        </div>
       </div>
-      <label class="mandat-sign-read-accept" for="mandat-sign-read-approve">
-        <input type="checkbox" id="mandat-sign-read-approve" autocomplete="off" />
-        <span>Je reconnais avoir lu et accepté ce document</span>
-      </label>
+
+      <!-- Étape 3 : signature -->
+      <div class="mandat-sign-step" id="mandat-sign-step3" style="margin-top:14px;border-top:1px solid #eef1f5;padding-top:12px;opacity:0.5;pointer-events:none;">
+        <p class="mandat-sign-step-title"><strong>3.</strong> Signature du mandant</p>
+        <div class="mandat-sign-name-row">
+          <label>
+            Prénom
+            <input type="text" id="mandat-sign-prenom" name="mandat_prenom" autocomplete="given-name" />
+          </label>
+          <label>
+            Nom
+            <input type="text" id="mandat-sign-nom" name="mandat_nom" autocomplete="family-name" />
+          </label>
+        </div>
+        <p class="mandat-sign-hint">
+          Signez dans le cadre ci-dessous (souris, stylet ou doigt). Le tracé sera intégré au PDF du mandat.
+        </p>
+        <div class="quote-signature-pad-canvas-wrap">
+          <canvas id="mandat-signature-canvas" class="quote-signature-pad-canvas" width="720" height="320"></canvas>
+        </div>
+      </div>
+
     </div>
     <div class="mandat-sign-modal__footer">
       <button type="button" class="mandat-sign-modal__btn-ghost" id="mandat-sign-clear">Effacer</button>

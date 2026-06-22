@@ -18,6 +18,7 @@ import { publicHeavyRateLimiter } from "../middleware/security/rateLimit.presets
 import { pdfConcurrencyLimiter } from "../middleware/rateLimit.middleware.js";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 import { requireEmailVerified } from "../middleware/emailVerification.middleware.js";
+import { getRecentVerifiedMandatOtp } from "../services/mandatSignatureOtp.service.js";
 import { requirePermission } from "../rbac/rbac.middleware.js";
 
 const router = express.Router();
@@ -64,10 +65,44 @@ router.post("/pdf/render/mandat/signature-stamp", verifyJWT, requireEmailVerifie
     if (!isValidMandatSignaturePayload(ms)) {
       return res.status(400).json({ error: "Signature mandat invalide ou manquante" });
     }
+    /** Garde-fou : la signature n'est horodatée que si un OTP du client a été vérifié récemment. */
+    const leadId = req.body && req.body.leadId ? String(req.body.leadId) : null;
+    const organizationId = req.user?.organizationId ?? req.user?.organization_id;
+    if (!leadId) {
+      return res.status(400).json({ error: "leadId requis pour la signature du mandat." });
+    }
+    const verified = await getRecentVerifiedMandatOtp(leadId, organizationId);
+    if (!verified) {
+      return res.status(403).json({
+        error: "Signature refusée : le code de vérification (OTP) du client n'a pas été validé.",
+        code: "MANDAT_OTP_REQUIRED",
+      });
+    }
     return res.json({ signedAtServer: new Date().toISOString() });
   } catch (err) {
     logger.error("MANDAT_SIGNATURE_STAMP_ERROR", { error: err });
     res.status(500).json({ error: err.message || "Erreur serveur" });
+  }
+});
+
+/**
+ * POST /pdf/render/mandat/preview
+ * Aperçu du mandat AVANT signature (lecture client). Rendu sans signature, non persisté.
+ */
+router.post("/pdf/render/mandat/preview", verifyJWT, requireEmailVerified, async (req, res) => {
+  try {
+    const { mandatData } = req.body;
+    if (!mandatData) {
+      return res.status(400).json({ error: "mandatData manquant" });
+    }
+    const previewData = { ...mandatData, mandatSignature: null, preview: true };
+    const pdfBuffer = await generateMandatPDF(previewData);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'inline; filename="mandat-apercu.pdf"');
+    return res.end(pdfBuffer);
+  } catch (err) {
+    logger.error("MANDAT_PREVIEW_ERROR", { error: err });
+    return res.status(500).json({ error: err.message || "Erreur serveur" });
   }
 });
 

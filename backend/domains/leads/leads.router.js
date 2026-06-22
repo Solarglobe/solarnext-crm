@@ -37,6 +37,7 @@ import { softDeleteEntity, countLinkedItems } from "../../services/softDelete.se
 import { logAuditEvent } from "../../services/audit/auditLog.service.js";
 import { AuditActions } from "../../services/audit/auditActions.js";
 import { getLeadDp, putLeadDp } from "../../controllers/leadDp.controller.js";
+import { requestMandatOtp, verifyMandatOtp } from "../../controllers/mandatSignatureOtp.controller.js";
 import { exportLeadsCsv } from "../../controllers/crmExport.controller.js";
 import { postQuickPvEstimation } from "./leadPvEstimator.controller.js";
 
@@ -122,6 +123,20 @@ router.put(
   verifyJWT,
   requireAnyPermission(["lead.update.all", "lead.update.self"]),
   putLeadDp
+);
+
+/** OTP signature mandat (DP) — envoi + vérification du code (email|sms). */
+router.post(
+  "/:id/mandat/signature-otp/request",
+  verifyJWT,
+  requireAnyPermission(["lead.read.all", "lead.read.self", "lead.update.all", "lead.update.self"]),
+  requestMandatOtp
+);
+router.post(
+  "/:id/mandat/signature-otp/verify",
+  verifyJWT,
+  requireAnyPermission(["lead.read.all", "lead.read.self", "lead.update.all", "lead.update.self"]),
+  verifyMandatOtp
 );
 
 router.get("/:id", verifyJWT, requireAnyPermission(["lead.read.all", "lead.read.self"]), getDetail);
