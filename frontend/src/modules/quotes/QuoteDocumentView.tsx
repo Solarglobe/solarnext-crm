@@ -576,6 +576,31 @@ export function QuoteDocumentView({
                 <section className="fq-signature-erp" aria-labelledby="fq-accord-title">
                   <h3 id="fq-accord-title">Bon pour accord</h3>
                   <p className="fq-accord-intro">{accordIntro}</p>
+                  {hasInstaller ? (
+                    <p
+                      className="fq-accord-scope-notice"
+                      role="note"
+                      style={{
+                        margin: "0 0 10px",
+                        padding: "8px 10px",
+                        border: "1px solid #b08900",
+                        borderRadius: 6,
+                        background: "#fffaf0",
+                        fontSize: 10.5,
+                        lineHeight: 1.45,
+                        fontWeight: 600,
+                        color: "#5c4a00",
+                      }}
+                    >
+                      La signature du présent devis engage exclusivement le Client pour les prestations de la
+                      section A, soit le montant facturé par SolarGlobe. Elle ne vaut ni commande ni acceptation de
+                      la prestation de pose décrite en section B, laquelle fera l’objet d’un devis distinct conclu
+                      directement entre le Client et l’installateur RGE indépendant. La prestation de pose est
+                      facturée directement par l’installateur RGE indépendant et n’est ni facturée ni encaissée par
+                      SolarGlobe. Le coût global indiqué en section C est purement indicatif et ne constitue pas le
+                      montant facturé par SolarGlobe.
+                    </p>
+                  ) : null}
                   {showApprovalBlock ? (
                     <div className="fq-client-approval-block">
                       <label
