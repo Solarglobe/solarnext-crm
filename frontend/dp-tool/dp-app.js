@@ -3988,18 +3988,11 @@ function collectDP2FinalPlanImageSync() {
 
   ctx.drawImage(imgEl, 0, 0, w, h);
 
-  try {
-    const map = window.DP2_MAP?.map;
-    const mapEl = map && typeof map.getTargetElement === "function" ? map.getTargetElement() : null;
-    if (map && mapEl && mapEl.isConnected) {
-      const olCanvases = mapEl.querySelectorAll(".ol-layer canvas");
-      olCanvases.forEach(function (c) {
-        if (c.width > 0 && c.height > 0) {
-          ctx.drawImage(c, 0, 0, c.width, c.height, 0, 0, w, h);
-        }
-      });
-    }
-  } catch (_) {}
+  // FIX snapshot : fond = capture cadastrale (imgEl) + calque de dessin (overlayCanvas) UNIQUEMENT.
+  // On ne recompose PLUS les couches OpenLayers vivantes ici : cela superposait le fond de carte
+  // courant (souvent satellite) par-dessus le plan cadastral capture, et dupliquait le contour
+  // (calque OL bleu + contour canvas). Le contour du bati et les cotes sont deja traces sur
+  // overlayCanvas par renderDP2FromState (rendu canvas du bati en mode image figee).
 
   ctx.drawImage(overlayCanvas, 0, 0, w, h);
 
@@ -10696,7 +10689,8 @@ function initDP2CanvasEvents() {
     const hitText = hitTextBeforeBuilding || dp2HitTestText(coords.x, coords.y);
 
     // 0) Textes (annotations) : sélection + move/resize/rotate
-    if (hitText && hitText.id) {
+    // FIX priorité : un panneau directement clique l'emporte sur le texte (ne pas voler le clic).
+    if (hitText && hitText.id && !hitPanelBeforeBuilding) {
       const obj = dp2GetTextById(hitText.id);
       if (!obj || !obj.geometry) return;
       dp2ClearSelectedPanels();
@@ -10763,7 +10757,8 @@ function initDP2CanvasEvents() {
     const hitBiz = hitBizBeforeBuilding || dp2HitTestBusiness(coords.x, coords.y);
 
     // 1) Priorité : objets métier (dessinés au-dessus des objets standards)
-    if (hitBiz && hitBiz.id) {
+    // FIX priorité : un panneau directement clique l'emporte sur l'objet metier.
+    if (hitBiz && hitBiz.id && !hitPanelBeforeBuilding) {
       const obj = getDP2BusinessObjectById(hitBiz.id);
       if (!obj || !obj.geometry) return;
       // Sélection panneaux (simple ou groupée) => désélectionnée si on touche un objet métier
@@ -12154,8 +12149,11 @@ function initDP2CanvasEvents() {
       if (Date.now() - lastText < 250) return;
 
       // Si clic sur un panneau existant : sélection (pas de création)
+      // FIX snap au clic : si un fantome aimante est actif, on POSE le nouveau panneau
+      // colle au voisin au lieu de selectionner le voisin.
+      const ppSnap = window.DP2_STATE?.panelPlacementPreview;
       const hit = dp2HitTestPanel(coords.x, coords.y);
-      if (hit && hit.id) {
+      if (hit && hit.id && !(ppSnap && ppSnap.snapped)) {
         dp2SetSelectedPanelIds([hit.id]);
         renderDP2FromState();
         return;
@@ -12227,7 +12225,8 @@ function initDP2CanvasEvents() {
       }
       dp2SetSelectedPanelIds([id]);
       window.DP2_STATE.panelPlacementPreview = null; // recalcul immédiat au prochain move
-      dp2AutoReturnToSelectIfCreationDone({ preserveSelection: true, reason: "panel_placed" });
+      // FIX pose continue : rester dans l'outil "panneaux" pour enchainer les poses
+      // (ne pas repasser en selection apres chaque panneau).
       return;
     }
 
