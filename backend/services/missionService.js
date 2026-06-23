@@ -362,11 +362,13 @@ export async function createMissionFromClient(clientId, body, organizationId, cr
 
 /**
  * Crée une mission/rendez-vous depuis une fiche lead (non converti).
- * Rattache la mission au lead via lead_id. Reprend l'agence du lead si présente.
+ * Rattache la mission au lead via lead_id.
+ * Les leads n'ont pas de colonne agency_id : une agence explicite peut toujours
+ * être fournie dans le payload, sinon la mission reste sans agence.
  */
 export async function createMissionFromLead(leadId, body, organizationId, createdBy) {
   const leadRow = await pool.query(
-    "SELECT id, organization_id, agency_id FROM leads WHERE id = $1 AND organization_id = $2 AND (deleted_at IS NULL)",
+    "SELECT id, organization_id FROM leads WHERE id = $1 AND organization_id = $2 AND (deleted_at IS NULL)",
     [leadId, organizationId]
   );
   if (leadRow.rows.length === 0) {
@@ -381,6 +383,6 @@ export async function createMissionFromLead(leadId, body, organizationId, create
     organizationId,
     createdBy,
     leadId: l.id,
-    agencyId: body.agencyId ?? l.agency_id ?? undefined,
+    agencyId: body.agencyId ?? undefined,
   });
 }
