@@ -18656,6 +18656,10 @@ async function dp4BuildFinalRenderImageBase64FromCurrentDom() {
       const objects = window.DP2_STATE.objects || [];
       for (const obj of objects) {
         if (!obj || !obj.type) continue;
+        // FIX cadres fantomes (DP4/PDF) : ignorer les miroirs techniques "dp2drv:" (boites
+        // englobantes des objets metier). L'editeur les ignore deja (renderDP2FromState) ;
+        // ils ne doivent jamais apparaitre dans le rendu final.
+        if (typeof obj.dp2SyncKey === "string" && obj.dp2SyncKey.indexOf("dp2drv:") === 0) continue;
         // Exclure les éléments structurels (déjà rendus + normalisés)
         if (obj.type === "building_outline" || obj.type === "measure_line" || obj.type === "ridge_line" || obj.type === "gutter_height_dimension") continue;
 
