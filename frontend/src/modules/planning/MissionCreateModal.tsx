@@ -9,6 +9,7 @@ import "./planning-mission-modal.css";
 import {
   createMission,
   createMissionFromClient,
+  createMissionFromLead,
   fetchMissionTypes,
   type Mission,
   type MissionType,
@@ -29,6 +30,9 @@ interface MissionCreateModalProps {
   onClose: () => void;
   onCreated: (mission: Mission) => void;
   clientId?: string;
+  leadId?: string;
+  /** Nom à afficher pour l'entité pré-remplie (client ou lead) */
+  contactName?: string;
   users?: { id: string; email?: string }[];
   teams?: { id: string; name: string }[];
   missionTypes?: MissionType[];
@@ -44,6 +48,8 @@ export default function MissionCreateModal({
   onClose,
   onCreated,
   clientId,
+  leadId,
+  contactName,
   users: usersProp = [],
   teams: teamsProp = [],
   missionTypes: typesProp = [],
@@ -108,10 +114,10 @@ export default function MissionCreateModal({
   }, []);
 
   useEffect(() => {
-    if (!clientId) {
+    if (!clientId && !leadId) {
       fetchClients().then(setClients).catch(() => setClients([]));
     }
-  }, [clientId]);
+  }, [clientId, leadId]);
 
   useEffect(() => {
     if (selectedClientId) {
@@ -166,6 +172,8 @@ export default function MissionCreateModal({
     try {
       const created = clientId
         ? await createMissionFromClient(clientId, payload)
+        : leadId
+        ? await createMissionFromLead(leadId, payload)
         : await createMission(payload);
       onCreated(created);
     } catch (e) {
@@ -178,9 +186,13 @@ export default function MissionCreateModal({
   return (
     <ModalShell
       open
-      title={clientId ? "Créer un rendez-vous (client)" : "Créer un rendez-vous"}
+      title="Créer un rendez-vous"
       subtitle={
-        clientId ? "Mission liée au client (pré-rempli)" : undefined
+        contactName
+          ? `Pour ${contactName}${leadId ? " (lead)" : " (client)"}`
+          : clientId
+          ? "Mission liée au client (pré-rempli)"
+          : undefined
       }
       size="lg"
       onClose={tryClose}
@@ -209,6 +221,14 @@ export default function MissionCreateModal({
       }
     >
       <form id={formId} onSubmit={handleSubmit}>
+          {(clientId || leadId) && (
+            <div className="planning-modal-field">
+              <label>{leadId ? "Lead" : "Client"}</label>
+              <div className="planning-modal-id-block">
+                {contactName || (leadId ? "Lead sélectionné" : "Client sélectionné")}
+              </div>
+            </div>
+          )}
           <div className="planning-modal-field">
             <label>Type mission</label>
             <SearchableDropdown
@@ -258,7 +278,7 @@ export default function MissionCreateModal({
               placeholder="Rechercher et sélectionner…"
             />
           </div>
-          {!clientId && (
+          {!clientId && !leadId && (
             <div className="planning-modal-field">
               <label>Client</label>
               <SearchableDropdown

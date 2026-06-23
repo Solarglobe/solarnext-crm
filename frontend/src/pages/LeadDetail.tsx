@@ -90,7 +90,13 @@ export default function LeadDetail() {
   const source = ld.displayLead?.source_name ?? ld.displayLead?.lead_source ?? "";
   const stageName = ld.displayLead?.stage_name ?? ld.data.stage?.name;
   const canCreateStudy = ld.isLead && ld.data.stage?.code !== "SIGNED";
-  const canCreateRdv = Boolean(ld.data.lead.client_id);
+  const canCreateRdv = Boolean(ld.data.lead.id);
+  const rdvContactName =
+    ld.displayLead?.company_name ||
+    ld.displayLead?.full_name ||
+    contactName ||
+    email ||
+    undefined;
   const canWriteEmail = Boolean(email.trim() && ld.id);
   const calcAnnualKwh =
     ld.calcSummary?.annual_kwh != null && Number.isFinite(Number(ld.calcSummary.annual_kwh))
@@ -567,13 +573,15 @@ export default function LeadDetail() {
       {ld.createMissionModalOpen && (
         <MissionCreateModal
           clientId={ld.data?.lead?.client_id || undefined}
+          leadId={ld.data?.lead?.client_id ? undefined : ld.data?.lead?.id}
+          contactName={rdvContactName}
           onClose={() => ld.setCreateMissionModalOpen(false)}
-          onCreated={(mission) => {
+          onCreated={() => {
             ld.setCreateMissionModalOpen(false);
-            if (ld.isLead) {
-              ld.setClientMissions((prev) => [...prev, mission]);
-            } else {
+            if (ld.data?.lead?.client_id) {
               ld.fetchClientMissions();
+            } else {
+              ld.fetchLeadMissions();
             }
           }}
         />

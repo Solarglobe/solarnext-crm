@@ -33,7 +33,7 @@ import {
   type Study,
 } from "../../services/studies.service";
 import { fetchQuotesByLeadId, type Quote } from "../../services/quotes.service";
-import { fetchMissionsByClientId, type Mission } from "../../services/missions.service";
+import { fetchMissionsByClientId, fetchMissionsByLeadId, type Mission } from "../../services/missions.service";
 import {
   buildDpRefusedPatch,
   ACTIVITY_TAG_DP_RETRY_LATER,
@@ -720,6 +720,15 @@ export function useLeadDetail() {
     finally { setClientMissionsLoading(false); }
   }, [data?.lead?.client_id]);
 
+  const fetchLeadMissions = useCallback(async () => {
+    const lid = data?.lead?.id;
+    if (!lid) return;
+    setClientMissionsLoading(true);
+    try { const list = await fetchMissionsByLeadId(lid); setClientMissions(list); }
+    catch { setClientMissions([]); }
+    finally { setClientMissionsLoading(false); }
+  }, [data?.lead?.id]);
+
   const loadActivities = useCallback(async () => {
     if (!id) return;
     setActivitiesLoading(true);
@@ -737,8 +746,9 @@ export function useLeadDetail() {
     void fetchStudies();
   }, [activeTab, id, fetchQuotes, fetchStudies]);
   useEffect(() => {
-    if (data?.lead?.status === "CLIENT" && data?.lead?.client_id) fetchClientMissions();
-  }, [data?.lead?.status, data?.lead?.client_id, fetchClientMissions]);
+    if (data?.lead?.client_id) fetchClientMissions();
+    else if (data?.lead?.id) fetchLeadMissions();
+  }, [data?.lead?.client_id, data?.lead?.id, fetchClientMissions, fetchLeadMissions]);
 
   // ——— Sticky bar IntersectionObserver ———
   useEffect(() => {
@@ -1818,7 +1828,7 @@ export function useLeadDetail() {
     handleOpenStudyCalpinage, handleOpenStudyQuoteBuilder,
     handleSaveStudyTitle, handleCreateStudyDuplicateFromTitleModal,
     // Missions
-    clientMissions, setClientMissions, clientMissionsLoading, fetchClientMissions,
+    clientMissions, setClientMissions, clientMissionsLoading, fetchClientMissions, fetchLeadMissions,
     createMissionModalOpen, setCreateMissionModalOpen,
     // Archive / Revert
     archiveConfirmOpen, setArchiveConfirmOpen,

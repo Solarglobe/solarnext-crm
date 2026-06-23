@@ -64,6 +64,7 @@ export async function createMission(params) {
     endAt,
     status = "scheduled",
     clientId,
+    leadId,
     projectId,
     agencyId,
     isPrivateBlock = false,
@@ -80,9 +81,9 @@ export async function createMission(params) {
     const missionRes = await client.query(
       `INSERT INTO missions (
         organization_id, title, description, mission_type_id,
-        start_at, end_at, status, client_id, project_id, agency_id,
+        start_at, end_at, status, client_id, lead_id, project_id, agency_id,
         is_private_block, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *`,
       [
         organizationId,
@@ -93,6 +94,7 @@ export async function createMission(params) {
         endAt,
         status,
         clientId ?? null,
+        leadId ?? null,
         projectId ?? null,
         agencyId ?? null,
         isPrivateBlock,
@@ -355,5 +357,30 @@ export async function createMissionFromClient(clientId, body, organizationId, cr
     createdBy,
     clientId: c.id,
     agencyId: body.agencyId ?? c.agency_id ?? undefined,
+  });
+}
+
+/**
+ * Crée une mission/rendez-vous depuis une fiche lead (non converti).
+ * Rattache la mission au lead via lead_id. Reprend l'agence du lead si présente.
+ */
+export async function createMissionFromLead(leadId, body, organizationId, createdBy) {
+  const leadRow = await pool.query(
+    "SELECT id, organization_id, agency_id FROM leads WHERE id = $1 AND organization_id = $2 AND (deleted_at IS NULL)",
+    [leadId, organizationId]
+  );
+  if (leadRow.rows.length === 0) {
+    const err = new Error("Lead non trouvé");
+    err.code = "NOT_FOUND";
+    throw err;
+  }
+  const l = leadRow.rows[0];
+
+  return createMission({
+    ...body,
+    organizationId,
+    createdBy,
+    leadId: l.id,
+    agencyId: body.agencyId ?? l.agency_id ?? undefined,
   });
 }

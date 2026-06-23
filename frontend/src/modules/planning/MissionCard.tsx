@@ -9,7 +9,12 @@ import type { Mission } from "../../services/missions.service";
 function getClientDisplayName(m: Mission): string {
   if (m.client_company_name) return m.client_company_name;
   const parts = [m.client_first_name, m.client_last_name].filter(Boolean);
-  return parts.length ? parts.join(" ") : m.title;
+  if (parts.length) return parts.join(" ");
+  if (m.lead_company_name) return m.lead_company_name;
+  const leadParts = [m.lead_contact_first_name, m.lead_contact_last_name].filter(Boolean);
+  if (leadParts.length) return leadParts.join(" ");
+  if (m.lead_full_name) return m.lead_full_name;
+  return m.title;
 }
 
 function formatTimeHHmm(d: Date): string {

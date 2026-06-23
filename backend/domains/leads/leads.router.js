@@ -28,6 +28,7 @@ import { getDetail, patchStage, deleteEnergyProfile } from "./sub/detail.js";
 import { convertLead, convertLeadToClient } from "./sub/convert.js";
 import { revertLeadToLead } from "./sub/revertToLead.js";
 import { leadActivitiesRouter } from "../../modules/activities/activity.routes.js";
+import leadsMissionsRouter from "../../routes/leads.missions.routes.js";
 import * as leadMetersController from "../../controllers/leadMeters.controller.js";
 import {
   postCreateClientPortalToken,
@@ -153,6 +154,7 @@ router.delete(
   deleteEnergyProfile
 );
 router.use("/:id/activities", leadActivitiesRouter);
+router.use("/:id/missions", leadsMissionsRouter);
 router.patch(
   "/:id/archive",
   verifyJWT,

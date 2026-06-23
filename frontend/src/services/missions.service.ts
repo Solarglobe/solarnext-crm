@@ -43,6 +43,12 @@ export interface Mission {
   client_first_name?: string;
   client_last_name?: string;
   client_company_name?: string;
+  /** Rattachement lead (RDV sur lead non converti) */
+  lead_id?: string;
+  lead_full_name?: string;
+  lead_company_name?: string;
+  lead_contact_first_name?: string;
+  lead_contact_last_name?: string;
   /** Enrichi par le backend (JOIN studies) */
   study_number?: string;
   study_title?: string;
@@ -96,6 +102,7 @@ export interface CreateMissionPayload {
   end_at: string;
   status?: string;
   client_id?: string;
+  lead_id?: string;
   project_id?: string;
   agency_id?: string;
   is_private_block?: boolean;
@@ -140,6 +147,7 @@ export interface UpdateMissionPayload {
   end_at?: string;
   status?: string;
   client_id?: string;
+  lead_id?: string;
   project_id?: string;
   agency_id?: string;
   is_private_block?: boolean;
@@ -185,6 +193,28 @@ export async function createMissionFromClient(
   payload: Omit<CreateMissionPayload, "client_id">
 ): Promise<Mission> {
   const res = await apiFetch(`${API_BASE}/api/clients/${clientId}/missions`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 409) throw new Error(err.error || "Conflit horaire");
+    throw new Error(err.error || "Erreur création mission");
+  }
+  return res.json();
+}
+
+export async function fetchMissionsByLeadId(leadId: string): Promise<Mission[]> {
+  const res = await apiFetch(`${API_BASE}/api/leads/${leadId}/missions`);
+  if (!res.ok) throw new Error("Erreur chargement missions lead");
+  return res.json();
+}
+
+export async function createMissionFromLead(
+  leadId: string,
+  payload: Omit<CreateMissionPayload, "client_id" | "lead_id">
+): Promise<Mission> {
+  const res = await apiFetch(`${API_BASE}/api/leads/${leadId}/missions`, {
     method: "POST",
     body: JSON.stringify(payload),
   });

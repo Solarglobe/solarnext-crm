@@ -74,12 +74,14 @@ export async function list(req, res) {
     const query = `
       SELECT m.*, mt.name as mission_type_name, mt.color as mission_type_color,
              c.client_number, c.first_name as client_first_name, c.last_name as client_last_name, c.company_name as client_company_name,
+             l.full_name as lead_full_name, l.company_name as lead_company_name, l.contact_first_name as lead_contact_first_name, l.contact_last_name as lead_contact_last_name,
              s.study_number, s.title as study_title,
              (SELECT json_agg(json_build_object('user_id', ma.user_id, 'team_id', ma.team_id))
                 FROM mission_assignments ma WHERE ma.mission_id = m.id) as assignments
       FROM missions m
       LEFT JOIN mission_types mt ON mt.id = m.mission_type_id
       LEFT JOIN clients c ON c.id = m.client_id AND (c.archived_at IS NULL)
+      LEFT JOIN leads l ON l.id = m.lead_id
       LEFT JOIN studies s ON s.id = m.project_id AND (s.archived_at IS NULL)
       WHERE ${conditions.join(" AND ")}
       ORDER BY m.start_at ASC
@@ -136,6 +138,7 @@ export async function create(req, res) {
       endAt: body.end_at,
       status: body.status,
       clientId: body.client_id,
+      leadId: body.lead_id,
       projectId: body.project_id,
       agencyId: body.agency_id,
       isPrivateBlock: body.is_private_block ?? false,
@@ -287,6 +290,72 @@ export async function createFromClient(req, res) {
     if (e.code === "NOT_FOUND") {
       return res.status(404).json({ error: e.message });
     }
+    res.status(500).json({ error: e.message });
+  }
+}
+
+/**
+ * POST /leads/:id/missions — Créer mission/RDV depuis fiche lead (non converti)
+ */
+export async function createFromLead(req, res) {
+  try {
+    const org = orgId(req);
+    const uid = userId(req);
+    const leadId = req.params.id;
+    const body = req.body;
+
+    const mission = await missionService.createMissionFromLead(
+      leadId,
+      {
+        title: body.title,
+        description: body.description,
+        missionTypeId: body.mission_type_id,
+        startAt: body.start_at,
+        endAt: body.end_at,
+        status: body.status,
+        projectId: body.project_id,
+        agencyId: body.agency_id,
+        isPrivateBlock: body.is_private_block ?? false,
+        assignments: (body.assignments || []).map((a) => ({
+          userId: a.user_id,
+          teamId: a.team_id,
+        })),
+      },
+      org,
+      uid
+    );
+    res.status(201).json(mission);
+  } catch (e) {
+    if (e.code === "SCHEDULE_CONFLICT") {
+      return res.status(409).json({ error: "Conflit horaire", code: "SCHEDULE_CONFLICT" });
+    }
+    if (e.code === "NOT_FOUND") {
+      return res.status(404).json({ error: e.message });
+    }
+    res.status(500).json({ error: e.message });
+  }
+}
+
+/**
+ * GET /leads/:id/missions — Liste missions liées au lead
+ */
+export async function listByLead(req, res) {
+  try {
+    const org = orgId(req);
+    const leadId = req.params.id;
+
+    const result = await pool.query(
+      `SELECT m.*, mt.name as mission_type_name, mt.color as mission_type_color,
+              (SELECT json_agg(json_build_object('user_id', ma.user_id, 'team_id', ma.team_id))
+                 FROM mission_assignments ma WHERE ma.mission_id = m.id) as assignments
+       FROM missions m
+       LEFT JOIN mission_types mt ON mt.id = m.mission_type_id
+       WHERE m.lead_id = $1 AND m.organization_id = $2
+       ORDER BY m.start_at DESC`,
+      [leadId, org]
+    );
+    res.json(result.rows);
+  } catch (e) {
     res.status(500).json({ error: e.message });
   }
 }
