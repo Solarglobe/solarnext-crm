@@ -4631,6 +4631,11 @@ function dp2OnEntryDeleteVersion(e) {
     try {
       setDP2ModeCapture();
     } catch (_) {}
+    // LOT4: apres suppression de version, revenir sur la carte IGN de capture
+    // (comme "nouveau plan") au lieu de laisser un fond fige/vide. Cf. dp2OnEntryNewVersion.
+    try {
+      if (typeof window.dp2OpenMapModal === "function") window.dp2OpenMapModal();
+    } catch (_) {}
   }
   dp2RenderEntryPanel();
   if (typeof window.DP2_UI?.setState === "function") {
@@ -19541,40 +19546,67 @@ function dp4GetRawDp2PlanCaptureFromState(state) {
 }
 
 function dp4GetDp2BeforeImportSource() {
-  const s = window.DP2_STATE;
-  if (!s || typeof s !== "object") return { ok: false, reason: "missing_state" };
-
+  // LOT3: source = vraie DP2 (jamais un etat tampone DP4_ROOF). Priorite :
+  // 1) backup memoire pose a l'ouverture DP4 (lot 2), 2) draft.dp2 (garde propre lot 1),
+  // 3) DP2_STATE de travail si non DP4_ROOF, 4) versions DP2 non polluees.
+  const isDp4Roof = (st) => !!(st && typeof st === "object" && st.editorProfile === "DP4_ROOF");
   const candidates = [];
-  const current = dp4ClonePlain(s, null);
-  if (current && current.editorProfile !== "DP4_ROOF") {
-    candidates.push({
-      label: "working",
-      state: current,
-      snapshot_image: null,
-      isActive: true
-    });
-  }
-  const versions = Array.isArray(s.dp2Versions) ? s.dp2Versions : [];
-  for (let i = versions.length - 1; i >= 0; i--) {
-    const v = versions[i];
-    const sj = v && v.state_json && typeof v.state_json === "object" ? dp4ClonePlain(v.state_json, null) : null;
-    if (!sj) continue;
-    candidates.push({
-      label: v.id || `version_${i}`,
-      state: sj,
-      snapshot_image: v.snapshot_image || null,
-      isActive: s.dp2ActiveVersionId != null && String(s.dp2ActiveVersionId) === String(v.id)
-    });
-  }
 
-  let chosen = null;
-  for (const c of candidates) {
-    if (c && c.state && c.state.photoCategory === "before") {
-      chosen = c;
-      break;
+  try {
+    const bk = window.__dp2RealPlanBackup;
+    if (bk && typeof bk === "object" && !isDp4Roof(bk)) {
+      candidates.push({ label: "backup", state: dp4ClonePlain(bk, null), snapshot_image: null, isActive: true });
+    }
+  } catch (_) {}
+
+  try {
+    const d = window.DpDraftStore && typeof window.DpDraftStore.getDraft === "function" ? window.DpDraftStore.getDraft() : null;
+    const draftDp2 = d && d.dp2 && typeof d.dp2 === "object" ? d.dp2 : null;
+    if (draftDp2 && !isDp4Roof(draftDp2)) {
+      candidates.push({ label: "draft.dp2", state: dp4ClonePlain(draftDp2, null), snapshot_image: null, isActive: true });
+    }
+  } catch (_) {}
+
+  const s = window.DP2_STATE;
+  if (s && typeof s === "object") {
+    const current = dp4ClonePlain(s, null);
+    if (current && !isDp4Roof(current)) {
+      candidates.push({ label: "working", state: current, snapshot_image: null, isActive: true });
+    }
+    const versions = Array.isArray(s.dp2Versions) ? s.dp2Versions : [];
+    for (let i = versions.length - 1; i >= 0; i--) {
+      const v = versions[i];
+      const sj = v && v.state_json && typeof v.state_json === "object" ? dp4ClonePlain(v.state_json, null) : null;
+      if (!sj || isDp4Roof(sj)) continue;
+      candidates.push({
+        label: v.id || `version_${i}`,
+        state: sj,
+        snapshot_image: v.snapshot_image || null,
+        isActive: s.dp2ActiveVersionId != null && String(s.dp2ActiveVersionId) === String(v.id)
+      });
     }
   }
-  if (!chosen) return { ok: false, reason: "not_before" };
+
+  if (!candidates.length) return { ok: false, reason: "no_dp2_source" };
+
+  // Choix : preferer une DP2 geo-referencee exploitable ; le tag photoCategory n'est plus bloquant.
+  const scoreOf = (c) => {
+    let n = 0;
+    const st = c && c.state ? c.state : {};
+    const cp = dp4GetRawDp2PlanCaptureFromState(st);
+    if (cp && cp.imageBase64) n += 4;
+    if (cp && dp4ValidateDP2CaptureForImport(cp).ok) n += 4;
+    if (Array.isArray(st.features) && st.features.some((ff) => ff && ff.type === "polygon")) n += 2;
+    if (st.photoCategory === "before") n += 1;
+    return n;
+  };
+  let chosen = null;
+  let best = -1;
+  for (const c of candidates) {
+    const sc = scoreOf(c);
+    if (sc > best) { best = sc; chosen = c; }
+  }
+  if (!chosen) return { ok: false, reason: "no_dp2_source" };
 
   const state = chosen.state;
   const cap = dp4GetRawDp2PlanCaptureFromState(state);
@@ -20002,13 +20034,15 @@ function dp4SeedRoofGeometryFromBaseFeatures(cat) {
 function dp4SeedBeforePlanFromFrozenDp2Import() {
   const cat = window.DP4_STATE?.photoCategory ?? null;
   if (cat !== "before") return false;
-  if (!window.DP4_IMPORT_DP2_ACTIVE || !window.DP4_IMPORT_DP2_FROZEN_TRANSFORM) return false;
   const source = dp4GetDp2BeforeImportSource();
   if (!source.ok) return false;
   const cap = source.capture;
   const v = dp4ValidateDP2CaptureForImport(cap);
   if (!v.ok) return false;
-  const tr = window.DP4_IMPORT_DP2_FROZEN_TRANSFORM;
+  // LOT3: toujours recalculer l'affine depuis la carte capturee (alignement correct) ;
+  // le transform fige du bouton "Importer DP2" n'est qu'un repli si la carte a disparu.
+  const tr = dp4MakeAffineFromDp2ToMapPixels(cap, window.DP4_OL_MAP) || window.DP4_IMPORT_DP2_FROZEN_TRANSFORM;
+  if (!tr) return false;
   const stateCat = window.DP4_STATE?.before;
   if (!stateCat) return false;
 
@@ -20914,6 +20948,22 @@ function initDP4() {
     }
     // 🔒 Nettoyage complet runtime
     window.DP4_CAPTURE_IMAGE = null;
+
+    // LOT2: restaurer la vraie DP2 (l'editeur toiture DP4 avait pris la main sur DP2_STATE).
+    try {
+      var __real = window.__dp2RealPlanBackup;
+      if (!__real) {
+        var __d = window.DpDraftStore && typeof window.DpDraftStore.getDraft === "function" ? window.DpDraftStore.getDraft() : null;
+        if (__d && __d.dp2 && __d.dp2.editorProfile !== "DP4_ROOF") __real = JSON.parse(JSON.stringify(__d.dp2));
+      }
+      if (__real) {
+        window.DP2_STATE = __real;
+        window.__dp2RealPlanBackup = null;
+        try { if (typeof dp2ApplyFeaturesHydrateSync === "function") dp2ApplyFeaturesHydrateSync(); } catch (_) {}
+        try { if (typeof dp2RebuildContourDisplayCacheFromFeatures === "function") dp2RebuildContourDisplayCacheFromFeatures(); } catch (_) {}
+      }
+    } catch (_) {}
+
   }
 
   async function dp4CaptureMapContainer() {
@@ -21025,6 +21075,14 @@ function initDP4() {
   }
 
   function dp4OpenModal() {
+
+    // LOT2: sauvegarder la vraie DP2 avant que l'editeur toiture DP4 ne s'approprie DP2_STATE.
+    try {
+      if (window.DP2_STATE && window.DP2_STATE.editorProfile !== "DP4_ROOF") {
+        window.__dp2RealPlanBackup = JSON.parse(JSON.stringify(window.DP2_STATE));
+      }
+    } catch (_) {}
+
     modal.setAttribute("aria-hidden", "false");
 
     // Si le modal a déjà été fermé entre-temps, on stoppe.

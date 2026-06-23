@@ -667,7 +667,7 @@
           devWarn("[dp-draft] dp2SyncActiveVersionBeforeDraft", e2);
         }
       }
-      if (global.DP2_STATE) {
+      if (global.DP2_STATE && global.DP2_STATE.editorProfile !== "DP4_ROOF") {
         DP_DRAFT.dp2 = cloneStateForDraft(global.DP2_STATE);
       }
     } catch (e) {
@@ -985,7 +985,7 @@
      * on réaligne dp2 depuis le runtime pour éviter que d'anciennes lignes dp2Versions ne « reviennent » dans DP_DRAFT.
      */
     try {
-      if (global.DP2_STATE && typeof global.DP2_STATE === "object") {
+      if (global.DP2_STATE && typeof global.DP2_STATE === "object" && global.DP2_STATE.editorProfile !== "DP4_ROOF") {
         if (typeof global.dp2SyncActiveVersionBeforeDraft === "function") {
           global.dp2SyncActiveVersionBeforeDraft();
         }
