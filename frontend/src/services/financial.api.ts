@@ -445,6 +445,8 @@ export async function postFinalizeQuoteSigned(
     cgv_acceptance?: { accepted: boolean; acceptedLabel?: string; scrolledToEndAt?: string | null };
     client_signed_at?: string;
     signature_place?: string;
+    /** Demande expresse d'exécution anticipée (L221-25) — optionnelle, cochée par le client */
+    express_execution?: { requested: boolean; acceptedLabel?: string };
   }
 ): Promise<{
   document?: { id?: string; file_name?: string };

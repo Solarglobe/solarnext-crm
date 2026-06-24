@@ -69,13 +69,36 @@ export async function fetchQuoteSignatureReadAcceptances(organizationId, quoteId
   );
   let client = null;
   let company = null;
+  let expressExecution = null;
   for (const row of r.rows) {
     const parsed = parseQuoteSignatureMetadataAcceptance(row.metadata_json);
-    if (row.document_type === QUOTE_DOC_SIGNATURE_CLIENT && !client) client = parsed;
+    if (row.document_type === QUOTE_DOC_SIGNATURE_CLIENT && !client) {
+      client = parsed;
+      // Demande expresse d'exécution anticipée (L221-25) — persistée dans evidence.expressExecution
+      // de la signature client. Reformatée en QuoteSignatureReadAcceptance pour le corps du devis.
+      if (expressExecution == null) {
+        let meta = null;
+        try {
+          meta = typeof row.metadata_json === "string" ? JSON.parse(row.metadata_json) : row.metadata_json;
+        } catch {
+          meta = null;
+        }
+        const ee = meta && typeof meta === "object" && meta.evidence ? meta.evidence.expressExecution : null;
+        if (ee && typeof ee === "object") {
+          const recordedAt = typeof ee.recordedAt === "string" ? ee.recordedAt : null;
+          expressExecution = {
+            accepted: ee.requested === true,
+            acceptedLabel: typeof ee.acceptedLabel === "string" ? ee.acceptedLabel : null,
+            signedAtServer: recordedAt,
+            recordedAt,
+          };
+        }
+      }
+    }
     if (row.document_type === QUOTE_DOC_SIGNATURE_COMPANY && !company) company = parsed;
     if (client && company) break;
   }
-  return { client, company };
+  return { client, company, expressExecution };
 }
 
 /**

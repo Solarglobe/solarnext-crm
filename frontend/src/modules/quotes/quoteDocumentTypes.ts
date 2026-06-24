@@ -74,4 +74,6 @@ export interface QuotePdfPayload {
   /** PDF signé / devis accepté : lecture depuis metadata_json des signatures */
   signature_client_read_acceptance?: QuoteSignatureReadAcceptance | null;
   signature_company_read_acceptance?: QuoteSignatureReadAcceptance | null;
+  /** Demande expresse d'exécution anticipée (L221-25) — lecture depuis metadata_json de la signature */
+  express_execution_acceptance?: QuoteSignatureReadAcceptance | null;
 }

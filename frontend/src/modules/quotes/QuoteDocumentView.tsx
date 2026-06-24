@@ -56,6 +56,9 @@ export interface QuoteDocumentViewProps {
   /** Case « lu et approuvé » — Présenter : contrôlée par le parent ; PDF : affichage seul */
   clientReadApproved?: boolean;
   onClientReadApprovedChange?: (checked: boolean) => void;
+  /** Demande expresse d'exécution anticipée (L221-25) — optionnelle ; Présenter : contrôlée par le parent, PDF : affichage seul */
+  expressExecutionRequested?: boolean;
+  onExpressExecutionRequestedChange?: (checked: boolean) => void;
   pdfRootId?: string;
   pdfReadyMarker?: boolean;
   /**
@@ -144,6 +147,8 @@ export function QuoteDocumentView({
   signatureLockedHint = null,
   clientReadApproved = false,
   onClientReadApprovedChange,
+  expressExecutionRequested = false,
+  onExpressExecutionRequestedChange,
   pdfRootId = "financial-quote-pdf-root",
   pdfReadyMarker = false,
   showOfficialQuoteNumber = true,
@@ -244,6 +249,11 @@ export function QuoteDocumentView({
   const showApprovalBlock =
     legalMode === "official" || (variant === "present" && legalMode === "draft");
   const approvalInteractive = Boolean(onClientReadApprovedChange);
+  /** Demande expresse d'exécution anticipée : interactive en mode Présenter ; sinon affichage de l'état enregistré. */
+  const expressInteractive = Boolean(onExpressExecutionRequestedChange);
+  const expressChecked = expressInteractive
+    ? Boolean(expressExecutionRequested)
+    : payload.express_execution_acceptance?.accepted === true || Boolean(expressExecutionRequested);
 
   const showSigReadAck = documentVariant === "signed_final";
   const clientSigAckLine = showSigReadAck ? formatSignatureReadAckLine(payload.signature_client_read_acceptance) : null;
@@ -664,6 +674,41 @@ export function QuoteDocumentView({
                       ) : null}
                     </div>
                   ) : null}
+                  <div className="fq-express-exec" aria-label="Demande expresse d'exécution anticipée">
+                    <span className="fq-express-exec-title">
+                      Demande expresse d&apos;exécution anticipée des prestations
+                    </span>
+                    <p className="fq-express-exec-text">
+                      Je demande expressément à SolarGlobe de commencer avant l&apos;expiration du délai légal de
+                      rétractation les prestations d&apos;étude prévisionnelle, dimensionnement, accompagnement
+                      administratif, préparation documentaire, déclaration préalable et coordination du projet.
+                    </p>
+                    <p className="fq-express-exec-text">
+                      Je reconnais avoir été informé qu&apos;en cas d&apos;exercice de mon droit de rétractation après le
+                      commencement de ces prestations, je pourrai être tenu au paiement du montant correspondant aux
+                      prestations effectivement réalisées jusqu&apos;à la communication de ma décision de me rétracter,
+                      conformément aux dispositions du Code de la consommation.
+                    </p>
+                    <label
+                      className={`fq-express-exec-opt${expressInteractive ? "" : " fq-express-exec-opt--static"}`}
+                    >
+                      {expressInteractive ? (
+                        <input
+                          type="checkbox"
+                          checked={expressChecked}
+                          onChange={(e) => onExpressExecutionRequestedChange?.(e.target.checked)}
+                          className="fq-express-exec-checkbox"
+                        />
+                      ) : (
+                        <span className="fq-express-exec-faux-cb" aria-hidden="true">
+                          {expressChecked ? "☑" : "☐"}
+                        </span>
+                      )}
+                      <span className="fq-express-exec-opt-text">
+                        Je demande expressément le commencement immédiat des prestations SolarGlobe.
+                      </span>
+                    </label>
+                  </div>
                   <div className="fq-signature-grid">
                     <SignatureBlock
                       label="Signature du client"

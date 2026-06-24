@@ -337,6 +337,7 @@ export async function getQuoteDocumentViewModel(quoteId, organizationId, opts = 
         payload = { ...payload };
         if (acc.client) payload.signature_client_read_acceptance = acc.client;
         if (acc.company) payload.signature_company_read_acceptance = acc.company;
+        if (acc.expressExecution) payload.express_execution_acceptance = acc.expressExecution;
       }
       return { mode: "official", payload, organizationId };
     } catch {
@@ -2086,6 +2087,12 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
     typeof body?.cgv_acceptance?.acceptedLabel === "string" && body.cgv_acceptance.acceptedLabel.trim()
       ? body.cgv_acceptance.acceptedLabel.trim()
       : null;
+  // Demande expresse d'exécution anticipée (L221-25) — optionnelle ; horodatée à la signature serveur.
+  const expressExecutionRequested = body?.express_execution?.requested === true;
+  const expressExecutionLabel =
+    typeof body?.express_execution?.acceptedLabel === "string" && body.express_execution.acceptedLabel.trim()
+      ? body.express_execution.acceptedLabel.trim()
+      : "Je demande expressément le commencement immédiat des prestations SolarGlobe.";
   let operatorLabel = userId ? String(userId) : null;
   try {
     const ur = await pool.query(`SELECT email FROM users WHERE id = $1`, [userId]);
@@ -2120,6 +2127,11 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
           scrolledToEndAt: cgvScrolledAtIso,
         }
       : null,
+    expressExecution: {
+      requested: expressExecutionRequested,
+      acceptedLabel: expressExecutionRequested ? expressExecutionLabel : null,
+      recordedAt: expressExecutionRequested ? signedAtServerIso : null,
+    },
   };
 
   const clientBuf = parsePngDataUrl(body.signature_client_data_url);
@@ -2319,6 +2331,13 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
               : null,
           }
         : null,
+      expressExecution: {
+        requested: signatureEvidence.expressExecution?.requested === true,
+        label: signatureEvidence.expressExecution?.acceptedLabel ?? null,
+        recordedAtLabel: signatureEvidence.expressExecution?.recordedAt
+          ? formatFrDateTime(signatureEvidence.expressExecution.recordedAt)
+          : null,
+      },
       bodySha256,
       paraphedPages,
     });

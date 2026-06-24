@@ -60,6 +60,7 @@ export default function QuotePresentPage() {
   const [padRole, setPadRole] = useState<"client" | "company" | null>(null);
   const [finalizeBusy, setFinalizeBusy] = useState(false);
   const [clientReadApproved, setClientReadApproved] = useState(false);
+  const [expressExecutionRequested, setExpressExecutionRequested] = useState(false);
   const [cgvInfo, setCgvInfo] = useState<LegalCgvState | null>(null);
   const [cgvPdfUrl, setCgvPdfUrl] = useState<string | null>(null);
   const [cgvScrolledEndAt, setCgvScrolledEndAt] = useState<string | null>(null);
@@ -559,6 +560,10 @@ export default function QuotePresentPage() {
         cgv_acceptance: cgvInfo
           ? { accepted: true, acceptedLabel: cgvAcceptLabel, scrolledToEndAt: cgvScrolledEndAt }
           : undefined,
+        express_execution: {
+          requested: expressExecutionRequested,
+          acceptedLabel: "Je demande expressément le commencement immédiat des prestations SolarGlobe.",
+        },
         client_signed_at: new Date().toISOString(),
         signature_place: signaturePlace.trim() || undefined,
       });
@@ -797,6 +802,10 @@ export default function QuotePresentPage() {
           onSignatureCompanyClick={() => openSignaturePad("company")}
           clientReadApproved={isFinalizeLocked ? true : clientReadApproved}
           onClientReadApprovedChange={canUseSignaturePads ? setClientReadApproved : undefined}
+          expressExecutionRequested={
+            isFinalizeLocked ? payload?.express_execution_acceptance?.accepted === true : expressExecutionRequested
+          }
+          onExpressExecutionRequestedChange={canUseSignaturePads ? setExpressExecutionRequested : undefined}
         />
       </div>
 

@@ -487,6 +487,56 @@
   line-height: 1.45;
 }
 
+/* Encadré « Demande expresse d'exécution anticipée » (L221-25) — juste avant la signature.
+   break-inside: avoid => jamais coupé entre deux pages à l'impression. */
+.fq-express-exec {
+  margin: 0 0 4mm;
+  padding: 3mm 3.5mm;
+  border: 1px solid #b08900;
+  border-radius: 6px;
+  background: #fffaf0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.fq-express-exec-title {
+  display: block;
+  font-size: 8.5pt;
+  font-weight: 700;
+  color: #5c4a00;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 2mm;
+}
+.fq-express-exec-text {
+  margin: 0 0 2mm;
+  font-size: 8pt;
+  line-height: 1.45;
+  color: var(--fq-ink);
+}
+.fq-express-exec-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 2mm;
+  margin-top: 2mm;
+  font-size: 8.5pt;
+  font-weight: 600;
+  color: var(--fq-ink);
+}
+.fq-express-exec-checkbox {
+  margin-top: 0.3mm;
+  width: 3.4mm;
+  height: 3.4mm;
+  flex: 0 0 auto;
+}
+.fq-express-exec-faux-cb {
+  font-size: 11pt;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+.fq-express-exec-opt--static {
+  cursor: default;
+}
+
 .fq-signature-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

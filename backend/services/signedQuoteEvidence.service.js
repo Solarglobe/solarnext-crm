@@ -177,6 +177,12 @@ export async function appendSignatureCertificatePage(pdfBuffer, ev) {
       ? `Défilement jusqu'au terme du document le ${ev.cgv.scrolledToEndAtLabel}`
       : "—");
   }
+  kv(
+    "Demande expresse d'exécution anticipée (L221-25)",
+    ev.expressExecution?.requested
+      ? `Demandée par le client${ev.expressExecution.recordedAtLabel ? ` le ${ev.expressExecution.recordedAtLabel}` : ""} — ${ev.expressExecution.label ?? "commencement immédiat des prestations SolarGlobe"}`
+      : "Non demandée (prestations engagées après le délai légal de rétractation)"
+  );
   y -= 8;
 
   section("Intégrité du document");

@@ -116,6 +116,7 @@ export async function getInternalFinancialQuotePdfPayload(req, res) {
       payload = { ...payload };
       if (acc.client) payload.signature_client_read_acceptance = acc.client;
       if (acc.company) payload.signature_company_read_acceptance = acc.company;
+      if (acc.expressExecution) payload.express_execution_acceptance = acc.expressExecution;
     }
 
     return res.json({
