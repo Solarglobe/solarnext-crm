@@ -1398,7 +1398,7 @@ export default function ScenarioComparisonTable({
                                   }))
                                 }
                               />
-                              <span>Ajouter cette proposition aux documents</span>
+                              <span>Ajouter aux documents</span>
                             </label>
                           ) : null}
                           <button
@@ -1921,6 +1921,7 @@ export default function ScenarioComparisonTable({
           padding-top: 0.35rem;
           margin-top: 0.2rem;
           border-top: 1px solid rgba(255,255,255,0.07);
+          min-height: 116px;
         }
         .scenario-impact-scene {
           margin: 0 0 0.55rem;
@@ -1937,12 +1938,12 @@ export default function ScenarioComparisonTable({
         }
         .scenario-impact-list li {
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           gap: 0.4rem;
-          font-size: 0.8rem;
-          line-height: 1.4;
+          font-size: 0.74rem;
+          line-height: 1.2;
           color: var(--sn-text-secondary, #9FA8C7);
-          padding: 0.35rem 0;
+          padding: 0.26rem 0;
           border-bottom: 1px solid rgba(255,255,255, 0.05);
         }
         .scenario-impact-list li:last-child {
@@ -1951,7 +1952,9 @@ export default function ScenarioComparisonTable({
         }
         .scenario-impact-icon {
           flex-shrink: 0;
-          line-height: 1.4;
+          line-height: 1.15;
+          width: 0.9rem;
+          text-align: center;
         }
         /* ── Résumé matériel batterie physique ── */
         .scenario-row-bat-hw {
@@ -2112,27 +2115,37 @@ export default function ScenarioComparisonTable({
         .scenario-dot-import { background: #7ab8ff; }
         .scenario-add-docs {
           display: flex;
-          align-items: flex-start;
-          gap: 0.45rem;
-          margin: 0 0 0.65rem 0;
-          font-size: 0.72rem;
-          line-height: 1.35;
+          align-items: center;
+          gap: 0.5rem;
+          min-height: 28px;
+          margin: 0;
+          font-size: 0.78rem;
+          line-height: 1.15;
           color: var(--sn-text-secondary, rgba(255, 255, 255, 0.72));
           cursor: pointer;
           user-select: none;
         }
         .scenario-add-docs input {
-          margin-top: 0.12rem;
+          width: 18px;
+          height: 18px;
+          margin: 0;
           flex-shrink: 0;
           accent-color: var(--gold, var(--brand-gold));
         }
         .scenario-add-docs span {
-          font-weight: 500;
+          min-width: 0;
+          font-weight: 600;
+          overflow-wrap: anywhere;
         }
         .theme-light .scenario-add-docs {
           color: var(--text-secondary, #57534e);
         }
         .scenario-col-footer {
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
+          gap: 0.7rem;
+          min-height: 94px;
           margin-top: 0;
           padding-top: 1rem;
           border-top: 1px solid rgba(255,255,255,0.06);
@@ -2141,7 +2154,13 @@ export default function ScenarioComparisonTable({
           min-height: 0;
           padding-top: 0;
         }
-        .scenario-col-cta { width: 100%; }
+        .scenario-col-cta {
+          width: 100%;
+          min-height: 42px;
+          white-space: normal;
+          line-height: 1.15;
+          text-align: center;
+        }
         /* ── Subgrid cross-card row alignment (4-col only) ── */
         @media (min-width: 1201px) {
           .scenario-comparison-grid {
