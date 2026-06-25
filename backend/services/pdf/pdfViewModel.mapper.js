@@ -1109,6 +1109,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         ? Math.max(0, (num(_energyFlowsShared.direct_self_consumption_kwh) ?? Math.max(0, _sharedAutoKwh - _sharedRestoredKwh)) + _sharedRestoredKwh)
         : null;
 
+  // P4 — chiffres energie additionnels, dependants du scenario selectionne (page synthese production).
+  const _p4DirectKwh = num(_energyFlowsShared.direct_self_consumption_kwh) ?? Math.max(0, (autoAnnuelle ?? 0) - (_sharedRestoredKwh ?? 0));
+  const _p4SurplusBrutKwh = Math.max(0, (prodAnnuelle ?? 0) - _p4DirectKwh);
+  const _p4ChargeKwh = num(selectedScenario?.battery?.annual_charge_kwh) ?? num(selectedScenario?.energy?.battery_charge_kwh);
+  const _p4RestitutionKwh = _sharedRestoredKwh ?? 0;
+  const _p4PertesKwh = (_p4ChargeKwh != null) ? Math.max(0, _p4ChargeKwh - _p4RestitutionKwh) : null;
+  const _p4RevenuReventeEur = numOrZero(financeActive.revenu_surplus ?? finance.revenu_surplus);
+
   return {
     meta: {
       studyId: options.studyId ?? null,
@@ -1220,6 +1228,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         couverture_besoins_pct: couverturePct,
         autonomie_pct: autonomyPct,
         economie_annee_1: economieAn1,
+        scenario_type: str(selectedKey),
+        surplus_brut_kwh: Math.round(_p4SurplusBrutKwh),
+        revenu_revente_eur: Math.round(_p4RevenuReventeEur),
+        restitution_batterie_kwh: Math.round(_p4RestitutionKwh),
+        charge_batterie_kwh: _p4ChargeKwh != null ? Math.round(_p4ChargeKwh) : null,
+        pertes_batterie_kwh: _p4PertesKwh != null ? Math.round(_p4PertesKwh) : null,
+        credit_virtuel_utilise_kwh: Math.round(_p4RestitutionKwh),
+        cout_batterie_virtuelle_eur: Math.round(vbAnnualServiceCostTtc),
         kpi_labels: {
           pv_self_consumption: "Autoconsommation PV",
           site_autonomy: "Autonomie site",

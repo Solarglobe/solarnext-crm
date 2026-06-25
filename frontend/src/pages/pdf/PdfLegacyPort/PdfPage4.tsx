@@ -61,6 +61,14 @@ export interface P4Data {
   couverture_besoins_pct?: number | null;
   autonomie_pct?: number | null;
   economie_annee_1?: number;
+  scenario_type?: string;
+  surplus_brut_kwh?: number | null;
+  revenu_revente_eur?: number | null;
+  restitution_batterie_kwh?: number | null;
+  charge_batterie_kwh?: number | null;
+  pertes_batterie_kwh?: number | null;
+  credit_virtuel_utilise_kwh?: number | null;
+  cout_batterie_virtuelle_eur?: number | null;
 }
 
 export default function PdfPage4({
@@ -103,6 +111,39 @@ export default function PdfPage4({
   const surplusAnnuelle = p4.energie_injectee ?? surplus.reduce((a, b) => a + (b ?? 0), 0);
   const couverture = p4.couverture_besoins_pct;
   const economieAn1 = p4.economie_annee_1 ?? 0;
+  const scenarioType = p4.scenario_type ?? "BASE";
+  const isPhys = scenarioType === "BATTERY_PHYSICAL";
+  const isVirt = scenarioType === "BATTERY_VIRTUAL";
+  const isHyb = scenarioType === "BATTERY_HYBRID";
+  // 2 emplacements de synthèse dépendants du scénario (même nombre d'items qu'avant → mise en page inchangée)
+  const extraItems: { label: string; value: string }[] = isPhys
+    ? [
+        { label: "Restitution batterie", value: fmtKwh(p4.restitution_batterie_kwh) },
+        p4.pertes_batterie_kwh != null
+          ? { label: "Pertes batterie", value: fmtKwh(p4.pertes_batterie_kwh) }
+          : { label: "Surplus brut", value: fmtKwh(p4.surplus_brut_kwh) },
+      ]
+    : isVirt
+      ? [
+          { label: "Crédit virtuel utilisé", value: fmtKwh(p4.credit_virtuel_utilise_kwh) },
+          { label: "Coût batterie virtuelle/an", value: fmtEur(p4.cout_batterie_virtuelle_eur) },
+        ]
+      : isHyb
+        ? [
+            { label: "Restitution batterie", value: fmtKwh(p4.restitution_batterie_kwh) },
+            { label: "Coût batterie virtuelle/an", value: fmtEur(p4.cout_batterie_virtuelle_eur) },
+          ]
+        : [
+            { label: "Surplus brut", value: fmtKwh(p4.surplus_brut_kwh) },
+            { label: "Revenu revente", value: fmtEur(p4.revenu_revente_eur) },
+          ];
+  const baseNote = "Le surplus brut est la production solaire non utilisée en direct.";
+  const scenarioNote =
+    isPhys || isHyb
+      ? `${baseNote} La batterie la restitue le soir et la nuit ; une faible part (~10 %) est perdue au stockage.`
+      : isVirt
+        ? `${baseNote} Ce surplus est crédité chez le fournisseur puis repris plus tard ; un coût annuel s'applique au service.`
+        : `${baseNote} Sans stockage, il est injecté et revendu au réseau (faible valorisation).`;
 
   const hasData = prodAnnuelle > 0 || consoAnnuelle > 0;
 
@@ -227,11 +268,12 @@ export default function PdfPage4({
           <div className="p4-kpi-line">
             <div className="kpi-item highlight"><span>Production</span><strong>{fmtKwh(prodAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Consommation</span><strong>{fmtKwh(consoAnnuelle)}</strong></div>
-            <div className="kpi-item"><span>Utilisé</span><strong>{fmtKwh(autoAnnuelle)}</strong></div>
-            <div className="kpi-item"><span>Injecté</span><strong>{fmtKwh(surplusAnnuelle)}</strong></div>
-            <div className="kpi-item"><span>Part couverte par le solaire</span><strong>{fmtPct(couverture)}</strong></div>
-            <div className="kpi-item highlight"><span>Énergie solaire utilisée</span><strong>{fmtKwh(autoAnnuelle)}</strong></div>
-            <div className="kpi-item highlight"><span>Économies</span><strong>{fmtEur(economieAn1)}</strong></div>
+            <div className="kpi-item highlight"><span>Énergie autoconsommée</span><strong>{fmtKwh(autoAnnuelle)}</strong></div>
+            <div className="kpi-item"><span>Part couverte</span><strong>{fmtPct(couverture)}</strong></div>
+            {extraItems.map((it, i) => (
+              <div className="kpi-item" key={i}><span>{it.label}</span><strong>{it.value}</strong></div>
+            ))}
+            <div className="kpi-item highlight"><span>Économies an 1</span><strong>{fmtEur(economieAn1)}</strong></div>
           </div>
         </div>
       )}
@@ -246,7 +288,7 @@ export default function PdfPage4({
           flexShrink: 0,
         }}
       >
-        La production est calée sur le profil du site : une part est utilisée directement, le complément est injecté selon les périodes. Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte.
+        {scenarioNote}
       </p>
 
       {/* État vide (pas de données) */}
