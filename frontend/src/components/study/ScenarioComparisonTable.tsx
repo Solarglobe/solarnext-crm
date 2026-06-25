@@ -1523,6 +1523,8 @@ export default function ScenarioComparisonTable({
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-key-indicators,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-finance,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-numbers,
+        .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-energy-audit,
+        .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-bat-hw,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-comprehension,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-impact {
           margin-bottom: 0;
@@ -2164,12 +2166,12 @@ export default function ScenarioComparisonTable({
         /* ── Subgrid cross-card row alignment (4-col only) ── */
         @media (min-width: 1201px) {
           .scenario-comparison-grid {
-            grid-template-rows: repeat(9, auto);
+            grid-template-rows: repeat(10, auto);
             row-gap: 0.35rem;
           }
           .scenario-col-card {
             display: grid;
-            grid-row: span 9;
+            grid-row: span 10;
             grid-template-rows: subgrid;
             gap: 0;
             min-height: unset;
@@ -2178,7 +2180,7 @@ export default function ScenarioComparisonTable({
             gap: 0;
           }
           .scenario-col-card--empty .scenario-col-body.scenario-col-empty {
-            grid-row: 2 / 10;
+            grid-row: 2 / 11;
             flex: unset;
           }
           .scenario-col-card:not(.scenario-col-card--empty) > footer.scenario-col-footer,
