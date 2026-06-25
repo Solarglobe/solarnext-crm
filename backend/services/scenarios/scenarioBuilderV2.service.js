@@ -63,12 +63,18 @@ export function buildScenarioBaseV2(ctx) {
     surplus,
     import: importKwh,
     conso,
+    direct_self_consumption_kwh: auto,
+    surplus_before_battery_kwh: surplus,
+    surplus_available_pct: prod > 0 ? Math.round((surplus / prod) * 10000) / 100 : null,
+    direct_self_consumption_pct: prod > 0 ? Math.round((auto / prod) * 10000) / 100 : null,
     monthly: months.map(m => ({
       prod: m.prod_kwh,
       conso: m.conso_kwh,
       auto: m.auto_kwh,
       surplus: m.surplus_kwh,
       import: m.import_kwh,
+      direct_self_consumption_kwh: m.auto_kwh,
+      surplus_before_battery_kwh: m.surplus_kwh,
     })),
     hourly: null,
   };

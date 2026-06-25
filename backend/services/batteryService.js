@@ -25,15 +25,22 @@ function passThroughNoBattery(pv_hourly, conso_hourly) {
     pv_hourly,
     conso_hourly,
     auto_hourly,
+    direct_self_consumption_hourly: auto_hourly,
+    surplus_before_battery_hourly: surplus_hourly,
     surplus_hourly,
     batt_discharge_hourly: Array(8760).fill(0),
+    batt_charge_input_hourly: Array(8760).fill(0),
     batt_charge_hourly: Array(8760).fill(0),
     battery_soc_hourly: Array(8760).fill(0),
     prod_kwh: Math.round(pv_total),
     auto_kwh: Math.round(auto_total),
+    direct_self_consumption_kwh: Math.round(auto_total),
+    surplus_before_battery_kwh: Math.round(surplus_total),
     surplus_kwh: Math.round(surplus_total),
     grid_import_kwh: Math.round(conso_hourly.reduce((a, b) => a + (b || 0), 0) - auto_total),
     auto_pct: pv_total > 0 ? Math.round((auto_total / pv_total) * 100) : 0,
+    annual_charge_from_surplus_kwh: 0,
+    annual_charge_to_soc_kwh: 0,
   };
 }
 
@@ -86,11 +93,17 @@ export function simulateBattery8760({
   let surplus_total = 0;
   let grid_total = 0;
   let charge_in_total = 0;
+  let charge_to_soc_total = 0;
   let discharge_total = 0;
+  let direct_total = 0;
+  let surplus_before_battery_total = 0;
 
   const auto_hourly = [];
+  const direct_self_consumption_hourly = [];
+  const surplus_before_battery_hourly = [];
   const surplus_hourly = [];
   const batt_discharge_hourly = [];
+  const batt_charge_input_hourly = [];
   const batt_charge_hourly = [];
   const battery_soc_hourly = [];
 
@@ -100,6 +113,7 @@ export function simulateBattery8760({
 
     const direct = Math.min(pv, load);
     let surplus = pv - direct;
+    const surplus_before_battery = Math.max(0, surplus);
 
     let charge_in = 0;
     if (surplus > 0.15) {
@@ -139,11 +153,17 @@ export function simulateBattery8760({
     grid_total += import_h;
     surplus_total += Math.max(0, surplus);
     charge_in_total += charge_in;
+    charge_to_soc_total += charge_eff;
     discharge_total += discharge_out;
+    direct_total += direct;
+    surplus_before_battery_total += surplus_before_battery;
 
     auto_hourly.push(auto_h);
+    direct_self_consumption_hourly.push(direct);
+    surplus_before_battery_hourly.push(surplus_before_battery);
     surplus_hourly.push(Math.max(0, surplus));
     batt_discharge_hourly.push(discharge_out);
+    batt_charge_input_hourly.push(charge_in);
     batt_charge_hourly.push(charge_eff);
     battery_soc_hourly.push(SOC);
   }
@@ -169,17 +189,24 @@ export function simulateBattery8760({
     pv_hourly,
     conso_hourly,
     auto_hourly,
+    direct_self_consumption_hourly,
+    surplus_before_battery_hourly,
     surplus_hourly,
     batt_discharge_hourly,
+    batt_charge_input_hourly,
     batt_charge_hourly,
     battery_soc_hourly,
     prod_kwh: Math.round(pv_total),
     auto_kwh: Math.round(auto_total),
+    direct_self_consumption_kwh: Math.round(direct_total),
+    surplus_before_battery_kwh: Math.round(surplus_before_battery_total),
     surplus_kwh: Math.round(surplus_total),
     grid_import_kwh: Math.round(grid_total),
     auto_pct: pv_total > 0 ? Math.round((auto_total / pv_total) * 100) : 0,
     battery_losses_kwh: Math.round(battery_losses_kwh),
     annual_charge_kwh,
+    annual_charge_from_surplus_kwh: Math.round(charge_in_total),
+    annual_charge_to_soc_kwh: Math.round(charge_to_soc_total),
     annual_discharge_kwh,
     annual_throughput_kwh,
     equivalent_cycles,

@@ -101,6 +101,19 @@ function addEnergyKpisToScenario(scenario, ctx) {
   scenario.surplus_revenue_eur = round(surplus_revenue_eur, 2);
 }
 
+function monthlySumsFromHourly(values) {
+  if (!Array.isArray(values) || values.length !== 8760) return Array(12).fill(null);
+  const daysPerMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const out = [];
+  let index = 0;
+  for (const days of daysPerMonth) {
+    let sum = 0;
+    for (let h = 0; h < days * 24; h++, index++) sum += Number(values[index]) || 0;
+    out.push(Math.round(sum));
+  }
+  return out;
+}
+
 // ======================================================================
 // 🌞 CONTRÔLEUR PRINCIPAL
 // ======================================================================
@@ -800,6 +813,8 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           batteryScenario.battery = {
             enabled: true,
             annual_charge_kwh: batt.annual_charge_kwh,
+            annual_charge_from_surplus_kwh: batt.annual_charge_from_surplus_kwh,
+            annual_charge_to_soc_kwh: batt.annual_charge_to_soc_kwh,
             annual_discharge_kwh: batt.annual_discharge_kwh,
             annual_throughput_kwh: batt.annual_throughput_kwh,
             equivalent_cycles: batt.equivalent_cycles,
@@ -810,6 +825,12 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           batteryScenario._v2 = true;
 
           const batteryLossesKwh = batt.battery_losses_kwh ?? 0;
+          const directSelfKwh = batt.direct_self_consumption_kwh ?? Math.max(0, batt.auto_kwh - (batt.annual_discharge_kwh ?? 0));
+          const surplusBeforeBatteryKwh = batt.surplus_before_battery_kwh ?? baseScenario.energy.surplus ?? 0;
+          const chargeFromSurplusKwh = batt.annual_charge_from_surplus_kwh ?? batt.annual_charge_kwh ?? 0;
+          const monthlyDirect = monthlySumsFromHourly(batt.direct_self_consumption_hourly);
+          const monthlySurplusBefore = monthlySumsFromHourly(batt.surplus_before_battery_hourly);
+          const monthlyChargeInput = monthlySumsFromHourly(batt.batt_charge_input_hourly);
           batteryScenario.energy = {
             prod: baseScenario.energy.prod,
             auto: batt.auto_kwh,
@@ -817,13 +838,27 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             import: batt.grid_import_kwh ?? 0,
             conso: baseScenario.energy.conso,
             battery_losses_kwh: batteryLossesKwh,
-            monthly: monthlyBatt.map(m => ({
+            direct_self_consumption_kwh: directSelfKwh,
+            surplus_before_battery_kwh: surplusBeforeBatteryKwh,
+            surplus_available_pct: baseScenario.energy.prod > 0 ? round((surplusBeforeBatteryKwh / baseScenario.energy.prod) * 100, 2) : null,
+            direct_self_consumption_pct: baseScenario.energy.prod > 0 ? round((directSelfKwh / baseScenario.energy.prod) * 100, 2) : null,
+            physical_battery_charge_from_surplus_kwh: chargeFromSurplusKwh,
+            physical_battery_charge_to_soc_kwh: batt.annual_charge_to_soc_kwh ?? batt.annual_charge_kwh ?? 0,
+            surplus_used_by_physical_battery_kwh: chargeFromSurplusKwh,
+            surplus_to_virtual_or_grid_kwh: batt.surplus_kwh,
+            physical_battery_discharge_kwh: batt.annual_discharge_kwh ?? 0,
+            battery_discharge_kwh: batt.annual_discharge_kwh ?? 0,
+            monthly: monthlyBatt.map((m, i) => ({
               prod: m.prod_kwh,
               conso: m.conso_kwh,
               auto: m.auto_kwh,
               surplus: m.surplus_kwh,
               import: m.import_kwh,
               batt: m.batt_kwh,
+              direct_self_consumption_kwh: monthlyDirect[i],
+              surplus_before_battery_kwh: monthlySurplusBefore[i],
+              physical_battery_charge_from_surplus_kwh: monthlyChargeInput[i],
+              physical_battery_discharge_kwh: m.batt_kwh,
             })),
             hourly: null,
           };
@@ -1111,6 +1146,9 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           });
 
           const monthlyVirt = aggregateMonthly(ctx.pv.hourly, consoHourlyVirtual, vbSim);
+          const monthlyVirtDirect = monthlySumsFromHourly(vbSim.direct_self_consumption_hourly);
+          const monthlyVirtSurplusBefore = monthlySumsFromHourly(vbSim.surplus_before_virtual_battery_hourly);
+          const monthlyVirtCharge = monthlySumsFromHourly(vbSim.virtual_battery_hourly_charge_kwh);
           const billableMonthly = aggregateVirtualBatteryMonthly(
             vbSim.virtual_battery_hourly_grid_import_kwh,
             vbSim.virtual_battery_hourly_charge_kwh,
@@ -1136,6 +1174,8 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           const billable_import_kwh = creditResult.billable_import_kwh ?? 0;
           const used_credit_kwh = creditResult.used_credit_kwh ?? 0;
           const remaining_credit_kwh = creditResult.remaining_credit_kwh ?? 0;
+          const directSelfKwhV = vbSim.direct_self_consumption_kwh ?? autoBase;
+          const surplusBeforeVirtualKwh = vbSim.surplus_before_virtual_battery_kwh ?? baseScenario.energy?.surplus ?? 0;
 
           const autoproduction_kwh = autoBase + used_credit_kwh;
           const self_production_pct = consumption > 0 ? (autoproduction_kwh / consumption) * 100 : 0;
@@ -1153,19 +1193,30 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             surplus: vbSim.surplus_kwh,
             import: billable_import_kwh,
             conso: baseScenario.energy.conso,
-            monthly: monthlyVirt.map(m => ({
-              prod: m.prod_kwh,
-              conso: m.conso_kwh,
-              auto: m.auto_kwh,
-              surplus: m.surplus_kwh,
-              import: m.import_kwh,
-              batt: m.batt_kwh,
-            })),
+              monthly: monthlyVirt.map((m, i) => ({
+                prod: m.prod_kwh,
+                conso: m.conso_kwh,
+                auto: m.auto_kwh,
+                surplus: m.surplus_kwh,
+                import: m.import_kwh,
+                batt: m.batt_kwh,
+                direct_self_consumption_kwh: monthlyVirtDirect[i],
+                surplus_before_virtual_battery_kwh: monthlyVirtSurplusBefore[i],
+                surplus_before_battery_kwh: monthlyVirtSurplusBefore[i],
+                virtual_battery_charge_kwh: monthlyVirtCharge[i],
+              })),
             hourly: null,
             production_kwh: production,
             consumption_kwh: consumption,
             autoconsumption_kwh: vbSim.auto_kwh,
-            direct_self_consumption_kwh: autoBase,
+            direct_self_consumption_kwh: directSelfKwhV,
+            surplus_before_battery_kwh: surplusBeforeVirtualKwh,
+            surplus_before_virtual_battery_kwh: surplusBeforeVirtualKwh,
+            surplus_available_pct: production > 0 ? round((surplusBeforeVirtualKwh / production) * 100, 2) : null,
+            direct_self_consumption_pct: production > 0 ? round((directSelfKwhV / production) * 100, 2) : null,
+            surplus_to_virtual_or_grid_kwh: credited_kwh + (vbSim.virtual_battery_overflow_export_kwh ?? 0),
+            surplus_used_by_virtual_battery_kwh: credited_kwh,
+            virtual_battery_valued_kwh: used_credit_kwh,
             battery_discharge_kwh: used_credit_kwh,
             total_pv_used_on_site_kwh: vbSim.auto_kwh,
             exported_kwh: vbSim.surplus_kwh,
@@ -1514,6 +1565,8 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             const physicalExportKwh = battPhysicalResult.surplus_kwh ?? 0;
             const physicalLossesKwh = battPhysicalResult.battery_losses_kwh ?? 0;
             const directSelfConsumptionKwh = Math.max(0, physicalAutoKwh - physicalDischargeKwh);
+            const surplusBeforePhysicalKwh = battPhysicalResult.surplus_before_battery_kwh ?? baseScenarioH.energy?.surplus ?? 0;
+            const physicalChargeFromSurplusKwh = battPhysicalResult.annual_charge_from_surplus_kwh ?? battPhysicalResult.annual_charge_kwh ?? 0;
             const hybridPvProducedUsedKwh = Math.max(
               0,
               Math.min(production, consumption, production - hybridSurplusKwh - physicalLossesKwh)
@@ -1525,6 +1578,11 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               (a, h) => a + (vbSimHEffective.virtual_battery_hourly_discharge_kwh[h] || 0)
             );
             const hybridSurplusHourly = vbSimHEffective.virtual_battery_hourly_overflow_export_kwh ?? Array(8760).fill(0);
+            const monthlyHybridDirect = monthlySumsFromHourly(battPhysicalResult.direct_self_consumption_hourly);
+            const monthlyHybridSurplusBeforePhysical = monthlySumsFromHourly(battPhysicalResult.surplus_before_battery_hourly);
+            const monthlyHybridPhysicalCharge = monthlySumsFromHourly(battPhysicalResult.batt_charge_input_hourly);
+            const monthlyHybridVirtualCharge = monthlySumsFromHourly(vbSimHEffective.virtual_battery_hourly_charge_kwh);
+            const monthlyHybridVirtualDischarge = monthlySumsFromHourly(vbSimHEffective.virtual_battery_hourly_discharge_kwh);
             const monthlyHybrid = aggregateMonthly(ctx.pv.hourly, consoHourlyHybrid, {
               auto_hourly: hybridAutoHourly,
               surplus_hourly: hybridSurplusHourly,
@@ -1601,6 +1659,16 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               energy_solar_used_kwh: hybridPvProducedUsedKwh,
               site_solar_or_credit_used_kwh: hybridSiteSolarOrCreditUsedKwh,
               direct_self_consumption_kwh: directSelfConsumptionKwh,
+              surplus_before_battery_kwh: surplusBeforePhysicalKwh,
+              surplus_available_pct: production > 0 ? round((surplusBeforePhysicalKwh / production) * 100, 2) : null,
+              direct_self_consumption_pct: production > 0 ? round((directSelfConsumptionKwh / production) * 100, 2) : null,
+              physical_battery_charge_from_surplus_kwh: physicalChargeFromSurplusKwh,
+              physical_battery_charge_to_soc_kwh: battPhysicalResult.annual_charge_to_soc_kwh ?? battPhysicalResult.annual_charge_kwh ?? 0,
+              surplus_used_by_physical_battery_kwh: physicalChargeFromSurplusKwh,
+              surplus_after_physical_battery_kwh: physicalExportKwh,
+              surplus_used_by_virtual_battery_kwh: hybridCredited,
+              surplus_to_virtual_or_grid_kwh: hybridCredited + hybridSurplusKwh,
+              virtual_battery_valued_kwh: vbCreditsUsed,
               physical_battery_discharge_kwh: physicalDischargeKwh,
               virtual_battery_discharge_kwh: vbCreditsUsed,
               battery_discharge_kwh: physicalDischargeKwh + vbCreditsUsed,
@@ -1618,9 +1686,15 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               remaining_credit_kwh: hybridRemainingCredit,
               overflow_export_kwh: hybridSurplusKwh,
               virtual_battery_overflow_export_kwh: hybridSurplusKwh,
-              monthly: monthlyHybrid.map(m => ({
+              monthly: monthlyHybrid.map((m, i) => ({
                 prod: m.prod_kwh, conso: m.conso_kwh, auto: m.auto_kwh,
                 surplus: m.surplus_kwh, import: m.import_kwh, batt: m.batt_kwh,
+                direct_self_consumption_kwh: monthlyHybridDirect[i],
+                surplus_before_battery_kwh: monthlyHybridSurplusBeforePhysical[i],
+                physical_battery_charge_from_surplus_kwh: monthlyHybridPhysicalCharge[i],
+                physical_battery_discharge_kwh: Math.max(0, (m.batt_kwh ?? 0) - (monthlyHybridVirtualDischarge[i] ?? 0)),
+                virtual_battery_charge_kwh: monthlyHybridVirtualCharge[i],
+                virtual_battery_discharge_kwh: monthlyHybridVirtualDischarge[i],
               })),
               hourly: null,
             };

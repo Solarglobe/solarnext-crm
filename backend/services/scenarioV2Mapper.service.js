@@ -209,6 +209,17 @@ export function mapScenarioToV2(scenario, ctx) {
     ...energyBase,
     energy_independence_pct: scenario.energy_independence_pct ?? null,
     direct_self_consumption_kwh: scenario.energy?.direct_self_consumption_kwh ?? null,
+    direct_self_consumption_pct: scenario.energy?.direct_self_consumption_pct ?? null,
+    surplus_before_battery_kwh: scenario.energy?.surplus_before_battery_kwh ?? null,
+    surplus_before_virtual_battery_kwh: scenario.energy?.surplus_before_virtual_battery_kwh ?? null,
+    surplus_available_pct: scenario.energy?.surplus_available_pct ?? null,
+    surplus_used_by_physical_battery_kwh: scenario.energy?.surplus_used_by_physical_battery_kwh ?? null,
+    physical_battery_charge_from_surplus_kwh: scenario.energy?.physical_battery_charge_from_surplus_kwh ?? null,
+    physical_battery_charge_to_soc_kwh: scenario.energy?.physical_battery_charge_to_soc_kwh ?? null,
+    surplus_after_physical_battery_kwh: scenario.energy?.surplus_after_physical_battery_kwh ?? null,
+    surplus_to_virtual_or_grid_kwh: scenario.energy?.surplus_to_virtual_or_grid_kwh ?? null,
+    surplus_used_by_virtual_battery_kwh: scenario.energy?.surplus_used_by_virtual_battery_kwh ?? null,
+    virtual_battery_valued_kwh: scenario.energy?.virtual_battery_valued_kwh ?? null,
     battery_discharge_kwh: scenario.energy?.battery_discharge_kwh ?? null,
     physical_battery_discharge_kwh: scenario.energy?.physical_battery_discharge_kwh ?? null,
     virtual_battery_discharge_kwh: scenario.energy?.virtual_battery_discharge_kwh ?? null,
@@ -422,6 +433,9 @@ export function mapScenarioToV2(scenario, ctx) {
             Number(scenario.battery.annual_throughput_kwh)
           ),
           battery_charge_kwh: Math.round(Number(scenario.battery.annual_charge_kwh)),
+          battery_charge_from_surplus_kwh: Math.round(
+            Number(scenario.battery.annual_charge_from_surplus_kwh ?? scenario.energy?.physical_battery_charge_from_surplus_kwh ?? scenario.battery.annual_charge_kwh)
+          ),
           battery_discharge_kwh: Math.round(
             Number(scenario.battery.annual_discharge_kwh)
           ),

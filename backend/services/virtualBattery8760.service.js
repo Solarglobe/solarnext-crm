@@ -114,6 +114,8 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
   const hourlyOverflowExport = [];
   const hourlyGridImport = [];
   const hourlyCreditBalance = [];
+  const directSelfConsumptionHourly = [];
+  const surplusBeforeVirtualHourly = [];
   const autoHourly = [];
   const surplusHourly = [];
 
@@ -121,6 +123,8 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
   let totalDischarged = 0;
   let totalOverflowExport = 0;
   let totalGridImport = 0;
+  let totalDirect = 0;
+  let totalSurplusBeforeVirtual = 0;
 
   for (let h = 0; h < HOURS_PER_YEAR; h++) {
     const pv = Number(pv_hourly[h]) || 0;
@@ -134,6 +138,7 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
 
     if (pv >= load) {
       const rawSurplus = pv - load;
+      totalSurplusBeforeVirtual += rawSurplus;
       const splittable = rawSurplus * creditRatio;
       const rejectRatio = rawSurplus * (1 - creditRatio);
       const room = Math.max(0, capacity_kwh - SOC);
@@ -149,6 +154,7 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
 
     const autoH = direct + dischargeH;
 
+    totalDirect += direct;
     totalCharged += chargeH;
     totalDischarged += dischargeH;
     totalOverflowExport += overflowH;
@@ -159,6 +165,8 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
     hourlyOverflowExport.push(overflowH);
     hourlyGridImport.push(importH);
     hourlyCreditBalance.push(SOC);
+    directSelfConsumptionHourly.push(direct);
+    surplusBeforeVirtualHourly.push(Math.max(0, pv - direct));
     autoHourly.push(autoH);
     surplusHourly.push(overflowH);
   }
@@ -182,12 +190,16 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
     virtual_battery_hourly_credit_balance_kwh: hourlyCreditBalance,
     virtual_battery_hourly_overflow_export_kwh: hourlyOverflowExport,
     virtual_battery_hourly_grid_import_kwh: hourlyGridImport,
+    direct_self_consumption_hourly: directSelfConsumptionHourly,
+    surplus_before_virtual_battery_hourly: surplusBeforeVirtualHourly,
     /** Pour aggregateMonthly (même convention que batterie physique) */
     auto_hourly: autoHourly,
     surplus_hourly: surplusHourly,
     batt_discharge_hourly: hourlyDischarge,
     prod_kwh: Math.round(pvTotal),
     auto_kwh: Math.round(autoTotal),
+    direct_self_consumption_kwh: Math.round(totalDirect),
+    surplus_before_virtual_battery_kwh: Math.round(totalSurplusBeforeVirtual),
     surplus_kwh: Math.round(surplusTotal),
     grid_import_kwh: Math.round(importTotal),
     /** Bilans bruts (non arrondis) pour tests */

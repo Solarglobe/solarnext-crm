@@ -59,6 +59,21 @@ export interface ScenarioV2Energy {
   self_production_pct?: number | null;
   energy_independence_pct?: number | null;
   autoproduction_kwh?: number | null;
+  direct_self_consumption_kwh?: number | null;
+  direct_self_consumption_pct?: number | null;
+  surplus_before_battery_kwh?: number | null;
+  surplus_before_virtual_battery_kwh?: number | null;
+  surplus_available_pct?: number | null;
+  surplus_used_by_physical_battery_kwh?: number | null;
+  physical_battery_charge_from_surplus_kwh?: number | null;
+  physical_battery_charge_to_soc_kwh?: number | null;
+  surplus_after_physical_battery_kwh?: number | null;
+  surplus_to_virtual_or_grid_kwh?: number | null;
+  surplus_used_by_virtual_battery_kwh?: number | null;
+  virtual_battery_valued_kwh?: number | null;
+  battery_discharge_kwh?: number | null;
+  physical_battery_discharge_kwh?: number | null;
+  virtual_battery_discharge_kwh?: number | null;
   battery_losses_kwh?: number | null;
   virtual_battery_overflow_export_kwh?: number | null;
   /** Alias normalisé mapper V2 (restitution crédit) */
@@ -106,6 +121,7 @@ export interface ScenarioV2 {
   battery_utilization_pct?: number | null;
   battery_throughput_kwh?: number | null;
   battery_charge_kwh?: number | null;
+  battery_charge_from_surplus_kwh?: number | null;
   battery_discharge_kwh?: number | null;
   /** Champs optionnels non normalisés par le mapper (affichage only si présents) */
   virtual_battery_finance?: {
@@ -728,6 +744,44 @@ export default function ScenarioComparisonTable({
 
           const overflowKwh =
             energy.overflow_export_kwh ?? energy.virtual_battery_overflow_export_kwh;
+          const grossSurplusKwh = firstFiniteNumber(
+            energy.surplus_before_battery_kwh,
+            energy.surplus_before_virtual_battery_kwh,
+            energy.surplus_kwh
+          );
+          const directSelfPct = firstFiniteNumber(energy.direct_self_consumption_pct);
+          const surplusAvailablePct = firstFiniteNumber(energy.surplus_available_pct);
+          const physicalChargeFromSurplusKwh = firstFiniteNumber(
+            energy.surplus_used_by_physical_battery_kwh,
+            energy.physical_battery_charge_from_surplus_kwh,
+            scenario?.battery_charge_from_surplus_kwh,
+            scenario?.battery_charge_kwh
+          );
+          const physicalRestoredKwh = firstFiniteNumber(
+            energy.physical_battery_discharge_kwh,
+            id === "BATTERY_PHYSICAL" ? energy.battery_discharge_kwh : null,
+            scenario?.battery_discharge_kwh
+          );
+          const virtualSentKwh = firstFiniteNumber(
+            energy.surplus_used_by_virtual_battery_kwh,
+            energy.credited_kwh,
+            scenario?.battery_virtual?.annual_charge_kwh
+          );
+          const virtualValuedKwh = firstFiniteNumber(
+            energy.virtual_battery_valued_kwh,
+            energy.virtual_battery_discharge_kwh,
+            energy.restored_kwh,
+            energy.used_credit_kwh,
+            scenario?.battery_virtual?.annual_discharge_kwh
+          );
+          const surplusToVirtualOrGridKwh = firstFiniteNumber(
+            energy.surplus_to_virtual_or_grid_kwh,
+            id === "BATTERY_PHYSICAL" ? energy.surplus_kwh : null,
+            id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID"
+              ? (virtualSentKwh ?? 0) + (overflowKwh != null ? Number(overflowKwh) : 0)
+              : null
+          );
+          const totalSelfConsumptionPct = firstFiniteNumber(energy.pv_self_consumption_pct);
 
           const subscriptionAnnual =
             costs.battery_virtual_annual_cost ??
@@ -979,6 +1033,58 @@ export default function ScenarioComparisonTable({
                           : "—"}
                       </strong>
                     </div>
+                  </section>
+
+                  <section className="scenario-block scenario-row-energy-audit" aria-label="Vérification flux 8760 heures">
+                    <h4 className="scenario-block-title">Vérification 8760 h</h4>
+                    <MiniRow
+                      label="Surplus brut avant batterie"
+                      tip="Production PV moins autoconsommation directe, heure par heure, avant stockage."
+                      value={formatKwh(grossSurplusKwh)}
+                    />
+                    <MiniRow
+                      label="Taux autoconsommation directe"
+                      tip="Part de la production consommée immédiatement, avant toute batterie."
+                      value={formatPercent(directSelfPct)}
+                    />
+                    <MiniRow
+                      label="Taux de surplus disponible"
+                      tip="Part de la production qui devient surplus brut, donc réellement disponible pour stockage ou injection."
+                      value={formatPercent(surplusAvailablePct)}
+                    />
+                    {(id === "BATTERY_PHYSICAL" || id === "BATTERY_HYBRID") && (
+                      <>
+                        <MiniRow
+                          label="Surplus utilisé par batterie physique"
+                          tip="kWh PV réellement prélevés dans le surplus pour charger la batterie physique."
+                          value={formatKwh(physicalChargeFromSurplusKwh)}
+                        />
+                        <MiniRow
+                          label="Restitué par batterie physique"
+                          tip="kWh réellement déchargés vers la consommation après rendement et limites de puissance."
+                          value={formatKwh(physicalRestoredKwh)}
+                        />
+                      </>
+                    )}
+                    {(id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID") && (
+                      <>
+                        <MiniRow
+                          label="Surplus envoyé virtuel/réseau"
+                          tip="Surplus résiduel envoyé en crédit virtuel ou injecté réseau après la batterie physique éventuelle."
+                          value={formatKwh(surplusToVirtualOrGridKwh)}
+                        />
+                        <MiniRow
+                          label="Valorisé par batterie virtuelle"
+                          tip="Crédits kWh réellement utilisés pour réduire l'achat réseau."
+                          value={formatKwh(virtualValuedKwh)}
+                        />
+                      </>
+                    )}
+                    <MiniRow
+                      label="Taux autoconsommation avec batterie"
+                      tip="Taux final du scénario après stockage physique ou crédit virtuel, calculé sur la production PV."
+                      value={formatPercent(totalSelfConsumptionPct)}
+                    />
                   </section>
 
                   {/* Résumé matériel batterie physique — toujours rendu pour maintenir le subgrid (vide pour BASE/VIRTUAL) */}
