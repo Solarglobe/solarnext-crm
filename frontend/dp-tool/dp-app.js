@@ -22296,6 +22296,15 @@ function initDP6() {
       validateSelectionBtn.style.display = "none";
       validateSelectionBtn.disabled = true;
     }
+    if (workflowHintEl && okImage && !isBefore && hasActivePatch) {
+      workflowHintEl.textContent = "Zone active : ajustez-la, supprimez-la ou validez la zone pour retirer le contour et en dessiner une autre.";
+    }
+
+    if (validateSelectionBtn) {
+      validateSelectionBtn.style.display = isBefore ? "none" : "";
+      validateSelectionBtn.disabled = !(okImage && hasActivePatch);
+    }
+
     if (editSelectionBtn) {
       editSelectionBtn.style.display = "none";
       editSelectionBtn.disabled = true;
@@ -22394,6 +22403,46 @@ function initDP6() {
     try { renderDP6Canvas(); } catch (_) {}
     try { dp6SyncValidateButtonUI(); } catch (_) {}
     return true;
+  }
+
+  function dp6CreateActivePatchFromSelection() {
+    const pts = window.DP6_STATE?.selection?.points;
+    if (!dp6NormalizeQuadPoints(pts)) return false;
+
+    dp6PushUndoState();
+
+    const copy = (pts || []).slice(0, 4).map((p) => ({
+      x: +Number(p?.x || 0).toFixed(2),
+      y: +Number(p?.y || 0).toFixed(2),
+    }));
+
+    try {
+      window.DP6_STATE = window.DP6_STATE || {};
+      window.DP6_STATE.patches = Array.isArray(window.DP6_STATE.patches) ? window.DP6_STATE.patches : [];
+      window.DP6_STATE.patches.push({ points: copy });
+      dp6SetActivePatchIndex(window.DP6_STATE.patches.length - 1);
+      dp6CropSetSelection(copy);
+    } catch (_) {
+      return false;
+    }
+
+    try { renderDP6Canvas(); } catch (_) {}
+    try { dp6SyncValidateButtonUI(); } catch (_) {}
+    return true;
+  }
+
+  function dp6FinalizeActivePatchSelection() {
+    const idx = dp6GetActivePatchIndex();
+    if (idx != null) {
+      try { dp6CommitActivePatchEditFromSelection(); } catch (_) {}
+      try { dp6SetActivePatchIndex(null); } catch (_) {}
+      try { dp6CropClearSelection(); } catch (_) {}
+      try { renderDP6Canvas(); } catch (_) {}
+      try { dp6EnsureSelectionEditor(); } catch (_) {}
+      try { dp6SyncValidateButtonUI(); } catch (_) {}
+      return true;
+    }
+    return dp6ValidateActiveSelectionAsPatch();
   }
 
   function dp6CommitActivePatchEditFromSelection() {
@@ -23091,10 +23140,9 @@ function initDP6() {
           render(null);
           try { dp6SetActivePatchIndex(null); } catch (_) {}
         } else {
-          // Auto-création + auto-validation : une zone dessinée devient immédiatement un patch.
-          // Elle devient inactive à la fin (aucun contour).
-          try { dp6ValidateActiveSelectionAsPatch(); } catch (_) {}
-          render(null);
+          // Creation immediate : la zone reste active jusqu'au clic sur "Valider la zone".
+          try { dp6CreateActivePatchFromSelection(); } catch (_) {}
+          render(dp6CropGetSelection());
         }
       }
 
@@ -23797,7 +23845,7 @@ function initDP6() {
     validateSelectionBtn.dataset.bound = "1";
     validateSelectionBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      dp6ValidateActiveSelectionAsPatch();
+      dp6FinalizeActivePatchSelection();
     });
   }
 
