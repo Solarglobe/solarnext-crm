@@ -22,6 +22,12 @@ export interface ComputeNearShadingFrontendParams {
   getHeightAtImagePoint?: (point: { x: number; y: number }) => number;
   useZLocal?: boolean;
   metersPerPixel?: number;
+  /**
+   * NEAR-NS-FIX — Angle Nord du toit (deg, convention worldMapping). Sert à convertir les
+   * vecteurs soleil géographiques (dy=Nord) vers le repère pixel image (y=bas) du raycast legacy.
+   * Absent → 0 (capture nord-up). Sans cette conversion, l'axe Nord/Sud du near est inversé.
+   */
+  northAngleDeg?: number;
   debug?: boolean;
   calpinageRoofState?: unknown;
   /**

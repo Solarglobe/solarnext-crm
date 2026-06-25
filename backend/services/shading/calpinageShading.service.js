@@ -40,6 +40,48 @@ function computeShadowRayDirection(azimuthDeg, elevationDeg) {
 }
 
 /**
+ * Angle Nord du toit (deg) — même convention que getNorthAngleDeg (pans-bundle) / worldMapping.
+ * @param {object|null} geometry
+ * @returns {number}
+ */
+export function readNorthAngleDeg(geometry) {
+  const g = geometry && typeof geometry === "object" ? geometry : null;
+  if (!g) return 0;
+  const candidates = [
+    g.roofState && g.roofState.roof && g.roofState.roof.north,
+    g.roofState && g.roofState.north,
+    g.roof && g.roof.north,
+    g.north,
+  ];
+  for (const c of candidates) {
+    if (c && typeof c.angleDeg === "number" && Number.isFinite(c.angleDeg)) return c.angleDeg;
+  }
+  return 0;
+}
+
+/**
+ * NEAR-NS-FIX — Convertit un vecteur soleil GEOGRAPHIQUE (dx=Est, dy=Nord, dz=haut)
+ * vers le repere PIXEL IMAGE (x=droite, y=bas) attendu par le raycast near (polygonPx).
+ * Loi alignee sur worldMapping.worldHorizontalMToImagePx (sans rotation : Est=+x, Nord=-y).
+ *   dx' = dx*cos + dy*sin
+ *   dy' = dx*sin - dy*cos
+ * dz inchange (la ponderation et t = zTop/dz restent corrects).
+ * @param {{dx:number,dy:number,dz:number}} sunDir
+ * @param {number} northAngleDeg
+ * @returns {{dx:number,dy:number,dz:number}}
+ */
+export function geoSunDirToImagePixelDir(sunDir, northAngleDeg) {
+  const rad = deg2rad(typeof northAngleDeg === "number" && Number.isFinite(northAngleDeg) ? northAngleDeg : 0);
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return {
+    dx: sunDir.dx * cos + sunDir.dy * sin,
+    dy: sunDir.dx * sin - sunDir.dy * cos,
+    dz: sunDir.dz,
+  };
+}
+
+/**
  * m/px pour near shading (polygonPx). Priorité : param explicite → geometry.scale.
  * Sans échelle : 1 (compat anciens jeux de tests « 1 px ≈ 1 m »).
  * @returns {{ value: number, isDefault: boolean }}
@@ -317,6 +359,8 @@ export async function computeCalpinageShading(params) {
 
   const metersPerPixelMeta = resolveMetersPerPixelFromParamsWithMeta(params);
   const metersPerPixel = metersPerPixelMeta.value;
+  // NEAR-NS-FIX : orientation Nord du toit pour convertir les vecteurs soleil geo -> pixels image.
+  const northAngleDeg = readNorthAngleDeg(geometry ?? params?.geom ?? null);
 
   let panels = Array.isArray(panelsParam) ? panelsParam : [];
   let obstacles = Array.isArray(obstaclesParam) ? obstaclesParam : [];
@@ -504,12 +548,16 @@ export async function computeCalpinageShading(params) {
     monthlyFar[month]      += weight;
 
     let panelFractionSum = 0;
+    // NEAR-NS-FIX : le raycast near travaille en pixels image (polygonPx) -> convertir le
+    // vecteur soleil geographique (dy=Nord) vers le repere pixel (y=bas). Sans cela, l'axe
+    // Nord/Sud etait inverse (obstacle sud ignore, obstacle nord fantome).
+    const sunDirPx = geoSunDirToImagePixelDir(sunDir, northAngleDeg);
     for (let pi = 0; pi < panels.length; pi++) {
       const panel = panels[pi];
       const fraction = nearShadingCore.computePanelShadedFraction({
         panel,
         obstacles: normObstacles,
-        sunDir,
+        sunDir: sunDirPx,
         getZWorldAtXY: undefined,
         useZLocal: false,
         panelGridSize: 2,

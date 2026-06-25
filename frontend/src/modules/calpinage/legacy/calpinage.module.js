@@ -3339,6 +3339,16 @@ export function initCalpinage(container, options = {}) {
           ? CALPINAGE_STATE.roof.scale.metersPerPixel
           : 1;
 
+        // NEAR-NS-FIX : angle Nord du toit (meme convention que getNorthAngleDeg / worldMapping)
+        // passe au near legacy pour convertir les vecteurs soleil geo -> pixels image.
+        var shadingNorthDeg = 0;
+        if (CALPINAGE_STATE.roof) {
+          var _rn = CALPINAGE_STATE.roof.north;
+          var _rrn = CALPINAGE_STATE.roof.roof && CALPINAGE_STATE.roof.roof.north;
+          if (_rn && typeof _rn.angleDeg === "number" && Number.isFinite(_rn.angleDeg)) shadingNorthDeg = _rn.angleDeg;
+          else if (_rrn && typeof _rrn.angleDeg === "number" && Number.isFinite(_rrn.angleDeg)) shadingNorthDeg = _rrn.angleDeg;
+        }
+
         var result;
         if (window.nearShadingCore && typeof window.getAnnualSunVectors === "function") {
           if ((CALPINAGE_STATE.pans || []).length > 0) {
@@ -3364,6 +3374,7 @@ export function initCalpinage(container, options = {}) {
             getHeightAtImagePoint: hasZProvider ? function (pt) { return getHeightAtImgPoint(pt); } : undefined,
             useZLocal: hasZProvider,
             metersPerPixel: shadingMpp,
+            northAngleDeg: shadingNorthDeg,
             debug: !!(typeof window !== "undefined" && window.SHADING_DEBUG),
             horizonMask: horizonMask,
             calpinageRuntimeRoot: CALPINAGE_STATE,
@@ -3662,10 +3673,25 @@ export function initCalpinage(container, options = {}) {
         var worstMpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && typeof CALPINAGE_STATE.roof.scale.metersPerPixel === "number" && CALPINAGE_STATE.roof.scale.metersPerPixel > 0 && Number.isFinite(CALPINAGE_STATE.roof.scale.metersPerPixel))
           ? CALPINAGE_STATE.roof.scale.metersPerPixel
           : 1;
+        // NEAR-NS-FIX : convertir les vecteurs soleil geographiques -> pixels image (Nord/Sud)
+        // comme dans computeNearShadingLegacy, sinon worst-case inverse en Nord/Sud.
+        var worstNorthDeg = 0;
+        if (CALPINAGE_STATE.roof) {
+          var _wrn = CALPINAGE_STATE.roof.north;
+          var _wrrn = CALPINAGE_STATE.roof.roof && CALPINAGE_STATE.roof.roof.north;
+          if (_wrn && typeof _wrn.angleDeg === "number" && Number.isFinite(_wrn.angleDeg)) worstNorthDeg = _wrn.angleDeg;
+          else if (_wrrn && typeof _wrrn.angleDeg === "number" && Number.isFinite(_wrrn.angleDeg)) worstNorthDeg = _wrrn.angleDeg;
+        }
+        var _wTheta = (worstNorthDeg * Math.PI) / 180;
+        var _wCos = Math.cos(_wTheta);
+        var _wSin = Math.sin(_wTheta);
+        var sunVectorsPx = sunVectors.map(function (v) {
+          return { dx: v.dx * _wCos + v.dy * _wSin, dy: v.dx * _wSin - v.dy * _wCos, dz: v.dz };
+        });
         var result = window.nearShadingCore.computeNearShading({
           panels: panels,
           obstacles: nearObstacles,
-          sunVectors: sunVectors,
+          sunVectors: sunVectorsPx,
           getZWorldAtXY: getZWorldAtXY,
           useZLocal: useZLocal,
           metersPerPixel: worstMpp

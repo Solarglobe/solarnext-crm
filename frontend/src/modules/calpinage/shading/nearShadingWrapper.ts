@@ -94,13 +94,30 @@ function computeNearShadingLegacy(
     };
   }
 
-  const sunVectors = getAnnualSunVectors(latitude, longitude, {
+  const sunVectorsGeo = getAnnualSunVectors(latitude, longitude, {
     year: config.year ?? new Date().getFullYear(),
     stepMinutes: config.stepMinutes ?? 60,
     minSunElevationDeg: config.minSunElevationDeg ?? 3,
   });
 
-  if (!sunVectors.length) return emptyResult;
+  if (!sunVectorsGeo.length) return emptyResult;
+
+  // NEAR-NS-FIX — Le raycast legacy travaille en pixels image (polygonPx, y=bas) mais
+  // getAnnualSunVectors renvoie des vecteurs GÉOGRAPHIQUES (dx=Est, dy=Nord). On convertit ici
+  // (rotation Nord + flip Y), sinon l'axe Nord/Sud est inversé (obstacle sud ignoré, nord fantôme).
+  // Loi alignée sur worldMapping.worldHorizontalMToImagePx. Le pipeline canonical 3D gère déjà le Nord.
+  const northAngleDeg =
+    typeof params.northAngleDeg === "number" && Number.isFinite(params.northAngleDeg)
+      ? params.northAngleDeg
+      : 0;
+  const nThetaRad = (northAngleDeg * Math.PI) / 180;
+  const nCos = Math.cos(nThetaRad);
+  const nSin = Math.sin(nThetaRad);
+  const sunVectors = sunVectorsGeo.map((v) => ({
+    dx: v.dx * nCos + v.dy * nSin,
+    dy: v.dx * nSin - v.dy * nCos,
+    dz: v.dz,
+  }));
 
   const getZWorldAtXY =
     typeof getHeightAtImagePoint === "function"
