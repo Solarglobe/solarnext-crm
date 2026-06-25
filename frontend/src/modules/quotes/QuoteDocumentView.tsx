@@ -511,9 +511,12 @@ export function QuoteDocumentView({
                     </div>
                   </div>
                   <p className="fq-installer-mention" role="note">
-                    Prestation réalisée et facturée directement par un installateur RGE indépendant. Non incluse
-                    dans le total SolarGlobe. Devis séparé à signer avec l’installateur. Paiement direct du client
-                    à l’installateur après intervention.
+                    La pose des panneaux photovoltaïques en toiture, le raccordement électrique d’exécution au
+                    tableau général, la mise en service technique et les vérifications sur chantier sont réalisés et
+                    facturés directement par un installateur RGE indépendant, juridiquement distinct de SolarGlobe.
+                    Ces prestations ne sont ni réalisées, ni commandées, ni sous-traitées, ni facturées, ni
+                    encaissées par SolarGlobe. Les documents contractuels, devis, facture, attestations d’assurance,
+                    garanties et conditions d’intervention relèvent exclusivement de l’installateur.
                   </p>
                 </section>
 
@@ -540,7 +543,9 @@ export function QuoteDocumentView({
                   </div>
                   <p className="fq-installer-mention" role="note">
                     Ce coût global est donné à titre indicatif pour présenter le budget complet du projet. Il ne
-                    constitue pas le montant facturé par SolarGlobe.
+                    constitue pas le montant facturé par SolarGlobe. Il ne vaut ni commande de travaux, ni
+                    engagement de SolarGlobe sur la réalisation, la facturation ou les obligations propres de
+                    l’installateur RGE indépendant.
                   </p>
                 </section>
               </>
@@ -586,7 +591,9 @@ export function QuoteDocumentView({
                             après expiration du délai légal applicable aux contrats conclus hors établissement.
                           </li>
                           <li>
-                            {soldePctPay} % du montant SolarGlobe TTC restant dû après validation du Consuel
+                            {soldePctPay} % du montant SolarGlobe TTC restant dû après réception du certificat
+                            Consuel ou de l’attestation de conformité transmise par le Client, l’installateur RGE
+                            indépendant ou l’organisme compétent
                             {soldeTtcPay > 0 ? <> — soit {formatEurLeading(soldeTtcPay)} TTC</> : null}.
                           </li>
                         </ul>
@@ -596,9 +603,10 @@ export function QuoteDocumentView({
                       <div className="fq-echeancier-pose">
                         <p style={{ fontWeight: 700, margin: "6px 0 4px" }}>Paiement de la pose</p>
                         <p style={{ margin: 0 }}>
-                          La prestation de pose est réglée à 100 % directement par le Client à l’installateur RGE
-                          indépendant après installation, selon les modalités prévues dans le devis séparé de
-                          l’installateur. SolarGlobe n’encaisse aucune somme au titre de la pose.
+                          La prestation de pose est réglée directement par le Client à l’installateur RGE
+                          indépendant, selon les modalités propres à cet installateur. SolarGlobe n’encaisse aucune
+                          somme au titre de la pose et n’intervient pas dans la relation financière entre le Client
+                          et l’installateur.
                         </p>
                       </div>
                     ) : null}
@@ -631,12 +639,13 @@ export function QuoteDocumentView({
                       }}
                     >
                       La signature du présent devis engage exclusivement le Client pour les prestations de la
-                      section A, soit le montant facturé par SolarGlobe. Elle ne vaut ni commande ni acceptation de
-                      la prestation de pose décrite en section B, laquelle fera l’objet d’un devis distinct conclu
-                      directement entre le Client et l’installateur RGE indépendant. La prestation de pose est
-                      facturée directement par l’installateur RGE indépendant et n’est ni facturée ni encaissée par
-                      SolarGlobe. Le coût global indiqué en section C est purement indicatif et ne constitue pas le
-                      montant facturé par SolarGlobe.
+                      section A, soit le montant facturé par SolarGlobe. Elle ne vaut ni commande, ni acceptation,
+                      ni validation contractuelle des travaux de pose décrits en section B, lesquels relèvent
+                      exclusivement d’une relation contractuelle et financière directe entre le Client et
+                      l’installateur RGE indépendant. La prestation de pose est facturée directement par
+                      l’installateur RGE indépendant et n’est ni facturée ni encaissée par SolarGlobe. Le coût
+                      global indiqué en section C est purement indicatif et ne constitue pas le montant facturé par
+                      SolarGlobe.
                     </p>
                   ) : null}
                   {showApprovalBlock ? (
@@ -681,7 +690,8 @@ export function QuoteDocumentView({
                     <p className="fq-express-exec-text">
                       Je demande expressément à SolarGlobe de commencer avant l&apos;expiration du délai légal de
                       rétractation les prestations d&apos;étude prévisionnelle, dimensionnement, accompagnement
-                      administratif, préparation documentaire, déclaration préalable et coordination du projet.
+                      administratif, préparation documentaire, déclaration préalable et coordination commerciale et
+                      documentaire du projet sur le seul périmètre SolarGlobe.
                     </p>
                     <p className="fq-express-exec-text">
                       Je reconnais avoir été informé qu&apos;en cas d&apos;exercice de mon droit de rétractation après le
