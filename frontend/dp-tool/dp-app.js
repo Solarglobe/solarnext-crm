@@ -19369,6 +19369,30 @@ function dp4MountVectorLayersFromState(map) {
 /**
  * Enregistre un panneau posé sur l’ortho toiture dans DP4_STATE.panels (anneau EPSG:3857), pour la couche OL.
  */
+function dp4SetMapHelperLayersVisibleForCapture(map, visible) {
+  const changed = [];
+  if (!map || !map.getLayers) return changed;
+  try {
+    map.getLayers().forEach(function (ly) {
+      const kind = ly && ly.get && ly.get("dp4Layer");
+      if (kind !== "base" && kind !== "panels") return;
+      const prev = ly.getVisible ? ly.getVisible() : true;
+      changed.push({ layer: ly, visible: prev });
+      if (ly.setVisible) ly.setVisible(visible);
+    });
+  } catch (_) {}
+  return changed;
+}
+
+function dp4RestoreMapHelperLayersAfterCapture(changed) {
+  if (!Array.isArray(changed)) return;
+  for (const entry of changed) {
+    try {
+      if (entry && entry.layer && entry.layer.setVisible) entry.layer.setVisible(entry.visible !== false);
+    } catch (_) {}
+  }
+}
+
 function dp4Append3857PanelFromDp2Placement(panelEntry) {
   if (!panelEntry || panelEntry.type !== "panel" || !panelEntry.geometry) return;
   const g = panelEntry.geometry;
@@ -21352,6 +21376,7 @@ function initDP4() {
     if (!window.DP4_OL_MAP) return;
 
     dp4SetValidateEnabled(false);
+    let helperLayers = null;
 
     try {
       const map = window.DP4_OL_MAP;
@@ -21369,8 +21394,9 @@ function initDP4() {
         return;
       }
 
+      helperLayers = dp4SetMapHelperLayersVisibleForCapture(map, false);
       await dp4WaitOrthoTilesIdle(map, 5200);
-      await new Promise((r) => setTimeout(r, 250));
+      await new Promise((r) => setTimeout(r, 120));
       try {
         map.renderSync();
       } catch (_) {}
@@ -21380,6 +21406,7 @@ function initDP4() {
       canvas.height = size[1];
       const ctx = canvas.getContext("2d");
       if (!ctx) {
+        dp4RestoreMapHelperLayersAfterCapture(helperLayers);
         console.error("[DP4] capture: contexte 2D absent");
         alert("Capture DP4 impossible.");
         return;
@@ -21413,11 +21440,13 @@ function initDP4() {
       });
 
       if (dp4RasterCompositeProbablyBlank(ctx, size[0], size[1])) {
+        dp4RestoreMapHelperLayersAfterCapture(helperLayers);
         console.error("[DP4] capture: image vide ou grise (tuiles non prêtes ?)");
         alert("La capture est vide ou encore grise. Attendez le chargement des images puis réessayez.");
         return;
       }
 
+      dp4RestoreMapHelperLayersAfterCapture(helperLayers);
       const imageBase64 = canvas.toDataURL("image/png");
       const view = map.getView();
       const scale_m_per_px = ol.proj.getPointResolution(
@@ -21488,6 +21517,7 @@ function initDP4() {
 
       dp4RenderRoofDrawingStep();
     } catch (e) {
+      dp4RestoreMapHelperLayersAfterCapture(helperLayers);
       console.error("[DP4] Capture impossible", e);
       alert("Capture DP4 impossible (voir la console).");
     } finally {
