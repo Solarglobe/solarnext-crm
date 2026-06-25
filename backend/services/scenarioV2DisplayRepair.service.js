@@ -40,6 +40,21 @@ function firstNum(...vals) {
   return null;
 }
 
+function hasAuthoritativeVirtual8760(sc) {
+  if (!sc || typeof sc !== "object") return false;
+  const e = sc.energy && typeof sc.energy === "object" ? sc.energy : {};
+  const has8760Payload =
+    sc.virtual_battery_8760 != null ||
+    sc._virtualBattery8760 != null ||
+    sc.virtual_battery_rollover?.year1 != null ||
+    sc.virtual_battery_rollover?.stabilized != null;
+  const hasExplicitCredit =
+    firstNum(e.used_credit_kwh, e.restored_kwh, sc.used_credit_kwh, sc.battery_virtual?.restored_kwh) != null;
+  const hasExplicitBillable =
+    firstNum(e.billable_import_kwh, e.energy_grid_import_kwh, sc.billable_import_kwh) != null;
+  return has8760Payload && hasExplicitCredit && hasExplicitBillable;
+}
+
 function repairFinanceFromImport(sc, previousImport, repairedImport) {
   const finance = sc.finance && typeof sc.finance === "object" ? sc.finance : {};
   const previousBill = firstNum(
@@ -91,6 +106,7 @@ function repairFinanceFromImport(sc, previousImport, repairedImport) {
 export function repairVirtualScenarioDisplayKpis(sc) {
   if (!sc || typeof sc !== "object") return sc;
   if (scenarioId(sc) !== "BATTERY_VIRTUAL") return sc;
+  if (hasAuthoritativeVirtual8760(sc)) return sc;
 
   const provider = virtualProviderCode(sc);
   if (provider === "MYLIGHT_MYSMARTBATTERY") return sc;
