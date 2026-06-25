@@ -18871,6 +18871,9 @@ function dp4SetFinalRenderFor(category, imageBase64) {
   const s = dp4FinalLoadStore();
   s[cat] = { imageBase64, finalizedAt: Date.now() };
   dp4FinalSaveStore(s);
+  try {
+    if (typeof window.__snDpPersistDebounced === "function") window.__snDpPersistDebounced("fast");
+  } catch (_) {}
 }
 
 async function dp4BuildFinalRenderImageBase64FromCurrentDom() {
@@ -20347,9 +20350,16 @@ function dp4SeedBeforePlanFromFrozenDp2Import() {
   const cap = source.capture;
   const v = dp4ValidateDP2CaptureForImport(cap);
   if (!v.ok) return false;
-  // LOT3: toujours recalculer l'affine depuis la carte capturee (alignement correct) ;
-  // le transform fige du bouton "Importer DP2" n'est qu'un repli si la carte a disparu.
-  const tr = dp4MakeAffineFromDp2ToMapPixels(cap, window.DP4_OL_MAP) || window.DP4_IMPORT_DP2_FROZEN_TRANSFORM;
+  // Si l'utilisateur bouge la carte apres "Importer DP2", l'overlay DP2 reste volontairement fige
+  // a l'ecran. La validation doit donc reprendre ce que l'utilisateur voit, pas la geoloc DP2 initiale.
+  const mapMovedAfterImport = dp4ImportViewSnapshotDiffersFromMap(
+    window.DP4_IMPORT_VIEW_SNAPSHOT,
+    window.DP4_OL_MAP
+  );
+  const tr =
+    mapMovedAfterImport && window.DP4_IMPORT_DP2_FROZEN_TRANSFORM
+      ? window.DP4_IMPORT_DP2_FROZEN_TRANSFORM
+      : dp4MakeAffineFromDp2ToMapPixels(cap, window.DP4_OL_MAP) || window.DP4_IMPORT_DP2_FROZEN_TRANSFORM;
   if (!tr) return false;
   const stateCat = window.DP4_STATE?.before;
   if (!stateCat) return false;
@@ -21238,7 +21248,7 @@ function initDP4() {
             // Nécessaire pour permettre "Importer Avant Travaux"
             try {
               if (typeof dp4SaveActivePlanToSelectedCategory === "function") {
-                dp4SaveActivePlanToSelectedCategory();
+                await dp4SaveActivePlanToSelectedCategory();
               }
             } catch (_) {}
             try {
@@ -21247,6 +21257,13 @@ function initDP4() {
             const finalImg = await dp4BuildFinalRenderImageBase64FromCurrentDom();
             if (typeof finalImg === "string" && finalImg.startsWith("data:image")) {
               dp4SetFinalRenderFor(cat, finalImg);
+              try {
+                if (window.DP4_STATE?.plans?.[cat]) {
+                  window.DP4_STATE.plans[cat].thumbnailBase64 = finalImg;
+                  window.DP4_STATE.plans[cat].savedAt = Date.now();
+                  if (typeof dp4SaveState === "function") dp4SaveState(window.DP4_STATE);
+                }
+              } catch (_) {}
               // Rafraîchir les miniatures (la page derrière le modal peut se mettre à jour)
               try { dp4RenderEntryMiniatures(); } catch (_) {}
               // Fermer automatiquement l'overlay DP4 (retour écran parent)
@@ -21429,6 +21446,40 @@ function initDP4() {
       if (!okGeom) return;
 
       window.DP4_CAPTURE_IMAGE = imageBase64;
+      try {
+        const cat = window.DP4_STATE?.photoCategory ?? null;
+        if (cat === "before" || cat === "after") {
+          window.DP4_STATE.plans = window.DP4_STATE.plans || { before: null, after: null };
+          const stateCat = window.DP4_STATE[cat] || {
+            roofGeometry: [],
+            panels: [],
+            textObjects: [],
+            businessObjects: [],
+            history: []
+          };
+          const orthoForPlan =
+            (typeof dp4GetCaptureOrtho === "function" ? dp4GetCaptureOrtho() : window.DP4_STATE.capture) || captureOrthoPayload;
+          window.DP4_STATE.plans[cat] = {
+            photoCategory: cat,
+            capture: dp2CloneForHistory(orthoForPlan),
+            capture_ortho: dp2CloneForHistory(orthoForPlan),
+            roofGeometry: dp2CloneForHistory(Array.isArray(stateCat.roofGeometry) ? stateCat.roofGeometry : []),
+            roofType: window.DP4_STATE.roofType ?? null,
+            scaleGraphicMeters: window.DP4_STATE.scaleGraphicMeters ?? null,
+            panelModel: window.DP4_STATE.panelModel ?? null,
+            panels: dp2CloneForHistory(Array.isArray(stateCat.panels) ? stateCat.panels : []),
+            textObjects: dp2CloneForHistory(Array.isArray(stateCat.textObjects) ? stateCat.textObjects : []),
+            businessObjects: dp2CloneForHistory(Array.isArray(stateCat.businessObjects) ? stateCat.businessObjects : []),
+            history: dp2CloneForHistory(Array.isArray(stateCat.history) ? stateCat.history : []),
+            thumbnailBase64: imageBase64,
+            savedAt: Date.now(),
+            dp4BaseFeatures: dp2CloneForHistory(Array.isArray(window.DP4_STATE.baseFeatures) ? window.DP4_STATE.baseFeatures : []),
+            dp4MapOverlayPanels: dp2CloneForHistory(Array.isArray(window.DP4_STATE.panels) ? window.DP4_STATE.panels : [])
+          };
+          if (typeof dp4SaveState === "function") dp4SaveState(window.DP4_STATE);
+          try { dp4RenderEntryMiniatures(); } catch (_) {}
+        }
+      } catch (_) {}
       try {
         syncDP4MetricMarkerOverlayUI();
       } catch (_) {}
