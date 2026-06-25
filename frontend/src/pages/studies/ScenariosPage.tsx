@@ -67,6 +67,10 @@ export default function ScenariosPage() {
   const [redownloading, setRedownloading] = useState(false);
   const [modifierLoading, setModifierLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [needsRecompute, setNeedsRecompute] = useState(false);
+  const [snapshotEngineVersion, setSnapshotEngineVersion] = useState<string | null>(null);
+  const [currentEngineVersion, setCurrentEngineVersion] = useState<string | null>(null);
+  const [recomputing, setRecomputing] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [titleSaving, setTitleSaving] = useState(false);
@@ -108,6 +112,9 @@ export default function ScenariosPage() {
     setScenarios([]);
     setVersionLocked(false);
     setSelectedScenarioId(null);
+    setNeedsRecompute(false);
+    setSnapshotEngineVersion(null);
+    setCurrentEngineVersion(null);
     try {
       const res = await apiFetch(
         `${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/scenarios`
@@ -118,6 +125,11 @@ export default function ScenariosPage() {
         error?: string;
         is_locked?: boolean;
         selected_scenario_id?: string | null;
+        needs_recompute?: boolean;
+        stale_snapshot?: boolean;
+        engine_coherent?: boolean;
+        snapshot_engine_version?: string | null;
+        current_engine_version?: string | null;
       };
       if (res.status === 404 && body.error === "SCENARIOS_NOT_GENERATED") {
         setScenariosError("SCENARIOS_NOT_GENERATED");
@@ -135,6 +147,11 @@ export default function ScenariosPage() {
         setScenarios(body.scenarios);
         setVersionLocked(body.is_locked === true);
         setSelectedScenarioId(parseSelectedScenarioId(body.selected_scenario_id));
+        setNeedsRecompute(
+          body.needs_recompute === true || body.stale_snapshot === true || body.engine_coherent === false
+        );
+        setSnapshotEngineVersion(body.snapshot_engine_version ?? null);
+        setCurrentEngineVersion(body.current_engine_version ?? null);
       }
     } catch (e) {
       setScenariosError(e instanceof Error ? e.message : "Erreur chargement scénarios");
@@ -307,6 +324,31 @@ export default function ScenariosPage() {
       setPdfFlowBusy(false);
     }
   }, [isReadOnly, studyId, versionId]);
+
+  const handleRecompute = useCallback(async () => {
+    if (isReadOnly) return;
+    if (!studyId || !versionId) return;
+    const base = API_BASE.replace(/\/$/, "");
+    setRecomputing(true);
+    try {
+      const res = await apiFetch(
+        `${base}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/calc`,
+        { method: "POST", skipErrorToast: true }
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        showToast(body.error || "Échec du recalcul des scénarios", true);
+        return;
+      }
+      await fetchScenariosOnly();
+      await refreshStudy();
+      showToast("Scénarios recalculés avec le nouveau moteur", false);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Erreur lors du recalcul", true);
+    } finally {
+      setRecomputing(false);
+    }
+  }, [isReadOnly, studyId, versionId, fetchScenariosOnly, refreshStudy]);
 
   const handleModifierEtude = useCallback(async () => {
     if (isReadOnly) return;
@@ -484,6 +526,46 @@ export default function ScenariosPage() {
     </div>
   ) : null;
 
+  const recomputeBanner = needsRecompute ? (
+    <div
+      role="alert"
+      data-testid="scenarios-recompute-banner"
+      className="sn-card"
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        padding: "var(--spacing-16)",
+        marginBottom: "var(--spacing-20)",
+        border: "1px solid var(--brand-gold)",
+        background: "color-mix(in srgb, var(--brand-gold) 12%, var(--sn-bg-surface))",
+        borderRadius: 12,
+      }}
+    >
+      <div style={{ minWidth: 240, flex: "1 1 320px" }}>
+        <strong style={{ display: "block", color: "var(--sn-text-primary)" }}>
+          Les scénarios doivent être recalculés avec le nouveau moteur.
+        </strong>
+        <span className="sg-helper" style={{ display: "block", marginTop: 4 }}>
+          Ces résultats proviennent d&apos;une version de calcul périmée
+          {snapshotEngineVersion ? ` (${snapshotEngineVersion})` : ""}
+          {currentEngineVersion ? ` → moteur actuel ${currentEngineVersion}` : ""}.
+          Les valeurs batterie ci-dessous ne sont pas fiables tant que le calcul n&apos;est pas relancé.
+        </span>
+      </div>
+      <button
+        type="button"
+        className="sg-btn sg-btn-primary"
+        onClick={() => void handleRecompute()}
+        disabled={recomputing || isReadOnly}
+      >
+        {recomputing ? "Recalcul…" : "Recalculer les scénarios"}
+      </button>
+    </div>
+  ) : null;
+
   if (scenariosError === "SCENARIOS_NOT_GENERATED") {
     return (
       <div className="scenarios-page" style={{ padding: "var(--spacing-24)", maxWidth: 720, margin: "0 auto" }}>
@@ -606,14 +688,21 @@ export default function ScenariosPage() {
           </p>
         </header>
 
-        <div style={{ marginBottom: "var(--spacing-24)" }}>
+        {recomputeBanner}
+        <div
+          {...(needsRecompute ? { "data-testid": "scenarios-stale", "aria-disabled": true } : {})}
+          style={{
+            marginBottom: "var(--spacing-24)",
+            ...(needsRecompute ? { opacity: 0.45, pointerEvents: "none" as const } : {}),
+          }}
+        >
           <ScenarioComparisonTable
             orderedScenarios={orderedScenarios}
             columnLabels={COLUMN_LABELS}
             studyId={studyId ?? undefined}
             versionId={versionId ?? undefined}
             onSelectScenario={handleSelectScenario}
-            selectionDisabled={pdfFlowBusy || redownloading || isReadOnly}
+            selectionDisabled={pdfFlowBusy || redownloading || isReadOnly || needsRecompute}
             selectingId={selectingId}
             versionLocked={versionLocked}
             selectedScenarioId={selectedScenarioId}

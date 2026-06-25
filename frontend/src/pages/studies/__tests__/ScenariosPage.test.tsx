@@ -8,6 +8,17 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import ScenariosPage from "../ScenariosPage";
 
+// La page utilise useSuperAdminReadOnly (OrganizationProvider). On le neutralise pour le test.
+vi.mock("../../../contexts/OrganizationContext", () => ({
+  useSuperAdminReadOnly: () => false,
+}));
+
+// apiFetch délègue directement au fetch mocké (évite le flux auth/refresh non mockable ici).
+vi.mock("../../../services/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../services/api")>();
+  return { ...actual, apiFetch: (url: string, opts?: RequestInit) => fetch(url, opts) };
+});
+
 describe("ScenariosPage", () => {
   const mockStudyId = "study-123";
   const mockVersionId = "version-456";
@@ -158,4 +169,83 @@ describe("ScenariosPage", () => {
       { timeout: 4000 }
     );
   });
+  it("snapshot périmé (V12 vs moteur V13) → bandeau needs_recompute + cartes non valides + recalcul", async () => {
+    let recomputed = false;
+    const staleBody = {
+      ok: true,
+      scenarios: [
+        { id: "BASE", label: "Sans batterie", energy: { production_kwh: 5924 }, finance: { economie_year_1: 761 }, energy_basis: "hourly_8760" },
+        { id: "BATTERY_PHYSICAL", label: "Batterie physique", energy: { production_kwh: 5924, pv_self_consumption_pct: 95.5 }, finance: { economie_year_1: 1095 }, energy_basis: "monthly_fallback", _engine_stale: true },
+      ],
+      is_locked: false,
+      selected_scenario_id: null,
+      needs_recompute: true,
+      stale_snapshot: true,
+      engine_coherent: false,
+      snapshot_engine_version: "SmartPitch V-LIGHT V12",
+      current_engine_version: "SmartPitch V-LIGHT V13",
+    };
+    const freshBody = {
+      ok: true,
+      scenarios: [
+        { id: "BASE", label: "Sans batterie", energy: { production_kwh: 5924 }, finance: { economie_year_1: 761 }, energy_basis: "hourly_8760" },
+        { id: "BATTERY_PHYSICAL", label: "Batterie physique", energy: { production_kwh: 5924, pv_self_consumption_pct: 75.5 }, finance: { economie_year_1: 873 }, energy_basis: "hourly_8760" },
+      ],
+      is_locked: false,
+      selected_scenario_id: null,
+      needs_recompute: false,
+      stale_snapshot: false,
+      engine_coherent: true,
+      snapshot_engine_version: "SmartPitch V-LIGHT V13",
+      current_engine_version: "SmartPitch V-LIGHT V13",
+    };
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/versions/") && url.includes("/calc")) {
+        recomputed = true;
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true }) } as Response);
+      }
+      if (url.includes("/versions/") && url.includes("/scenarios")) {
+        return Promise.resolve({ ok: true, json: async () => (recomputed ? freshBody : staleBody) } as unknown as Response);
+      }
+      if (url.includes(`/api/studies/${mockStudyId}`) && !url.includes("/versions")) {
+        return Promise.resolve(studyPayload as Response);
+      }
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/studies/${mockStudyId}/versions/${mockVersionId}/scenarios`]}>
+        <Routes>
+          <Route path="/studies/:studyId/versions/:versionId/scenarios" element={<ScenariosPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    // 1) Bandeau de péremption affiché
+    await waitFor(() => {
+      expect(
+        screen.getByText("Les scénarios doivent être recalculés avec le nouveau moteur.")
+      ).toBeInTheDocument();
+    });
+    // 2) Bouton de recalcul présent
+    const recomputeBtn = screen.getByRole("button", { name: "Recalculer les scénarios" });
+    expect(recomputeBtn).toBeInTheDocument();
+    // 3) Anciennes cartes marquées non valides (conteneur périmé, désactivé)
+    const staleWrap = screen.getByTestId("scenarios-stale");
+    expect(staleWrap).toHaveAttribute("aria-disabled", "true");
+
+    // 4) Recalcul → POST /calc puis rechargement → bandeau disparaît
+    fireEvent.click(recomputeBtn);
+    await waitFor(() => {
+      expect(recomputed).toBe(true);
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Les scénarios doivent être recalculés avec le nouveau moteur.")
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("scenarios-stale")).not.toBeInTheDocument();
+  });
+
 });
