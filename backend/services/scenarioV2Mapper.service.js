@@ -441,6 +441,8 @@ export function mapScenarioToV2(scenario, ctx) {
     production,
     assumptions,
     scenario_uses_piloted_profile: scenario.scenario_uses_piloted_profile === true,
+    // COHERENCE MOTEUR : base temporelle effective ("hourly_8760", "monthly_fallback" ou "skipped").
+    energy_basis: scenario.energy_basis ?? (scenario._skipped === true ? "skipped" : "hourly_8760"),
     anti_oversell_flags: Array.isArray(scenario.anti_oversell_flags) ? scenario.anti_oversell_flags : [],
     oversell_risk_score: Number.isFinite(Number(scenario.oversell_risk_score)) ? Number(scenario.oversell_risk_score) : 0,
     computed_at: new Date().toISOString(),

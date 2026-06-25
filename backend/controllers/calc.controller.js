@@ -1729,6 +1729,29 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     const scenariosFinal = mergeFinanceIntoScenarios(scenarios, finance.scenarios);
     attachAntiOversellToScenarios(ctx, scenariosFinal);
 
+    // ------------------------------------------------------------
+    // GARDE COHERENCE MOTEUR — interdit tout melange 8760 / mensuel (cas FAVER)
+    // Toutes les cartes du moteur V2 sont calculees en 8760 (ctx.pv.hourly + consoHourly)
+    // ou _skipped. On tague la base temporelle de chaque carte et on REFUSE toute carte
+    // batterie dont la base differe de la base SANS batterie (jamais une batterie mensuelle
+    // a cote d une base horaire). Toute carte incoherente est forcee _skipped (non affichee).
+    {
+      const baseSc = scenariosFinal.BASE;
+      const baseBasis = baseSc && baseSc._skipped !== true ? "hourly_8760" : "skipped";
+      for (const [key, sc] of Object.entries(scenariosFinal)) {
+        if (!sc) continue;
+        if (sc._skipped === true) { sc.energy_basis = "skipped"; continue; }
+        const declared = sc.energy_basis === "monthly_fallback" ? "monthly_fallback" : "hourly_8760";
+        sc.energy_basis = declared;
+        if (key !== "BASE" && baseBasis === "hourly_8760" && declared !== "hourly_8760") {
+          console.warn("[COHERENCE_MOTEUR] melange 8760/mensuel detecte — carte forcee _skipped:", key, declared);
+          sc._skipped = true;
+          sc.energy_basis = "skipped";
+          sc.finance = { roi_years: null, irr: null, lcoe: null, cashflows: null, note: "engine_mismatch_skipped" };
+        }
+      }
+    }
+
     // Contrôle équilibre énergétique : CONSOMMATION = auto + import ; PRODUCTION = auto + surplus
     for (const [key, sc] of Object.entries(scenariosFinal)) {
       if (!sc) continue;

@@ -188,6 +188,10 @@ export async function runStudyCalc(req, res) {
           : {}),
         calc_result: calcResult,
         scenarios_v2: ctxFinal.scenarios_v2 ?? [],
+        // Version moteur ayant produit scenarios_v2 : invalide les snapshots anciens
+        // (incoherence 8760/mensuel, cas FAVER) a la lecture (studyScenarios.controller).
+        scenarios_engine_version: ctxFinal?.meta?.version ?? null,
+        scenarios_computed_at: new Date().toISOString(),
         ...(isUseOfficialShadingEnabled() && solarnextPayload?.shading_official
           ? {
               shading_official: solarnextPayload.shading_official,

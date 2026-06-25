@@ -127,7 +127,9 @@ export const SCENARIO_HOURS_PER_YEAR = 8760;
 
 // HARD CONSTANT – NOT CONFIGURABLE FROM CRM
 // utilisé dans simulateEnergyAnnual — bonus auto max +10 % en fallback mensuel avec batterie
-export const SCENARIO_MONTHLY_BATTERY_AUTO_BOOST = 1.1;
+// NEUTRALISÉ 25/06/2026 (cohérence moteur FAVER) : un modèle MENSUEL ne doit jamais
+// créditer la batterie au-delà du min(prod,conso) journalier réalisable. 1.0 = aucun bonus.
+export const SCENARIO_MONTHLY_BATTERY_AUTO_BOOST = 1.0;
 
 // =============================================================================
 // Impact environnemental (impactService.js) — facteurs pédagogiques ADEME / équivalents

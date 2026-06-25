@@ -251,6 +251,9 @@ const load = loadHourly;
       const autoDirect = Math.min(prod, conso);
 
       // petit bonus d'autoconsommation (max +10%), borné physiquement
+      // NEUTRALISE 25/06/2026 : SCENARIO_MONTHLY_BATTERY_AUTO_BOOST = 1.0 -> aucun bonus.
+      // Un modele mensuel ne modelise pas le stockage intra-journalier : il ne doit pas
+      // crediter la batterie au-dela du min(prod,conso) mensuel (cf. cas FAVER).
       const autoBoost = autoDirect * SCENARIO_MONTHLY_BATTERY_AUTO_BOOST;
       auto = Math.min(prod, conso, autoBoost);
       surplus = Math.max(0, prod - auto);
@@ -282,7 +285,9 @@ const load = loadHourly;
     surplus_kwh: surplusYear,
     auto_pct: consoYear > 0 ? Math.round((autoYear / consoYear) * 100) : 0,
     surplus_pct: prodYear > 0 ? Math.round((surplusYear / prodYear) * 100) : 0,
-    monthly: fallbackMonthly
+    monthly: fallbackMonthly,
+    // COHERENCE MOTEUR : base MENSUELLE, ne doit jamais etre affichee a cote d une base 8760.
+    energy_basis: "monthly_fallback"
   };
 }
 
