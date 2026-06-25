@@ -23162,13 +23162,11 @@ function initDP6() {
       const isHandle = t && t.classList && t.classList.contains("dp6-handle");
       const isPoly = t && (t.id === "dp6-selection-poly" || t.closest?.("#dp6-selection-poly"));
 
-      // PAN (visuel) — actif uniquement si zoom > 1
-      // - Ne doit pas casser l'édition (poignées/polygone) ni la sélection de patch en mode EDIT.
-      // - Astuce UX : en mode DRAW, maintenir SHIFT pour forcer le dessin même si zoomé.
-      if ((dp6View?.scale || 1) > 1.000001 && !isHandle && !(isPoly && pts)) {
-        // PAN (visuel) — actif uniquement si zoom > 1.
-        // SHIFT = forcer le dessin même si zoomé.
-        if (!e.shiftKey) {
+      // A zoom > 100%, Alt + glisser deplace la photo.
+      // Sans Alt, le clic-glisse reste reserve au dessin d'une nouvelle zone PV.
+      if ((dp6View?.scale || 1) > 1.000001 && e.altKey && !isHandle && !(isPoly && pts)) {
+        // Pan volontaire, sans bloquer le dessin normal.
+        if (e.altKey) {
           // Si clic sur un patch existant, on préfère activer la zone plutôt que panner.
           const hitIdx = dp6PickPatchIndexAtPoint(p, 10);
           const patches = dp6EnsurePatchState();
