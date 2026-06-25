@@ -234,9 +234,9 @@ function computeTotals(data: EconomicData): { ht: number; tva: number; ttc: numb
   const itemsTva = calculateTotalTVA(data.items);
   const totalHtGross = Math.round(itemsHt * 100) / 100;
   const totalTvaGross = Math.round(itemsTva * 100) / 100;
-  const discountPct = Math.max(0, Math.min(100, data.conditions.discount_percent ?? 0));
-  const discountAmt = Math.max(0, data.conditions.discount_amount ?? 0);
-  let ht = Math.round((totalHtGross * (1 - discountPct / 100) - discountAmt) * 100) / 100;
+  // Remise appliquee sur tout SAUF la pose (categorie INSTALL).
+  const discountValue = discountValueExclPose(data);
+  let ht = Math.round((totalHtGross - discountValue) * 100) / 100;
   ht = Math.max(0, ht);
   // Répartition proportionnelle de la TVA après remise
   const tva = totalHtGross > 0
@@ -244,6 +244,17 @@ function computeTotals(data: EconomicData): { ht: number; tva: number; ttc: numb
     : 0;
   const ttc = Math.round((ht + tva) * 100) / 100;
   return { ht, tva, ttc, net: ttc };
+}
+
+/** Remise document (HT) appliquee a tout SAUF la pose (categorie INSTALL, Main d'oeuvre). */
+function discountValueExclPose(data: EconomicData): number {
+  const isPose = (it: QuotePrepItem) => String(it.category || "").toUpperCase() === "INSTALL";
+  const poseHt = round2(data.items.filter(isPose).reduce((s, it) => s + calculateLineHT(it), 0));
+  const itemsHt = calculateTotalHT(data.items);
+  const discountableHt = Math.max(0, round2(itemsHt - poseHt));
+  const pct = Math.max(0, Math.min(100, data.conditions.discount_percent ?? 0));
+  const amt = Math.max(0, data.conditions.discount_amount ?? 0);
+  return Math.min(discountableHt, round2(round2(discountableHt * (pct / 100)) + amt));
 }
 
 function studyMaterialMarginBundle(
@@ -290,7 +301,23 @@ function studyMaterialMarginBundle(
         };
       })()
     : sans;
-  return { sans, avec, batteryMaterialEligible, internalWithBatteryReady };
+  const discountValue = discountValueExclPose(data);
+  const applyRemise = (
+    m: ReturnType<typeof computeMaterialMarginFromLines>,
+    tauxBase: "vente" | "achat",
+  ): ReturnType<typeof computeMaterialMarginFromLines> => {
+    if (discountValue <= 0) return m;
+    const marge = round2(m.margeHt - discountValue);
+    const denom = tauxBase === "achat" ? m.achatMaterialHt : m.venteMaterialHt;
+    const taux = denom > 0 ? round2((marge / denom) * 100) : null;
+    return { ...m, margeHt: marge, tauxMargeSurAchatPct: taux };
+  };
+  return {
+    sans: applyRemise(sans, "vente"),
+    avec: applyRemise(avec, "achat"),
+    batteryMaterialEligible,
+    internalWithBatteryReady,
+  };
 }
 
 type StudyQuoteToastOptions = { variant?: "premium"; durationMs?: number };
