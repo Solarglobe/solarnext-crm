@@ -4519,8 +4519,36 @@ function dp2BootstrapEditorDomFromWorking() {
     }
   }
   try {
+    dp2EnsureDp2ToolbarMountedInModal();
+    initDP2Toolbar();
+    initDP2DrawActions();
+  } catch (err) {
+    console.warn("[DP2] restore toolbar", err);
+  }
+  try {
     setDP2ModeEdition();
   } catch (_) {}
+}
+
+function dp2EnsureDp2ToolbarMountedInModal() {
+  const modal = document.getElementById("dp2-map-modal");
+  const wrap = modal ? modal.querySelector("#dp2-captured-image-wrap") : document.getElementById("dp2-captured-image-wrap");
+  if (!wrap) return;
+  const zoom = wrap.querySelector("#dp2-zoom-container");
+  const insertBeforeEl = zoom || null;
+  const wanted = [
+    { id: "dp2-toolbar", marker: "dp2ToolbarBound" },
+    { id: "dp2-draw-actions", marker: "dp2DrawActionsDelegate" }
+  ];
+  wanted.forEach(function (item) {
+    if (wrap.querySelector("#" + item.id)) return;
+    const el = document.getElementById(item.id);
+    if (!el || wrap.contains(el)) return;
+    try {
+      wrap.insertBefore(el, insertBeforeEl);
+      if (el.dataset && item.marker === "dp2ToolbarBound") delete el.dataset[item.marker];
+    } catch (_) {}
+  });
 }
 
 function dp2OnEntryCreateFirstPlan(e) {
@@ -7094,12 +7122,12 @@ function initDP2Editor() {
   });
 
   try {
-    dp2ApplyFeaturesHydrateSync();
+    dp2MountOlMapUnderCanvasIfNeeded();
+    dp2SyncEditionOlMapLayoutSync();
   } catch (_) {}
 
   try {
-    dp2MountOlMapUnderCanvasIfNeeded();
-    dp2SyncEditionOlMapLayoutSync();
+    dp2ApplyFeaturesHydrateSync();
   } catch (_) {}
 
   // Rendu initial depuis l'état
@@ -7623,6 +7651,23 @@ function getDP2CanvasToClient(canvas, canvasX, canvasY) {
   };
 }
 
+function dp2ShouldUseCaptureAnalyticTransform(cap) {
+  if (!cap || typeof cap !== "object" || !cap.imageBase64) return false;
+  const wrap = document.getElementById("dp2-captured-image-wrap");
+  const img = document.getElementById("dp2-captured-image");
+  const capturedShown =
+    !!wrap &&
+    wrap.style.display !== "none" &&
+    !!img &&
+    typeof img.src === "string" &&
+    img.src.indexOf("data:image") === 0;
+  if (!capturedShown) return false;
+  const center = cap.center;
+  const cx = Array.isArray(center) ? center[0] : center && center.x;
+  const cy = Array.isArray(center) ? center[1] : center && center.y;
+  return Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(cap.resolution) && cap.resolution > 0;
+}
+
 /**
  * Pixel canvas DP2 (repère image naturalWidth×naturalHeight) → coordonnée projetée (EPSG:3857).
  * Utilise la carte OpenLayers si disponible (pixels courants mis à l’échelle depuis la capture) ;
@@ -7638,6 +7683,11 @@ function dp2PixelToMapCoord(x, y) {
     (cap && typeof cap.height === "number" && cap.height > 0 ? cap.height : null) ??
     (window.DP2_STATE && window.DP2_STATE.backgroundImage && window.DP2_STATE.backgroundImage.height) ??
     0;
+
+  if (cap && wCap > 0 && hCap > 0 && dp2ShouldUseCaptureAnalyticTransform(cap)) {
+    const v0 = dp4ValidateDP2CaptureForImport(cap);
+    if (v0.ok) return dp2Dp2ImagePixelTo3857Coord(x, y, cap, wCap, hCap);
+  }
 
   const map = window.DP2_MAP && window.DP2_MAP.map;
   if (map && cap && wCap > 0 && hCap > 0) {
@@ -7677,6 +7727,11 @@ function dp2MapCoordToCanvasPoint(coord) {
     (cap && typeof cap.height === "number" && cap.height > 0 ? cap.height : null) ??
     (window.DP2_STATE && window.DP2_STATE.backgroundImage && window.DP2_STATE.backgroundImage.height) ??
     0;
+
+  if (cap && wCap > 0 && hCap > 0 && dp2ShouldUseCaptureAnalyticTransform(cap)) {
+    const v0 = dp4ValidateDP2CaptureForImport(cap);
+    if (v0.ok) return dp2Dp2Image3857CoordToPixel(coord[0], coord[1], cap, wCap, hCap);
+  }
 
   const map = window.DP2_MAP && window.DP2_MAP.map;
   if (map && cap && wCap > 0 && hCap > 0) {
@@ -8406,6 +8461,12 @@ function refreshDP2ModeStrip() {
 // Tant que contour bâti non fermé → seul outil actif = contour bâti (sélection bloquée).
 // --------------------------
 function initDP2Toolbar() {
+  const toolbarRoot = document.getElementById("dp2-toolbar");
+  if (toolbarRoot && toolbarRoot.dataset.dp2ToolbarBound === "1") {
+    try { syncDP2DisplayModeToolbarUI(); } catch (_) {}
+    try { if (typeof dp2SyncDp4RoofMeasuresMenuVisibility === "function") dp2SyncDp4RoofMeasuresMenuVisibility(); } catch (_) {}
+    return;
+  }
   const selectBtn = document.getElementById("dp2-tool-select");
   const panBtn = document.getElementById("dp2-tool-pan");
   const panelsBtn = document.getElementById("dp2-tool-panels");
@@ -8423,6 +8484,8 @@ function initDP2Toolbar() {
   const businessMenu = document.getElementById("dp2-business-menu");
   const businessIconEl = businessBtn?.querySelector?.(".dp2-tool-icon") || null;
   const businessLabelEl = businessBtn?.querySelector?.(".dp2-tool-label") || null;
+  if (!selectBtn || !panBtn || !measuresBtn || !toolbarRoot) return;
+  if (toolbarRoot) toolbarRoot.dataset.dp2ToolbarBound = "1";
 
   const MEASURES_TOOL_META = {
     building_outline: { icon: "⬛", label: "Contour bâti" },
@@ -9169,6 +9232,18 @@ function dp2HitTestParcelSegmentLabel(canvas, x, y) {
 
 function dp2ClearParcelEdgeEdit() {
   if (window.DP2_STATE) window.DP2_STATE.parcelEdgeEdit = null;
+}
+
+function dp2ClearParcelEdgeTransientObjects() {
+  const s = window.DP2_STATE;
+  if (!s) return;
+  if (Array.isArray(s.objects)) {
+    s.objects = s.objects.filter(function (o) {
+      return !(o && o.__parcelEdge);
+    });
+  }
+  s.parcelEdgeEdit = null;
+  if (window.dp2InteractionState) window.dp2InteractionState.editingFeatureId = null;
 }
 
 function dp2ParcelEdgeEditMatchesSegment(peEdit, contourId, segmentIndex) {
@@ -12849,6 +12924,7 @@ function dp2CommitParcelSegmentResize(params) {
   try {
     dp2RebuildContourDisplayCacheFromFeatures();
   } catch (_) {}
+  dp2ClearParcelEdgeTransientObjects();
 }
 
 function dp2CommitMeasureResize(obj) {
@@ -14332,6 +14408,7 @@ function renderDP2BuildingContour(ctx, contour, options) {
       const parcelEdgeEditing =
         dp2ParcelEdgeEditMatchesSegment(peEdit, contour.id, i) || !!legacyML;
       let previewStub = null;
+      let hasParcelEdgeResizePreview = false;
       if (dp2ParcelEdgeEditMatchesSegment(peEdit, contour.id, i)) {
         previewStub = dp2BuildParcelEdgeMeasureStub(peEdit, contour, i);
       } else if (legacyML) {
@@ -14394,9 +14471,11 @@ function renderDP2BuildingContour(ctx, contour, options) {
               .toFixed(2)
               .replace(".", ",") + " m";
           if (!editingThisSeg) dp2FillAlignedCoteLabel(ctx, text, preview.aPreview, preview.bPreview, null, "editing", { exteriorOf: contour });
+          hasParcelEdgeResizePreview = true;
           ctx.restore();
         }
       }
+      if (hasParcelEdgeResizePreview) continue;
 
       const offMap = contour.labelOffsets && typeof contour.labelOffsets === "object" ? contour.labelOffsets : {};
       const segOff = offMap[i] && typeof offMap[i].x === "number" && typeof offMap[i].y === "number" ? offMap[i] : { x: 0, y: 0 };
