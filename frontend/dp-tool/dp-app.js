@@ -8057,6 +8057,13 @@ function dp2RebuildContourDisplayCacheFromFeatures() {
       if (!px || px.length < 2) continue;
       points.push({ x: px[0], y: px[1] });
     }
+    if (f.closed === true && points.length > 2) {
+      const first = points[0];
+      const last = points[points.length - 1];
+      if (first && last && Math.hypot(first.x - last.x, first.y - last.y) < 0.5) {
+        points.pop();
+      }
+    }
     if (points.length < 1) return;
     const c = {
       id: f.id != null ? String(f.id) : "contour_" + idx,
@@ -8068,6 +8075,31 @@ function dp2RebuildContourDisplayCacheFromFeatures() {
     contours.push(c);
   });
   s.buildingContours = contours;
+}
+
+function dp2StripClosingCoordinate(coords) {
+  if (!Array.isArray(coords)) return [];
+  const out = coords
+    .filter((c) => Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]))
+    .map((c) => [c[0], c[1]]);
+  if (out.length > 2) {
+    const first = out[0];
+    const last = out[out.length - 1];
+    if (first && last && Math.hypot(first[0] - last[0], first[1] - last[1]) < 0.001) {
+      out.pop();
+    }
+  }
+  return out;
+}
+
+function dp2ClosePolygonFeatureCoordinatesInPlace(feature) {
+  if (!feature || feature.closed !== true || !Array.isArray(feature.coordinates) || feature.coordinates.length < 3) return;
+  const first = feature.coordinates[0];
+  if (!Array.isArray(first)) return;
+  const last = feature.coordinates[feature.coordinates.length - 1];
+  if (last && Math.hypot(first[0] - last[0], first[1] - last[1]) < 0.001) {
+    feature.coordinates[feature.coordinates.length - 1] = [first[0], first[1]];
+  }
 }
 
 const DP2_IX_MODE_CLASSES = ["dp2-mode-idle", "dp2-mode-draw", "dp2-mode-hover", "dp2-mode-active", "dp2-mode-editing"];
@@ -13045,6 +13077,7 @@ function dp2CommitParcelSegmentResize(params) {
       const mc = dp2PixelToMapCoord(pts[ii].x, pts[ii].y);
       if (mc) featPe.coordinates[ii] = mc;
     }
+    dp2ClosePolygonFeatureCoordinatesInPlace(featPe);
     try {
       delete featPe.cuts;
     } catch (_) {
@@ -13053,6 +13086,9 @@ function dp2CommitParcelSegmentResize(params) {
   }
   try {
     dp2RebuildContourDisplayCacheFromFeatures();
+  } catch (_) {}
+  try {
+    dp2RenderFeaturesOL();
   } catch (_) {}
   dp2ClearParcelEdgeTransientObjects();
 }
@@ -14711,7 +14747,7 @@ function dp2SyncBuildingFeatureGeometryToState(feature) {
   const id = String(id0);
   const target = (window.DP2_STATE.features || []).find((x) => x && String(x.id) === id);
   if (!target) return false;
-  target.coordinates = coords.map((c) => [c[0], c[1]]);
+  target.coordinates = gt === "Polygon" ? dp2StripClosingCoordinate(coords) : coords.map((c) => [c[0], c[1]]);
   if (gt === "Polygon") target.closed = true;
   try {
     delete target.cuts;
@@ -14719,6 +14755,31 @@ function dp2SyncBuildingFeatureGeometryToState(feature) {
     target.cuts = undefined;
   }
   return true;
+}
+
+let _dp2BuildingGeometryCanvasRefreshRaf = null;
+function dp2RequestBuildingGeometryCanvasRefresh(feature) {
+  if (feature) {
+    try {
+      dp2SyncBuildingFeatureGeometryToState(feature);
+    } catch (_) {}
+  }
+  if (_dp2BuildingGeometryCanvasRefreshRaf != null) return;
+  _dp2BuildingGeometryCanvasRefreshRaf = requestAnimationFrame(() => {
+    _dp2BuildingGeometryCanvasRefreshRaf = null;
+    try {
+      dp2RebuildContourDisplayCacheFromFeatures();
+    } catch (_) {}
+    try {
+      dp2RebuildRidgeCutsForAllContours();
+    } catch (_) {}
+    window.__DP2_SUPPRESS_OL_RERENDER__ = true;
+    try {
+      renderDP2FromState();
+    } finally {
+      window.__DP2_SUPPRESS_OL_RERENDER__ = false;
+    }
+  });
 }
 
 /**
@@ -14980,6 +15041,52 @@ function dp2RightAngleSketchStyles(feature) {
 // --------------------------
 // DP2 — SURVOL SÉLECTION (visuel uniquement)
 // --------------------------
+function dp2SketchSegmentLengthM(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return null;
+  const pa = dp2MapCoordToPixel(a);
+  const pb = dp2MapCoordToPixel(b);
+  const scale = window.DP2_STATE?.scale_m_per_px;
+  if (pa && pb && typeof scale === "number" && scale > 0) {
+    return Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) * scale;
+  }
+  return Math.hypot(b[0] - a[0], b[1] - a[1]);
+}
+
+function dp2BuildingSketchMeasureStyles(feature) {
+  if (typeof ol === "undefined" || !feature || !feature.getGeometry) return null;
+  const geom = feature.getGeometry();
+  if (!geom || geom.getType() !== "Polygon") return null;
+  const ring = geom.getCoordinates()?.[0];
+  if (!Array.isArray(ring) || ring.length < 2) return null;
+  const styles = [];
+  for (let i = 0; i < ring.length - 1; i++) {
+    const a = ring[i];
+    const b = ring[i + 1];
+    if (!Array.isArray(a) || !Array.isArray(b)) continue;
+    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.001) continue;
+    const lenM = dp2SketchSegmentLengthM(a, b);
+    if (typeof lenM !== "number" || !Number.isFinite(lenM)) continue;
+    styles.push(
+      new ol.style.Style({
+        geometry: new ol.geom.Point([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]),
+        text: new ol.style.Text({
+          text: lenM.toFixed(2).replace(".", ",") + " m",
+          font: "600 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif",
+          fill: new ol.style.Fill({ color: "#1f2937" }),
+          stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.92)", width: 3 }),
+          backgroundFill: new ol.style.Fill({ color: "rgba(255,255,255,0.86)" }),
+          backgroundStroke: new ol.style.Stroke({ color: "rgba(30,64,175,0.24)", width: 1 }),
+          padding: [2, 5, 2, 5],
+          overflow: true,
+          textAlign: "center",
+          textBaseline: "middle"
+        })
+      })
+    );
+  }
+  return styles.length ? styles : null;
+}
+
 function renderSelectionHighlight(ctx, obj) {
   if (!obj || !obj.type) return;
   // Panneaux PV : sélection + poignée rotation (sans resize)
@@ -16933,6 +17040,8 @@ async function initDP2() {
         ];
         const rightAngleStyles = dp2RightAngleSketchStyles(feature);
         if (rightAngleStyles) styles.push(...rightAngleStyles);
+        const measureStyles = dp2BuildingSketchMeasureStyles(feature);
+        if (measureStyles) styles.push(...measureStyles);
         return styles;
       }
     });
@@ -16951,7 +17060,7 @@ async function initDP2() {
           id,
           type: "polygon",
           closed: true,
-          coordinates: ring
+          coordinates: dp2StripClosingCoordinate(ring)
         });
         window.DP2_STATE.selectedBuildingContourId = id;
         if (window.__SN_DP_DP2_AUDIT__ === true) {
@@ -16991,18 +17100,8 @@ async function initDP2() {
       snapToPointer: false
     });
     dp2BuildingVectorSource.on("changefeature", function (evt) {
-      if (window.__DP2_TEMP_OL_DRAG__ !== true) return;
       try {
-        if (dp2SyncBuildingFeatureGeometryToState(evt.feature)) {
-          dp2RebuildContourDisplayCacheFromFeatures();
-          dp2RebuildRidgeCutsForAllContours();
-          window.__DP2_SUPPRESS_OL_RERENDER__ = true;
-          try {
-            renderDP2FromState();
-          } finally {
-            window.__DP2_SUPPRESS_OL_RERENDER__ = false;
-          }
-        }
+        dp2RequestBuildingGeometryCanvasRefresh(evt.feature);
       } catch (_) {}
     });
     dp2BuildingModify.on("modifystart", function () {
@@ -17036,7 +17135,7 @@ async function initDP2() {
             return x && String(x.id) === id;
           });
           if (target) {
-            target.coordinates = coords;
+            target.coordinates = gt === "Polygon" ? dp2StripClosingCoordinate(coords) : coords;
             if (gt === "Polygon") target.closed = true;
             try {
               delete target.cuts;
@@ -17061,7 +17160,7 @@ async function initDP2() {
               return x && String(x.id) === id;
             });
             if (target) {
-              target.coordinates = coords;
+              target.coordinates = gt === "Polygon" ? dp2StripClosingCoordinate(coords) : coords;
               if (gt === "Polygon") target.closed = true;
               try {
                 delete target.cuts;
