@@ -354,6 +354,7 @@ function computeCommercialIndicatorStars(scenarios: readonly (ScenarioV2 | null)
 
 /** Indicateurs clés — lignes label / valeur (données déjà dans scenarios_v2). */
 function buildKeyIndicatorRows(
+  id: ScenarioColumnId,
   energy: ScenarioV2Energy,
   finance: ScenarioV2Finance,
   solarCoveragePctDerived: number | null,
@@ -371,7 +372,11 @@ function buildKeyIndicatorRows(
     energy.pv_self_consumption_pct ?? energy.self_consumption_pct ?? energy.autoconsumption_pct
   );
   if (selfCons != null)
-    rows.push({ label: "Autoconsommation PV", value: formatPercent(selfCons), star: stars.auto });
+    rows.push({
+      label: id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID" ? "PV valorisé" : "Autoconsommation PV",
+      value: formatPercent(selfCons),
+      star: id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID" ? false : stars.auto,
+    });
 
   const coverPref = finiteNumberOrNull(energy.solar_coverage_pct ?? energy.self_production_pct);
   let cover: number | null = coverPref;
@@ -691,11 +696,6 @@ export default function ScenarioComparisonTable({
             baseEnergy.surplus_before_battery_kwh,
             baseEnergy.surplus_kwh
           );
-          const baseSurplusPct = firstFiniteNumber(
-            baseEnergy.surplus_available_pct,
-            baseEnergy.export_pct,
-            baseDirectPct != null ? 100 - baseDirectPct : null
-          );
           const finance = scenario?.finance ?? {};
           const costs = scenario?.costs ?? {};
           const hardware = scenario?.hardware ?? {};
@@ -739,11 +739,6 @@ export default function ScenarioComparisonTable({
             energy.direct_self_consumption_pct,
             id === "BASE" ? energy.pv_self_consumption_pct : null,
             id !== "BASE" ? baseDirectPct : null
-          );
-          const surplusAvailablePct = firstFiniteNumber(
-            energy.surplus_available_pct,
-            id === "BASE" ? energy.export_pct : null,
-            id !== "BASE" ? baseSurplusPct : null
           );
           const physicalChargeFromSurplusKwh = firstFiniteNumber(
             energy.surplus_used_by_physical_battery_kwh,
@@ -803,7 +798,7 @@ export default function ScenarioComparisonTable({
               ? (solarUsedKwh / consoKwh) * 100
               : null;
 
-          const keyIndicatorRows = buildKeyIndicatorRows(energy, finance, solarCoveragePct, {
+          const keyIndicatorRows = buildKeyIndicatorRows(id, energy, finance, solarCoveragePct, {
             auto: commercialIndicatorStars.auto.has(index),
             tri: commercialIndicatorStars.tri.has(index),
             savings: commercialIndicatorStars.savings.has(index),
@@ -936,7 +931,7 @@ export default function ScenarioComparisonTable({
                           const lineClass = [
                             "scenario-key-indicator-line",
                             row.label === "TRI" || row.label === "Économies (25 ans)" ? "is-key" : "",
-                            row.label === "Autoconsommation PV" ? "is-secondary" : "",
+                            row.label === "Autoconsommation PV" || row.label === "PV valorisé" ? "is-secondary" : "",
                           ]
                             .filter(Boolean)
                             .join(" ");
@@ -1032,29 +1027,24 @@ export default function ScenarioComparisonTable({
                   <section className="scenario-block scenario-row-energy-audit" aria-label="Vérification flux 8760 heures">
                     <h4 className="scenario-block-title">Vérification 8760 h</h4>
                     <MiniRow
-                      label="Surplus brut avant batterie"
+                      label="Surplus brut"
                       tip="Production PV moins autoconsommation directe, heure par heure, avant stockage."
                       value={formatKwh(grossSurplusKwh)}
                     />
                     <MiniRow
-                      label="Taux autoconsommation directe"
+                      label="Direct PV"
                       tip="Part de la production consommée immédiatement, avant toute batterie."
                       value={formatPercent(directSelfPct)}
-                    />
-                    <MiniRow
-                      label="Taux de surplus disponible"
-                      tip="Part de la production qui devient surplus brut, donc réellement disponible pour stockage ou injection."
-                      value={formatPercent(surplusAvailablePct)}
                     />
                     {(id === "BATTERY_PHYSICAL" || id === "BATTERY_HYBRID") && (
                       <>
                         <MiniRow
-                          label="Surplus utilisé par batterie physique"
+                          label="Charge physique"
                           tip="kWh PV réellement prélevés dans le surplus pour charger la batterie physique."
                           value={formatKwh(physicalChargeFromSurplusKwh)}
                         />
                         <MiniRow
-                          label="Restitué par batterie physique"
+                          label="Restitution physique"
                           tip="kWh réellement déchargés vers la consommation après rendement et limites de puissance."
                           value={formatKwh(physicalRestoredKwh)}
                         />
@@ -1063,22 +1053,22 @@ export default function ScenarioComparisonTable({
                     {(id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID") && (
                       <>
                         <MiniRow
-                          label="Surplus envoyé virtuel/réseau"
-                          tip="Surplus résiduel envoyé en crédit virtuel ou injecté réseau après la batterie physique éventuelle."
-                          value={formatKwh(surplusToVirtualOrGridKwh)}
-                        />
-                        <MiniRow
-                          label="Valorisé par batterie virtuelle"
+                          label="Crédit virtuel utilisé"
                           tip="Crédits kWh réellement utilisés pour réduire l'achat réseau."
                           value={formatKwh(virtualValuedKwh)}
+                        />
+                        <MiniRow
+                          label="Surplus virtuel/réseau"
+                          tip="Surplus résiduel envoyé en crédit virtuel ou injecté réseau après la batterie physique éventuelle."
+                          value={formatKwh(surplusToVirtualOrGridKwh)}
                         />
                       </>
                     )}
                     <MiniRow
                       label={
                         id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID"
-                          ? "Taux couverture avec crédit"
-                          : "Taux autoconsommation avec batterie"
+                          ? "Couverture crédit"
+                          : "Autoconso finale"
                       }
                       tip={
                         id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID"
@@ -1649,6 +1639,21 @@ export default function ScenarioComparisonTable({
         .scenario-block {
           margin-bottom: 1rem;
         }
+        .scenario-row-energy-audit {
+          margin-top: 0.65rem;
+          margin-bottom: 0.65rem;
+          padding: 0.55rem 0.6rem;
+          border: 1px solid rgba(124, 58, 237, 0.16);
+          border-radius: 8px;
+          background: rgba(124, 58, 237, 0.035);
+        }
+        .theme-light .scenario-row-energy-audit {
+          border-color: rgba(124, 58, 237, 0.18);
+          background: rgba(124, 58, 237, 0.035);
+        }
+        .scenario-row-energy-audit .scenario-block-title {
+          margin-bottom: 0.35rem;
+        }
         .scenario-block-title {
           margin: 0 0 0.5rem;
           font-size: 0.72rem;
@@ -2027,19 +2032,19 @@ export default function ScenarioComparisonTable({
         }
         .scenario-mini-row {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-          gap: 0.45rem 0.65rem;
+          grid-template-columns: minmax(0, 1.45fr) minmax(68px, auto);
+          gap: 0.35rem 0.55rem;
           align-items: start;
-          font-size: 0.82rem;
-          padding: 0.38rem 0;
+          font-size: 0.78rem;
+          padding: 0.26rem 0;
           border-bottom: 1px solid rgba(255,255,255,0.04);
         }
         .scenario-mini-label {
           color: var(--sn-text-secondary, #9FA8C7);
           min-width: 0;
-          overflow-wrap: anywhere;
-          word-break: break-word;
-          line-height: 1.35;
+          overflow-wrap: normal;
+          word-break: normal;
+          line-height: 1.25;
           padding-right: 0.15rem;
         }
         .scenario-mini-value {
@@ -2049,9 +2054,9 @@ export default function ScenarioComparisonTable({
           font-weight: 600;
           color: var(--sn-text-primary);
           text-align: right;
-          white-space: normal;
-          overflow-wrap: anywhere;
-          word-break: break-word;
+          white-space: nowrap;
+          overflow-wrap: normal;
+          word-break: normal;
           font-variant-numeric: tabular-nums;
           min-width: 0;
         }
@@ -2069,7 +2074,7 @@ export default function ScenarioComparisonTable({
         }
         .scenario-col-tip {
           cursor: help;
-          border-bottom: 1px dotted color-mix(in srgb, var(--brand-gold) 45%, transparent);
+          border-bottom: none;
         }
         .scenario-energy-bar { margin-bottom: 0.35rem; }
         .scenario-energy-bar-empty {
