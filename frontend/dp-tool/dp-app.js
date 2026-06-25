@@ -20452,6 +20452,7 @@ function dp4RasterCompositeProbablyBlank(ctx, w, h) {
   const stepX = Math.max(1, Math.floor(w / 10));
   const stepY = Math.max(1, Math.floor(h / 10));
   const lums = [];
+  let opaqueCount = 0;
   for (let y = 0; y < h; y += stepY) {
     for (let x = 0; x < w; x += stepX) {
       let d;
@@ -20460,13 +20461,53 @@ function dp4RasterCompositeProbablyBlank(ctx, w, h) {
       } catch (_) {
         return false;
       }
+      if (d[3] > 16) opaqueCount++;
       lums.push((d[0] + d[1] + d[2]) / 3);
     }
   }
   if (!lums.length) return true;
+  if (opaqueCount < Math.max(6, lums.length * 0.15)) return true;
   const mean = lums.reduce((a, b) => a + b, 0) / lums.length;
   const variance = lums.reduce((a, v) => a + (v - mean) * (v - mean), 0) / lums.length;
-  return variance < 25 && mean > 90 && mean < 220;
+  return variance < 25 && mean > 70;
+}
+
+async function dp4WaitOrthoTilesIdle(map, timeoutMs) {
+  const timeout = typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : 4500;
+  const start = Date.now();
+  const source = window.DP4_ORTHO_SOURCE || null;
+  if (map) {
+    try {
+      map.updateSize();
+      map.renderSync();
+    } catch (_) {}
+  }
+  await new Promise((resolve) => {
+    function done() {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    }
+    function check() {
+      const loading = Math.max(0, window.DP4_ORTHO_TILES_LOADING || 0);
+      let stateReady = true;
+      try {
+        stateReady = !source || typeof source.getState !== "function" || source.getState() === "ready";
+      } catch (_) {}
+      if ((loading === 0 && stateReady) || Date.now() - start >= timeout) {
+        done();
+        return;
+      }
+      setTimeout(check, 80);
+    }
+    check();
+  });
+  if (map) {
+    try {
+      await new Promise((resolve) => {
+        map.once("rendercomplete", resolve);
+        map.renderSync();
+      });
+    } catch (_) {}
+  }
 }
 
 /**
@@ -20647,17 +20688,31 @@ function dp4InitIgnOrthoMap(onReady) {
     resolution = nearestWmtsResolution(rawRes);
   }
 
+  const orthoSource = new ol.source.WMTS({
+    url: "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile",
+    layer: "ORTHOIMAGERY.ORTHOPHOTOS",
+    matrixSet: "PM",
+    format: "image/jpeg",
+    style: "normal",
+    tileGrid: wmtsGridPM,
+    wrapX: false,
+    crossOrigin: "anonymous"
+  });
+  window.DP4_ORTHO_SOURCE = orthoSource;
+  window.DP4_ORTHO_TILES_LOADING = 0;
+  try {
+    orthoSource.on("tileloadstart", function () {
+      window.DP4_ORTHO_TILES_LOADING = Math.max(0, (window.DP4_ORTHO_TILES_LOADING || 0) + 1);
+    });
+    const onTileDone = function () {
+      window.DP4_ORTHO_TILES_LOADING = Math.max(0, (window.DP4_ORTHO_TILES_LOADING || 0) - 1);
+    };
+    orthoSource.on("tileloadend", onTileDone);
+    orthoSource.on("tileloaderror", onTileDone);
+  } catch (_) {}
+
   const orthoLayer = new ol.layer.Tile({
-    source: new ol.source.WMTS({
-      url: "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile",
-      layer: "ORTHOIMAGERY.ORTHOPHOTOS",
-      matrixSet: "PM",
-      format: "image/jpeg",
-      style: "normal",
-      tileGrid: wmtsGridPM,
-      wrapX: false,
-      crossOrigin: "anonymous"
-    })
+    source: orthoSource
   });
 
   const view = new ol.View({
@@ -20686,7 +20741,7 @@ function dp4InitIgnOrthoMap(onReady) {
   try {
     forceFirstPaintWMTS(
       window.DP4_OL_MAP,
-      orthoLayer.getSource(),
+      orthoSource,
       WMTS_RESOLUTIONS
     );
   } catch (_) {}
@@ -21290,21 +21345,18 @@ function initDP4() {
         return;
       }
 
-      await new Promise((resolve) => {
-        map.once("rendercomplete", resolve);
-        map.renderSync();
-      });
-      await new Promise((r) => setTimeout(r, 300));
-      try {
-        map.renderSync();
-      } catch (_) {}
-
       const size = map.getSize();
       if (!size || size[0] <= 0 || size[1] <= 0) {
         console.error("[DP4] capture: taille carte invalide", size);
         alert("Capture DP4 impossible : taille de la carte invalide.");
         return;
       }
+
+      await dp4WaitOrthoTilesIdle(map, 5200);
+      await new Promise((r) => setTimeout(r, 250));
+      try {
+        map.renderSync();
+      } catch (_) {}
 
       const canvas = document.createElement("canvas");
       canvas.width = size[0];
@@ -21315,21 +21367,31 @@ function initDP4() {
         alert("Capture DP4 impossible.");
         return;
       }
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, size[0], size[1]);
+      ctx.restore();
 
       const canvases = mapEl.querySelectorAll(".ol-layer canvas");
       canvases.forEach((c) => {
         if (c.width > 0 && c.height > 0) {
-          const opacity = c.parentNode.style.opacity;
+          ctx.save();
+          const opacity = c.parentNode && c.parentNode.style ? c.parentNode.style.opacity : "";
           ctx.globalAlpha = opacity === "" ? 1 : Number(opacity);
           const transform = c.style.transform;
           if (transform) {
             const m = transform.match(/^matrix\(([^)]*)\)$/);
             if (m) {
               const matrix = m[1].split(",").map(Number);
-              ctx.setTransform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+              if (matrix.length >= 6 && matrix.every(Number.isFinite)) {
+                ctx.setTransform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+              }
             }
           }
           ctx.drawImage(c, 0, 0);
+          ctx.restore();
         }
       });
 
