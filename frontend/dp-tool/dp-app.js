@@ -7624,16 +7624,47 @@ function initDP2DrawActions() {
 // --------------------------
 const DP2_VIEW_ZOOM_MIN = 0.5;
 const DP2_VIEW_ZOOM_MAX = 6;
+const DP2_VIEW_PAN_EDGE_PX = 96;
 
 // Applique la transform visuelle du conteneur zoom : translate(pan) + scale(zoom). Ne touche pas à scale_m_per_px ni aux objets.
 function applyDP2ViewTransform() {
   const zoomContainer = document.getElementById("dp2-zoom-container");
   if (!zoomContainer) return;
+  dp2ClampViewPan();
   const panX = window.DP2_STATE.viewPanX != null ? window.DP2_STATE.viewPanX : 0;
   const panY = window.DP2_STATE.viewPanY != null ? window.DP2_STATE.viewPanY : 0;
   const zoom = window.DP2_STATE.viewZoom != null ? window.DP2_STATE.viewZoom : 1;
+  zoomContainer.style.transformOrigin = "0 0";
+  zoomContainer.style.willChange = "transform";
   zoomContainer.style.transform = "translate(" + panX + "px, " + panY + "px) scale(" + zoom + ")";
   if (typeof dp2SyncMapAnchoredOverlays === "function") dp2SyncMapAnchoredOverlays();
+}
+
+function dp2ClampViewPan() {
+  const s = window.DP2_STATE;
+  const wrap = document.getElementById("dp2-captured-image-wrap");
+  const zoomContainer = document.getElementById("dp2-zoom-container");
+  if (!s || !wrap || !zoomContainer) return;
+  const zoom = Math.max(DP2_VIEW_ZOOM_MIN, Math.min(DP2_VIEW_ZOOM_MAX, s.viewZoom || 1));
+  s.viewZoom = zoom;
+  const wrapW = wrap.clientWidth || 0;
+  const wrapH = wrap.clientHeight || 0;
+  const baseW = zoomContainer.offsetWidth || wrapW;
+  const baseH = zoomContainer.offsetHeight || wrapH;
+  if (!(wrapW > 0) || !(wrapH > 0) || !(baseW > 0) || !(baseH > 0)) return;
+  const scaledW = baseW * zoom;
+  const scaledH = baseH * zoom;
+
+  function clampAxis(pan, viewport, scaled) {
+    const cur = typeof pan === "number" && Number.isFinite(pan) ? pan : 0;
+    if (scaled <= viewport) return (viewport - scaled) / 2;
+    const min = viewport - scaled - DP2_VIEW_PAN_EDGE_PX;
+    const max = DP2_VIEW_PAN_EDGE_PX;
+    return Math.min(max, Math.max(min, cur));
+  }
+
+  s.viewPanX = clampAxis(s.viewPanX, wrapW, scaledW);
+  s.viewPanY = clampAxis(s.viewPanY, wrapH, scaledH);
 }
 
 (function dp2BindInteractionPointerUp() {
@@ -7660,22 +7691,33 @@ function initDP2ViewZoom() {
   if (window.DP2_STATE.viewPanX == null) window.DP2_STATE.viewPanX = 0;
   if (window.DP2_STATE.viewPanY == null) window.DP2_STATE.viewPanY = 0;
 
-  zoomContainer.style.position = "relative";
-  zoomContainer.style.transformOrigin = "50% 50%";
+  zoomContainer.style.position = "absolute";
+  zoomContainer.style.transformOrigin = "0 0";
   applyDP2ViewTransform();
+
+  if (wrap.dataset.dp2ViewZoomBound === "1") return;
+  wrap.dataset.dp2ViewZoomBound = "1";
 
   wrap.addEventListener("wheel", (e) => {
     const zoomContainerEl = document.getElementById("dp2-zoom-container");
     if (!zoomContainerEl) return;
-    const rect = zoomContainerEl.getBoundingClientRect();
-    const currentZoom = window.DP2_STATE.viewZoom || 1;
-    const originX = (e.clientX - rect.left) / currentZoom;
-    const originY = (e.clientY - rect.top) / currentZoom;
-    const factor = e.deltaY > 0 ? 1 / 1.15 : 1.15;
+    const wrapRect = wrap.getBoundingClientRect();
+    const currentZoom = Math.max(DP2_VIEW_ZOOM_MIN, Math.min(DP2_VIEW_ZOOM_MAX, window.DP2_STATE.viewZoom || 1));
+    const panX = typeof window.DP2_STATE.viewPanX === "number" ? window.DP2_STATE.viewPanX : 0;
+    const panY = typeof window.DP2_STATE.viewPanY === "number" ? window.DP2_STATE.viewPanY : 0;
+    const localX = e.clientX - wrapRect.left;
+    const localY = e.clientY - wrapRect.top;
+    const worldX = (localX - panX) / currentZoom;
+    const worldY = (localY - panY) / currentZoom;
+    const factor = Math.exp(-e.deltaY * 0.0016);
     const newZoom = Math.max(DP2_VIEW_ZOOM_MIN, Math.min(DP2_VIEW_ZOOM_MAX, currentZoom * factor));
-    if (newZoom === currentZoom) return;
+    if (Math.abs(newZoom - currentZoom) < 0.0001) {
+      e.preventDefault();
+      return;
+    }
     window.DP2_STATE.viewZoom = newZoom;
-    zoomContainerEl.style.transformOrigin = originX + "px " + originY + "px";
+    window.DP2_STATE.viewPanX = localX - worldX * newZoom;
+    window.DP2_STATE.viewPanY = localY - worldY * newZoom;
     applyDP2ViewTransform();
     e.preventDefault();
   }, { passive: false });
