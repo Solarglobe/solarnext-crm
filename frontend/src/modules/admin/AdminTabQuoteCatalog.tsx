@@ -4,7 +4,7 @@
  * hover-reveal actions, modal XL avec sections iconifiées.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { ModalShell } from "../../components/ui/ModalShell";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
@@ -206,6 +206,14 @@ function marginSnBadgeClass(level: "low" | "mid" | "good"): string {
   return "sn-badge-warn";
 }
 
+function normalizeCatalogSearch(value: string | null | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function AdminTabQuoteCatalog() {
@@ -249,7 +257,6 @@ export function AdminTabQuoteCatalog() {
     try {
       const { items: list } = await adminGetQuoteCatalog({
         include_inactive: includeInactive,
-        q: searchQ.trim() || undefined,
         category: filterCategory || undefined,
       });
       setItems(list);
@@ -258,7 +265,7 @@ export function AdminTabQuoteCatalog() {
     } finally {
       setLoading(false);
     }
-  }, [includeInactive, searchQ, filterCategory]);
+  }, [includeInactive, filterCategory]);
 
   useEffect(() => {
     load();
@@ -462,6 +469,21 @@ export function AdminTabQuoteCatalog() {
 
   const marginEurVal = marginEur(formSaleCents, formPurchaseCents);
   const marginPctVal = marginPct(formSaleCents, formPurchaseCents);
+  const filteredItems = useMemo(() => {
+    const q = normalizeCatalogSearch(searchQ);
+    if (!q) return items;
+    return items.filter((item) => {
+      const haystack = normalizeCatalogSearch(
+        [
+          item.name,
+          item.description,
+          CATEGORY_LABELS[item.category],
+          PRICING_LABELS[item.pricing_mode],
+        ].join(" "),
+      );
+      return haystack.includes(q);
+    });
+  }, [items, searchQ]);
 
   if (loading) {
     return (
@@ -471,7 +493,7 @@ export function AdminTabQuoteCatalog() {
     );
   }
 
-  const showEmpty = items.length === 0 && !error;
+  const showEmpty = filteredItems.length === 0 && !error;
 
   return (
     <div className="admin-tab-quote-catalog org-structure-tab">
@@ -484,7 +506,8 @@ export function AdminTabQuoteCatalog() {
             Matériel, prestations et services : chaque ligne alimente le monteur de devis avec tarifs, TVA et indicateur de marge.
           </p>
           <span className="org-tab-hero__meta">
-            {items.length} ligne{items.length !== 1 ? "s" : ""}
+            {filteredItems.length} ligne{filteredItems.length !== 1 ? "s" : ""}
+            {searchQ.trim() ? ` sur ${items.length}` : ""}
             {filterCategory ? ` · ${CATEGORY_LABELS[filterCategory as QuoteCatalogCategory]}` : ""}
             {includeInactive ? " · avec inactifs" : ""}
           </span>
@@ -576,7 +599,7 @@ export function AdminTabQuoteCatalog() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => {
+              {filteredItems.map((item) => {
                 const mPct = marginPct(item.sale_price_ht_cents, item.purchase_price_ht_cents);
                 const level = marginLevel(mPct);
                 return (
