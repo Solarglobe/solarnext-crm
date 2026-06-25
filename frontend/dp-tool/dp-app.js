@@ -4201,6 +4201,10 @@ function dp2FindVersionIndexById(id) {
 function dp2SyncActiveVersionBeforeDraft() {
   const s = window.DP2_STATE;
   if (!s) return;
+  if (s.__dp2SkipNextVersionSync === true) {
+    try { delete s.__dp2SkipNextVersionSync; } catch (_) { s.__dp2SkipNextVersionSync = false; }
+    return;
+  }
   try {
     dp2MigrateFinalGeometryState();
   } catch (_) {}
@@ -4325,6 +4329,59 @@ function dp2ResetWorkingEditorFieldsPreservingVersions() {
     delete s[k];
   });
   Object.assign(s, fresh);
+}
+
+function dp2PurgeWorkingPlanState(options) {
+  const opts = options || {};
+  const keepVersions = opts.keepVersions === true;
+  const s = window.DP2_STATE;
+  if (!s) return;
+  if (!keepVersions) {
+    s.dp2Versions = [];
+    s.dp2ActiveVersionId = null;
+  }
+  dp2ResetWorkingEditorFieldsPreservingVersions();
+  if (!keepVersions) {
+    window.DP2_STATE.dp2Versions = [];
+    window.DP2_STATE.dp2ActiveVersionId = null;
+    window.DP2_STATE.__dp2SkipNextVersionSync = true;
+  }
+  try {
+    dp2TeardownMapIfAny();
+  } catch (_) {}
+  try {
+    const img = document.getElementById("dp2-captured-image");
+    if (img) {
+      img.removeAttribute("src");
+      img.src = "";
+    }
+    const canvas = document.getElementById("dp2-draw-canvas");
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, canvas.width || 0, canvas.height || 0);
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+    const imgWrap = document.getElementById("dp2-captured-image-wrap");
+    if (imgWrap) imgWrap.style.display = "none";
+    const mapWrap = document.getElementById("dp2-ign-map");
+    if (mapWrap) {
+      mapWrap.style.display = "";
+      mapWrap.style.pointerEvents = "";
+    }
+  } catch (_) {}
+  try {
+    if (typeof dp2RemoveParcelEdgeInlineInput === "function") dp2RemoveParcelEdgeInlineInput();
+    if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
+  } catch (_) {}
+  try {
+    if (window.dp2InteractionState) {
+      window.dp2InteractionState.hoveredFeatureId = null;
+      window.dp2InteractionState.activeFeatureId = null;
+      window.dp2InteractionState.editingFeatureId = null;
+    }
+  } catch (_) {}
+  try { setDP2ModeCapture(); } catch (_) {}
 }
 
 function dp2ApplyStateJsonToWorking(stateJson) {
@@ -4519,8 +4576,36 @@ function dp2BootstrapEditorDomFromWorking() {
     }
   }
   try {
+    dp2EnsureDp2ToolbarMountedInModal();
+    initDP2Toolbar();
+    initDP2DrawActions();
+  } catch (err) {
+    console.warn("[DP2] restore toolbar", err);
+  }
+  try {
     setDP2ModeEdition();
   } catch (_) {}
+}
+
+function dp2EnsureDp2ToolbarMountedInModal() {
+  const modal = document.getElementById("dp2-map-modal");
+  const wrap = modal ? modal.querySelector("#dp2-captured-image-wrap") : document.getElementById("dp2-captured-image-wrap");
+  if (!wrap) return;
+  const zoom = wrap.querySelector("#dp2-zoom-container");
+  const insertBeforeEl = zoom || null;
+  const wanted = [
+    { id: "dp2-toolbar", marker: "dp2ToolbarBound" },
+    { id: "dp2-draw-actions", marker: "dp2DrawActionsDelegate" }
+  ];
+  wanted.forEach(function (item) {
+    if (wrap.querySelector("#" + item.id)) return;
+    const el = document.getElementById(item.id);
+    if (!el || wrap.contains(el)) return;
+    try {
+      wrap.insertBefore(el, insertBeforeEl);
+      if (el.dataset && item.marker === "dp2ToolbarBound") delete el.dataset[item.marker];
+    } catch (_) {}
+  });
 }
 
 function dp2OnEntryCreateFirstPlan(e) {
@@ -4606,6 +4691,7 @@ function dp2OnEntryDeleteVersion(e) {
   const idx = dp2FindVersionIndexById(id);
   if (idx < 0) return;
   versions.splice(idx, 1);
+  let purgedAllDp2Versions = false;
   dp2TeardownMapIfAny();
   if (versions.length) {
     const last = versions[versions.length - 1];
@@ -4619,8 +4705,8 @@ function dp2OnEntryDeleteVersion(e) {
       dp2ResetWorkingEditorFieldsPreservingVersions();
     }
   } else {
-    window.DP2_STATE.dp2ActiveVersionId = null;
-    dp2ResetWorkingEditorFieldsPreservingVersions();
+    dp2PurgeWorkingPlanState();
+    purgedAllDp2Versions = true;
   }
   dp2RestoreDomForWorkingState();
   const planCapActive =
@@ -4634,7 +4720,7 @@ function dp2OnEntryDeleteVersion(e) {
     // LOT4: apres suppression de version, revenir sur la carte IGN de capture
     // (comme "nouveau plan") au lieu de laisser un fond fige/vide. Cf. dp2OnEntryNewVersion.
     try {
-      if (typeof window.dp2OpenMapModal === "function") window.dp2OpenMapModal();
+      if (!purgedAllDp2Versions && typeof window.dp2OpenMapModal === "function") window.dp2OpenMapModal();
     } catch (_) {}
   }
   dp2RenderEntryPanel();
@@ -4673,6 +4759,36 @@ function dp2OnEntryDeleteVersion(e) {
     } catch (_) {}
   }
 }
+
+function dp2DeleteAllVersions(e) {
+  if (e) e.preventDefault();
+  if (!window.confirm("Supprimer toutes les versions DP2 de ce dossier ?")) return;
+  dp2PurgeWorkingPlanState();
+  dp2RestoreDomForWorkingState();
+  try { dp2RenderEntryPanel(); } catch (_) {}
+  if (typeof window.DP2_UI?.setState === "function") {
+    window.DP2_UI.setState("EMPTY");
+  }
+  try { dp2RefreshDocVersionMenu(); } catch (_) {}
+  try {
+    var flushP =
+      typeof window.__snDpForceFlush === "function"
+        ? Promise.resolve(window.__snDpForceFlush())
+        : typeof window.DpDraftStore?.forceSaveDraft === "function"
+          ? Promise.resolve(window.DpDraftStore.forceSaveDraft())
+          : null;
+    if (flushP) {
+      flushP.finally(function () {
+        try { dp2RefreshDocVersionMenu(); } catch (_) {}
+        try { dp2RenderEntryPanel(); } catch (_) {}
+      });
+    } else if (typeof window.__snDpPersistDebounced === "function") {
+      window.__snDpPersistDebounced("fast");
+    }
+  } catch (_) {}
+}
+
+window.dp2DeleteAllVersions = dp2DeleteAllVersions;
 
 /**
  * Répare un brouillon surchargé : une seule version = l'état actuellement édité (plan affiché).
@@ -7094,12 +7210,12 @@ function initDP2Editor() {
   });
 
   try {
-    dp2ApplyFeaturesHydrateSync();
+    dp2MountOlMapUnderCanvasIfNeeded();
+    dp2SyncEditionOlMapLayoutSync();
   } catch (_) {}
 
   try {
-    dp2MountOlMapUnderCanvasIfNeeded();
-    dp2SyncEditionOlMapLayoutSync();
+    dp2ApplyFeaturesHydrateSync();
   } catch (_) {}
 
   // Rendu initial depuis l'état
@@ -7623,6 +7739,23 @@ function getDP2CanvasToClient(canvas, canvasX, canvasY) {
   };
 }
 
+function dp2ShouldUseCaptureAnalyticTransform(cap) {
+  if (!cap || typeof cap !== "object" || !cap.imageBase64) return false;
+  const wrap = document.getElementById("dp2-captured-image-wrap");
+  const img = document.getElementById("dp2-captured-image");
+  const capturedShown =
+    !!wrap &&
+    wrap.style.display !== "none" &&
+    !!img &&
+    typeof img.src === "string" &&
+    img.src.indexOf("data:image") === 0;
+  if (!capturedShown) return false;
+  const center = cap.center;
+  const cx = Array.isArray(center) ? center[0] : center && center.x;
+  const cy = Array.isArray(center) ? center[1] : center && center.y;
+  return Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(cap.resolution) && cap.resolution > 0;
+}
+
 /**
  * Pixel canvas DP2 (repère image naturalWidth×naturalHeight) → coordonnée projetée (EPSG:3857).
  * Utilise la carte OpenLayers si disponible (pixels courants mis à l’échelle depuis la capture) ;
@@ -7638,6 +7771,11 @@ function dp2PixelToMapCoord(x, y) {
     (cap && typeof cap.height === "number" && cap.height > 0 ? cap.height : null) ??
     (window.DP2_STATE && window.DP2_STATE.backgroundImage && window.DP2_STATE.backgroundImage.height) ??
     0;
+
+  if (cap && wCap > 0 && hCap > 0 && dp2ShouldUseCaptureAnalyticTransform(cap)) {
+    const v0 = dp4ValidateDP2CaptureForImport(cap);
+    if (v0.ok) return dp2Dp2ImagePixelTo3857Coord(x, y, cap, wCap, hCap);
+  }
 
   const map = window.DP2_MAP && window.DP2_MAP.map;
   if (map && cap && wCap > 0 && hCap > 0) {
@@ -7677,6 +7815,11 @@ function dp2MapCoordToCanvasPoint(coord) {
     (cap && typeof cap.height === "number" && cap.height > 0 ? cap.height : null) ??
     (window.DP2_STATE && window.DP2_STATE.backgroundImage && window.DP2_STATE.backgroundImage.height) ??
     0;
+
+  if (cap && wCap > 0 && hCap > 0 && dp2ShouldUseCaptureAnalyticTransform(cap)) {
+    const v0 = dp4ValidateDP2CaptureForImport(cap);
+    if (v0.ok) return dp2Dp2Image3857CoordToPixel(coord[0], coord[1], cap, wCap, hCap);
+  }
 
   const map = window.DP2_MAP && window.DP2_MAP.map;
   if (map && cap && wCap > 0 && hCap > 0) {
@@ -8406,6 +8549,12 @@ function refreshDP2ModeStrip() {
 // Tant que contour bâti non fermé → seul outil actif = contour bâti (sélection bloquée).
 // --------------------------
 function initDP2Toolbar() {
+  const toolbarRoot = document.getElementById("dp2-toolbar");
+  if (toolbarRoot && toolbarRoot.dataset.dp2ToolbarBound === "1") {
+    try { syncDP2DisplayModeToolbarUI(); } catch (_) {}
+    try { if (typeof dp2SyncDp4RoofMeasuresMenuVisibility === "function") dp2SyncDp4RoofMeasuresMenuVisibility(); } catch (_) {}
+    return;
+  }
   const selectBtn = document.getElementById("dp2-tool-select");
   const panBtn = document.getElementById("dp2-tool-pan");
   const panelsBtn = document.getElementById("dp2-tool-panels");
@@ -8423,6 +8572,8 @@ function initDP2Toolbar() {
   const businessMenu = document.getElementById("dp2-business-menu");
   const businessIconEl = businessBtn?.querySelector?.(".dp2-tool-icon") || null;
   const businessLabelEl = businessBtn?.querySelector?.(".dp2-tool-label") || null;
+  if (!selectBtn || !panBtn || !measuresBtn || !toolbarRoot) return;
+  toolbarRoot.dataset.dp2ToolbarBound = "1";
 
   const MEASURES_TOOL_META = {
     building_outline: { icon: "⬛", label: "Contour bâti" },
@@ -9169,6 +9320,18 @@ function dp2HitTestParcelSegmentLabel(canvas, x, y) {
 
 function dp2ClearParcelEdgeEdit() {
   if (window.DP2_STATE) window.DP2_STATE.parcelEdgeEdit = null;
+}
+
+function dp2ClearParcelEdgeTransientObjects() {
+  const s = window.DP2_STATE;
+  if (!s) return;
+  if (Array.isArray(s.objects)) {
+    s.objects = s.objects.filter(function (o) {
+      return !(o && o.__parcelEdge);
+    });
+  }
+  s.parcelEdgeEdit = null;
+  if (window.dp2InteractionState) window.dp2InteractionState.editingFeatureId = null;
 }
 
 function dp2ParcelEdgeEditMatchesSegment(peEdit, contourId, segmentIndex) {
@@ -12849,6 +13012,7 @@ function dp2CommitParcelSegmentResize(params) {
   try {
     dp2RebuildContourDisplayCacheFromFeatures();
   } catch (_) {}
+  dp2ClearParcelEdgeTransientObjects();
 }
 
 function dp2CommitMeasureResize(obj) {
@@ -14332,6 +14496,7 @@ function renderDP2BuildingContour(ctx, contour, options) {
       const parcelEdgeEditing =
         dp2ParcelEdgeEditMatchesSegment(peEdit, contour.id, i) || !!legacyML;
       let previewStub = null;
+      let hasParcelEdgeResizePreview = false;
       if (dp2ParcelEdgeEditMatchesSegment(peEdit, contour.id, i)) {
         previewStub = dp2BuildParcelEdgeMeasureStub(peEdit, contour, i);
       } else if (legacyML) {
@@ -14394,9 +14559,11 @@ function renderDP2BuildingContour(ctx, contour, options) {
               .toFixed(2)
               .replace(".", ",") + " m";
           if (!editingThisSeg) dp2FillAlignedCoteLabel(ctx, text, preview.aPreview, preview.bPreview, null, "editing", { exteriorOf: contour });
+          hasParcelEdgeResizePreview = true;
           ctx.restore();
         }
       }
+      if (hasParcelEdgeResizePreview) continue;
 
       const offMap = contour.labelOffsets && typeof contour.labelOffsets === "object" ? contour.labelOffsets : {};
       const segOff = offMap[i] && typeof offMap[i].x === "number" && typeof offMap[i].y === "number" ? offMap[i] : { x: 0, y: 0 };

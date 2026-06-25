@@ -338,6 +338,16 @@
     bDel.setAttribute("data-action", "del");
     bDel.textContent = "Supprimer";
     menuEl.appendChild(bDel);
+
+    if (typeof handlers.onClearAll === "function") {
+      var bClear = document.createElement("button");
+      bClear.type = "button";
+      bClear.setAttribute("role", "menuitem");
+      bClear.className = "dp-doc-version__action dp-doc-version__action--danger";
+      bClear.setAttribute("data-action", "clear-all");
+      bClear.textContent = "Tout supprimer";
+      menuEl.appendChild(bClear);
+    }
   }
 
   /**
@@ -436,6 +446,7 @@
           if (action === "new") handlers.onNew();
           else if (action === "del") handlers.onDel();
           else if (action === "dup") handlers.onDup();
+          else if (action === "clear-all" && typeof handlers.onClearAll === "function") handlers.onClearAll();
         } catch (err2) {
           console.warn("[doc-version]", kind, err2);
         }
@@ -491,6 +502,11 @@
           onDel: function () {
             if (typeof global.dp2OnEntryDeleteVersion === "function") {
               global.dp2OnEntryDeleteVersion({ preventDefault: function () {} });
+            }
+          },
+          onClearAll: function () {
+            if (typeof global.dp2DeleteAllVersions === "function") {
+              global.dp2DeleteAllVersions({ preventDefault: function () {} });
             }
           },
         },
