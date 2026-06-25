@@ -111,31 +111,49 @@ export default function PdfPage4({
   const surplusAnnuelle = p4.energie_injectee ?? surplus.reduce((a, b) => a + (b ?? 0), 0);
   const couverture = p4.couverture_besoins_pct;
   const economieAn1 = p4.economie_annee_1 ?? 0;
-  const scenarioType = p4.scenario_type ?? "BASE";
+  // Type de scénario : champ p4 (mapper récent) sinon champ global du view-model (toujours présent)
+  const scenarioType =
+    (viewModel?.selectedScenario as { scenarioType?: string } | undefined)?.scenarioType ??
+    (viewModel?.meta as { scenarioType?: string } | undefined)?.scenarioType ??
+    p4.scenario_type ??
+    "BASE";
   const isPhys = scenarioType === "BATTERY_PHYSICAL";
   const isVirt = scenarioType === "BATTERY_VIRTUAL";
   const isHyb = scenarioType === "BATTERY_HYBRID";
-  // 2 emplacements de synthèse dépendants du scénario (même nombre d'items qu'avant → mise en page inchangée)
+  // Valeurs : champ mapper si présent, sinon recalcul à partir des données déjà dans p4 (jamais "—")
+  const econVm = (viewModel?.economics ?? {}) as { annualRevenue?: number | null };
+  const battTotalKwh = batt.reduce((a, b) => a + (b ?? 0), 0);
+  const restitutionKwh = p4.restitution_batterie_kwh ?? (battTotalKwh > 0 ? battTotalKwh : null);
+  const directKwh = Math.max(0, autoAnnuelle - (restitutionKwh ?? 0));
+  const surplusBrutKwh = p4.surplus_brut_kwh ?? Math.max(0, prodAnnuelle - directKwh);
+  const revenuReventeEur = p4.revenu_revente_eur ?? econVm.annualRevenue ?? null;
+  const coutVbEur = p4.cout_batterie_virtuelle_eur ?? null;
+  const pertesKwh = p4.pertes_batterie_kwh ?? null;
+  // 2 emplacements de synthèse dépendants du scénario (même nombre d'items → mise en page inchangée)
   const extraItems: { label: string; value: string }[] = isPhys
     ? [
-        { label: "Restitution batterie", value: fmtKwh(p4.restitution_batterie_kwh) },
-        p4.pertes_batterie_kwh != null
-          ? { label: "Pertes batterie", value: fmtKwh(p4.pertes_batterie_kwh) }
-          : { label: "Surplus brut", value: fmtKwh(p4.surplus_brut_kwh) },
+        { label: "Restitution batterie", value: fmtKwh(restitutionKwh) },
+        pertesKwh != null
+          ? { label: "Pertes batterie", value: fmtKwh(pertesKwh) }
+          : { label: "Surplus injecté", value: fmtKwh(surplusAnnuelle) },
       ]
     : isVirt
       ? [
-          { label: "Crédit virtuel utilisé", value: fmtKwh(p4.credit_virtuel_utilise_kwh) },
-          { label: "Coût batterie virtuelle/an", value: fmtEur(p4.cout_batterie_virtuelle_eur) },
+          { label: "Crédit virtuel utilisé", value: fmtKwh(restitutionKwh) },
+          coutVbEur != null
+            ? { label: "Coût batterie virtuelle/an", value: fmtEur(coutVbEur) }
+            : { label: "Surplus injecté", value: fmtKwh(surplusAnnuelle) },
         ]
       : isHyb
         ? [
-            { label: "Restitution batterie", value: fmtKwh(p4.restitution_batterie_kwh) },
-            { label: "Coût batterie virtuelle/an", value: fmtEur(p4.cout_batterie_virtuelle_eur) },
+            { label: "Restitution batterie", value: fmtKwh(restitutionKwh) },
+            coutVbEur != null
+              ? { label: "Coût batterie virtuelle/an", value: fmtEur(coutVbEur) }
+              : { label: "Surplus injecté", value: fmtKwh(surplusAnnuelle) },
           ]
         : [
-            { label: "Surplus brut", value: fmtKwh(p4.surplus_brut_kwh) },
-            { label: "Revenu revente", value: fmtEur(p4.revenu_revente_eur) },
+            { label: "Surplus brut", value: fmtKwh(surplusBrutKwh) },
+            { label: "Revenu revente", value: fmtEur(revenuReventeEur) },
           ];
   const baseNote = "Le surplus brut est la production solaire non utilisée en direct.";
   const scenarioNote =
@@ -143,7 +161,7 @@ export default function PdfPage4({
       ? `${baseNote} La batterie la restitue le soir et la nuit ; une faible part (~10 %) est perdue au stockage.`
       : isVirt
         ? `${baseNote} Ce surplus est crédité chez le fournisseur puis repris plus tard ; un coût annuel s'applique au service.`
-        : `${baseNote} Sans stockage, il est injecté et revendu au réseau (faible valorisation).`;
+        : `${baseNote} Sans stockage, il est injecté et revendu au réseau (faible valorisation).`
 
   const hasData = prodAnnuelle > 0 || consoAnnuelle > 0;
 
@@ -271,7 +289,7 @@ export default function PdfPage4({
             <div className="kpi-item highlight"><span>Énergie autoconsommée</span><strong>{fmtKwh(autoAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Part couverte</span><strong>{fmtPct(couverture)}</strong></div>
             {extraItems.map((it, i) => (
-              <div className="kpi-item" key={i}><span>{it.label}</span><strong>{it.value}</strong></div>
+              <div className="kpi-item highlight" key={i}><span>{it.label}</span><strong>{it.value}</strong></div>
             ))}
             <div className="kpi-item highlight"><span>Économies an 1</span><strong>{fmtEur(economieAn1)}</strong></div>
           </div>
