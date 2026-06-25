@@ -114,6 +114,10 @@ function monthlySumsFromHourly(values) {
   return out;
 }
 
+function resolveRawScenarioConsumptionHourly(ctx) {
+  return ctx?.conso?.hourly || ctx?.conso?.clamped || null;
+}
+
 // ======================================================================
 // 🌞 CONTRÔLEUR PRINCIPAL
 // ======================================================================
@@ -768,7 +772,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     let battPhysicalResult = null;
 
     if (batteryEnabled) {
-      const consoHourly = ctx.conso_p_pilotee || ctx.conso?.hourly || ctx.conso?.clamped;
+      const consoHourly = resolveRawScenarioConsumptionHourly(ctx);
       const hasConso8760 = Array.isArray(consoHourly) && consoHourly.length === 8760;
 
       if (!hasConso8760) {
@@ -809,7 +813,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           const monthlyBatt = aggregateMonthly(ctx.pv.hourly, consoHourly, batt);
           const batteryScenario = JSON.parse(JSON.stringify(baseScenario));
           batteryScenario.name = "BATTERY_PHYSICAL";
-          batteryScenario.scenario_uses_piloted_profile = Array.isArray(ctx.conso_p_pilotee);
+          batteryScenario.scenario_uses_piloted_profile = false;
           batteryScenario.battery = {
             enabled: true,
             annual_charge_kwh: batt.annual_charge_kwh,
@@ -922,9 +926,9 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       virtualScenario.battery = "virtual";
       virtualScenario.batterie = "virtual";
       virtualScenario._v2 = true;
-      virtualScenario.scenario_uses_piloted_profile = Array.isArray(ctx.conso_p_pilotee);
+      virtualScenario.scenario_uses_piloted_profile = false;
 
-      const consoHourlyVirtual = ctx.conso_p_pilotee || ctx.conso?.hourly || ctx.conso?.clamped;
+      const consoHourlyVirtual = resolveRawScenarioConsumptionHourly(ctx);
       const hasConso8760Vb = Array.isArray(consoHourlyVirtual) && consoHourlyVirtual.length === 8760;
       const hasPv8760Vb = Array.isArray(ctx.pv?.hourly) && ctx.pv.hourly.length === 8760;
 
@@ -1064,15 +1068,6 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           }
         } else {
           let vbConfig = { ...(ctx.virtual_battery_input || {}) };
-          if (resolveVirtualBatteryCapacityKwh(vbConfig) == null) {
-            const physCap =
-              ctx.battery_input?.enabled === true && ctx.battery_input?.capacity_kwh != null
-                ? Number(ctx.battery_input.capacity_kwh)
-                : null;
-            if (physCap != null && physCap > 0) {
-              vbConfig.capacity_kwh = physCap;
-            }
-          }
           if (resolveVirtualBatteryCapacityKwh(vbConfig) == null) {
             const ub = simulateVirtualBattery8760Unbounded({
               pv_hourly: ctx.pv.hourly,
@@ -1439,14 +1434,14 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     // Principe : la VB ne voit que le surplus que la batterie physique n'a pas absorbé.
     // -----------------------------------------------------------------------
     if (battPhysicalResult !== null && ctx.virtual_battery_input?.enabled === true) {
-      const consoHourlyHybrid = ctx.conso_p_pilotee || ctx.conso?.hourly || ctx.conso?.clamped;
+      const consoHourlyHybrid = resolveRawScenarioConsumptionHourly(ctx);
       const hasSurplus8760H = Array.isArray(battPhysicalResult.surplus_hourly) && battPhysicalResult.surplus_hourly.length === 8760;
       const hasConso8760H = Array.isArray(consoHourlyHybrid) && consoHourlyHybrid.length === 8760;
 
       const hybridScenario = JSON.parse(JSON.stringify(scenarios.BATTERY_PHYSICAL));
       hybridScenario.name = "BATTERY_HYBRID";
       hybridScenario._v2 = true;
-      hybridScenario.scenario_uses_piloted_profile = Array.isArray(ctx.conso_p_pilotee);
+      hybridScenario.scenario_uses_piloted_profile = false;
 
       if (!hasSurplus8760H || !hasConso8760H) {
         hybridScenario._skipped = true;
@@ -1498,6 +1493,20 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           if (
             useP2H &&
             resolvedP2CapacityH.capacity_kwh == null &&
+            selectedContractCapH == null &&
+            !isCommercialUnboundedVirtualBatteryAllowed(ctx)
+          ) {
+            hybridScenario._virtualBatteryP2 = {
+              required_capacity_kwh: requiredCapH,
+              provider_tier_status: "BLOCKED_UNBOUNDED_COMMERCIAL",
+              capacity_auto_from_unbounded: true,
+            };
+            markVirtualBatteryUnboundedBlocked(hybridScenario, "hybrid_virtual_battery_unbounded_disabled");
+            scenarios.BATTERY_HYBRID = hybridScenario;
+            console.warn("[BATTERY_HYBRID] VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE");
+          }
+          if (
+            !useP2H &&
             selectedContractCapH == null &&
             !isCommercialUnboundedVirtualBatteryAllowed(ctx)
           ) {

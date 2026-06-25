@@ -183,7 +183,7 @@ function formatPercent(v: number | null | undefined): string {
 
 function formatKwh(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  return `${Number(v).toLocaleString("fr-FR")} kWh`;
+  return `${Math.round(Number(v)).toLocaleString("fr-FR")} kWh`;
 }
 
 function formatYears(v: number | null | undefined): string {
@@ -249,41 +249,11 @@ function stabilizedVirtualReadModel(
   const production = finiteNumberOrNull(energy.production_kwh);
   const consumption = finiteNumberOrNull(energy.consumption_kwh);
   const currentImport = gridImportKwhForDisplay(energy);
-  const credited = finiteNumberOrNull(energy.credited_kwh);
-  const restored = finiteNumberOrNull(energy.restored_kwh ?? energy.used_credit_kwh);
-  const directOrYear1PvUsed = finiteNumberOrNull(
-    energy.energy_solar_used_kwh ??
-      energy.total_pv_used_on_site_kwh ??
-      energy.autoconsumption_kwh
-  );
-  const inferredCreditableSurplus =
-    id === "BATTERY_VIRTUAL" &&
-    production != null &&
-    directOrYear1PvUsed != null &&
-    production > directOrYear1PvUsed
-      ? production - directOrYear1PvUsed
-      : null;
-  const usableAnnualCredit =
-    credited != null && credited > 0
-      ? credited
-      : inferredCreditableSurplus != null && inferredCreditableSurplus > 0
-        ? inferredCreditableSurplus
-        : null;
-  const rolloverExplicit = scenario?.virtual_battery_rollover?.credit_rollover_enabled;
-  const fallbackStabilizedImport =
-    id === "BATTERY_VIRTUAL" &&
-    currentImport != null &&
-    usableAnnualCredit != null &&
-    usableAnnualCredit > 0 &&
-    (restored == null || credited == null || restored <= credited) &&
-    rolloverExplicit !== false
-      ? Math.max(0, currentImport - usableAnnualCredit)
-      : null;
   const stabilizedImport = finiteNumberOrNull(
     stabilized?.grid_import_kwh ??
       stabilized?.import_kwh ??
       stabilized?.billable_import_kwh
-  ) ?? fallbackStabilizedImport;
+  );
 
   if (consumption == null || consumption <= 0 || stabilizedImport == null) return energy;
   if (currentImport != null && stabilizedImport >= currentImport) return energy;
@@ -711,6 +681,21 @@ export default function ScenarioComparisonTable({
           const badge = resolveColumnBadge(id, scenario);
 
           const energy = stabilizedVirtualReadModel(id, scenario);
+          const baseEnergy = scenarios[0]?.energy ?? {};
+          const baseDirectPct = firstFiniteNumber(
+            baseEnergy.direct_self_consumption_pct,
+            baseEnergy.pv_self_consumption_pct,
+            baseEnergy.self_consumption_pct
+          );
+          const baseGrossSurplusKwh = firstFiniteNumber(
+            baseEnergy.surplus_before_battery_kwh,
+            baseEnergy.surplus_kwh
+          );
+          const baseSurplusPct = firstFiniteNumber(
+            baseEnergy.surplus_available_pct,
+            baseEnergy.export_pct,
+            baseDirectPct != null ? 100 - baseDirectPct : null
+          );
           const finance = scenario?.finance ?? {};
           const costs = scenario?.costs ?? {};
           const hardware = scenario?.hardware ?? {};
@@ -747,10 +732,19 @@ export default function ScenarioComparisonTable({
           const grossSurplusKwh = firstFiniteNumber(
             energy.surplus_before_battery_kwh,
             energy.surplus_before_virtual_battery_kwh,
-            energy.surplus_kwh
+            id === "BASE" ? energy.surplus_kwh : null,
+            id !== "BASE" ? baseGrossSurplusKwh : null
           );
-          const directSelfPct = firstFiniteNumber(energy.direct_self_consumption_pct);
-          const surplusAvailablePct = firstFiniteNumber(energy.surplus_available_pct);
+          const directSelfPct = firstFiniteNumber(
+            energy.direct_self_consumption_pct,
+            id === "BASE" ? energy.pv_self_consumption_pct : null,
+            id !== "BASE" ? baseDirectPct : null
+          );
+          const surplusAvailablePct = firstFiniteNumber(
+            energy.surplus_available_pct,
+            id === "BASE" ? energy.export_pct : null,
+            id !== "BASE" ? baseSurplusPct : null
+          );
           const physicalChargeFromSurplusKwh = firstFiniteNumber(
             energy.surplus_used_by_physical_battery_kwh,
             energy.physical_battery_charge_from_surplus_kwh,
@@ -1081,8 +1075,16 @@ export default function ScenarioComparisonTable({
                       </>
                     )}
                     <MiniRow
-                      label="Taux autoconsommation avec batterie"
-                      tip="Taux final du scénario après stockage physique ou crédit virtuel, calculé sur la production PV."
+                      label={
+                        id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID"
+                          ? "Taux couverture avec crédit"
+                          : "Taux autoconsommation avec batterie"
+                      }
+                      tip={
+                        id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID"
+                          ? "Part de la consommation couverte après crédit virtuel. Ce n'est pas une batterie physique."
+                          : "Taux final du scénario après stockage physique, calculé sur la production PV."
+                      }
                       value={formatPercent(totalSelfConsumptionPct)}
                     />
                   </section>
