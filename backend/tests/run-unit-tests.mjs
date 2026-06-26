@@ -172,6 +172,7 @@ function runTests(nodeArgs, files, label) {
         stdio: 'inherit',
         env: {
           ...process.env,
+          NODE_ENV: 'test',
           SOLARNEXT_UNIT_HORIZON_FIXTURE: 'true',
         },
       },

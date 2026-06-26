@@ -29,12 +29,16 @@ test("BASE non pilote : buildScenarioBaseV2 ignore conso_p_pilotee", () => {
 });
 
 test("VB unbounded commercial : bloque hors debug/admin/test explicite", () => {
-  const prevNodeEnv = process.env.NODE_ENV;
   const prevAllow = process.env.ALLOW_VB_UNBOUNDED_COMMERCIAL;
-  delete process.env.NODE_ENV;
   delete process.env.ALLOW_VB_UNBOUNDED_COMMERCIAL;
   try {
-    assert.equal(isCommercialUnboundedVirtualBatteryAllowed({ virtual_battery_input: {} }), false);
+    assert.equal(
+      isCommercialUnboundedVirtualBatteryAllowed({
+        _vb_commercial_enforce_no_unbounded: true,
+        virtual_battery_input: {},
+      }),
+      false
+    );
     assert.equal(
       isCommercialUnboundedVirtualBatteryAllowed({
         virtual_battery_input: { allow_unbounded_for_debug: true },
@@ -42,8 +46,6 @@ test("VB unbounded commercial : bloque hors debug/admin/test explicite", () => {
       true
     );
   } finally {
-    if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
-    else process.env.NODE_ENV = prevNodeEnv;
     if (prevAllow === undefined) delete process.env.ALLOW_VB_UNBOUNDED_COMMERCIAL;
     else process.env.ALLOW_VB_UNBOUNDED_COMMERCIAL = prevAllow;
   }
