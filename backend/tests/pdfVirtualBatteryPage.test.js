@@ -163,6 +163,44 @@ function main() {
     "P4 legacy physical snapshot must preserve real monthly consumption instead of uniform annual fallback"
   );
 
+  const staleScenarioMonthly = [1900, 1700, 1500, 1200, 1100, 1040, 1046, 1083, 1100, 1200, 1500, 1631];
+  const vmStaleScenarioMonthly = mapSelectedScenarioSnapshotToPdfViewModel(
+    {
+      ...snapshot,
+      study_meter: {
+        snapshot: {
+          consumption_monthly: faverMonthly.map((kwh, i) => ({ month: i + 1, kwh })),
+        },
+      },
+    },
+    {
+      selected_scenario_id: "BATTERY_PHYSICAL",
+      scenarios_v2: [
+        {
+          ...scenariosV2[2],
+          energy: {
+            ...scenariosV2[2].energy,
+            consumption_kwh: 16000,
+            monthly: staleScenarioMonthly.map((conso, i) => ({
+              prod: 450 + i * 20,
+              conso,
+              auto: Math.min(conso, 350),
+              surplus: Math.max(0, 450 + i * 20 - 350),
+              import: Math.max(0, conso - 350),
+              batt: i >= 4 && i <= 8 ? 100 : 0,
+            })),
+          },
+        },
+      ],
+    }
+  );
+  assert(
+    vmStaleScenarioMonthly.fullReport?.p4?.consommation_kwh?.[6] === 510 &&
+      vmStaleScenarioMonthly.fullReport?.p4?.consommation_kwh?.[7] === 510 &&
+      vmStaleScenarioMonthly.fullReport?.p4?.consommation_kwh_source === "official_meter_monthly_override",
+    "P4 must prefer official meter monthly totals over stale selected scenario monthly data"
+  );
+
   const vmLegacyInconsistent = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
     selected_scenario_id: "BATTERY_VIRTUAL",
     scenarios_v2: [

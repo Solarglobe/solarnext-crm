@@ -261,6 +261,36 @@ function drawChart(rows) {
   const toPoints = (key) =>
     rows.map((r, i) => ({ x: scaleX(i), y: scaleY(r[key] || 0) }));
 
+  function markConsumptionPoints(points) {
+    points.forEach((pt, i) => {
+      const dot = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "circle"
+      );
+      dot.setAttribute("cx", pt.x);
+      dot.setAttribute("cy", pt.y);
+      dot.setAttribute("r", "8");
+      dot.setAttribute("fill", "#fff");
+      dot.setAttribute("stroke", "#1B2A59");
+      dot.setAttribute("stroke-width", "4");
+      svg.appendChild(dot);
+
+      if (i !== 6 && i !== 7) return;
+      const lab = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "text"
+      );
+      lab.setAttribute("x", pt.x);
+      lab.setAttribute("y", pt.y - 18);
+      lab.setAttribute("text-anchor", "middle");
+      lab.style.fill = "#1B2A59";
+      lab.style.fontSize = "22px";
+      lab.style.fontWeight = "800";
+      lab.textContent = `${Math.round(rows[i]?.conso || 0).toLocaleString("fr-FR")} kWh`;
+      svg.appendChild(lab);
+    });
+  }
+
   // COURBES + ZONES
   function drawAreaLine(points, gradId) {
     if (!points.length) return;
@@ -302,7 +332,16 @@ function drawChart(rows) {
   const autoPts = toPoints("auto");
   const battPts = toPoints("batt");
 
+  console.log("P4_LEGACY_ENGINE_POINTS", {
+    maxY: Math.round(maxY),
+    source: window.ViewPayload?.p4?.consommation_kwh_source || null,
+    july: { value_kwh: Math.round(rows[6]?.conso || 0), point: consoPts[6] || null },
+    august: { value_kwh: Math.round(rows[7]?.conso || 0), point: consoPts[7] || null },
+    consommation_kwh: rows.map((r) => Math.round(r.conso || 0)),
+  });
+
   drawAreaLine(consoPts, "grad-conso");
+  markConsumptionPoints(consoPts);
   drawAreaLine(prodPts, "grad-prod");
   if (rows.some((r) => r.auto > 0))
     drawAreaLine(autoPts, "grad-auto");
@@ -417,6 +456,15 @@ function drawChart(rows) {
       autoconso_kwh: payload.autoconso_kwh || [],
       batterie_kwh: payload.batterie_kwh || [],
     };
+    console.log("P4_LEGACY_ENGINE_INPUT", {
+      source: payload.consommation_kwh_source || null,
+      july_kwh: Math.round(Number(backendView.consommation_kwh[6]) || 0),
+      august_kwh: Math.round(Number(backendView.consommation_kwh[7]) || 0),
+      consommation_kwh: backendView.consommation_kwh.map((v) => Math.round(Number(v) || 0)),
+      reference_kwh: Array.isArray(payload.consommation_kwh_reference)
+        ? payload.consommation_kwh_reference.map((v) => Math.round(Number(v) || 0))
+        : null,
+    });
     buildOverlayInputs(backendView);
 
     const rows = [];

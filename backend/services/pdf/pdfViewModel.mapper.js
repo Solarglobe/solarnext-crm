@@ -528,6 +528,50 @@ function normalizeMonthlyProduction(monthly) {
 }
 
 /** Moyenne par heure (0–23) sur une série typiquement 8760h. */
+function normalizeMonthlyConsumptionReference(input) {
+  if (!input) return null;
+
+  const direct = Array.isArray(input)
+    ? input
+    : Array.isArray(input.monthly_kwh)
+      ? input.monthly_kwh
+      : Array.isArray(input.monthly)
+        ? input.monthly
+        : Array.isArray(input.consumption_monthly)
+          ? input.consumption_monthly
+          : null;
+
+  if (!Array.isArray(direct) || direct.length < MONTHS_COUNT) return null;
+
+  const out = Array(MONTHS_COUNT).fill(0);
+  const hasExplicitMonth = direct.some((row) => row && typeof row === "object" && num(row.month) != null);
+
+  if (hasExplicitMonth) {
+    for (const row of direct) {
+      if (!row || typeof row !== "object") continue;
+      const month = Math.floor(num(row.month) ?? 0);
+      if (month < 1 || month > MONTHS_COUNT) continue;
+      out[month - 1] = numOrZero(row.kwh ?? row.conso_kwh ?? row.conso ?? row.value);
+    }
+  } else {
+    for (let i = 0; i < MONTHS_COUNT; i++) {
+      const row = direct[i];
+      out[i] =
+        row && typeof row === "object"
+          ? numOrZero(row.kwh ?? row.conso_kwh ?? row.conso ?? row.value)
+          : numOrZero(row);
+    }
+  }
+
+  return out.some((v) => v > 0) ? out : null;
+}
+
+function sumMonthly(monthly) {
+  return Array.isArray(monthly)
+    ? monthly.slice(0, MONTHS_COUNT).reduce((a, b) => a + numOrZero(b), 0)
+    : 0;
+}
+
 function hourly8760ToAvg24(hourly) {
   if (!Array.isArray(hourly) || hourly.length < 24) return Array(24).fill(0);
   const len = hourly.length;
@@ -931,6 +975,48 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     surplusMonthly = monthly.map((p, i) => Math.max(0, numOrZero(p) - numOrZero(autoMonthly[i])));
   }
 
+  const officialMonthlyConsumption =
+    normalizeMonthlyConsumptionReference(options.consumption_monthly_reference) ??
+    normalizeMonthlyConsumptionReference(conso.monthly_kwh_ref) ??
+    normalizeMonthlyConsumptionReference(conso.mensuelle) ??
+    normalizeMonthlyConsumptionReference(form.conso?.mensuelle) ??
+    normalizeMonthlyConsumptionReference(form.conso?.monthly_kwh_ref) ??
+    normalizeMonthlyConsumptionReference(snapshot.study_meter?.snapshot?.consumption_monthly) ??
+    normalizeMonthlyConsumptionReference(snapshot.study_meter?.snapshot?.consumption_monthly_kwh);
+  let p4ConsumptionMonthlySource = Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12
+    ? "scenario_monthly"
+    : "annual_uniform";
+  if (officialMonthlyConsumption) {
+    const officialSum = sumMonthly(officialMonthlyConsumption);
+    const currentSum = sumMonthly(consoMonthly);
+    const annualRef =
+      num(selectedScenario?.energy?.consumption_kwh ?? selectedScenario?.energy?.conso) ??
+      num(energy?.consumption_kwh ?? energy?.conso) ??
+      num(consoAnnuelle) ??
+      num(consumptionKwh) ??
+      officialSum;
+    const officialMatchesAnnual =
+      officialSum > 0 && Math.abs(officialSum - annualRef) <= Math.max(2, annualRef * 0.02);
+    const currentDiffersFromOfficial = consoMonthly.some((v, i) =>
+      Math.abs(numOrZero(v) - numOrZero(officialMonthlyConsumption[i])) >
+      Math.max(5, numOrZero(officialMonthlyConsumption[i]) * 0.05)
+    );
+    if (officialMatchesAnnual && currentDiffersFromOfficial) {
+      consoMonthly = officialMonthlyConsumption.slice(0, MONTHS_COUNT);
+      p4ConsumptionMonthlySource = "official_meter_monthly_override";
+    }
+    console.log("PDF_P4_CONSUMPTION_MONTHLY", {
+      source: p4ConsumptionMonthlySource,
+      annual_ref_kwh: Math.round(annualRef),
+      current_sum_before_override_kwh: Math.round(currentSum),
+      official_sum_kwh: Math.round(officialSum),
+      july_kwh: Math.round(consoMonthly[6] ?? 0),
+      august_kwh: Math.round(consoMonthly[7] ?? 0),
+      official_july_kwh: Math.round(officialMonthlyConsumption[6] ?? 0),
+      official_august_kwh: Math.round(officialMonthlyConsumption[7] ?? 0),
+    });
+  }
+
   const isVirtualLikeScenario = selectedKey === "BATTERY_VIRTUAL" || selectedKey === "BATTERY_HYBRID";
   const officialConsoForP6 =
     isVirtualLikeScenario && selectedScenario?.energy && typeof selectedScenario.energy === "object"
@@ -1256,6 +1342,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         meta: { client: clientName, ref, date: dateDisplay, date_display: dateDisplay },
         production_kwh: monthly,
         consommation_kwh: consoMonthly,
+        consommation_kwh_source: p4ConsumptionMonthlySource,
+        consommation_kwh_reference: officialMonthlyConsumption,
         autoconso_kwh: autoMonthly,
         surplus_kwh: surplusMonthly,
         batterie_kwh: batMonthly,
