@@ -259,16 +259,6 @@ export default function ChartP4Production({
                 stroke="#1B2A59"
                 strokeWidth={4}
               />
-              <text
-                x={pt.x}
-                y={pt.y - 14}
-                textAnchor="middle"
-                fill="#1B2A59"
-                fontSize={22}
-                fontWeight={800}
-              >
-                {Math.round(rows[i]?.conso ?? 0).toLocaleString("fr-FR")}
-              </text>
             </g>
           ))}
         </>
