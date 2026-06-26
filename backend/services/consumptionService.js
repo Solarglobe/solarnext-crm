@@ -23,6 +23,9 @@
 import fs from "fs";
 import { normalizeEquipmentBuckets } from "./equipmentNormalize.service.js";
 
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const HOURS_PER_YEAR = 8760;
+
 // ======================================================================
 // PRNG DÉTERMINISTE — mulberry32
 // Utilisé pour remplacer Math.random() dans buildProfile8760.
@@ -79,6 +82,79 @@ function scaleProfile(profile, annual) {
   return profile.map(v => v * f);
 }
 
+function sumHourly(hourly) {
+  return Array.isArray(hourly) ? hourly.reduce((a, b) => a + (Number(b) || 0), 0) : 0;
+}
+
+function cleanKwhTotal(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return v;
+  const rounded = Math.round(n);
+  if (Math.abs(n - rounded) < 1e-6) return rounded;
+  return Math.round(n * 1000000) / 1000000;
+}
+
+function monthlySumsFrom8760(hourly) {
+  if (!Array.isArray(hourly) || hourly.length !== HOURS_PER_YEAR) return null;
+  const out = [];
+  let cursor = 0;
+  for (const days of DAYS_IN_MONTH) {
+    const hours = days * 24;
+    let sum = 0;
+    for (let i = 0; i < hours; i++) sum += Number(hourly[cursor + i]) || 0;
+    out.push(sum);
+    cursor += hours;
+  }
+  return out;
+}
+
+function sanitizeMonthly12(months) {
+  if (!Array.isArray(months) || months.length !== 12) return null;
+  return months.map((v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  });
+}
+
+function attachReference(result, { sourceMode, monthlyRef } = {}) {
+  if (!result || typeof result !== "object") return result;
+  const hourly = Array.isArray(result.hourly) && result.hourly.length === HOURS_PER_YEAR
+    ? result.hourly
+    : null;
+  const ref = sanitizeMonthly12(monthlyRef) ?? (hourly ? monthlySumsFrom8760(hourly) : null);
+  const annual = ref ? ref.reduce((a, b) => a + b, 0) : result.annual_kwh;
+  return {
+    ...result,
+    ...(ref ? { monthly_kwh_ref: ref } : {}),
+    ...(sourceMode ? { consumption_source_mode: sourceMode } : {}),
+    annual_kwh: Number.isFinite(Number(annual)) ? cleanKwhTotal(annual) : result.annual_kwh,
+  };
+}
+
+function preserveMonthlyTotals(hourly, monthlyRef) {
+  const ref = sanitizeMonthly12(monthlyRef);
+  if (!Array.isArray(hourly) || hourly.length !== HOURS_PER_YEAR || !ref) return hourly;
+  const out = hourly.slice();
+  let cursor = 0;
+  for (let m = 0; m < 12; m++) {
+    const hours = DAYS_IN_MONTH[m] * 24;
+    let sum = 0;
+    for (let i = 0; i < hours; i++) sum += Number(out[cursor + i]) || 0;
+    const target = ref[m];
+    if (target <= 0) {
+      for (let i = 0; i < hours; i++) out[cursor + i] = 0;
+    } else if (sum > 0) {
+      const factor = target / sum;
+      for (let i = 0; i < hours; i++) out[cursor + i] = Math.max(0, (Number(out[cursor + i]) || 0) * factor);
+    } else {
+      const each = target / hours;
+      for (let i = 0; i < hours; i++) out[cursor + i] = each;
+    }
+    cursor += hours;
+  }
+  return out;
+}
+
 function pickDailyProfile(type) {
   if (!type) return PROFILE_ACTIVE_24H;
   switch ((type || "").toLowerCase()) {
@@ -126,12 +202,11 @@ function getPowerLimit(params = {}) {
 function clampHourlyProfile(hourly, params = {}) {
   const limit = getPowerLimit(params);
   if (!limit) {
-    // Pas de KVA : on garde juste un plancher de 0.1 kWh/h
-    return hourly.map(h => Math.max(h, 0.1));
+    return hourly.map(h => Math.max(Number(h) || 0, 0));
   }
   return hourly.map(h => {
-    const v = Math.min(h, limit);
-    return Math.max(v, 0.1);
+    const v = Math.min(Number(h) || 0, limit);
+    return Math.max(v, 0);
   });
 }
 
@@ -438,7 +513,7 @@ function rebuildMonthly(months, base8760) {
 
   for (let m = 0; m < 12; m++) {
     const totalMonth = months[m];
-    const monthHours = Math.round(8760 / 12);
+    const monthHours = DAYS_IN_MONTH[m] * 24;
     const slice      = base8760.slice(pointer, pointer + monthHours);
 
     if (typeof totalMonth === "number" && !isNaN(totalMonth)) {
@@ -458,7 +533,9 @@ function rebuildMonthly(months, base8760) {
 
   return {
     hourly: hourly.slice(0, 8760),
-    annual_kwh: annual
+    annual_kwh: annual,
+    monthly_kwh_ref: sanitizeMonthly12(months),
+    consumption_source_mode: "MONTHLY",
   };
 }
 
@@ -606,9 +683,15 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
         const full = buildFromFullYearHourly(rows);
         if (!full) throw new Error("CSV_CONSUMPTION_INVALID_HOURLY_DATA");
         const hourly = normalizeTo8760(full.hourly, activeShapeBase8760);
-        result = { hourly, annual_kwh: full.annual_kwh };
+        result = attachReference(
+          { hourly, annual_kwh: sumHourly(hourly) },
+          { sourceMode: "CSV_HOURLY" }
+        );
       } else if (rows.length > 0) {
-        result = rebuildHourlyIncomplete(rows, fallbackBase8760);
+        result = attachReference(
+          rebuildHourlyIncomplete(rows, fallbackBase8760),
+          { sourceMode: "CSV_HOURLY_INCOMPLETE" }
+        );
       } else {
         throw new Error("CSV_CONSUMPTION_INVALID_LENGTH");
       }
@@ -640,20 +723,21 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
       if (days && days.length) {
         const r = rebuildDaily(days, fallbackBase8760);
         r.hourly = clampHourlyProfile(r.hourly, merged);
+        const out = attachReference(r, { sourceMode: "CSV_DAILY" });
         if (devLog) {
           console.log(JSON.stringify({
             tag: "TRACE_CONSO_SOURCE",
             source: "CSV",
             csvPath,
             rows: days.length,
-            annualKwhComputed: r.annual_kwh,
+            annualKwhComputed: out.annual_kwh,
           }));
         }
         if (process.env.NODE_ENV !== "production") {
-          console.log("DEBUG_CSV_ANNUAL_KWH", r.annual_kwh);
-          console.log("DEBUG_CONSUMPTION_RESULT", { annual_kwh: r?.annual_kwh, hourly_len: r?.hourly?.length });
+          console.log("DEBUG_CSV_ANNUAL_KWH", out.annual_kwh);
+          console.log("DEBUG_CONSUMPTION_RESULT", { annual_kwh: out?.annual_kwh, hourly_len: out?.hourly?.length });
         }
-        return ensureConsumptionConsistent(tagEngineConsumptionSource(r, "CSV_DAILY_REBUILT"));
+        return ensureConsumptionConsistent(tagEngineConsumptionSource(out, "CSV_DAILY_REBUILT"));
       }
     }
 
@@ -662,20 +746,22 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
       if (months) {
         const r = rebuildMonthly(months, fallbackBase8760);
         r.hourly = clampHourlyProfile(r.hourly, merged);
+        r.hourly = preserveMonthlyTotals(r.hourly, r.monthly_kwh_ref);
+        const out = attachReference(r, { sourceMode: "CSV_MONTHLY", monthlyRef: months });
         if (devLog) {
           console.log(JSON.stringify({
             tag: "TRACE_CONSO_SOURCE",
             source: "CSV",
             csvPath,
             rows: 12,
-            annualKwhComputed: r.annual_kwh,
+            annualKwhComputed: out.annual_kwh,
           }));
         }
         if (process.env.NODE_ENV !== "production") {
-          console.log("DEBUG_CSV_ANNUAL_KWH", r.annual_kwh);
-          console.log("DEBUG_CONSUMPTION_RESULT", { annual_kwh: r?.annual_kwh, hourly_len: r?.hourly?.length });
+          console.log("DEBUG_CSV_ANNUAL_KWH", out.annual_kwh);
+          console.log("DEBUG_CONSUMPTION_RESULT", { annual_kwh: out?.annual_kwh, hourly_len: out?.hourly?.length });
         }
-        return ensureConsumptionConsistent(tagEngineConsumptionSource(r, "CSV_MONTHLY_REBUILT"));
+        return ensureConsumptionConsistent(tagEngineConsumptionSource(out, "CSV_MONTHLY_REBUILT"));
       }
     }
 
@@ -694,10 +780,39 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
   // ----------------------------
   // 2) Profil horaire pré-construit (ex. lead.energy_profile.hourly) — utilisé seulement si pas de CSV
   // ----------------------------
+  if (merged.mode === "mensuelle" && Array.isArray(merged.mensuelle) && merged.mensuelle.length === 12) {
+    const monthlyManual = rebuildManual(merged, fallbackBase8760);
+    if (monthlyManual) {
+      monthlyManual.hourly = clampHourlyProfile(monthlyManual.hourly, merged);
+      monthlyManual.hourly = preserveMonthlyTotals(monthlyManual.hourly, monthlyManual.monthly_kwh_ref);
+      const out = attachReference(monthlyManual, {
+        sourceMode: "MONTHLY",
+        monthlyRef: monthlyManual.monthly_kwh_ref,
+      });
+      if (devLog) {
+        console.log("DEBUG_CONSUMPTION_RESULT", {
+          annual_kwh: out?.annual_kwh,
+          hourly_len: out?.hourly?.length
+        });
+      }
+      return ensureConsumptionConsistent(tagEngineConsumptionSource(out, "SYNTHETIC_MANUAL_PROFILE"));
+    }
+  }
+
   if (merged.hourly && Array.isArray(merged.hourly) && merged.hourly.length >= 8760) {
     const hourly = merged.hourly.slice(0, 8760).map((v) => (Number.isFinite(Number(v)) ? Number(v) : 0));
-    const annual = hourly.reduce((a, b) => a + b, 0);
-    const out = { hourly: clampHourlyProfile(hourly, merged), annual_kwh: annual };
+    const annualRef = Number(merged.annuelle_kwh);
+    const scaledHourly = Number.isFinite(annualRef) && annualRef > 0
+      ? scaleProfile(hourly, annualRef)
+      : hourly;
+    const clampedHourly = clampHourlyProfile(scaledHourly, merged);
+    const monthlyRef = sanitizeMonthly12(merged.monthly_kwh_ref ?? merged.mensuelle);
+    const preservedHourly = monthlyRef ? preserveMonthlyTotals(clampedHourly, monthlyRef) : clampedHourly;
+    const annual = sumHourly(preservedHourly);
+    const out = attachReference(
+      { hourly: preservedHourly, annual_kwh: annual },
+      { sourceMode: "PROFILE_8760", monthlyRef }
+    );
     if (trace) {
       console.log(JSON.stringify({
         tag: "TRACE_CONSO_CSV",
@@ -722,21 +837,28 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
   const manual = rebuildManual(merged, fallbackBase8760);
   if (manual) {
     manual.hourly = clampHourlyProfile(manual.hourly, merged);
+    if (Array.isArray(manual.monthly_kwh_ref)) {
+      manual.hourly = preserveMonthlyTotals(manual.hourly, manual.monthly_kwh_ref);
+    }
+    const out = attachReference(manual, {
+      sourceMode: manual.consumption_source_mode ?? (merged.mode === "mensuelle" ? "MONTHLY" : "ANNUAL"),
+      monthlyRef: manual.monthly_kwh_ref,
+    });
     if (trace) {
       console.log(JSON.stringify({
         tag: "TRACE_CONSO_CSV",
         source: "manual",
-        hourlyLength: manual.hourly.length,
-        annualKwhComputed: manual.annual_kwh,
+        hourlyLength: out.hourly.length,
+        annualKwhComputed: out.annual_kwh,
       }));
     }
     if (devLog) {
       console.log("DEBUG_CONSUMPTION_RESULT", {
-        annual_kwh: manual?.annual_kwh,
-        hourly_len: manual?.hourly?.length
+        annual_kwh: out?.annual_kwh,
+        hourly_len: out?.hourly?.length
       });
     }
-    return ensureConsumptionConsistent(tagEngineConsumptionSource(manual, "SYNTHETIC_MANUAL_PROFILE"));
+    return ensureConsumptionConsistent(tagEngineConsumptionSource(out, "SYNTHETIC_MANUAL_PROFILE"));
   }
 
   // ----------------------------
@@ -744,21 +866,22 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
   // ----------------------------
   const nat = buildNationalFallback(profilKey);
   nat.hourly = clampHourlyProfile(nat.hourly, merged);
+  const natOut = attachReference(nat, { sourceMode: "NATIONAL_FALLBACK" });
   if (trace) {
     console.log(JSON.stringify({
       tag: "TRACE_CONSO_CSV",
       source: "national",
-      hourlyLength: nat.hourly.length,
-      annualKwhComputed: nat.annual_kwh,
+      hourlyLength: natOut.hourly.length,
+      annualKwhComputed: natOut.annual_kwh,
     }));
   }
   if (devLog) {
     console.log("DEBUG_CONSUMPTION_RESULT", {
-      annual_kwh: nat?.annual_kwh,
-      hourly_len: nat?.hourly?.length
+      annual_kwh: natOut?.annual_kwh,
+      hourly_len: natOut?.hourly?.length
     });
   }
-  return ensureConsumptionConsistent(tagEngineConsumptionSource(nat, "SYNTHETIC_NATIONAL_FALLBACK"));
+  return ensureConsumptionConsistent(tagEngineConsumptionSource(natOut, "SYNTHETIC_NATIONAL_FALLBACK"));
 }
 
 // ======================================================================
@@ -1175,6 +1298,7 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {
 
   let hourly     = result.hourly.slice();
   let annual_kwh = result.annual_kwh;
+  const baseMonthlyRef = sanitizeMonthly12(result.monthly_kwh_ref);
 
   // ----------------------------------------------------------------
   // 1a) ACTUEL + CSV — micro-reshape somme nulle (opt-in env)
@@ -1219,6 +1343,11 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {
     }
   }
 
+  if (baseMonthlyRef) {
+    hourly = preserveMonthlyTotals(hourly, baseMonthlyRef);
+    annual_kwh = baseMonthlyRef.reduce((a, b) => a + b, 0);
+  }
+
   // ----------------------------------------------------------------
   // 2) À VENIR — additif (CSV ou synthétique)
   // ----------------------------------------------------------------
@@ -1241,7 +1370,17 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {
     }
   }
 
-  return ensureConsumptionConsistent({ hourly, annual_kwh });
+  return ensureConsumptionConsistent(attachReference(
+    {
+      ...result,
+      hourly,
+      annual_kwh,
+    },
+    {
+      sourceMode: result.consumption_source_mode,
+      monthlyRef: monthlySumsFrom8760(hourly),
+    }
+  ));
 }
 
 // Expose les fonctions de calcul kWh pour usage frontend/API

@@ -586,12 +586,11 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       ? engine.annual_kwh
       : null) ?? energyProfile?.summary?.annual_kwh;
 
+  const officialConsumptionMode = String(energyLead.consumption_mode || "ANNUAL").toUpperCase();
   let annuelleKwh =
     energyLead.consumption_annual_kwh ?? energyLead.consumption_annual_calculated_kwh ?? 0;
   let mensuelle = null;
-  if (profileHourly) {
-    annuelleKwh = profileAnnualKwh ?? profileHourly.reduce((a, b) => a + (Number(b) || 0), 0);
-  } else if (energyLead.consumption_mode === "MONTHLY") {
+  if (officialConsumptionMode === "MONTHLY") {
     const cmRes =
       meterRow?.id != null
         ? await pool.query(
@@ -611,6 +610,8 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       mensuelle.push(Number(byMonth[m]) || 0);
     }
     annuelleKwh = mensuelle.reduce((a, b) => a + b, 0);
+  } else if (profileHourly) {
+    annuelleKwh = profileAnnualKwh ?? profileHourly.reduce((a, b) => a + (Number(b) || 0), 0);
   }
 
   const options = studyData.options || {};
@@ -979,9 +980,12 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       mode: mapConsumptionMode(energyLead.consumption_mode),
       annuelle_kwh: annuelleKwh,
       mensuelle: mensuelle,
+      monthly_kwh_ref: mensuelle,
+      consumption_source_mode:
+        csvPath ? "CSV" : officialConsumptionMode === "MONTHLY" ? "MONTHLY" : profileHourly ? "PROFILE_8760" : "ANNUAL",
       profil: mapConsumptionProfile(energyLead.consumption_profile),
       csv_path: csvPath,
-      ...(profileHourly && !csvPath ? { hourly: profileHourly } : {}),
+      ...(profileHourly && !csvPath && officialConsumptionMode !== "MONTHLY" ? { hourly: profileHourly } : {}),
       // Équipements énergétiques (V8)
       equipement_actuel: energyLead.equipement_actuel ?? null,
       equipement_actuel_params:

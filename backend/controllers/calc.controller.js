@@ -279,12 +279,16 @@ if (Math.abs(load8760Sum - (conso.annual_kwh ?? 0)) >= 0.1) {
 ctx.conso = {
   hourly: conso.hourly,
   annual_kwh: annualExact,
-  clamped: conso.hourly
+  clamped: conso.hourly,
+  monthly_kwh_ref: Array.isArray(conso.monthly_kwh_ref) ? conso.monthly_kwh_ref.slice(0, 12) : monthlySumsFromHourly(conso.hourly),
+  consumption_source_mode: conso.consumption_source_mode ?? null,
 };
 
 // META
 ctx.meta.conso_annuelle_kwh = annualExact;
 ctx.meta.engine_consumption_source = conso.engine_consumption_source ?? "UNKNOWN";
+ctx.meta.consumption_source_mode = conso.consumption_source_mode ?? null;
+ctx.meta.conso_monthly_kwh_ref = Array.isArray(ctx.conso.monthly_kwh_ref) ? ctx.conso.monthly_kwh_ref : null;
 
 if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1") {
   const h = ctx.conso.hourly || [];
