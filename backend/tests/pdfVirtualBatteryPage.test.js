@@ -138,6 +138,31 @@ function main() {
     "P4 legacy physical snapshot must infer restitution from total PV used minus direct self-consumption"
   );
 
+  const faverMonthly = [2860, 2340, 1820, 910, 600, 540, 510, 510, 840, 910, 1690, 2470];
+  const legacyPhysicalMonthlySnapshot = {
+    ...legacyPhysicalSnapshot,
+    energy: {
+      ...legacyPhysicalSnapshot.energy,
+      monthly: faverMonthly.map((conso, i) => ({
+        prod: 100 + i * 10,
+        conso,
+        auto: Math.min(conso, 250 + i * 5),
+        surplus: 0,
+        import: Math.max(0, conso - (250 + i * 5)),
+        batt: i >= 4 && i <= 8 ? 100 : 0,
+      })),
+    },
+  };
+  const vmLegacyPhysicalMonthly = mapSelectedScenarioSnapshotToPdfViewModel(legacyPhysicalMonthlySnapshot, {
+    selected_scenario_id: "BATTERY_PHYSICAL",
+    scenarios_v2: [],
+  });
+  assert(
+    vmLegacyPhysicalMonthly.fullReport?.p4?.consommation_kwh?.[6] === 510 &&
+      vmLegacyPhysicalMonthly.fullReport?.p4?.consommation_kwh?.[7] === 510,
+    "P4 legacy physical snapshot must preserve real monthly consumption instead of uniform annual fallback"
+  );
+
   const vmLegacyInconsistent = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
     selected_scenario_id: "BATTERY_VIRTUAL",
     scenarios_v2: [

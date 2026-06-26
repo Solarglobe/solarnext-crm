@@ -914,7 +914,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   let consoMonthly;
   let autoMonthly;
   let surplusMonthly;
-  const scenarioMonthly = selectedScenario?.energy?.monthly;
+  const scenarioMonthly =
+    (Array.isArray(selectedScenario?.energy?.monthly) ? selectedScenario.energy.monthly : null) ??
+    (Array.isArray(energy?.monthly) ? energy.monthly : null) ??
+    (Array.isArray(snapshot.monthly) ? snapshot.monthly : null);
   const isBatteryScenario = selectedKey === "BATTERY_PHYSICAL" || selectedKey === "BATTERY_VIRTUAL" || selectedKey === "BATTERY_HYBRID";
 
   if (Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12) {

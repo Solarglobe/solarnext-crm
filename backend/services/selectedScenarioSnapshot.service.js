@@ -287,6 +287,11 @@ export async function buildSelectedScenarioSnapshot({
       scenario.energy?.used_credit_kwh ??
       scenario.battery_virtual?.annual_discharge_kwh ??
       null,
+    monthly: Array.isArray(scenario.energy?.monthly)
+      ? scenario.energy.monthly.slice(0, 12)
+      : Array.isArray(scenario.monthly)
+        ? scenario.monthly.slice(0, 12)
+        : null,
     total_pv_used_on_site_kwh: scenario.energy?.total_pv_used_on_site_kwh ?? null,
     exported_kwh: scenario.energy?.exported_kwh ?? null,
     pv_self_consumption_pct: scenario.energy?.pv_self_consumption_pct ?? null,
