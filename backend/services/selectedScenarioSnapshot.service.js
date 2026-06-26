@@ -397,11 +397,30 @@ export async function buildSelectedScenarioSnapshot({
       (Number.isFinite(Number(scenario.oversell_risk_score)) ? Number(scenario.oversell_risk_score) : 0),
   };
 
+  const consumption_trace = {
+    consumption_source: scenario.consumption_source ?? null,
+    consumption_source_mode: scenario.consumption_source_mode ?? null,
+    occupancy_profile: scenario.occupancy_profile ?? null,
+    solar_piloting_enabled: scenario.solar_piloting_enabled === true,
+    scenario_uses_piloted_profile:
+      scenario.scenario_uses_piloted_profile === true ||
+      scenario.assumptions?.scenario_uses_piloted_profile === true,
+    piloting_reason: scenario.piloting_reason ?? null,
+    usages_pilotables: Array.isArray(scenario.usages_pilotables) ? scenario.usages_pilotables : [],
+    base_consumption_profile_hash: scenario.base_consumption_profile_hash ?? null,
+    calculated_consumption_profile_hash: scenario.calculated_consumption_profile_hash ?? null,
+    scenarios_engine_version: scenario.scenarios_engine_version ?? null,
+    needs_recompute: scenario.needs_recompute === true,
+    display_blocked: scenario.display_blocked === true,
+    blocked_reason: scenario.blocked_reason ?? null,
+  };
+
   const created_at = new Date().toISOString();
 
   return {
     scenario_type: scenarioId,
     created_at,
+    consumption_trace,
 
     client,
     site,

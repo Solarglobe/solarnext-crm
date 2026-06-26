@@ -268,6 +268,29 @@ export default function PdfPage4({
           <h3 style={{ margin: 0, color: brandHex, fontSize: "4.4mm", fontWeight: 800, letterSpacing: "0.02em" }}>Répartition mensuelle</h3>
         </div>
 
+        {/* Mention profil conso — même vérité que l'écran (notice produite par le mapper PDF) */}
+        {(() => {
+          const trace = (viewModel as { consumption_trace?: { scenario_uses_piloted_profile?: boolean } } | undefined)?.consumption_trace;
+          const piloted = trace?.scenario_uses_piloted_profile === true;
+          const notice =
+            (viewModel as { consumption_profile_notice?: string } | undefined)?.consumption_profile_notice ??
+            (piloted
+              ? "Profil de consommation : optimisation solaire des usages activée."
+              : "Profil de consommation : consommation actuelle non optimisée.");
+          const sourceLabel =
+            (viewModel as { consumption_source_label?: string } | undefined)?.consumption_source_label ?? null;
+          return (
+            <p
+              className="p4-consumption-notice"
+              data-testid="p4-consumption-notice"
+              style={{ margin: "0 0 2.4mm", fontSize: "3.1mm", color: "rgba(0,0,0,.62)", lineHeight: 1.3, flexShrink: 0 }}
+            >
+              {notice}
+              {sourceLabel ? ` — ${sourceLabel}` : ""}
+            </p>
+          );
+        })()}
+
         <div style={{ height: "74mm", position: "relative", flexShrink: 0 }}>
           {hasData && (
             <ChartP4Production

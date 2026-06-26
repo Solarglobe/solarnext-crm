@@ -67,6 +67,11 @@ export async function getStudyScenarios(req, res) {
       snapshot_engine_version: snapshotEngineVersion,
       current_engine_version: CALC_ENGINE_VERSION,
       needs_recompute: staleSnapshot || !engineCoherent,
+      // BLOCAGE V12/V13 : un snapshot perime ne doit jamais s'afficher comme actuel ni etre compare/PDF.
+      display_blocked: staleSnapshot || !engineCoherent,
+      blocked_reason: staleSnapshot
+        ? "STALE_SNAPSHOT_ENGINE_VERSION"
+        : (!engineCoherent ? "ENGINE_INCOHERENT_MIXED_BASIS" : null),
     });
   } catch (e) {
     console.error("[studyScenarios.controller] getStudyScenarios:", e);

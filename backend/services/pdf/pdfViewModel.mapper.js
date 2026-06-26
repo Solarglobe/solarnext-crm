@@ -958,6 +958,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   let consoMonthly;
   let autoMonthly;
   let surplusMonthly;
+  let consumptionMonthlyMissing = false;
   const scenarioMonthly =
     (Array.isArray(selectedScenario?.energy?.monthly) ? selectedScenario.energy.monthly : null) ??
     (Array.isArray(energy?.monthly) ? energy.monthly : null) ??
@@ -969,10 +970,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     autoMonthly = scenarioMonthly.slice(0, 12).map((m) => numOrZero(m.auto_kwh ?? m.auto));
     surplusMonthly = scenarioMonthly.slice(0, 12).map((m) => numOrZero(m.surplus_kwh ?? m.surplus));
   } else {
-    const cTot = num(consoAnnuelle) ?? num(consumptionKwh) ?? 0;
-    consoMonthly = uniformMonthly12FromTotal(cTot);
-    autoMonthly = monthly.map((p, i) => Math.min(numOrZero(p), numOrZero(consoMonthly[i])));
-    surplusMonthly = monthly.map((p, i) => Math.max(0, numOrZero(p) - numOrZero(autoMonthly[i])));
+    // INTERDICTION DE RECONSTRUCTION : aucune courbe mensuelle fabriquee a partir de l'annuel.
+    // (Les snapshots perimes/incomplets sont refuses en amont par la garde PDF.)
+    consumptionMonthlyMissing = true;
+    consoMonthly = Array.from({ length: 12 }, () => 0);
+    autoMonthly = Array.from({ length: 12 }, () => 0);
+    surplusMonthly = Array.from({ length: 12 }, () => 0);
   }
 
   const officialMonthlyConsumption =
@@ -1252,6 +1255,21 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     },
     study_number: options.studyNumber ?? null,
     generated_at: generatedAt,
+    consumption_trace: snapshot.consumption_trace ?? null,
+    consumption_monthly_missing: consumptionMonthlyMissing,
+    consumption_profile_notice:
+      snapshot.consumption_trace?.scenario_uses_piloted_profile === true
+        ? "Profil de consommation : optimisation solaire des usages activée."
+        : "Profil de consommation : consommation actuelle non optimisée.",
+    consumption_source_label: (() => {
+      const _s = snapshot.consumption_trace?.consumption_source ?? null;
+      if (_s === "ENEDIS_HOURLY") return "Source : courbe Enedis réelle";
+      if (_s === "ENEDIS_DAILY") return "Source : courbe Enedis (journalier)";
+      if (_s === "MONTHLY_SYNTHETIC") return "Source : profil synthétique mensuel";
+      if (_s === "ANNUAL_SYNTHETIC") return "Source : profil synthétique annuel";
+      if (_s === "FALLBACK") return "Source : profil national par défaut";
+      return "Source : non précisée";
+    })(),
     client: {
       name: clientName,
       city: str(client.ville),

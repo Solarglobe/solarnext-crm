@@ -150,6 +150,15 @@ export interface ScenarioV2 {
     stabilized?: Record<string, unknown> | null;
     year1?: Record<string, unknown> | null;
   } | null;
+  /** Traçabilité profil conso (mapper V2) — étape sécurité front */
+  scenario_uses_piloted_profile?: boolean;
+  consumption_source?: string | null;
+  occupancy_profile?: string | null;
+  solar_piloting_enabled?: boolean;
+  scenarios_engine_version?: string | null;
+  needs_recompute?: boolean;
+  display_blocked?: boolean;
+  blocked_reason?: string | null;
   [key: string]: unknown;
 }
 
@@ -848,6 +857,27 @@ export default function ScenarioComparisonTable({
 
                   <div className="scenario-header-middle">
                     <p className="scenario-col-sub">{subtitle}</p>
+                    {scenario != null && (
+                      <p
+                        className="scenario-col-conso-profile"
+                        data-testid={`scenario-conso-profile-${id}`}
+                        style={{ margin: "4px 0 0", fontSize: 11, color: "var(--sn-text-secondary)" }}
+                      >
+                        Conso :{" "}
+                        {scenario.consumption_source === "ENEDIS_HOURLY"
+                          ? "Enedis réelle"
+                          : scenario.consumption_source === "ENEDIS_DAILY"
+                            ? "Enedis (journalier)"
+                            : scenario.consumption_source === "MONTHLY_SYNTHETIC"
+                              ? "Synthétique mensuelle"
+                              : scenario.consumption_source === "ANNUAL_SYNTHETIC"
+                                ? "Synthétique annuelle"
+                                : scenario.consumption_source === "FALLBACK"
+                                  ? "Profil national"
+                                  : "—"}{" "}
+                        — {scenario.scenario_uses_piloted_profile === true ? "Profil piloté" : "Profil brut"}
+                      </p>
+                    )}
                   </div>
 
                   <div className="scenario-header-bottom">

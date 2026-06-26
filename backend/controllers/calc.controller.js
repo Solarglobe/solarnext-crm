@@ -288,6 +288,13 @@ ctx.conso = {
 ctx.meta.conso_annuelle_kwh = annualExact;
 ctx.meta.engine_consumption_source = conso.engine_consumption_source ?? "UNKNOWN";
 ctx.meta.consumption_source_mode = conso.consumption_source_mode ?? null;
+// OPTIMISATION SOLAIRE DES USAGES — option explicite (defaut NON). Jamais deduite du statut client ni des equipements.
+ctx.solar_piloting_enabled = (form?.params?.solar_piloting_enabled === true) || (form?.solar_piloting_enabled === true);
+ctx.usages_pilotables = Array.isArray(form?.params?.usages_pilotables) ? form.params.usages_pilotables : (Array.isArray(form?.usages_pilotables) ? form.usages_pilotables : []);
+ctx.piloting_reason = ctx.solar_piloting_enabled ? "explicit_user_choice" : "not_enabled";
+ctx.meta.solar_piloting_enabled = ctx.solar_piloting_enabled;
+ctx.meta.piloting_reason = ctx.piloting_reason;
+ctx.meta.usages_pilotables = ctx.usages_pilotables;
 ctx.meta.conso_monthly_kwh_ref = Array.isArray(ctx.conso.monthly_kwh_ref) ? ctx.conso.monthly_kwh_ref : null;
 
 if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1") {
@@ -756,6 +763,21 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     ctx.conso_p_pilotee = pilotage.conso_pilotee_hourly;
     ctx.pilotage_stats = pilotage.stats;
 
+    // ROUTAGE PROFIL DE CALCUL — une seule verite par dossier.
+    // base_hourly = profil de base (Enedis reel ou synthetique). hourly = profil reellement calcule.
+    // Le profil pilote n'entre dans les calculs QUE si l'optimisation solaire est explicitement activee.
+    const _hashHourly = (arr) => Array.isArray(arr)
+      ? arr.reduce((h, v, i) => (((h * 31) + Math.round((Number(v) || 0) * 1000) + i) >>> 0), (2166136261 >>> 0)).toString(16)
+      : null;
+    ctx.conso.base_hourly = ctx.conso.hourly;
+    if (ctx.solar_piloting_enabled === true && Array.isArray(ctx.conso_p_pilotee) && ctx.conso_p_pilotee.length === 8760) {
+      ctx.conso.hourly = ctx.conso_p_pilotee;
+      ctx.conso.clamped = ctx.conso_p_pilotee;
+    }
+    ctx.meta.base_consumption_profile_hash = _hashHourly(ctx.conso.base_hourly);
+    ctx.meta.calculated_consumption_profile_hash = _hashHourly(ctx.conso.hourly);
+    ctx.meta.scenario_uses_piloted_profile = ctx.solar_piloting_enabled === true;
+
 
     // ======================================================================
     // SECTION 5 — Calcul des scénarios énergie
@@ -768,7 +790,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     const scenarios = await buildBaseScenarioOnly(ctx);
 
     const baseScenario = scenarios.BASE;
-    baseScenario.scenario_uses_piloted_profile = false;
+    baseScenario.scenario_uses_piloted_profile = ctx.solar_piloting_enabled === true;
     addEnergyKpisToScenario(baseScenario, ctx);
 
     const batteryEnabled = ctx.battery_input?.enabled === true && Number(ctx.battery_input?.capacity_kwh) > 0;
@@ -817,7 +839,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           const monthlyBatt = aggregateMonthly(ctx.pv.hourly, consoHourly, batt);
           const batteryScenario = JSON.parse(JSON.stringify(baseScenario));
           batteryScenario.name = "BATTERY_PHYSICAL";
-          batteryScenario.scenario_uses_piloted_profile = false;
+          batteryScenario.scenario_uses_piloted_profile = ctx.solar_piloting_enabled === true;
           batteryScenario.battery = {
             enabled: true,
             annual_charge_kwh: batt.annual_charge_kwh,
@@ -930,7 +952,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       virtualScenario.battery = "virtual";
       virtualScenario.batterie = "virtual";
       virtualScenario._v2 = true;
-      virtualScenario.scenario_uses_piloted_profile = false;
+      virtualScenario.scenario_uses_piloted_profile = ctx.solar_piloting_enabled === true;
 
       const consoHourlyVirtual = resolveRawScenarioConsumptionHourly(ctx);
       const hasConso8760Vb = Array.isArray(consoHourlyVirtual) && consoHourlyVirtual.length === 8760;
@@ -1445,7 +1467,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       const hybridScenario = JSON.parse(JSON.stringify(scenarios.BATTERY_PHYSICAL));
       hybridScenario.name = "BATTERY_HYBRID";
       hybridScenario._v2 = true;
-      hybridScenario.scenario_uses_piloted_profile = false;
+      hybridScenario.scenario_uses_piloted_profile = ctx.solar_piloting_enabled === true;
 
       if (!hasSurplus8760H || !hasConso8760H) {
         hybridScenario._skipped = true;

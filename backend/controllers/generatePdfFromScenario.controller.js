@@ -11,6 +11,7 @@ import { generatePdfForVersion } from "./pdfGeneration.controller.js";
 import { getAbsolutePath } from "../services/localStorage.service.js";
 import { ensureLeadCommercialProposalFromScenarioPdf } from "../services/documents.service.js";
 import { resolveQuotePdfClientSlug } from "../services/quotePdfStorageName.js";
+import { CALC_ENGINE_VERSION } from "../services/calc/calc.constants.js";
 
 const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
 const SCENARIO_LABELS_FR = {
@@ -63,6 +64,20 @@ export async function generatePdfFromScenario(req, res) {
     if (!hasScenario) {
       return res.status(400).json({
         error: `Scénario ${scenarioId} introuvable dans scenarios_v2`,
+      });
+    }
+
+    // STEP 2b — GARDE SNAPSHOT PERIME / BLOQUE : jamais de PDF sur une base non a jour.
+    const selectedV2 = (scenariosV2 || []).find((s) => (s.id || s.name) === scenarioId) || {};
+    const snapshotEngineVersion = dataJson.scenarios_engine_version ?? selectedV2.scenarios_engine_version ?? null;
+    const staleSnapshot = snapshotEngineVersion !== CALC_ENGINE_VERSION;
+    if (selectedV2.display_blocked === true || selectedV2.needs_recompute === true || staleSnapshot) {
+      return res.status(409).json({
+        error: "PDF_BLOCKED_STALE_SNAPSHOT",
+        message: "PDF impossible : snapshot périmé — recalcul requis.",
+        blocked_reason: selectedV2.blocked_reason ?? (staleSnapshot ? "STALE_SNAPSHOT_ENGINE_VERSION" : null),
+        snapshot_engine_version: snapshotEngineVersion,
+        current_engine_version: CALC_ENGINE_VERSION,
       });
     }
 

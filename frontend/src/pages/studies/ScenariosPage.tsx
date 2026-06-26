@@ -70,6 +70,7 @@ export default function ScenariosPage() {
   const [needsRecompute, setNeedsRecompute] = useState(false);
   const [snapshotEngineVersion, setSnapshotEngineVersion] = useState<string | null>(null);
   const [currentEngineVersion, setCurrentEngineVersion] = useState<string | null>(null);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [recomputing, setRecomputing] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -115,6 +116,7 @@ export default function ScenariosPage() {
     setNeedsRecompute(false);
     setSnapshotEngineVersion(null);
     setCurrentEngineVersion(null);
+    setBlockedReason(null);
     try {
       const res = await apiFetch(
         `${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/scenarios`
@@ -130,6 +132,8 @@ export default function ScenariosPage() {
         engine_coherent?: boolean;
         snapshot_engine_version?: string | null;
         current_engine_version?: string | null;
+        display_blocked?: boolean;
+        blocked_reason?: string | null;
       };
       if (res.status === 404 && body.error === "SCENARIOS_NOT_GENERATED") {
         setScenariosError("SCENARIOS_NOT_GENERATED");
@@ -148,10 +152,14 @@ export default function ScenariosPage() {
         setVersionLocked(body.is_locked === true);
         setSelectedScenarioId(parseSelectedScenarioId(body.selected_scenario_id));
         setNeedsRecompute(
-          body.needs_recompute === true || body.stale_snapshot === true || body.engine_coherent === false
+          body.needs_recompute === true ||
+            body.stale_snapshot === true ||
+            body.engine_coherent === false ||
+            body.display_blocked === true
         );
         setSnapshotEngineVersion(body.snapshot_engine_version ?? null);
         setCurrentEngineVersion(body.current_engine_version ?? null);
+        setBlockedReason(body.blocked_reason ?? null);
       }
     } catch (e) {
       setScenariosError(e instanceof Error ? e.message : "Erreur chargement scénarios");
@@ -546,8 +554,17 @@ export default function ScenariosPage() {
     >
       <div style={{ minWidth: 240, flex: "1 1 320px" }}>
         <strong style={{ display: "block", color: "var(--sn-text-primary)" }}>
-          Les scénarios doivent être recalculés avec le nouveau moteur.
+          Snapshot périmé — recalcul requis
         </strong>
+        {blockedReason ? (
+          <span
+            data-testid="scenarios-blocked-reason"
+            className="sg-helper"
+            style={{ display: "block", marginTop: 2, fontFamily: "monospace", fontSize: 11 }}
+          >
+            Raison : {blockedReason}
+          </span>
+        ) : null}
         <span className="sg-helper" style={{ display: "block", marginTop: 4 }}>
           Ces résultats proviennent d&apos;une version de calcul périmée
           {snapshotEngineVersion ? ` (${snapshotEngineVersion})` : ""}
@@ -712,7 +729,13 @@ export default function ScenariosPage() {
           />
         </div>
 
-        <div style={{ marginBottom: "var(--spacing-24)" }}>
+        <div
+          {...(needsRecompute ? { "data-testid": "scenarios-chart-stale", "aria-disabled": true } : {})}
+          style={{
+            marginBottom: "var(--spacing-24)",
+            ...(needsRecompute ? { opacity: 0.45, pointerEvents: "none" as const } : {}),
+          }}
+        >
           <ScenarioEconomicsChart orderedScenarios={orderedScenarios} height={400} />
         </div>
         <style>{`

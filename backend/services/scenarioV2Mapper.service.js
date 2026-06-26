@@ -10,6 +10,7 @@ import {
   computeSiteAutonomyPct,
   computeSolarCoveragePct,
 } from "./energyKpiDefinitions.service.js";
+import { CALC_ENGINE_VERSION } from "./calc/calc.constants.js";
 
 const LABELS = {
   BASE: "Sans batterie",
@@ -457,6 +458,27 @@ export function mapScenarioToV2(scenario, ctx) {
     scenario_uses_piloted_profile: scenario.scenario_uses_piloted_profile === true,
     // COHERENCE MOTEUR : base temporelle effective ("hourly_8760", "monthly_fallback" ou "skipped").
     energy_basis: scenario.energy_basis ?? (scenario._skipped === true ? "skipped" : "hourly_8760"),
+    // TRACABILITE PROFIL DE CONSO — verite calculee exposee a l'API (front + PDF lisent la meme source).
+    consumption_source: (() => {
+      const m = String(ctx?.meta?.consumption_source_mode ?? "").toUpperCase();
+      if (m.includes("CSV_HOURLY") || m.includes("PROFILE_8760")) return "ENEDIS_HOURLY";
+      if (m.includes("DAILY")) return "ENEDIS_DAILY";
+      if (m.includes("MONTHLY")) return "MONTHLY_SYNTHETIC";
+      if (m.includes("ANNUAL")) return "ANNUAL_SYNTHETIC";
+      if (m) return "FALLBACK";
+      return null;
+    })(),
+    consumption_source_mode: ctx?.meta?.consumption_source_mode ?? null,
+    occupancy_profile: ctx?.form?.conso?.profil ?? ctx?.form?.params?.profil ?? ctx?.meta?.occupancy_profile ?? null,
+    solar_piloting_enabled: ctx?.meta?.solar_piloting_enabled === true,
+    piloting_reason: ctx?.meta?.piloting_reason ?? (ctx?.meta?.solar_piloting_enabled === true ? "explicit_user_choice" : "not_enabled"),
+    usages_pilotables: Array.isArray(ctx?.meta?.usages_pilotables) ? ctx.meta.usages_pilotables : [],
+    base_consumption_profile_hash: ctx?.meta?.base_consumption_profile_hash ?? null,
+    calculated_consumption_profile_hash: ctx?.meta?.calculated_consumption_profile_hash ?? null,
+    scenarios_engine_version: CALC_ENGINE_VERSION,
+    needs_recompute: scenario.needs_recompute === true,
+    display_blocked: scenario.display_blocked === true,
+    blocked_reason: scenario.blocked_reason ?? null,
     anti_oversell_flags: Array.isArray(scenario.anti_oversell_flags) ? scenario.anti_oversell_flags : [],
     oversell_risk_score: Number.isFinite(Number(scenario.oversell_risk_score)) ? Number(scenario.oversell_risk_score) : 0,
     computed_at: new Date().toISOString(),
