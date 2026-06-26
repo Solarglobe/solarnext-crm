@@ -105,6 +105,30 @@ function coveredFromCanonicalImportKwh(energy) {
   return Math.max(0, Math.min(conso, conso - imp));
 }
 
+function resolveBatteryRestoredKwhForPdf(scenario, energy) {
+  const e = energy && typeof energy === "object" ? energy : {};
+  const battery = scenario?.battery && typeof scenario.battery === "object" ? scenario.battery : {};
+  const virtualBattery =
+    scenario?.battery_virtual && typeof scenario.battery_virtual === "object"
+      ? scenario.battery_virtual
+      : {};
+
+  return (
+    num(e.battery_discharge_kwh) ??
+    num(e.physical_battery_discharge_kwh) ??
+    num(scenario?.battery_discharge_kwh) ??
+    num(scenario?.hardware?.battery_discharge_kwh) ??
+    num(battery.annual_discharge_kwh) ??
+    num(e.virtual_battery_discharge_kwh) ??
+    num(e.restored_kwh) ??
+    num(e.used_credit_kwh) ??
+    num(scenario?.used_credit_kwh) ??
+    num(virtualBattery.annual_discharge_kwh) ??
+    num(virtualBattery.restored_kwh) ??
+    0
+  );
+}
+
 function clampPctVal(x) {
   if (x == null || !Number.isFinite(Number(x))) return null;
   return Math.max(0, Math.min(100, Number(x)));
@@ -1100,7 +1124,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     num(_energyFlowsShared.autoconsumption_kwh) ??
     num(_energyFlowsShared.auto) ??
     null;
-  const _sharedRestoredKwh = num(_energyFlowsShared.restored_kwh) ?? num(_energyFlowsShared.used_credit_kwh) ?? 0;
+  const _sharedRestoredKwh = resolveBatteryRestoredKwhForPdf(selectedScenario, _energyFlowsShared);
   const _sharedGridImportKwh = canonicalGridImportKwh(_energyFlowsShared);
   const _sharedSolarUsedKwh =
     _sharedConsoKwh != null && _sharedGridImportKwh != null
@@ -1112,7 +1136,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   // P4 — chiffres energie additionnels, dependants du scenario selectionne (page synthese production).
   const _p4DirectKwh = num(_energyFlowsShared.direct_self_consumption_kwh) ?? Math.max(0, (autoAnnuelle ?? 0) - (_sharedRestoredKwh ?? 0));
   const _p4SurplusBrutKwh = Math.max(0, (prodAnnuelle ?? 0) - _p4DirectKwh);
-  const _p4ChargeKwh = num(selectedScenario?.battery?.annual_charge_kwh) ?? num(selectedScenario?.energy?.battery_charge_kwh);
+  const _p4ChargeKwh =
+    num(selectedScenario?.battery_charge_kwh) ??
+    num(selectedScenario?.energy?.battery_charge_kwh) ??
+    num(selectedScenario?.battery?.annual_charge_kwh);
   const _p4RestitutionKwh = _sharedRestoredKwh ?? 0;
   const _p4PertesKwh = (_p4ChargeKwh != null) ? Math.max(0, _p4ChargeKwh - _p4RestitutionKwh) : null;
   const _p4RevenuReventeEur = numOrZero(financeActive.revenu_surplus ?? finance.revenu_surplus);

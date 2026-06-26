@@ -61,6 +61,25 @@ const scenariosV2 = [
     finance: { capex_ttc: 18000, economie_year_1: 1200, economie_total: 30000, roi_years: 10, annual_cashflows: [] },
     production: { annual_kwh: 13457, monthly_kwh: Array(12).fill(1121) },
   },
+  {
+    id: "BATTERY_PHYSICAL",
+    name: "BATTERY_PHYSICAL",
+    energy: {
+      production_kwh: 13457,
+      consumption_kwh: 15500,
+      direct_self_consumption_kwh: 5000,
+      battery_discharge_kwh: 1389,
+      battery_charge_kwh: 1541,
+      total_pv_used_on_site_kwh: 6389,
+      import_kwh: 9111,
+      exported_kwh: 7068,
+      site_autonomy_pct: (6389 / 15500) * 100,
+      pv_self_consumption_pct: (6389 / 13457) * 100,
+    },
+    battery: { annual_charge_kwh: 1541, annual_discharge_kwh: 1389 },
+    finance: { capex_ttc: 22000, economie_year_1: 1350, economie_total: 32000, roi_years: 12, annual_cashflows: [] },
+    production: { annual_kwh: 13457, monthly_kwh: Array(12).fill(1121) },
+  },
 ];
 
 function main() {
@@ -81,6 +100,19 @@ function main() {
   assert(page != null, "BATTERY_VIRTUAL: virtual battery page must be present");
   assert(page.with_virtual_battery?.pv_total_used_kwh === 9234, "total PV used must be consumption - canonical import");
   assert(page.contribution?.recovered_kwh === 4200, "recovered energy must come from battery_discharge_kwh");
+
+  const vmPhysical = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
+    selected_scenario_id: "BATTERY_PHYSICAL",
+    scenarios_v2: scenariosV2,
+  });
+  assert(
+    vmPhysical.fullReport?.p4?.restitution_batterie_kwh === 1389,
+    "P4 physical battery restitution must come from energy.battery_discharge_kwh"
+  );
+  assert(
+    vmPhysical.fullReport?.p4?.pertes_batterie_kwh === 152,
+    "P4 physical battery losses must use charge - discharge"
+  );
 
   const vmLegacyInconsistent = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
     selected_scenario_id: "BATTERY_VIRTUAL",
