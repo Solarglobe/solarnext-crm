@@ -286,7 +286,7 @@ export default function PdfPage7VirtualBattery({
 
         <div className="card soft" style={{ ...CARD_SOFT_BASE, borderColor: "rgba(195, 152, 71, 0.42)", background: "linear-gradient(180deg, rgba(195,152,71,.1), #fdfcf9)", flexShrink: 0 }}>
           <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
-            Couverture solaire
+            Besoins couverts par le solaire
           </div>
           <div style={{ fontSize: "5.2mm", fontWeight: 800 }}>
             {num(kpis.solar_coverage_pct) != null

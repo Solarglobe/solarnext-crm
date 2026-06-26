@@ -141,9 +141,9 @@ export default function PdfPage10({
       border: "0.4mm solid rgba(17,24,39,0.35)",
     },
     {
-      label: "Couverture solaire",
+      label: "Besoins couverts par le solaire",
       line: fmtPct(indep),
-      sub: "Couverture solaire annuelle",
+      sub: "Part annuelle des besoins couverts",
       accent: "#0047AB",
       bg: "linear-gradient(155deg, rgba(0,71,171,0.14) 0%, rgba(255,255,255,0.98) 55%, #fff 100%)",
       border: "0.4mm solid rgba(0,71,171,0.38)",

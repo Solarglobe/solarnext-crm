@@ -384,7 +384,7 @@ function buildKeyIndicatorRows(
     cover = solarCoveragePctDerived;
   }
   if (cover != null && Number.isFinite(cover)) {
-    rows.push({ label: "Couverture solaire", value: formatPercent(cover), star: false });
+    rows.push({ label: "Besoins couverts par le solaire", value: formatPercent(cover), star: false });
   }
 
   const siteAut = finiteNumberOrNull(energy.site_autonomy_pct);

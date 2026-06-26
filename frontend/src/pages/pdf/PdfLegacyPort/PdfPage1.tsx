@@ -150,7 +150,7 @@ export default function PdfPage1({
                 <strong id="p1_m_kwc">—</strong>
               </div>
               <div className="p1-premium__sig-row">
-                <span className="p1-premium__sig-label">Couverture estimée</span>
+                <span className="p1-premium__sig-label">Besoins couverts</span>
                 <strong id="p1_m_auto">—</strong>
               </div>
               <div className="p1-premium__sig-row">
@@ -181,7 +181,7 @@ export default function PdfPage1({
             <div className="p1-premium__kpi-micro">Installation retenue</div>
           </div>
           <div className="p1-premium__kpi-cell">
-            <div className="p1-premium__kpi-label">Couverture estimée</div>
+            <div className="p1-premium__kpi-label">Besoins couverts</div>
             <div className="p1-premium__kpi-value" id="p1_k_autonomie">
               72 %
             </div>
