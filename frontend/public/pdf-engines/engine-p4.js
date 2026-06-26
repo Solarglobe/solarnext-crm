@@ -275,19 +275,6 @@ function drawChart(rows) {
       dot.setAttribute("stroke-width", "4");
       svg.appendChild(dot);
 
-      if (i !== 6 && i !== 7) return;
-      const lab = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "text"
-      );
-      lab.setAttribute("x", pt.x);
-      lab.setAttribute("y", pt.y - 18);
-      lab.setAttribute("text-anchor", "middle");
-      lab.style.fill = "#1B2A59";
-      lab.style.fontSize = "22px";
-      lab.style.fontWeight = "800";
-      lab.textContent = `${Math.round(rows[i]?.conso || 0).toLocaleString("fr-FR")} kWh`;
-      svg.appendChild(lab);
     });
   }
 
