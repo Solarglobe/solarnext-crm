@@ -106,6 +106,22 @@ export async function generatePdfFromRendererUrl(rendererUrl) {
     });
     const context = await browser.newContext();
     const page = await context.newPage();
+    page.on("console", async (msg) => {
+      const values = [];
+      for (const arg of msg.args()) {
+        try {
+          values.push(await arg.jsonValue());
+        } catch (_) {
+          values.push(String(arg));
+        }
+      }
+      logger.info("PDF_RENDERER_CONSOLE", {
+        type: msg.type(),
+        text: msg.text(),
+        values,
+      });
+      console.log("[PDF_RENDERER_CONSOLE]", msg.type(), msg.text(), JSON.stringify(values));
+    });
 
     try {
       await page.goto(rendererUrl, { waitUntil: "load", timeout: 60000 });

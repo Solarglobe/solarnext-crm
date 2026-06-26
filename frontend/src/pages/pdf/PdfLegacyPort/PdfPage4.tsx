@@ -4,7 +4,7 @@
  * Logo : même logique que P1 (organization + getStorageUrl + fallback).
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import ChartP4Production from "./ChartP4Production";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
@@ -104,6 +104,22 @@ export default function PdfPage4({
   const auto = p4.autoconso_kwh ?? [];
   const surplus = p4.surplus_kwh ?? [];
   const batt = p4.batterie_kwh ?? [];
+
+  useEffect(() => {
+    console.log("P4_PAGE_SERIES_RECEIVED", {
+      scenarioType:
+        (viewModel?.selectedScenario as { scenarioType?: string } | undefined)?.scenarioType ??
+        (viewModel?.meta as { scenarioType?: string } | undefined)?.scenarioType ??
+        p4.scenario_type ??
+        "BASE",
+      production_kwh: prod,
+      consommation_kwh: conso,
+      autoconso_kwh: auto,
+      batterie_kwh: batt,
+      july_conso: conso[6] ?? null,
+      august_conso: conso[7] ?? null,
+    });
+  }, [auto, batt, conso, p4.scenario_type, prod, viewModel?.meta, viewModel?.selectedScenario]);
 
   const prodAnnuelle = p4.production_annuelle ?? prod.reduce((a, b) => a + (b ?? 0), 0);
   const consoAnnuelle = p4.consommation_annuelle ?? conso.reduce((a, b) => a + (b ?? 0), 0);

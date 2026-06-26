@@ -4,7 +4,7 @@
  * Production solaire, consommation, énergie utilisée directement, batterie (si > 0).
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"];
 
@@ -59,7 +59,7 @@ export default function ChartP4Production({
   const PAD_T = 15;
   const chartWidth = W - PADDING_LEFT - PADDING_RIGHT;
 
-  const { maxY, scaleX, paths, hasBatt } = useMemo(() => {
+  const { maxY, scaleX, paths, hasBatt, points } = useMemo(() => {
     const max = Math.max(
       1,
       ...rows.map((r) => Math.max(r.prod, r.conso, r.auto, r.batt))
@@ -98,9 +98,35 @@ export default function ChartP4Production({
         auto: { d: dAuto, area: dArea(dAuto, autoPts) },
         batt: { d: dBatt, area: dArea(dBatt, battPts) },
       },
+      points: {
+        conso: consoPts,
+        prod: prodPts,
+        auto: autoPts,
+        batt: battPts,
+      },
       hasBatt: rows.some((r) => r.batt > 0),
     };
   }, [rows]);
+
+  useEffect(() => {
+    const payload = rows.map((r, i) => ({
+      month: MONTHS[i],
+      prod: Math.round(r.prod),
+      conso: Math.round(r.conso),
+      auto: Math.round(r.auto),
+      batt: Math.round(r.batt),
+      consoPoint: {
+        x: Math.round(points.conso[i]?.x ?? 0),
+        y: Math.round(points.conso[i]?.y ?? 0),
+      },
+    }));
+    console.log("P4_CHART_INPUT_AND_POINTS", {
+      maxY: Math.round(maxY),
+      july: payload[6],
+      august: payload[7],
+      months: payload,
+    });
+  }, [maxY, points.conso, rows]);
 
   return (
     <svg
@@ -223,6 +249,28 @@ export default function ChartP4Production({
             strokeLinejoin="round"
             filter="url(#p4-soft-shadow)"
           />
+          {points.conso.map((pt, i) => (
+            <g key={`conso-point-${MONTHS[i]}`}>
+              <circle
+                cx={pt.x}
+                cy={pt.y}
+                r={7}
+                fill="#ffffff"
+                stroke="#1B2A59"
+                strokeWidth={4}
+              />
+              <text
+                x={pt.x}
+                y={pt.y - 14}
+                textAnchor="middle"
+                fill="#1B2A59"
+                fontSize={22}
+                fontWeight={800}
+              >
+                {Math.round(rows[i]?.conso ?? 0).toLocaleString("fr-FR")}
+              </text>
+            </g>
+          ))}
         </>
       )}
       {paths.prod.d && (
