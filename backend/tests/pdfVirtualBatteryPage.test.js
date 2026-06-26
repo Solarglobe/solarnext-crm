@@ -114,6 +114,30 @@ function main() {
     "P4 physical battery losses must use charge - discharge"
   );
 
+  const legacyPhysicalSnapshot = {
+    ...snapshot,
+    scenario_type: "BATTERY_PHYSICAL",
+    energy: {
+      production_kwh: 13457,
+      consumption_kwh: 15500,
+      direct_self_consumption_kwh: 5000,
+      total_pv_used_on_site_kwh: 6389,
+      autoconsumption_kwh: 6389,
+      import_kwh: 9111,
+      surplus_kwh: 7068,
+    },
+    finance: { ...snapshot.finance, capex_ttc: 22000 },
+    production: { annual_kwh: 13457, monthly_kwh: Array(12).fill(1121) },
+  };
+  const vmLegacyPhysical = mapSelectedScenarioSnapshotToPdfViewModel(legacyPhysicalSnapshot, {
+    selected_scenario_id: "BATTERY_PHYSICAL",
+    scenarios_v2: [],
+  });
+  assert(
+    vmLegacyPhysical.fullReport?.p4?.restitution_batterie_kwh === 1389,
+    "P4 legacy physical snapshot must infer restitution from total PV used minus direct self-consumption"
+  );
+
   const vmLegacyInconsistent = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
     selected_scenario_id: "BATTERY_VIRTUAL",
     scenarios_v2: [

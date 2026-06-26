@@ -112,6 +112,15 @@ function resolveBatteryRestoredKwhForPdf(scenario, energy) {
     scenario?.battery_virtual && typeof scenario.battery_virtual === "object"
       ? scenario.battery_virtual
       : {};
+  const inferredFromDirect =
+    num(e.total_pv_used_on_site_kwh ?? e.autoconsumption_kwh ?? e.energy_solar_used_kwh ?? e.auto) != null &&
+    num(e.direct_self_consumption_kwh) != null
+      ? Math.max(
+          0,
+          num(e.total_pv_used_on_site_kwh ?? e.autoconsumption_kwh ?? e.energy_solar_used_kwh ?? e.auto) -
+            num(e.direct_self_consumption_kwh)
+        )
+      : null;
 
   return (
     num(e.battery_discharge_kwh) ??
@@ -119,6 +128,7 @@ function resolveBatteryRestoredKwhForPdf(scenario, energy) {
     num(scenario?.battery_discharge_kwh) ??
     num(scenario?.hardware?.battery_discharge_kwh) ??
     num(battery.annual_discharge_kwh) ??
+    (inferredFromDirect != null && inferredFromDirect > 0 ? inferredFromDirect : null) ??
     num(e.virtual_battery_discharge_kwh) ??
     num(e.restored_kwh) ??
     num(e.used_credit_kwh) ??

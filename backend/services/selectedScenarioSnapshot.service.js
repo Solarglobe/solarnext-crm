@@ -266,7 +266,27 @@ export async function buildSelectedScenarioSnapshot({
     billable_import_kwh: scenario.energy?.billable_import_kwh ?? null,
     independence_pct: scenario.energy?.energy_independence_pct ?? null,
     direct_self_consumption_kwh: scenario.energy?.direct_self_consumption_kwh ?? null,
-    battery_discharge_kwh: scenario.energy?.battery_discharge_kwh ?? null,
+    battery_charge_kwh:
+      scenario.energy?.battery_charge_kwh ??
+      scenario.battery_charge_kwh ??
+      scenario.battery?.annual_charge_kwh ??
+      null,
+    battery_discharge_kwh:
+      scenario.energy?.battery_discharge_kwh ??
+      scenario.energy?.physical_battery_discharge_kwh ??
+      scenario.battery_discharge_kwh ??
+      scenario.battery?.annual_discharge_kwh ??
+      null,
+    physical_battery_discharge_kwh:
+      scenario.energy?.physical_battery_discharge_kwh ??
+      scenario.battery_discharge_kwh ??
+      scenario.battery?.annual_discharge_kwh ??
+      null,
+    virtual_battery_discharge_kwh:
+      scenario.energy?.virtual_battery_discharge_kwh ??
+      scenario.energy?.used_credit_kwh ??
+      scenario.battery_virtual?.annual_discharge_kwh ??
+      null,
     total_pv_used_on_site_kwh: scenario.energy?.total_pv_used_on_site_kwh ?? null,
     exported_kwh: scenario.energy?.exported_kwh ?? null,
     pv_self_consumption_pct: scenario.energy?.pv_self_consumption_pct ?? null,
