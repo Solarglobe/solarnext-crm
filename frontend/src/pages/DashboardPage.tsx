@@ -646,6 +646,13 @@ export default function DashboardPage() {
     return Math.max(...rows.map((r) => safeNum(r.revenue_signed_ttc)), 1);
   }, [data?.commercial_performance]);
 
+  const commercialPerformanceRows = useMemo(() => {
+    const rows = data?.commercial_performance ?? [];
+    const assigned = rows.filter((r) => r.user_id != null);
+    const unassigned = rows.filter((r) => r.user_id == null);
+    return [...assigned, ...unassigned];
+  }, [data?.commercial_performance]);
+
   const maxSourceRev = useMemo(() => {
     const rows = data?.acquisition_performance ?? [];
     return Math.max(...rows.map((r) => safeNum(r.revenue_signed_ttc)), 1);
@@ -1136,14 +1143,14 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  data.commercial_performance.map((r) => {
+                  commercialPerformanceRows.map((r) => {
                     const rev = safeNum(r.revenue_signed_ttc);
                     const barPct = Math.min(100, (rev / maxCommercialRev) * 100);
                     // Leads non attribués : hors classement (pas de rang, pas de badge, ligne atténuée).
                     const isUnassigned = r.user_id == null;
                     const trClass = isUnassigned
                       ? "sn-dashboard-tr-muted"
-                      : r.rank === 1
+                      : r.rank === 1 && rev > 0
                         ? "sn-dashboard-tr-top"
                         : undefined;
                     return (
@@ -1229,7 +1236,10 @@ export default function DashboardPage() {
                     const rev = safeNum(r.revenue_signed_ttc);
                     const barPct = Math.min(100, (rev / maxSourceRev) * 100);
                     return (
-                      <tr key={r.source_id} className={idx === 0 ? "sn-dashboard-tr-top" : undefined}>
+                      <tr
+                        key={r.source_id}
+                        className={idx === 0 && safeNum(r.leads_count) > 0 ? "sn-dashboard-tr-top" : undefined}
+                      >
                         <td className="sn-dashboard-td-rank sn-dashboard-num">{idx + 1}</td>
                         <td className="sn-dashboard-td-name">
                           {r.source_name}
