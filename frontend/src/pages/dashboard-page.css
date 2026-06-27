@@ -2123,6 +2123,39 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-timeline-toggle:has(input:check
   color: var(--text-secondary, #64748b) !important;
   font-size: 12px !important;
 }
+
+/* Légende donut sources : éviter le chevauchement des libellés longs
+   (« Publicité Meta (Facebook / Instagram) », « Recommandation (bouche à oreille) »). */
+.sn-dashboard-wrap .sn-dashboard-donut-wrap .recharts-default-legend {
+  display: flex !important;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.sn-dashboard-wrap .sn-dashboard-donut-wrap .recharts-legend-item {
+  display: inline-flex !important;
+  align-items: center;
+  margin: 0 !important;
+  max-width: 100%;
+}
+.sn-dashboard-wrap .sn-dashboard-donut-wrap .recharts-legend-item-text {
+  display: inline-block;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  line-height: 1.5;
+}
+
+/* Classement commercial : ligne « Leads non attribués » hors podium, atténuée. */
+.sn-dashboard-wrap .sn-dashboard-tr-muted td {
+  opacity: 0.6;
+  font-style: italic;
+}
 html.theme-dark .sn-dashboard-wrap .recharts-legend-item-text {
   color: var(--sn-d-muted, #9FA8C7) !important;
 }

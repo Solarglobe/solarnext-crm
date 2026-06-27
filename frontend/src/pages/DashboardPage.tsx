@@ -1139,15 +1139,21 @@ export default function DashboardPage() {
                   data.commercial_performance.map((r) => {
                     const rev = safeNum(r.revenue_signed_ttc);
                     const barPct = Math.min(100, (rev / maxCommercialRev) * 100);
+                    // Leads non attribués : hors classement (pas de rang, pas de badge, ligne atténuée).
+                    const isUnassigned = r.user_id == null;
+                    const trClass = isUnassigned
+                      ? "sn-dashboard-tr-muted"
+                      : r.rank === 1
+                        ? "sn-dashboard-tr-top"
+                        : undefined;
                     return (
-                      <tr
-                        key={r.user_id ?? "_none"}
-                        className={r.rank === 1 ? "sn-dashboard-tr-top" : undefined}
-                      >
-                        <td className="sn-dashboard-td-rank sn-dashboard-num">{r.rank}</td>
+                      <tr key={r.user_id ?? "_none"} className={trClass}>
+                        <td className="sn-dashboard-td-rank sn-dashboard-num">{isUnassigned ? "—" : r.rank}</td>
                         <td className="sn-dashboard-td-name">
-                          {r.display_name}
-                          {r.rank === 1 && <span className="sn-badge sn-badge-success">Top CA</span>}
+                          {isUnassigned ? "Leads non attribués" : r.display_name}
+                          {!isUnassigned && r.rank === 1 && rev > 0 && (
+                            <span className="sn-badge sn-badge-success">Top CA</span>
+                          )}
                         </td>
                         <td className="sn-dashboard-td--secondary sn-dashboard-num">{r.leads_created_count}</td>
                         <td className="sn-dashboard-td--secondary sn-dashboard-num">{r.quotes_count}</td>
@@ -1227,7 +1233,9 @@ export default function DashboardPage() {
                         <td className="sn-dashboard-td-rank sn-dashboard-num">{idx + 1}</td>
                         <td className="sn-dashboard-td-name">
                           {r.source_name}
-                          {idx === 0 && <span className="sn-badge sn-badge-info">Top volume</span>}
+                          {idx === 0 && safeNum(r.leads_count) > 0 && (
+                            <span className="sn-badge sn-badge-info">Top volume</span>
+                          )}
                         </td>
                         <td className="sn-dashboard-td-num sn-dashboard-num">{r.leads_count}</td>
                         <td className="sn-dashboard-td--secondary sn-dashboard-td-num sn-dashboard-num">
