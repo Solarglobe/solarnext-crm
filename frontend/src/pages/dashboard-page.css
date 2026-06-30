@@ -83,6 +83,11 @@
   padding-bottom: 0;
   position: static;
   letter-spacing: -0.01em;
+  /* Bat le global .sn-main h2 (24px) qui rendait les titres de section géants. */
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0 0 12px;
 }
 
 .sn-dashboard-num {
@@ -2107,7 +2112,73 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-timeline-toggle:has(input:check
   align-items: start;
 }
 .sn-dashboard-wrap .sn-dashboard-donut-wrap {
-  padding: 8px 0;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+}
+/* Donut compact + total au centre */
+.sn-dashboard-wrap .sn-dashboard-donut-chart {
+  position: relative;
+  width: 100%;
+  height: 150px;
+}
+.sn-dashboard-wrap .sn-dashboard-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  line-height: 1.05;
+}
+.sn-dashboard-wrap .sn-dashboard-donut-center-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.sn-dashboard-wrap .sn-dashboard-donut-center-label {
+  font-size: 11px;
+  color: var(--text-secondary, #64748b);
+}
+/* Légende propre (remplace la légende Recharts qui chevauchait) */
+.sn-dashboard-wrap .sn-dashboard-donut-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.sn-dashboard-wrap .sn-dashboard-donut-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  min-width: 0;
+}
+.sn-dashboard-wrap .sn-dashboard-donut-legend-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.sn-dashboard-wrap .sn-dashboard-donut-legend-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sn-dashboard-wrap .sn-dashboard-donut-legend-val {
+  flex: 0 0 auto;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 .sn-dashboard-wrap .sn-dashboard-sources-table-wrap {
   min-width: 0;

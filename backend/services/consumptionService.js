@@ -915,9 +915,9 @@ const _EQ_BALLON_PILOTE_24H = [
   1.0, 0.7, 0.2, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
-// PAC chauffage — profil saisonnier (hiver fort, été quasi-nul)
+// PAC chauffage air/eau — profil saisonnier strict : aucune charge clim en ete.
 // Pic matin 06h-10h en hiver ; pas de clim modélisée (conservative)
-const _PAC_MONTHLY_WEIGHT = [2.2, 2.0, 1.5, 0.9, 0.4, 0.1, 0.1, 0.1, 0.4, 0.9, 1.5, 1.9];
+const _PAC_MONTHLY_WEIGHT = [2.2, 2.0, 1.5, 0.9, 0.4, 0, 0, 0, 0.4, 0.9, 1.5, 1.9];
 const _PAC_DAILY_24H = [
   0.20, 0.15, 0.12, 0.10, 0.10, 0.20,
   0.60, 1.00, 1.20, 1.00, 0.60, 0.40,

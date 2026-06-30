@@ -128,3 +128,35 @@ test("équipements actuels: ils remodèlent l'horaire mais ne modifient pas les 
   assertMonthlyEqual(monthlyFromHourly(out.hourly), MARKED_MONTHLY);
   assert.equal(Math.round(out.annual_kwh), 16000);
 });
+
+test("PAC air/eau à venir: puissance kW prise en compte et aucun ajout en été", () => {
+  const base = {
+    hourly: new Array(8760).fill(5000 / 8760),
+    annual_kwh: 5000,
+  };
+
+  const out = applyEquipmentShape(base, {
+    equipements_a_venir: {
+      schemaVersion: 2,
+      items: [
+        {
+          kind: "pac",
+          id: "pac-14kw",
+          pac_type: "air_eau",
+          puissance_kw: 14,
+          role: "principal",
+          fonctionnement: "intensif",
+        },
+      ],
+    },
+  }, true);
+
+  const added = out.hourly.map((v, i) => v - base.hourly[i]);
+  const addedMonthly = monthlyFromHourly(added);
+
+  assert.equal(Math.round(sum(added)), Math.round((14 * 2000) / 3));
+  assert.equal(Math.round(out.annual_kwh), 5000 + Math.round((14 * 2000) / 3));
+  assert.equal(Math.round(addedMonthly[5]), 0);
+  assert.equal(Math.round(addedMonthly[6]), 0);
+  assert.equal(Math.round(addedMonthly[7]), 0);
+});

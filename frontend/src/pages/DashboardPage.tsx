@@ -15,7 +15,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
 } from "recharts";
 import { Card } from "../components/ui/Card";
 import {
@@ -447,40 +446,54 @@ function SourceDonutChart({
 
   if (!data.length) return null;
 
+  const totalLeads = data.reduce((s, d) => s + d.value, 0);
+
   return (
     <div className="sn-dashboard-donut-wrap">
-      <ResponsiveContainer width="100%" height={200}>
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={55}
-            outerRadius={80}
-            paddingAngle={3}
-            dataKey="value"
-          >
-            {data.map((entry, _i) => (
-              <Cell key={entry.name} fill={entry.color} strokeWidth={0} />
-            ))}
-          </Pie>
-          <RechartsTooltip
-            contentStyle={{
-              background: "var(--surface, #12172B)",
-              border: "1px solid var(--border, rgba(255,255,255,0.1))",
-              borderRadius: "8px",
-              fontSize: "12px",
-              color: "var(--text-primary, #E8ECF8)",
-            }}
-            formatter={(value) => [`${Number(value) || 0} leads`]}
-          />
-          <Legend
-            iconType="circle"
-            iconSize={8}
-            wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+      <div className="sn-dashboard-donut-chart">
+        <ResponsiveContainer width="100%" height={150}>
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="50%"
+              innerRadius={48}
+              outerRadius={68}
+              paddingAngle={3}
+              dataKey="value"
+            >
+              {data.map((entry) => (
+                <Cell key={entry.name} fill={entry.color} strokeWidth={0} />
+              ))}
+            </Pie>
+            <RechartsTooltip
+              contentStyle={{
+                background: "var(--surface, #12172B)",
+                border: "1px solid var(--border, rgba(255,255,255,0.1))",
+                borderRadius: "8px",
+                fontSize: "12px",
+                color: "var(--text-primary, #E8ECF8)",
+              }}
+              formatter={(value) => [`${Number(value) || 0} leads`]}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="sn-dashboard-donut-center" aria-hidden>
+          <span className="sn-dashboard-donut-center-value sn-dashboard-num">{totalLeads}</span>
+          <span className="sn-dashboard-donut-center-label">leads</span>
+        </div>
+      </div>
+      <ul className="sn-dashboard-donut-legend">
+        {data.map((d) => (
+          <li key={d.name} className="sn-dashboard-donut-legend-item">
+            <span className="sn-dashboard-donut-legend-dot" style={{ background: d.color }} aria-hidden />
+            <span className="sn-dashboard-donut-legend-name" title={d.name}>
+              {d.name}
+            </span>
+            <span className="sn-dashboard-donut-legend-val sn-dashboard-num">{d.value}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
