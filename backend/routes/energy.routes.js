@@ -4,8 +4,9 @@
  */
 
 import express from "express";
+import fs from "fs";
 import { pool } from "../config/db.js";
-import { uploadFile as localStorageUpload } from "../services/localStorage.service.js";
+import { uploadFile as localStorageUpload, getAbsolutePath } from "../services/localStorage.service.js";
 import { fetchEnedisEnergyProfile } from "../services/energy/enedisEnergyService.js";
 import { buildSwitchGridEnergyProfile } from "../services/energy/switchgridEnergyService.js";
 import { verifyJWT } from "../middleware/auth.middleware.js";
@@ -412,6 +413,29 @@ router.post(
  * Persiste un fichier d'import Enedis/Solteo (c68.json, r65.json, r65.csv, consentement.pdf…)
  * en entity_documents (type lead_attachment) — archive/preuve, sans écraser le consumption_csv.
  */
+/**
+ * Relit un fichier d'import déjà archivé sur le lead (dernier en date) — rend l'import
+ * CUMULATIF : on peut envoyer r65.csv puis c68.json en deux fois, le serveur recombine.
+ */
+async function loadPersistedImportFile(leadId, orgId, fileName) {
+  const r = await pool.query(
+    `SELECT storage_key FROM entity_documents
+     WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2
+       AND file_name = $3 AND (archived_at IS NULL)
+     ORDER BY created_at DESC LIMIT 1`,
+    [orgId, leadId, fileName]
+  );
+  const key = r.rows[0]?.storage_key;
+  if (!key) return null;
+  try {
+    const abs = getAbsolutePath(key);
+    if (!fs.existsSync(abs)) return null;
+    return fs.readFileSync(abs, "utf8");
+  } catch {
+    return null;
+  }
+}
+
 async function persistLeadImportFile(leadId, orgId, fileName, buffer, mimeType) {
   const { storage_path } = await localStorageUpload(buffer, orgId, "lead", leadId, fileName);
   const bm = resolveSystemDocumentMetadata("lead_attachment", {});
@@ -494,6 +518,26 @@ router.post(
     const warnings = [];
     const importedFiles = [];
 
+    // --- 0) Cumul : fichiers fournis dans CETTE requête vs déjà archivés sur le lead ---
+    const providedKeys = new Set(
+      Object.keys(files).filter((k) => typeof files[k] === "string" && files[k].trim())
+    );
+    const reusedFiles = [];
+    const ensurePersisted = async (key, name) => {
+      if (providedKeys.has(key)) return;
+      const content = await loadPersistedImportFile(leadId, org, name);
+      if (content) {
+        files[key] = content;
+        reusedFiles.push(name);
+      }
+    };
+    await ensurePersisted("c68Json", "c68.json");
+    await ensurePersisted("r65Json", "r65.json");
+    await ensurePersisted("r65Csv", "r65.csv");
+    await ensurePersisted("dailyCsv", "quotidien.csv");
+    await ensurePersisted("monthlyCsv", "mensuel.csv");
+    // (la loadcurve déjà importée est réutilisée plus bas via resolveConsumptionCsv)
+
     // --- 1) Parsing ---
     const contract = files.c68Json ? parseC68(files.c68Json) : null;
     if (files.c68Json && !contract) warnings.push("c68.json fourni mais structure non reconnue");
@@ -547,9 +591,10 @@ router.post(
         ["monthlyCsv", "mensuel.csv", "text/csv"],
       ];
       for (const [key, name, mime] of textFiles) {
-        if (typeof files[key] === "string" && files[key].trim()) {
+        // On n'archive que les fichiers reçus dans CETTE requête (pas les réutilisés)
+        if (providedKeys.has(key)) {
           await persistLeadImportFile(leadId, org, name, Buffer.from(files[key], "utf8"), mime);
-          if (key !== "loadCurveCsv") importedFiles.push(name);
+          importedFiles.push(name);
         }
       }
       if (typeof files.consentPdfBase64 === "string" && files.consentPdfBase64.trim()) {
@@ -651,6 +696,7 @@ router.post(
     // --- 6) Bloc debug ---
     const importDebug = {
       imported_files: importedFiles,
+      reused_files: reusedFiles,
       annual_kwh_final: annualFinal,
       annual_kwh_source: priority.source,
       annual_kwh_source_label: priority.source_label,

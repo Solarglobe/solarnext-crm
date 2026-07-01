@@ -43,7 +43,7 @@ export interface SolteoImportResponse {
   engine_consumption_source?: string | null;
   contract?: SolteoContract | null;
   lead_updates?: Record<string, unknown>;
-  import_debug?: Record<string, unknown> & { warnings?: string[] };
+  import_debug?: Record<string, unknown> & { warnings?: string[]; reused_files?: string[] };
 }
 
 /** Ligne « Contrat : HP/HC — 18 kVA — 230/400 V » depuis le bloc contract. */

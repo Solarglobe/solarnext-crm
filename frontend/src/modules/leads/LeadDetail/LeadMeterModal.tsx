@@ -296,8 +296,9 @@ export default function LeadMeterModal({
     try {
       const { files: solteoFiles, names } = await collectSolteoFiles(fileList);
 
-      if (isMultiFileImport(solteoFiles)) {
-        // Import multi-fichiers Solteo : R65 → annuel, loadcurve → profil normalisé, C68 → contrat
+      if (isMultiFileImport(solteoFiles) || solteoFiles.loadCurveCsv) {
+        // Import Solteo CUMULATIF : les fichiers déjà importés sur le lead (r65, c68, loadcurve)
+        // sont réutilisés côté serveur — on peut importer les fichiers un par un ou en ZIP.
         const res = await apiFetch(`${apiBase}/api/energy/import-solteo`, {
           method: "POST",
           body: JSON.stringify({ leadId, files: solteoFiles }),
@@ -328,40 +329,14 @@ export default function LeadMeterModal({
         } else if (payload.lead_updates && Object.keys(payload.lead_updates).length > 0) {
           patchDraft(payload.lead_updates as Partial<OverviewLeadSnapshot>);
         }
-        setEnergyFileName(names.length ? names.join(", ") : fileList.map((f) => f.name).join(", "));
+        const reused = payload.import_debug?.reused_files;
+        const reusedLabel =
+          Array.isArray(reused) && reused.length ? ` (+ réutilisés : ${reused.join(", ")})` : "";
+        setEnergyFileName(
+          (names.length ? names.join(", ") : fileList.map((f) => f.name).join(", ")) + reusedLabel
+        );
         const w = payload.import_debug?.warnings;
         if (Array.isArray(w) && w.length) setEnergyImportInfo(w.join(" · "));
-      } else if (solteoFiles.loadCurveCsv) {
-        // Chemin historique inchangé : loadcurve seule → compute-from-csv
-        const res = await apiFetch(`${apiBase}/api/energy/compute-from-csv`, {
-          method: "POST",
-          body: JSON.stringify({
-            leadId,
-            loadCurveCsv: solteoFiles.loadCurveCsv,
-            params: {
-              puissance_kva: draft.meter_power_kva,
-              reseau_type: (draft.grid_type || "mono").toLowerCase() === "tri" ? "tri" : "mono",
-            },
-          }),
-        });
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          throw new Error(
-            typeof (errBody as { error?: string }).error === "string"
-              ? (errBody as { error: string }).error
-              : "Erreur import fichier"
-          );
-        }
-        const payload = (await res.json()) as EnergyEngineResult;
-        const next: EnergyEngineResult = {
-          annual_kwh: payload.annual_kwh,
-          hourly: payload.hourly,
-          engine_consumption_source: payload.engine_consumption_source,
-          debug: payload.debug,
-        };
-        setEnergyEngine(next);
-        patchDraft({ energy_profile: { engine: next } });
-        setEnergyFileName(names.length ? names.join(", ") : fileList[0].name);
       } else {
         throw new Error(
           "Aucun fichier reconnu (attendus : loadcurve.csv, c68.json, r65.json/csv, mensuel/quotidien, consentement PDF)"
@@ -711,7 +686,7 @@ export default function LeadMeterModal({
                   className="sn-btn sn-btn-outline-gold"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  Importer un CSV
+                  Import données Enedis
                 </button>
                 {energyEngine ? (
                   <button

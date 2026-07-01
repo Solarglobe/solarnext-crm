@@ -39,6 +39,12 @@ Règle clé : **R65 complet + courbe partielle → annuel = R65 (12 234), profil
 - Vrais fichiers du dossier : C68 extrait intégralement (PDL 22493921713260, Linky, 230/400 V, 36/18 kVA, HP/HC, HC 22H30-6H30, futures 1H28-6H58;13H58-16H28, phase « triphasé »/tri) ; r65.json 608 j sans trou → fenêtre 01/07/2025→30/06/2026 = **12 234,4 kWh** (= Solteo) ; r65.csv idem ; priorité → `R65_DAILY_365` ; normalisation 13 206 → 12 234,4 exacte.
 - Syntaxe backend validée (route + service) via reconstruction /tmp (sync sandbox tronque les gros fichiers).
 
+## Complément 01/07/2026 (soir) — import CUMULATIF + renommage bouton
+
+- **Import cumulatif** : la route `/import-solteo` réutilise désormais les fichiers déjà archivés sur le lead (`c68.json`, `r65.json`, `r65.csv`, `quotidien.csv`, `mensuel.csv` via `loadPersistedImportFile`, loadcurve via `resolveConsumptionCsv`). On peut importer les fichiers un par un dans n'importe quel ordre, ou en ZIP — chaque import recombine tout. Seuls les fichiers reçus dans la requête sont réarchivés (`providedKeys`), les réutilisés sont listés dans `import_debug.reused_files` et affichés « (+ réutilisés : …) ».
+- **Tout passe par import-solteo** côté front (y compris loadcurve seule) — `compute-from-csv` reste intact pour les autres appels.
+- Bouton renommé « Importer un CSV » → **« Import données Enedis »** (Overview + modale compteur).
+
 ## Reste à faire / risques
 
 - **Rebuild frontend requis.** ⚠️ tsc complet impossible dans la sandbox (fichiers tronqués par la sync) — lancer `npm run build` en local pour confirmer ; les modifications sont des Edit exacts à motifs déjà éprouvés.
