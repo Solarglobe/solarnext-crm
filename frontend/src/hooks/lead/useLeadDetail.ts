@@ -292,7 +292,15 @@ export function parseEnergyEngineFromProfile(ep: unknown): EnergyEngineResult | 
     Array.isArray(e.hourly) &&
     e.hourly.length >= 8760
   ) {
-    return { annual_kwh: e.annual_kwh, hourly: e.hourly.slice(0, 8760), debug: e.debug };
+    return {
+      annual_kwh: e.annual_kwh,
+      hourly: e.hourly.slice(0, 8760),
+      engine_consumption_source: e.engine_consumption_source,
+      annual_source_label: e.annual_source_label,
+      contract_summary: e.contract_summary,
+      phase_detection: e.phase_detection,
+      debug: e.debug,
+    };
   }
   if (
     typeof o.summary?.annual_kwh === "number" &&

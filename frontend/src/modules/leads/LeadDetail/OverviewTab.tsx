@@ -21,7 +21,12 @@ import {
   type AddressPickTier,
   type AddressQualityUi,
 } from "./addressFallback";
-import JSZip from "jszip";
+import {
+  collectSolteoFiles,
+  isMultiFileImport,
+  contractSummaryLabel,
+  type SolteoImportResponse,
+} from "./solteoImport";
 import { apiFetch } from "../../../services/api";
 import GeoValidationModal from "../../../components/GeoValidationModal";
 import type { Study } from "../../../services/studies.service";
@@ -426,7 +431,22 @@ type AddressFallbackHint =
 export interface EnergyEngineResult {
   annual_kwh: number;
   hourly: number[];
+  /** Traçabilité moteur (ex. CSV_HOURLY_FULL_YEAR, CSV_HOURLY_PARTIAL_REBUILT) */
+  engine_consumption_source?: string | null;
+  /** Import Solteo : source de l'annuel (ex. « R65 quotidien — 365 jours ») */
+  annual_source_label?: string | null;
+  /** Import Solteo : résumé contrat C68 (ex. « HP/HC — 18 kVA — 230/400 V ») */
+  contract_summary?: string | null;
+  /** Import Solteo : détection phase prudente (« triphasé probable »…) */
+  phase_detection?: string | null;
   debug?: { service_annual_kwh?: number; sum_hourly?: number };
+}
+
+/** Libellé statut profil : ne pas masquer un CSV partiel reconstruit derrière « moteur ». */
+export function engineProfileLabel(src?: string | null): string {
+  if (src === "CSV_HOURLY_PARTIAL_REBUILT") return "Profil chargé (CSV partiel reconstruit)";
+  if (src === "CSV_HOURLY_FULL_YEAR") return "Profil chargé (CSV année complète)";
+  return "Profil chargé (moteur)";
 }
 
 interface OverviewTabProps {
@@ -545,6 +565,8 @@ export default function OverviewTab({
   const [energyFileName, setEnergyFileName] = useState<string | null>(null);
   const [energyLoading, setEnergyLoading] = useState(false);
   const [energyError, setEnergyError] = useState<string | null>(null);
+  /** Avertissements non bloquants de l'import Solteo (couverture partielle, écarts…) */
+  const [energyImportInfo, setEnergyImportInfo] = useState<string | null>(null);
   const [energyDeleteLoading, setEnergyDeleteLoading] = useState(false);
   /** Sélecteur de type après « + Ajouter un équipement » */
   const [equipmentKindPicker, setEquipmentKindPicker] = useState<
@@ -562,76 +584,85 @@ export default function OverviewTab({
   };
 
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const fileList = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file) return;
+    if (!fileList.length) return;
 
     setEnergyError(null);
+    setEnergyImportInfo(null);
     setEnergyLoading(true);
 
     try {
-      let csvContent = "";
-
-      if (file.name.toLowerCase().endsWith(".csv")) {
-        csvContent = await file.text();
-      } else if (file.name.toLowerCase().endsWith(".zip")) {
-        const zip = await JSZip.loadAsync(file);
-        const csvFiles = Object.keys(zip.files).filter((name) =>
-          name.toLowerCase().endsWith(".csv")
-        );
-        const loadCurveFile = csvFiles.find((name) =>
-          name.toLowerCase().includes("loadcurve")
-        );
-
-        if (!loadCurveFile) {
-          setEnergyError("Aucun loadcurve.csv trouvé dans le ZIP");
-          setEnergyLoading(false);
-          return;
-        }
-
-        csvContent = await zip.files[loadCurveFile].async("text");
-        setEnergyFileName(loadCurveFile);
-      } else {
-        setEnergyError("Format non supporté");
-        setEnergyLoading(false);
-        return;
-      }
-
       if (!lead?.id) {
-        setEnergyError("Lead non enregistré — enregistrez le dossier avant d’importer un CSV");
-        setEnergyLoading(false);
-        return;
+        throw new Error("Lead non enregistré — enregistrez le dossier avant d’importer");
       }
 
-      const res = await apiFetch(`${apiBase}/api/energy/compute-from-csv`, {
-        method: "POST",
-        body: JSON.stringify({
-          leadId: lead.id,
-          loadCurveCsv: csvContent,
-          params: {
-            puissance_kva: lead.meter_power_kva,
-            reseau_type: (lead.grid_type || "mono").toLowerCase() === "tri" ? "tri" : "mono",
-          },
-        }),
-      });
+      const { files: solteoFiles, names } = await collectSolteoFiles(fileList);
 
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        const msg =
-          typeof (errBody as { error?: string }).error === "string"
-            ? (errBody as { error: string }).error
-            : "Erreur import fichier";
-        throw new Error(msg);
-      }
-
-      const payload = (await res.json()) as EnergyEngineResult;
-      onEnergyEngineChange?.({
-        annual_kwh: payload.annual_kwh,
-        hourly: payload.hourly,
-        debug: payload.debug,
-      });
-      if (!file.name.toLowerCase().endsWith(".zip")) {
-        setEnergyFileName(file.name);
+      if (isMultiFileImport(solteoFiles)) {
+        // Import multi-fichiers Solteo : R65 → annuel, loadcurve → profil normalisé, C68 → contrat
+        const res = await apiFetch(`${apiBase}/api/energy/import-solteo`, {
+          method: "POST",
+          body: JSON.stringify({ leadId: lead.id, files: solteoFiles }),
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(
+            typeof (errBody as { error?: string }).error === "string"
+              ? (errBody as { error: string }).error
+              : "Erreur import Solteo"
+          );
+        }
+        const payload = (await res.json()) as SolteoImportResponse;
+        if (payload.hourly && payload.annual_kwh != null) {
+          onEnergyEngineChange?.({
+            annual_kwh: payload.annual_kwh,
+            hourly: payload.hourly,
+            engine_consumption_source: payload.engine_consumption_source,
+            annual_source_label: payload.annual_kwh_source_label,
+            contract_summary: contractSummaryLabel(payload.contract),
+            phase_detection: payload.contract?.phase_detection ?? null,
+          });
+        }
+        if (payload.lead_updates && Object.keys(payload.lead_updates).length > 0) {
+          onLeadChange(payload.lead_updates as Partial<OverviewLead>);
+        }
+        setEnergyFileName(names.length ? names.join(", ") : fileList.map((f) => f.name).join(", "));
+        const w = payload.import_debug?.warnings;
+        if (Array.isArray(w) && w.length) setEnergyImportInfo(w.join(" · "));
+      } else if (solteoFiles.loadCurveCsv) {
+        // Chemin historique inchangé : loadcurve seule → compute-from-csv
+        const res = await apiFetch(`${apiBase}/api/energy/compute-from-csv`, {
+          method: "POST",
+          body: JSON.stringify({
+            leadId: lead.id,
+            loadCurveCsv: solteoFiles.loadCurveCsv,
+            params: {
+              puissance_kva: lead.meter_power_kva,
+              reseau_type: (lead.grid_type || "mono").toLowerCase() === "tri" ? "tri" : "mono",
+            },
+          }),
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(
+            typeof (errBody as { error?: string }).error === "string"
+              ? (errBody as { error: string }).error
+              : "Erreur import fichier"
+          );
+        }
+        const payload = (await res.json()) as EnergyEngineResult;
+        onEnergyEngineChange?.({
+          annual_kwh: payload.annual_kwh,
+          hourly: payload.hourly,
+          engine_consumption_source: payload.engine_consumption_source,
+          debug: payload.debug,
+        });
+        setEnergyFileName(names.length ? names.join(", ") : fileList[0].name);
+      } else {
+        throw new Error(
+          "Aucun fichier reconnu (attendus : loadcurve.csv, c68.json, r65.json/csv, mensuel/quotidien, consentement PDF)"
+        );
       }
     } catch (e) {
       setEnergyError(e instanceof Error ? e.message : "Erreur import fichier");
@@ -1692,9 +1723,25 @@ export default function OverviewTab({
             {(() => {
               const annual = energyEngine?.annual_kwh;
               return energyEngine ? (
-                <div className="crm-lead-energy-status crm-lead-energy-status-ok">
-                  {`Profil chargé (moteur)${annual != null && Number.isFinite(annual) ? ` • ${formatEnergyKwhPerYear(annual)}` : ""}`}
-                </div>
+                <>
+                  <div className="crm-lead-energy-status crm-lead-energy-status-ok">
+                    {`${engineProfileLabel(energyEngine.engine_consumption_source)}${annual != null && Number.isFinite(annual) ? ` • ${formatEnergyKwhPerYear(annual)}` : ""}`}
+                  </div>
+                  {energyEngine.annual_source_label && (
+                    <div className="crm-lead-energy-status">
+                      {`Source : ${energyEngine.annual_source_label}`}
+                    </div>
+                  )}
+                  {energyEngine.contract_summary && (
+                    <div className="crm-lead-energy-status">
+                      {`Contrat : ${energyEngine.contract_summary}`}
+                      {energyEngine.phase_detection ? ` · Alimentation : ${energyEngine.phase_detection}` : ""}
+                    </div>
+                  )}
+                  {energyImportInfo && (
+                    <div className="crm-lead-energy-status">{energyImportInfo}</div>
+                  )}
+                </>
               ) : (
                 <div className="crm-lead-energy-status crm-lead-energy-status-empty">
                   Aucun profil importé
@@ -1746,7 +1793,8 @@ export default function OverviewTab({
               )}
               <input
                 type="file"
-                accept=".csv,.zip"
+                accept=".csv,.zip,.json,.pdf"
+                multiple
                 ref={fileInputRef}
                 style={{ display: "none" }}
                 onChange={handleCsvUpload}
@@ -1774,6 +1822,7 @@ export default function OverviewTab({
                   onClick={() => {
                     setEnergyFileName(null);
                     setEnergyError(null);
+                    setEnergyImportInfo(null);
                     onEnergyEngineChange?.(null);
                   }}
                   aria-label="Supprimer le fichier"

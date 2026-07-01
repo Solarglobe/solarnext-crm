@@ -366,35 +366,92 @@ function normalizeTo8760(hourly, base8760) {
   return rebuilt;
 }
 
-// 3.b) Horaire incomplet (< 8760)
+// 3.b) Horaire incomplet (< 8760) — FIX 01/07/2026 (AUDIT_CONSO_ANNUELLE_CSV_PARTIEL)
+// Avant : trous comblés par base8760[i] non rescalé, indexé depuis la 1re ligne CSV
+// → conso annuelle sous-évaluée (ex. 7 830 au lieu de ~12 760) + désalignement calendaire.
+// Maintenant : alignement heure-de-l'année réelle + fallback rescalé au niveau observé
+// (k = Σ kWh réels / Σ base8760 sur les heures couvertes) = extrapolation saisonnière.
+
+/** Index 0..8759 de l'heure dans l'année civile (UTC). 29 févr. (bissextile) replié sur la dernière heure. */
+function hourOfYearUTC(ts) {
+  const d = new Date(ts);
+  const startOfYear = Date.UTC(d.getUTCFullYear(), 0, 1);
+  const idx = Math.floor((ts - startOfYear) / 3600000);
+  return Math.min(Math.max(idx, 0), HOURS_PER_YEAR - 1);
+}
+
 function rebuildHourlyIncomplete(rows, base8760) {
-  const map = {};
-  rows.forEach(r => { map[r.ts] = r.w; });
+  // Heures réelles posées à leur position calendaire (dernière valeur gagne si doublon)
+  const realKwhByIdx = new Array(HOURS_PER_YEAR).fill(undefined);
+  const deltas = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (i > 0) deltas.push(rows[i].ts - rows[i - 1].ts);
+    realKwhByIdx[hourOfYearUTC(rows[i].ts)] = rows[i].w / 1000; // W moyens sur 1 h → kWh
+  }
+  deltas.sort((a, b) => a - b);
+  const medianStepH = deltas.length ? deltas[Math.floor(deltas.length / 2)] / 3600000 : 1;
 
-  const start = rows[0].ts;
-  const step  = 3600 * 1000;
-  const hourlyWatts = [];
+  // Niveau réel observé vs profil de base sur les MÊMES heures (alignement calendrier)
+  let realCoveredKwh = 0, baseCoveredKwh = 0, coveredHours = 0;
+  for (let i = 0; i < HOURS_PER_YEAR; i++) {
+    if (realKwhByIdx[i] !== undefined) {
+      realCoveredKwh += realKwhByIdx[i];
+      baseCoveredKwh += base8760[i];
+      coveredHours++;
+    }
+  }
+  const k = baseCoveredKwh > 0 && realCoveredKwh > 0 ? realCoveredKwh / baseCoveredKwh : 1;
 
-  for (let i = 0; i < 8760; i++) {
-    const ts = start + i * step;
-
-    if (map[ts] !== undefined) {
-      hourlyWatts.push(map[ts]);
+  // Reconstruction : réel si présent, sinon moyenne des voisins réels ±3 h, sinon base × k
+  const hourly = [];
+  let fallbackFillKwh = 0;
+  for (let i = 0; i < HOURS_PER_YEAR; i++) {
+    if (realKwhByIdx[i] !== undefined) {
+      hourly.push(realKwhByIdx[i]);
       continue;
     }
-
     let sum = 0, count = 0;
     for (let o = -3; o <= 3; o++) {
       if (o === 0) continue;
-      const v = map[ts + o * step];
+      const v = realKwhByIdx[(i + o + HOURS_PER_YEAR) % HOURS_PER_YEAR];
       if (v !== undefined) { sum += v; count++; }
     }
-
-    hourlyWatts.push(count ? sum / count : base8760[i] * 1000);
+    const v = count ? sum / count : base8760[i] * k;
+    if (!count) fallbackFillKwh += v;
+    hourly.push(v);
   }
 
-  const hourly = hourlyWatts.map(w => w / 1000);
   const annual = hourly.reduce((a, b) => a + b, 0);
+
+  // Garde-fou : le total final doit rester proche de l'extrapolation brute total/jours×365
+  const daysCovered = coveredHours / 24;
+  const annualizedRaw = daysCovered > 0 ? (realCoveredKwh / daysCovered) * 365 : 0;
+  if (annualizedRaw > 0 && (annual < 0.8 * annualizedRaw || annual > 1.25 * annualizedRaw)) {
+    console.warn(JSON.stringify({
+      tag: "CONSO_ANNUALIZATION_OUT_OF_RANGE",
+      source: "CSV_HOURLY_PARTIAL_REBUILT",
+      annual_kwh_final: Math.round(annual),
+      annualized_raw: Math.round(annualizedRaw),
+      bounds: [Math.round(0.8 * annualizedRaw), Math.round(1.25 * annualizedRaw)],
+    }));
+  }
+
+  console.log(JSON.stringify({
+    tag: "CONSO_CSV_PARTIAL_DEBUG",
+    source: "CSV_HOURLY_PARTIAL_REBUILT",
+    points: rows.length,
+    first_ts: new Date(rows[0].ts).toISOString(),
+    last_ts: new Date(rows[rows.length - 1].ts).toISOString(),
+    step_hours_detected: medianStepH,
+    period_kwh: Math.round(realCoveredKwh * 10) / 10,
+    days_covered: Math.round(daysCovered * 100) / 100,
+    annualized_raw: Math.round(annualizedRaw),
+    base_covered_kwh: Math.round(baseCoveredKwh * 10) / 10,
+    scale_k: Math.round(k * 1000) / 1000,
+    fallback_fill_kwh: Math.round(fallbackFillKwh * 10) / 10,
+    annual_kwh_final: Math.round(annual),
+  }));
+
   return { hourly, annual_kwh: annual };
 }
 
