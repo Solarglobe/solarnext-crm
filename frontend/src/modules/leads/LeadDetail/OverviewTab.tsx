@@ -27,6 +27,7 @@ import {
   contractSummaryLabel,
   type SolteoImportResponse,
 } from "./solteoImport";
+import MonthlyConsumptionChart from "./MonthlyConsumptionChart";
 import { apiFetch } from "../../../services/api";
 import GeoValidationModal from "../../../components/GeoValidationModal";
 import type { Study } from "../../../services/studies.service";
@@ -1688,12 +1689,15 @@ export default function OverviewTab({
           </div>
         )}
         {consumptionMode === "MONTHLY" && (
-          <MonthlyConsumptionGrid
-            monthsMap={monthsMap}
-            onMonthsChange={onMonthlyConsumptionChange}
-            onGridEditingChange={onMonthlyGridEditingChange}
-            onGridSectionLeave={onFlushOverviewSave}
-          />
+          <>
+            <MonthlyConsumptionGrid
+              monthsMap={monthsMap}
+              onMonthsChange={onMonthlyConsumptionChange}
+              onGridEditingChange={onMonthlyGridEditingChange}
+              onGridSectionLeave={onFlushOverviewSave}
+            />
+            <MonthlyConsumptionChart monthlyKwh={monthsMap.map((m) => m.kwh)} />
+          </>
         )}
         {consumptionMode === "PDL" && (
           <>
@@ -1718,6 +1722,7 @@ export default function OverviewTab({
                   {energyImportInfo && (
                     <div className="crm-lead-energy-status">{energyImportInfo}</div>
                   )}
+                  <MonthlyConsumptionChart hourly={energyEngine.hourly} />
                 </>
               ) : (
                 <div className="crm-lead-energy-status crm-lead-energy-status-empty">

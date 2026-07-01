@@ -9,6 +9,7 @@ import {
   contractSummaryLabel,
   type SolteoImportResponse,
 } from "./solteoImport";
+import MonthlyConsumptionChart from "./MonthlyConsumptionChart";
 import { apiFetch } from "../../../services/api";
 import { ModalShell } from "../../../components/ui/ModalShell";
 import type { OverviewLeadSnapshot } from "./overviewSave";
@@ -642,10 +643,13 @@ export default function LeadMeterModal({
             </div>
           )}
           {consumptionMode === "MONTHLY" && (
-            <MonthlyConsumptionGrid
-              monthsMap={monthsMap}
-              onMonthsChange={setMonthlyLocal}
-            />
+            <>
+              <MonthlyConsumptionGrid
+                monthsMap={monthsMap}
+                onMonthsChange={setMonthlyLocal}
+              />
+              <MonthlyConsumptionChart monthlyKwh={monthsMap.map((m) => m.kwh)} />
+            </>
           )}
           {consumptionMode === "PDL" && (
             <>
@@ -670,6 +674,7 @@ export default function LeadMeterModal({
                     {energyImportInfo && (
                       <div className="crm-lead-energy-status">{energyImportInfo}</div>
                     )}
+                    <MonthlyConsumptionChart hourly={energyEngine.hourly} />
                   </>
                 ) : (
                   <div className="crm-lead-energy-status crm-lead-energy-status-empty">

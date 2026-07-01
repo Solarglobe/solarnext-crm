@@ -45,6 +45,10 @@ Règle clé : **R65 complet + courbe partielle → annuel = R65 (12 234), profil
 - **Tout passe par import-solteo** côté front (y compris loadcurve seule) — `compute-from-csv` reste intact pour les autres appels.
 - Bouton renommé « Importer un CSV » → **« Import données Enedis »** (Overview + modale compteur).
 
+## Complément — graphique conso mensuelle (01/07/2026 soir)
+
+Nouveau composant `frontend/src/modules/leads/LeadDetail/MonthlyConsumptionChart.tsx` (recharts, déjà en dépendance) : bâtons Jan→Déc, tooltip kWh fr-FR, masqué si aucune donnée. Affiché : fiche lead + modale compteur, en mode PDL (calculé depuis le profil 8760 aligné calendrier — donc cohérent avec l'annuel normalisé R65) et en mode MENSUEL (12 valeurs saisies).
+
 ## Reste à faire / risques
 
 - **Rebuild frontend requis.** ⚠️ tsc complet impossible dans la sandbox (fichiers tronqués par la sync) — lancer `npm run build` en local pour confirmer ; les modifications sont des Edit exacts à motifs déjà éprouvés.
