@@ -11,6 +11,7 @@ import { getPdfViewModelRow } from "../../routes/studies/service.js";
 import { getLogoPath } from "../orgLogo.service.js";
 import { getAbsolutePath } from "../localStorage.service.js";
 import { mapSelectedScenarioSnapshotToPdfViewModel } from "./pdfViewModel.mapper.js";
+import { extractFlatRoofMountingFromPans } from "../quotePrep/flatRoofMounting.util.js";
 import { getLegalCgvForPdfRender } from "../legalCgv.service.js";
 import {
   repairScenarioV2DisplayKpis,
@@ -182,6 +183,11 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
   if (calpinageRes.rows.length > 0 && geometry_json?.layout_snapshot) {
     calpinageLayoutSnapshot = geometry_json.layout_snapshot;
   }
+  // LOT D — matériel de pose toit plat : lecture seule du snapshot Lot A figé dans la
+  // géométrie validée (null si absent → aucune ligne ajoutée au PDF, rétrocompat totale).
+  const flatRoofMounting = extractFlatRoofMountingFromPans(
+    geometry_json?.validatedRoofData?.pans ?? null
+  );
 
   /** Devis technique / quote-prep : financing + totals (même source que StudyQuoteBuilder). */
   let economicSnapshotConfig = null;
@@ -225,6 +231,7 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
     calpinage_layout_snapshot: calpinageLayoutSnapshot,
     economic_snapshot_config: economicSnapshotConfig,
     org_economics: orgEconomics,
+    flat_roof_mounting: flatRoofMounting,
     ...p5HourlyOpts,
   });
 

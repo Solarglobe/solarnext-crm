@@ -19,6 +19,7 @@ import {
   IMPACT_CAR_CO2_KG_PER_KM,
 } from "../core/engineConstants.js";
 import { buildP5DailyProfiles } from "./pdfP5DailyProfile.js";
+import { formatFlatRoofMountingForPdf } from "../quotePrep/flatRoofMounting.util.js";
 
 const SCENARIO_LABELS = {
   BASE: "Sans batterie",
@@ -1174,6 +1175,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const batterieHtPdf = Math.round(numOrZero(pdfBatteryScenario?.finance?.capex_ttc));
   const primeAmountRounded = Math.round(primeAmount);
   const totalTtcOffer = Math.round(capex * 1.1);
+  // LOT D — matériel de pose toit plat : lignes PDF depuis le snapshot Lot A
+  // (options.flat_roof_mounting, déjà validé structurellement côté extraction ;
+  // [] / "" quand absent → PdfPage3 n'affiche rien, rétrocompat totale).
+  const _flatRoofMountingPdf = formatFlatRoofMountingForPdf(options.flat_roof_mounting ?? null);
+
   const offer = {
     materiel_ht: offerMateriel,
     batterie_ht: batterieHtPdf,
@@ -1195,6 +1201,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     echelon: "À définir",
     validite: "30 jours",
     delai: "À définir",
+    // LOT D — matériel de pose toit plat ([] = aucune ligne affichée)
+    systemes_pose: _flatRoofMountingPdf.lines,
+    systeme_pose_note: _flatRoofMountingPdf.note,
   };
 
   const autoKwhCo2 =

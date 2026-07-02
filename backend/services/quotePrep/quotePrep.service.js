@@ -27,6 +27,11 @@ const err = (code, message) => {
 
 const DEBUG_QUOTE_PREP = process.env.DEBUG_QUOTE_PREP === "1";
 
+// LOT D — matériel de pose toit plat : extraction pure partagée devis/PDF
+// (module sans dépendance db → testable sans DATABASE_URL).
+import { extractFlatRoofMountingFromPans } from "./flatRoofMounting.util.js";
+export { extractFlatRoofMountingFromPans };
+
 /**
  * Construit le résumé technique à partir du snapshot (prioritaire) et calpinage_data.
  * Source: (a) calpinage_snapshots.snapshot_json.payload, (b) sinon calpinage_data.geometry_json,
@@ -57,6 +62,7 @@ async function buildTechnicalSummary(calpinageRow, calpinageDataRow = null) {
     gps: null,
     snapshot_version: calpinageRow?.version_number ?? null,
     calpinage_snapshot_id: calpinageRow?.id ?? null,
+    flat_roof_mounting: null,
   };
 
   if (!payload || typeof payload !== "object") {
@@ -339,6 +345,8 @@ async function buildTechnicalSummary(calpinageRow, calpinageDataRow = null) {
     panel: panel ?? undefined,
     inverter: inverter ?? undefined,
     inverter_totals: inverter_totals ?? undefined,
+    // LOT D — matériel de pose toit plat (null = rien à afficher, comportement inchangé)
+    flat_roof_mounting: extractFlatRoofMountingFromPans(pansArray),
   };
 }
 

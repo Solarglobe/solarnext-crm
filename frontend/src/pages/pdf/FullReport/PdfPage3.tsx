@@ -59,6 +59,27 @@ export default function PdfPage3({ data }: { data?: P3Data }) {
         <div className="pdf-section-title">Configuration</div>
         <div className="pdf-value">Puissance : {val(offer.puissance)} kWc</div>
         <div className="pdf-value">Onduleurs : {val(offer.onduleurs)}</div>
+        {/* LOT D — matériel de pose toit plat : lignes conditionnelles (snapshot Lot A).
+            Absent (toiture inclinée, plat générique, ancienne étude) → rien ne change. */}
+        {Array.isArray(offer.systemes_pose) && (offer.systemes_pose as string[]).length > 0 ? (
+          <>
+            {(offer.systemes_pose as string[]).map((line, i) => (
+              <div className="pdf-value" key={`pose-${i}`}>
+                {i === 0 ? "Système de pose : " : ""}
+                {line}
+              </div>
+            ))}
+            {typeof offer.systeme_pose_note === "string" && offer.systeme_pose_note ? (
+              <div className="pdf-value" style={{ fontSize: "0.85em", opacity: 0.85 }}>
+                {offer.systeme_pose_note}
+              </div>
+            ) : null}
+            {/* Mention de conformité sobre (validée Benoit 03/07) — sans recopier les notes détaillées. */}
+            <div className="pdf-value" style={{ fontSize: "0.85em", opacity: 0.85 }}>
+              Conforme aux homologations fabricant applicables selon le système retenu.
+            </div>
+          </>
+        ) : null}
         <div className="pdf-value">Garantie : {val(offer.garantie)}</div>
       </div>
     </div>

@@ -159,6 +159,28 @@ TiltUp Vento, Fusion sud), puis cadrer C.
 28/28 verts, dont : E-O refusés, 5° hors catalogue fabricant, règle pente Fusion aux bornes (3°/5°/8°),
 pente inconnue = « unknown » (bug `Number(null)=0` attrapé et corrigé), re-normalisation stable.
 
-**Reste à faire** : Lot B (modes espacement), Lot D (devis/PDF depuis `flatRoofConfig.mountingSystem`),
-Lot C est-ouest (audit moteur bi-azimut d'abord). Vérifier au premier `npm run build` frontend que les
-types élargis ne remontent rien (tsc non exécutable depuis la sandbox).
+**Reste à faire** : Lot B (modes espacement), Lot C est-ouest (audit moteur bi-azimut d'abord).
+
+---
+
+## 8. LOT D — LIVRÉ le 03/07/2026 (affichage informatif devis/PDF, lecture seule du snapshot Lot A)
+
+**Chaîne** : `payload.validatedRoofData.pans[].flatRoofConfig.mountingSystem` (persisté à la validation
+du calepinage) → extraction pure `backend/services/quotePrep/flatRoofMounting.util.js`
+(`extractFlatRoofMountingFromPans` + `formatFlatRoofMountingForPdf`) → devis technique
+(`quotePrep.service` : champ `flat_roof_mounting` du `technical_snapshot_summary` → bloc informatif
+`QuoteFlatRoofMounting` sous le Résumé technique de `StudyQuoteBuilder`) et PDF
+(`pdfViewModel.service` → `mapper` : `offer.systemes_pose[]` + `offer.systeme_pose_note` →
+lignes conditionnelles « Système de pose » dans la section Configuration de `PdfPage3`).
+
+**Garanties** : aucune re-résolution catalogue (snapshot figé), aucun prix, aucun calcul de lestage
+(mention imposée : « Lestage définitif à confirmer via l'outil fabricant (…) / étude technique dédiée. »),
+lien calculateur seulement si présent ET https, garde structurelle `arrangement === "SOUTH_SINGLE"`
+(un snapshot est-ouest injecté n'est jamais affiché), multi-pans = une ligne par pan (« Pan N : … »),
+absent/incomplet → strictement aucun changement d'affichage (rétrocompat totale).
+
+**Validation** : `tests/flatRoofMounting.test.mjs` 8/8 (les 8 cas limites du GO : sans système, incliné,
+plat générique, K2, Fusion, snapshot incomplet, multi-pans, E-O injecté) ; non-régression
+`pdfVirtualBatteryPage` 1/1 + `test-pdf-viewmodel-mapper` 6/6 ; `tsc --noEmit` 0 erreur ;
+syntaxe des 4 fichiers backend vérifiée. Note : la ligne devis vit dans le « Résumé technique »
+(pas dans le tableau « Matériel principal », qui est chiffré — pas de prix inventé).

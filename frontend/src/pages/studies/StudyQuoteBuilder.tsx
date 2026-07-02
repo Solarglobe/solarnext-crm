@@ -26,6 +26,22 @@ import { computeMaterialMarginFromLines, round2 } from "../../modules/quotes/quo
 const API_BASE = getCrmApiBaseWithWindowFallback();
 
 // ——— Types ———
+/** LOT D — matériel de pose toit plat (snapshot Lot A recopié par quote-prep, lecture seule). */
+interface FlatRoofMountingInfo {
+  pan_id: string | null;
+  system_id: string | null;
+  brand: string;
+  label: string;
+  arrangement: string;
+  tilt_deg: number;
+  layout_orientation: "portrait" | "landscape" | null;
+  row_spacing_cm: number | null;
+  ballast_note: string | null;
+  calculator_url: string | null;
+  calculator_label: string | null;
+  quote_notes: string[];
+}
+
 interface TechnicalSummary {
   nb_panels: number;
   power_kwc: number;
@@ -43,6 +59,8 @@ interface TechnicalSummary {
   gps: { lat: number; lon: number } | null;
   snapshot_version: number | null;
   calpinage_snapshot_id?: string;
+  /** LOT D — null/absent = pas de système de pose (toiture inclinée, plat générique, ancienne étude). */
+  flat_roof_mounting?: FlatRoofMountingInfo[] | null;
 }
 
 // ——— Formatage kWc (résumé technique depuis payload) ———
@@ -574,6 +592,8 @@ interface CalpinageSnapshotPayload {
     production_annual_kwh: number | null;
     shading_loss_pct: number | null;
   };
+  /** LOT D — matériel de pose toit plat (affichage informatif, jamais chiffré). */
+  flat_roof_mounting?: FlatRoofMountingInfo[] | null;
 }
 
 function fmtShadingPctFr(v: number | null | undefined): string {
@@ -672,6 +692,71 @@ function QuoteTechnicalSummary({ payload }: { payload: CalpinageSnapshotPayload 
   );
 }
 
+/** LOT D — Système de pose toiture plate : bloc de conception dédié (jamais de prix,
+    jamais de calcul — lecture seule du snapshot Lot A validé au calepinage).
+    Rendu UNIQUEMENT si quote-prep a extrait un snapshot valide (pan FLAT + système sud). */
+function QuoteFlatRoofMounting({ mounting }: { mounting: FlatRoofMountingInfo[] | null | undefined }) {
+  if (!Array.isArray(mounting) || mounting.length === 0) return null;
+  const orientationFr = (o: FlatRoofMountingInfo["layout_orientation"]) =>
+    o === "landscape" ? "Paysage" : o === "portrait" ? "Portrait" : null;
+  const first = mounting[0];
+  return (
+    <div className="sqb-mounting-card">
+      <div className="sqb-mounting-eyebrow">Système de pose — toiture plate</div>
+      {mounting.map((m, i) => {
+        const pose = orientationFr(m.layout_orientation);
+        return (
+          <div className="sqb-mounting-row" key={m.pan_id ?? i}>
+            <div className="sqb-mounting-system">
+              {mounting.length > 1 ? `Pan ${i + 1} — ` : ""}
+              {m.label}
+            </div>
+            <div className="sqb-mounting-brand">
+              {m.brand}
+              {m.quote_notes.length > 0 ? ` · ${m.quote_notes.join(" · ")}` : ""}
+            </div>
+            <div className="sqb-mounting-specs">
+              <span className="sqb-mounting-spec">
+                <span className="sqb-mounting-spec-label">Orientation</span>
+                <span className="sqb-mounting-spec-value">Sud</span>
+              </span>
+              <span className="sqb-mounting-spec">
+                <span className="sqb-mounting-spec-label">Inclinaison</span>
+                <span className="sqb-mounting-spec-value">{m.tilt_deg}°</span>
+              </span>
+              {pose ? (
+                <span className="sqb-mounting-spec">
+                  <span className="sqb-mounting-spec-label">Pose</span>
+                  <span className="sqb-mounting-spec-value">{pose}</span>
+                </span>
+              ) : null}
+              {m.row_spacing_cm != null ? (
+                <span className="sqb-mounting-spec">
+                  <span className="sqb-mounting-spec-label">Inter-rangées</span>
+                  <span className="sqb-mounting-spec-value">{m.row_spacing_cm} cm</span>
+                </span>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+      {(first.ballast_note || first.calculator_url) && (
+        <div className="sqb-mounting-note">
+          {first.ballast_note ?? ""}
+          {first.calculator_url ? (
+            <>
+              {" "}
+              <a href={first.calculator_url} target="_blank" rel="noreferrer">
+                Ouvrir {first.calculator_label ?? "l'outil fabricant"}
+              </a>
+            </>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Dérive un payload minimal pour QuoteTechnicalSummary à partir du résumé technique API */
 function technicalSummaryToPayload(summary: QuotePrepResponse["technical_snapshot_summary"] | null | undefined): CalpinageSnapshotPayload | null {
   if (!summary || typeof summary !== "object") return null;
@@ -686,6 +771,7 @@ function technicalSummaryToPayload(summary: QuotePrepResponse["technical_snapsho
     panel?: { brand?: string; model?: string; power_wc?: number };
     inverter?: { brand?: string; name?: string };
     inverter_totals?: { units_required?: number };
+    flat_roof_mounting?: FlatRoofMountingInfo[] | null;
   };
   const panels = s.total_panels ?? s.nb_panels ?? 0;
   const powerKwc = s.total_power_kwc ?? s.power_kwc ?? 0;
@@ -701,6 +787,8 @@ function technicalSummaryToPayload(summary: QuotePrepResponse["technical_snapsho
     panel: s.panel && typeof s.panel === "object" ? { brand: s.panel.brand, model: s.panel.model, model_ref: s.panel.model, power_wc: s.panel.power_wc } : {},
     inverter: s.inverter && typeof s.inverter === "object" ? { brand: s.inverter.brand, name: s.inverter.name } : {},
     inverter_totals: s.inverter_totals,
+    // LOT D — recopie telle quelle (null/absent = rien à afficher)
+    flat_roof_mounting: Array.isArray(s.flat_roof_mounting) ? s.flat_roof_mounting : null,
     study_metrics: {
       production_annual_kwh: productionAnnualKwh,
       shading_loss_pct: shadingLossPct,
@@ -1272,6 +1360,8 @@ export default function StudyQuoteBuilder() {
         <section className="sqb-section sqb-section--technical-summary">
           <h2 className="sqb-h2 sqb-h2--technical-summary">Résumé technique</h2>
           <QuoteTechnicalSummary payload={activeSnapshotPayload} />
+          {/* LOT D — matériel de pose toit plat (informatif, snapshot Lot A) */}
+          <QuoteFlatRoofMounting mounting={activeSnapshotPayload?.flat_roof_mounting} />
         </section>
 
         <div className="sqb-divider" role="presentation" />
