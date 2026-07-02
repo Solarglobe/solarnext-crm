@@ -35,10 +35,13 @@
 
 /**
  * Inclinaison du support en toiture plate (degrés).
- * Valeurs autorisées : 5, 10, 15 — correspondant aux systèmes de montage produit.
- * Source : DEFAULT_FLAT_ROOF_CONFIG.supportTiltDeg = 10 (ligne 148 du module).
+ * Legacy (sans matériel de pose) : 5, 10 ou 15.
+ * LOT A matériel de pose : valeurs imposées par le système fabricant
+ * (K2 Dome 10/15°, ESDEC Fusion 13°, K2 TiltUp 20/25/30°) — d'où number.
+ * La validation des valeurs autorisées est faite par normalizeFlatRoofConfig
+ * (catalogue flatRoofMountingSystems.js), pas par ce type.
  */
-export type FlatRoofSupportTiltDeg = 5 | 10 | 15;
+export type FlatRoofSupportTiltDeg = number;
 
 /**
  * Configuration spécifique toiture plate, par pan.
@@ -72,6 +75,16 @@ export interface FlatRoofConfig {
    * false (ou absent) → valeur calculée automatiquement.
    */
   readonly rowSpacingManual?: boolean;
+  /**
+   * LOT A — id du système de pose fabricant (catalogue flatRoofMountingSystems.js).
+   * null/absent = mode générique legacy (5/10/15°, 55 cm).
+   */
+  readonly mountingSystemId?: string | null;
+  /**
+   * LOT A — snapshot figé du système (marque, libellé, tilt, lien calculateur…)
+   * persisté avec l'étude pour le devis / PDF (Lot D). Jamais lu par le moteur de placement.
+   */
+  readonly mountingSystem?: Readonly<Record<string, unknown>> | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

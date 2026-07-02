@@ -129,6 +129,106 @@ describe("normalizeFlatRoofConfig", () => {
   });
 });
 
+// ── LOT A — Matériel de pose (mountingSystemId) ───────────────────────────────
+
+describe("normalizeFlatRoofConfig — matériel de pose (LOT A)", () => {
+  it("sans mountingSystemId : mountingSystemId=null, mountingSystem=null (rétrocompat)", () => {
+    const r = normalizeFlatRoofConfig({ supportTiltDeg: 5 });
+    expect(r.mountingSystemId).toBe(null);
+    expect(r.mountingSystem).toBe(null);
+    expect(r.supportTiltDeg).toBe(5); // le 5° legacy reste accepté SANS système
+    expect(r.rowSpacingCm).toBe(55);
+  });
+
+  it("mountingSystemId inconnu → branche legacy inchangée", () => {
+    const r = normalizeFlatRoofConfig({ mountingSystemId: "SYSTEME_FANTOME", supportTiltDeg: 15 });
+    expect(r.mountingSystemId).toBe(null);
+    expect(r.supportTiltDeg).toBe(15);
+    expect(r.rowSpacingCm).toBe(55);
+  });
+
+  it("K2 S-Dome 6 : tilt imposé 10°, paysage imposé, snapshot persisté", () => {
+    const r = normalizeFlatRoofConfig({ mountingSystemId: "K2_S_DOME_6", supportTiltDeg: 5, layoutOrientation: "portrait" });
+    expect(r.mountingSystemId).toBe("K2_S_DOME_6");
+    expect(r.supportTiltDeg).toBe(10); // 5° refusé : imposé par le système
+    expect(r.layoutOrientation).toBe("landscape"); // portrait refusé : imposé paysage
+    expect(r.rowSpacingCm).toBe(55);
+    expect(r.rowSpacingMm).toBe(550);
+    expect(r.mountingSystem).toBeTruthy();
+    expect(r.mountingSystem.brand).toBe("K2 Systems");
+    expect(r.mountingSystem.calculatorLabel).toBe("K2 Base");
+  });
+
+  it("K2 S-Dome 6.15 : tilt 15°, inter-rangées 70 cm", () => {
+    const r = normalizeFlatRoofConfig({ mountingSystemId: "K2_S_DOME_6_15" });
+    expect(r.supportTiltDeg).toBe(15);
+    expect(r.rowSpacingCm).toBe(70);
+    expect(r.rowSpacingMm).toBe(700);
+  });
+
+  it("ESDEC FlatFix Fusion sud : tilt 13° (nouvelle valeur hors 5/10/15)", () => {
+    const r = normalizeFlatRoofConfig({ mountingSystemId: "ESDEC_FLATFIX_FUSION_SUD" });
+    expect(r.supportTiltDeg).toBe(13);
+    expect(r.layoutOrientation).toBe("landscape");
+  });
+
+  it("K2 TiltUp Vento : options 20/25/30, choix 25 respecté, orientation libre", () => {
+    const r = normalizeFlatRoofConfig({
+      mountingSystemId: "K2_TILTUP_VENTO",
+      supportTiltDeg: 25,
+      layoutOrientation: "portrait",
+    });
+    expect(r.supportTiltDeg).toBe(25);
+    expect(r.layoutOrientation).toBe("portrait");
+    expect(r.rowSpacingCm).toBe(110);
+  });
+
+  it("TiltUp : tilt hors options (13) → défaut système 20", () => {
+    expect(normalizeFlatRoofConfig({ mountingSystemId: "K2_TILTUP_VENTO", supportTiltDeg: 13 }).supportTiltDeg).toBe(20);
+  });
+
+  it("systèmes est-ouest désactivés → REFUSÉS (branche legacy, jamais appliqués au moteur)", () => {
+    for (const id of ["K2_D_DOME_6_EO", "ESDEC_FLATFIX_FUSION_EO"]) {
+      const r = normalizeFlatRoofConfig({ mountingSystemId: id });
+      expect(r.mountingSystemId).toBe(null);
+      expect(r.supportTiltDeg).toBe(10);
+      expect(r.rowSpacingCm).toBe(55);
+    }
+  });
+
+  it("anti-contournement : snapshot E-O injecté dans l'état persisté → purgé à la normalisation", () => {
+    // Simule une étude sauvegardée (ou un état manipulé) qui porterait un système E-O complet.
+    const r = normalizeFlatRoofConfig({
+      mountingSystemId: "K2_D_DOME_6_EO",
+      mountingSystem: { id: "K2_D_DOME_6_EO", brand: "K2 Systems", arrangement: "EAST_WEST_DUAL", tiltDeg: 10 },
+      supportTiltDeg: 10,
+      rowSpacingCm: 30,
+    });
+    expect(r.mountingSystemId).toBe(null);
+    expect(r.mountingSystem).toBe(null); // le snapshot ne survit pas — rien n'atteint le moteur ni le devis
+    expect(r.rowSpacingCm).toBe(55); // espacement E-O (30) écarté, retour au legacy
+  });
+
+  it("marges : défaut système, surcharge utilisateur respectée", () => {
+    expect(normalizeFlatRoofConfig({ mountingSystemId: "K2_S_DOME_6" }).setbackRoofEdgeCm).toBe(60);
+    expect(
+      normalizeFlatRoofConfig({ mountingSystemId: "K2_S_DOME_6", setbackRoofEdgeCm: 100 }).setbackRoofEdgeCm,
+    ).toBe(100);
+  });
+
+  it("rowSpacingCm passé est ignoré quand un système est actif (imposé V1)", () => {
+    expect(
+      normalizeFlatRoofConfig({ mountingSystemId: "K2_S_DOME_6_15", rowSpacingCm: 99 }).rowSpacingCm,
+    ).toBe(70);
+  });
+
+  it("re-normalisation stable (sortie → entrée → même sortie)", () => {
+    const a = normalizeFlatRoofConfig({ mountingSystemId: "ESDEC_FLATFIX_FUSION_SUD" });
+    const b = normalizeFlatRoofConfig(a);
+    expect(b).toEqual(a);
+  });
+});
+
 // ── getAutoRowSpacingCmFromTilt ────────────────────────────────────────────────
 
 describe("getAutoRowSpacingCmFromTilt", () => {

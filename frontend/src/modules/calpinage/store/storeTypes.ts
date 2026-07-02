@@ -54,10 +54,18 @@ export interface FlatRoofUiProjection {
   isFlat: boolean;
   /** true si le pan est incliné et la bascule "toiture plate" est proposée. */
   showFlatEnable: boolean;
-  /** Inclinaison support : 5, 10 ou 15 degrés. */
-  supportTiltDeg: 5 | 10 | 15;
+  /**
+   * Inclinaison support en degrés.
+   * Legacy : 5 | 10 | 15. LOT A matériel de pose : valeurs du système fabricant
+   * (10, 13, 15, 20, 25, 30…), d'où l'élargissement à number.
+   */
+  supportTiltDeg: number;
   /** true = portrait, false = landscape. */
   layoutPortrait: boolean;
+  /** LOT A — id du système de pose fabricant sélectionné (null = générique legacy). */
+  mountingSystemId: string | null;
+  /** LOT A — pente réelle du pan en degrés si connue (alertes compatibilité système). */
+  panSlopeDeg: number | null;
 }
 
 /**

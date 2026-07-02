@@ -61,6 +61,8 @@ const initialPhase3: CalpinagePhase3Snapshot = {
     showFlatEnable: false,
     supportTiltDeg: 10,
     layoutPortrait: true,
+    mountingSystemId: null,
+    panSlopeDeg: null,
   },
   isBifacial: false,
   bifacialityFactor: 0.70,

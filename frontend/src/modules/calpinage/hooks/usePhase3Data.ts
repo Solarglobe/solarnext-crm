@@ -190,6 +190,9 @@ export function usePhase3Data() {
       showFlatEnable: flatRoofProjection.showFlatEnable,
       supportTiltDeg: flatRoofProjection.supportTiltDeg,
       layoutPortrait: flatRoofProjection.layoutPortrait,
+      // LOT A — matériel de pose
+      mountingSystemId: flatRoofProjection.mountingSystemId,
+      panSlopeDeg: flatRoofProjection.panSlopeDeg,
     };
 
     return {

@@ -187,6 +187,8 @@ function readPhase3Snapshot(): CalpinagePhase3Snapshot {
     showFlatEnable: false,
     supportTiltDeg: 10,
     layoutPortrait: true,
+    mountingSystemId: null,
+    panSlopeDeg: null,
   };
   try {
     if (typeof win.projectCalpinageUi === "function" && state) {
@@ -203,6 +205,19 @@ function readPhase3Snapshot(): CalpinagePhase3Snapshot {
         ) as Record<string, unknown>;
         const tilt = Number(fc.supportTiltDeg);
         const lo = String(fc.layoutOrientation || "portrait").toLowerCase();
+        // LOT A — pente réelle du pan (alertes système de pose) : lecture défensive,
+        // plusieurs formes legacy possibles.
+        const lpPhysical = (lp && typeof lp.physical === "object" ? lp.physical : null) as
+          | Record<string, unknown>
+          | null;
+        const lpSlopeObj = (lpPhysical && typeof lpPhysical.slope === "object" ? lpPhysical.slope : null) as
+          | Record<string, unknown>
+          | null;
+        const rawSlope = Number(
+          (lpSlopeObj && (lpSlopeObj.valueDeg ?? lpSlopeObj.deg)) ??
+            (lp && (lp.slopeDeg ?? lp.roofSlopeDeg)) ??
+            NaN,
+        );
         flatRoofProjection = {
           inPvLayout: !!ui.inPvLayout,
           hasPanCtx: !!ui.hasPanCtx,
@@ -212,11 +227,14 @@ function readPhase3Snapshot(): CalpinagePhase3Snapshot {
               : null,
           isFlat: !!ui.isFlat,
           showFlatEnable: !!ui.hasPanCtx && !ui.isFlat,
-          supportTiltDeg: (tilt === 5 || tilt === 10 || tilt === 15 ? tilt : 10) as
-            | 5
-            | 10
-            | 15,
+          // LOT A : le tilt vient du système fabricant (10/13/15/20/25/30…) ou du legacy (5/10/15)
+          supportTiltDeg: Number.isFinite(tilt) && tilt > 0 && tilt <= 45 ? tilt : 10,
           layoutPortrait: !(lo === "landscape" || lo === "paysage"),
+          mountingSystemId:
+            typeof fc.mountingSystemId === "string" && fc.mountingSystemId
+              ? fc.mountingSystemId
+              : null,
+          panSlopeDeg: Number.isFinite(rawSlope) && rawSlope >= 0 ? rawSlope : null,
         };
       }
     }

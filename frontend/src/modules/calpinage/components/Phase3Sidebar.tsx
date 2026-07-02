@@ -23,6 +23,12 @@ import { apiFetch } from "../../../services/api";
 import { getCrmApiBase } from "../../../config/crmApiBase";
 import { getCurrentUser } from "../../../services/auth.service";
 import { useToast } from "../ui/useToast";
+// LOT A — matériel de pose toiture plate (catalogue pur, partagé avec flatRoofConfig.js)
+import {
+  FLAT_ROOF_MOUNTING_SYSTEMS,
+  getMountingSystemById,
+  resolveSlopeStatusForSystem,
+} from "../legacy/flatRoofMountingSystems.js";
 
 function formatFallbackReason(reason?: string): string {
   switch (reason) {
@@ -156,51 +162,148 @@ function Phase3FlatRoofControls() {
           Passer en toiture plate
         </button>
       )}
-      {flatRoof.isFlat && (
-        <>
-          <div className={styles.flatRoofMicroLabel}>Toiture plate</div>
-          <span className={styles.flatRoofTinyLabel}>Inclinaison support</span>
-          <div className={styles.toggleCompact} role="group" aria-label="Inclinaison support">
-            {([5, 10, 15] as const).map((deg) => (
+      {flatRoof.isFlat && (() => {
+        // ── LOT A — MATÉRIEL DE POSE ────────────────────────────────────────
+        const system = getMountingSystemById(flatRoof.mountingSystemId);
+        // Options d'inclinaison : imposées par le système ; sans système → legacy 5/10/15
+        // (le 5° n'existe QUE dans le mode générique, rétrocompat anciennes études).
+        const tiltOptions: number[] = system ? system.tiltOptionsDeg : [5, 10, 15];
+        const orientationLocked = !!system && system.orientationOptions.length === 1;
+        const portraitAllowed = !system || system.orientationOptions.includes("portrait");
+        const landscapeAllowed = !system || system.orientationOptions.includes("landscape");
+        const slopeStatus = system
+          ? resolveSlopeStatusForSystem(system, flatRoof.panSlopeDeg)
+          : null;
+        const slopeColor =
+          slopeStatus?.level === "blocking" ? "#b3261e"
+          : slopeStatus?.level === "warning" ? "#9a6700"
+          : slopeStatus?.level === "ok" ? "#1a7f37"
+          : "var(--sn-text-secondary, #666)";
+
+        const selectSystem = (id: string) => {
+          if (id === "") {
+            // Retour au mode générique legacy (rétrocompat) — on garde le tilt courant s'il est legacy-compatible.
+            applyPatch({ mountingSystemId: null, mountingSystem: null });
+            return;
+          }
+          const s = getMountingSystemById(id);
+          if (!s) return;
+          if (s.enabled !== true) {
+            if (typeof w.showCalpinageUxToast === "function" && s.unavailableReason) {
+              w.showCalpinageUxToast(s.unavailableReason);
+            }
+            return;
+          }
+          // Un seul patch : normalizeFlatRoofConfig applique tilt/orientation/espacement/marges du système.
+          applyPatch({
+            mountingSystemId: s.id,
+            supportTiltDeg: s.defaultTiltDeg,
+            layoutOrientation: s.defaultOrientation,
+          });
+        };
+
+        return (
+          <>
+            <div className={styles.flatRoofMicroLabel}>Toiture plate</div>
+
+            <span className={styles.flatRoofTinyLabel}>Matériel de pose</span>
+            <select
+              className={styles.toolLinkBtn}
+              style={{ width: "100%", textAlign: "left" }}
+              aria-label="Matériel de pose toiture plate"
+              value={flatRoof.mountingSystemId ?? ""}
+              onChange={(e) => selectSystem(e.target.value)}
+            >
+              <option value="">Générique (sans système fabricant)</option>
+              {FLAT_ROOF_MOUNTING_SYSTEMS.map((s) => (
+                <option key={s.id} value={s.id} disabled={s.enabled !== true}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+
+            {system && (
+              <>
+                {slopeStatus && slopeStatus.message && (
+                  <div
+                    className={styles.flatRoofTinyLabel}
+                    role={slopeStatus.level === "blocking" ? "alert" : "note"}
+                    style={{ color: slopeColor, whiteSpace: "normal", fontWeight: slopeStatus.level === "blocking" ? 600 : 400 }}
+                  >
+                    {slopeStatus.message}
+                  </div>
+                )}
+                <div
+                  className={styles.flatRoofTinyLabel}
+                  style={{ whiteSpace: "normal", color: "var(--sn-text-secondary, #666)" }}
+                >
+                  {system.ballastNote}{" "}
+                  <a href={system.calculatorUrl} target="_blank" rel="noreferrer">
+                    Ouvrir {system.calculatorLabel}
+                  </a>
+                </div>
+                {system.panelLimits && (
+                  <div
+                    className={styles.flatRoofTinyLabel}
+                    style={{ whiteSpace: "normal", color: "var(--sn-text-secondary, #666)" }}
+                  >
+                    {`Modules admis : ${system.panelLimits.minLenMm ?? "—"}-${system.panelLimits.maxLenMm ?? "—"} × ${system.panelLimits.minWidMm ?? "—"}-${system.panelLimits.maxWidMm ?? "—"} mm — inter-rangées ${system.defaultRowSpacingCm} cm`}
+                  </div>
+                )}
+              </>
+            )}
+
+            <span className={styles.flatRoofTinyLabel}>Inclinaison support</span>
+            <div className={styles.toggleCompact} role="group" aria-label="Inclinaison support">
+              {tiltOptions.map((deg) => (
+                <button
+                  key={deg}
+                  type="button"
+                  className={`${styles.toggleCompactBtn} ${flatRoof.supportTiltDeg === deg ? styles.toggleCompactBtnOn : ""}`}
+                  aria-pressed={flatRoof.supportTiltDeg === deg}
+                  disabled={tiltOptions.length === 1}
+                  title={tiltOptions.length === 1 ? "Inclinaison imposée par le système de pose" : undefined}
+                  onClick={() => applyPatch({ supportTiltDeg: deg })}
+                >
+                  {deg}°
+                </button>
+              ))}
+            </div>
+
+            <span className={styles.flatRoofTinyLabel}>Pose</span>
+            <div className={styles.toggleCompact} role="group" aria-label="Orientation modules">
               <button
-                key={deg}
                 type="button"
-                className={`${styles.toggleCompactBtn} ${flatRoof.supportTiltDeg === deg ? styles.toggleCompactBtnOn : ""}`}
-                aria-pressed={flatRoof.supportTiltDeg === deg}
-                onClick={() => applyPatch({ supportTiltDeg: deg })}
+                className={`${styles.toggleCompactBtn} ${flatRoof.layoutPortrait ? styles.toggleCompactBtnOn : ""}`}
+                aria-pressed={flatRoof.layoutPortrait}
+                disabled={!portraitAllowed || (orientationLocked && !flatRoof.layoutPortrait)}
+                title={!portraitAllowed ? "Orientation imposée par le système de pose" : undefined}
+                onClick={() => applyPatch({ layoutOrientation: "portrait" })}
               >
-                {deg}°
+                Portrait
               </button>
-            ))}
-          </div>
-          <span className={styles.flatRoofTinyLabel}>Pose</span>
-          <div className={styles.toggleCompact} role="group" aria-label="Orientation modules">
+              <button
+                type="button"
+                className={`${styles.toggleCompactBtn} ${!flatRoof.layoutPortrait ? styles.toggleCompactBtnOn : ""}`}
+                aria-pressed={!flatRoof.layoutPortrait}
+                disabled={!landscapeAllowed || (orientationLocked && flatRoof.layoutPortrait)}
+                title={!landscapeAllowed ? "Orientation imposée par le système de pose" : undefined}
+                onClick={() => applyPatch({ layoutOrientation: "landscape" })}
+              >
+                Paysage
+              </button>
+            </div>
+
             <button
               type="button"
-              className={`${styles.toggleCompactBtn} ${flatRoof.layoutPortrait ? styles.toggleCompactBtnOn : ""}`}
-              aria-pressed={flatRoof.layoutPortrait}
-              onClick={() => applyPatch({ layoutOrientation: "portrait" })}
+              className={styles.toolLinkBtn}
+              onClick={() => setRoofType("PITCHED")}
             >
-              Portrait
+              Revenir en toiture inclinée
             </button>
-            <button
-              type="button"
-              className={`${styles.toggleCompactBtn} ${!flatRoof.layoutPortrait ? styles.toggleCompactBtnOn : ""}`}
-              aria-pressed={!flatRoof.layoutPortrait}
-              onClick={() => applyPatch({ layoutOrientation: "landscape" })}
-            >
-              Paysage
-            </button>
-          </div>
-          <button
-            type="button"
-            className={styles.toolLinkBtn}
-            onClick={() => setRoofType("PITCHED")}
-          >
-            Revenir en toiture inclinée
-          </button>
-        </>
-      )}
+          </>
+        );
+      })()}
     </div>
   );
 }

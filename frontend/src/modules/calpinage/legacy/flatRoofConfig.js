@@ -12,6 +12,8 @@
  *   - Testable unitairement via __tests__/flatRoofConfig.test.js.
  */
 
+import { getMountingSystemById, buildMountingSystemSnapshot } from "./flatRoofMountingSystems.js";
+
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 /** Inter-rangées toit plat fixée à 55 cm (produit SolarNext V1). */
@@ -47,16 +49,49 @@ const DEFAULT_FLAT_ROOF_CONFIG = {
  */
 export function normalizeFlatRoofConfig(fc) {
   fc = fc && typeof fc === "object" ? fc : {};
+
+  function numCm(k, def) {
+    const v = Number(fc[k]);
+    return Number.isFinite(v) && v >= 0 ? v : def;
+  }
+
+  // ── LOT A — MATÉRIEL DE POSE : branche système fabricant ────────────────────
+  // Un système K2/ESDEC sélectionné (mountingSystemId) pilote inclinaison,
+  // orientation, inter-rangées et marges par défaut. Les systèmes désactivés
+  // (est-ouest, enabled:false) sont refusés ici → jamais appliqués au moteur.
+  const system = getMountingSystemById(fc.mountingSystemId);
+  if (system && system.enabled === true) {
+    const st = Number(fc.supportTiltDeg);
+    const supportTiltDeg = system.tiltOptionsDeg.indexOf(st) !== -1 ? st : system.defaultTiltDeg;
+    const loRaw = (fc.layoutOrientation != null ? String(fc.layoutOrientation) : "").toLowerCase();
+    const loNorm = (loRaw === "landscape" || loRaw === "paysage") ? "landscape" : "portrait";
+    const layoutOrientation =
+      system.orientationOptions.indexOf(loNorm) !== -1 ? loNorm : system.defaultOrientation;
+    const rowSpacingCm = system.defaultRowSpacingCm; // V1 : imposé par le système (modes libres au Lot B)
+    return {
+      supportTiltDeg,
+      layoutOrientation,
+      setbackRoofEdgeCm: numCm("setbackRoofEdgeCm", system.defaultSetbackRoofEdgeCm),
+      setbackObstacleCm: numCm("setbackObstacleCm", system.defaultSetbackObstacleCm),
+      rowSpacingCm,
+      rowSpacingMm: rowSpacingCm * 10,
+      colSpacingCm: numCm("colSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.colSpacingCm),
+      rowSpacingManual: false,
+      mountingSystemId: system.id,
+      // Snapshot figé pour la persistance étude → devis / PDF (Lot D)
+      mountingSystem: buildMountingSystemSnapshot(system, supportTiltDeg),
+    };
+  }
+
+  // ── Branche legacy (aucun système) : comportement historique STRICTEMENT inchangé ──
+  // Rétrocompat anciennes études : 5/10/15° acceptés (5° conservé uniquement ici),
+  // inter-rangées figée 55 cm.
   const st = Number(fc.supportTiltDeg);
   const supportTiltDeg = (st === 5 || st === 10 || st === 15)
     ? st
     : DEFAULT_FLAT_ROOF_CONFIG.supportTiltDeg;
   const lo = (fc.layoutOrientation != null ? String(fc.layoutOrientation) : "").toLowerCase();
   const layoutOrientation = (lo === "landscape" || lo === "paysage") ? "landscape" : "portrait";
-  function numCm(k, def) {
-    const v = Number(fc[k]);
-    return Number.isFinite(v) && v >= 0 ? v : def;
-  }
   return {
     supportTiltDeg,
     layoutOrientation,
@@ -66,6 +101,8 @@ export function normalizeFlatRoofConfig(fc) {
     rowSpacingMm: FLAT_ROOF_ROW_SPACING_MM,
     colSpacingCm: numCm("colSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.colSpacingCm),
     rowSpacingManual: fc.rowSpacingManual === true,
+    mountingSystemId: null,
+    mountingSystem: null,
   };
 }
 
