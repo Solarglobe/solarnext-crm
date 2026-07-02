@@ -270,6 +270,8 @@ export function mapScenarioToV2(scenario, ctx) {
     economie_horizon_years: scenario.economie_horizon_years ?? null,
     economie_total_horizon_label: scenario.economie_total_horizon_label ?? null,
     virtual_battery_cost_annual: scenario._virtualBatteryQuote?.annual_cost_ttc ?? null,
+    // LOT3-HPHC-VALO : traçabilité — prix effectifs HP/HC utilisés pour ce scénario (null = prix plat).
+    pricing: scenario.pricing ?? null,
     finance_meta: {
       ...(scenario.finance_meta && typeof scenario.finance_meta === "object" ? scenario.finance_meta : {}),
       cumul_eur_definition: "net_after_capex_ttc",

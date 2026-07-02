@@ -179,6 +179,10 @@ export interface Lead {
   supplier_name?: string;
   consumption_profile?: string;
   tariff_type?: string;
+  /** LOT2-PRIX-COMPTEUR : prix électricité client (€/kWh TTC, facture fournisseur) */
+  elec_price_base_eur_kwh?: number | null;
+  elec_price_hp_eur_kwh?: number | null;
+  elec_price_hc_eur_kwh?: number | null;
   grid_type?: string;
   meter_power_kva?: number;
   equipement_actuel?: string | null;

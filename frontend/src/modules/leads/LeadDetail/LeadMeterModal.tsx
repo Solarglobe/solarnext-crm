@@ -809,6 +809,67 @@ export default function LeadMeterModal({
                   ))}
                 </select>
               </div>
+              {/* LOT2-PRIX-COMPTEUR : prix électricité client (facture fournisseur — pas dans les
+                  documents Enedis). Vide = défaut réglages organisation. */}
+              {draft.hp_hc === true || draft.tariff_type === "hp_hc" ? (
+                <>
+                  <div className="crm-lead-field">
+                    <label>Prix HP (€/kWh TTC)</label>
+                    <input
+                      className="sn-input"
+                      type="number"
+                      min={0}
+                      max={2}
+                      step={0.0001}
+                      value={draft.elec_price_hp_eur_kwh ?? ""}
+                      onChange={(e) =>
+                        patchDraft({
+                          elec_price_hp_eur_kwh:
+                            e.target.value === "" ? null : parseFloat(e.target.value),
+                        })
+                      }
+                      placeholder="ex. 0,2081 (facture)"
+                    />
+                  </div>
+                  <div className="crm-lead-field">
+                    <label>Prix HC (€/kWh TTC)</label>
+                    <input
+                      className="sn-input"
+                      type="number"
+                      min={0}
+                      max={2}
+                      step={0.0001}
+                      value={draft.elec_price_hc_eur_kwh ?? ""}
+                      onChange={(e) =>
+                        patchDraft({
+                          elec_price_hc_eur_kwh:
+                            e.target.value === "" ? null : parseFloat(e.target.value),
+                        })
+                      }
+                      placeholder="ex. 0,1635 (facture)"
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="crm-lead-field">
+                  <label>Prix élec (€/kWh TTC)</label>
+                  <input
+                    className="sn-input"
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.0001}
+                    value={draft.elec_price_base_eur_kwh ?? ""}
+                    onChange={(e) =>
+                      patchDraft({
+                        elec_price_base_eur_kwh:
+                          e.target.value === "" ? null : parseFloat(e.target.value),
+                      })
+                    }
+                    placeholder="ex. 0,1952 (facture)"
+                  />
+                </div>
+              )}
               <div className="crm-lead-field">
                 <label>Type de réseau</label>
                 <select

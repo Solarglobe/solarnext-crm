@@ -73,6 +73,45 @@ export function buildHpHcHourlyMask(offPeakPeriods) {
   return mask;
 }
 
+/**
+ * LOT1-HC-WINDOW — Parse un libellé Enedis de plages heures creuses (C68 `plageHeuresCreuses`
+ * ou `futuresPlagesHeuresCreuses`) vers off_peak_periods [{start:"HH:MM", end:"HH:MM"}].
+ *
+ * Formats observés (SGE réels) :
+ *   "HC (22H30-6H30)"                → [{start:"22:30", end:"06:30"}]
+ *   "HC (1H28-6H58;13H58-16H28)"     → 2 plages (réforme 2025/2026, HC de jour)
+ *   tolérant : minuscules, espaces, "23H" sans minutes, préfixe quelconque avant "(".
+ *
+ * @param {string|null|undefined} label
+ * @returns {{start: string, end: string}[]|null} null si rien d'exploitable (l'appelant garde le défaut)
+ */
+export function parseEnedisOffPeakLabel(label) {
+  if (typeof label !== "string" || !label.trim()) return null;
+  // Contenu entre parenthèses si présent, sinon la chaîne entière (tolérance).
+  const m = label.match(/\(([^)]*)\)/);
+  const body = (m ? m[1] : label).trim();
+  if (!body) return null;
+
+  const out = [];
+  for (const rawRange of body.split(";")) {
+    const range = rawRange.trim();
+    if (!range) continue;
+    const rm = range.match(/^(\d{1,2})\s*[Hh:]\s*(\d{0,2})\s*-\s*(\d{1,2})\s*[Hh:]\s*(\d{0,2})$/);
+    if (!rm) continue;
+    const sh = Number(rm[1]);
+    const sm = rm[2] === "" ? 0 : Number(rm[2]);
+    const eh = Number(rm[3]);
+    const em = rm[4] === "" ? 0 : Number(rm[4]);
+    if (![sh, sm, eh, em].every(Number.isFinite)) continue;
+    if (sh > 24 || eh > 24 || sm > 59 || em > 59) continue;
+    const start = `${String(sh).padStart(2, "0")}:${String(sm).padStart(2, "0")}`;
+    const end = `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
+    if (start === end) continue;
+    out.push({ start, end });
+  }
+  return out.length ? out : null;
+}
+
 /** Résout les plages creuses depuis la config devis/lead/settings, sinon défaut. */
 export function resolveOffPeakPeriods(vbInput, ctx) {
   const candidates = [

@@ -357,6 +357,10 @@ export interface OverviewLead {
   supplier_name?: string;
   consumption_profile?: string;
   tariff_type?: string;
+  /** LOT2-PRIX-COMPTEUR : prix électricité client (€/kWh TTC, facture fournisseur) */
+  elec_price_base_eur_kwh?: number | null;
+  elec_price_hp_eur_kwh?: number | null;
+  elec_price_hc_eur_kwh?: number | null;
   grid_type?: string;
   meter_power_kva?: number;
   property_type?: string;
@@ -1870,6 +1874,67 @@ export default function OverviewTab({
                 onChange={(v) => onLeadChange({ tariff_type: v })}
               />
             </div>
+            {/* LOT2-PRIX-COMPTEUR : prix électricité client (facture fournisseur — absent des flux
+                Enedis). Vide = défaut réglages organisation. */}
+            {lead.hp_hc === true || lead.tariff_type === "hp_hc" ? (
+              <>
+                <div className="crm-lead-field">
+                  <label>Prix HP (€/kWh TTC)</label>
+                  <input
+                    className="sn-input"
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.0001}
+                    value={lead.elec_price_hp_eur_kwh ?? ""}
+                    onChange={(e) =>
+                      onLeadChange({
+                        elec_price_hp_eur_kwh:
+                          e.target.value === "" ? null : parseFloat(e.target.value),
+                      })
+                    }
+                    placeholder="ex. 0,2081 (facture)"
+                  />
+                </div>
+                <div className="crm-lead-field">
+                  <label>Prix HC (€/kWh TTC)</label>
+                  <input
+                    className="sn-input"
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.0001}
+                    value={lead.elec_price_hc_eur_kwh ?? ""}
+                    onChange={(e) =>
+                      onLeadChange({
+                        elec_price_hc_eur_kwh:
+                          e.target.value === "" ? null : parseFloat(e.target.value),
+                      })
+                    }
+                    placeholder="ex. 0,1635 (facture)"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="crm-lead-field">
+                <label>Prix élec (€/kWh TTC)</label>
+                <input
+                  className="sn-input"
+                  type="number"
+                  min={0}
+                  max={2}
+                  step={0.0001}
+                  value={lead.elec_price_base_eur_kwh ?? ""}
+                  onChange={(e) =>
+                    onLeadChange({
+                      elec_price_base_eur_kwh:
+                        e.target.value === "" ? null : parseFloat(e.target.value),
+                    })
+                  }
+                  placeholder="ex. 0,1952 (facture)"
+                />
+              </div>
+            )}
             <div className="crm-lead-field crm-lead-field-full">
               <label>Type de réseau</label>
               <PillPicker

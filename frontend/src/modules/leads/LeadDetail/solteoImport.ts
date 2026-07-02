@@ -46,11 +46,14 @@ export interface SolteoImportResponse {
   import_debug?: Record<string, unknown> & { warnings?: string[]; reused_files?: string[] };
 }
 
-/** Ligne « Contrat : HP/HC — 18 kVA — 230/400 V » depuis le bloc contract. */
+/** Ligne « Contrat : HP/HC (HC 22H30-6H30) — 18 kVA — 230/400 V » depuis le bloc contract. */
 export function contractSummaryLabel(c?: SolteoContract | null): string | null {
   if (!c) return null;
-  const tarif =
+  const tarifBase =
     c.tariff_type === "hp_hc" ? "HP/HC" : c.tariff_type === "tempo" ? "Tempo" : c.tariff_type === "base" ? "Base" : null;
+  // LOT1-HC-WINDOW : fenêtre HC réelle Enedis visible dans la fiche compteur.
+  const hcWindow = c.tariff_type === "hp_hc" && c.plage_hc ? c.plage_hc.replace(/^HC\s*/i, "").trim() : null;
+  const tarif = tarifBase && hcWindow ? `${tarifBase} ${hcWindow}` : tarifBase;
   const parts = [
     tarif,
     c.puissance_souscrite_kva != null ? `${c.puissance_souscrite_kva} kVA` : null,

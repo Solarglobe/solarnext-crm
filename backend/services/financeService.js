@@ -267,7 +267,12 @@ function buildCashflows(params) {
     battery_contribution_y1 = 0,
     battery_degradation_pct = 2,
     // LID — dégradation première année (panneau neuf, irréversible). Défaut 0 = rétrocompatible.
-    pv_degradation_first_year_pct = 0
+    pv_degradation_first_year_pct = 0,
+    // LOT3-HPHC-VALO : prix effectifs HP/HC par flux (pondérés 8760). null → price_y1 (rétrocompatible).
+    // price_auto_y1 : valeur des kWh évités par autoconso (direct + décharge physique).
+    // price_vb_y1   : valeur des kWh évités par le crédit virtuel (heures de décharge).
+    price_auto_y1 = null,
+    price_vb_y1 = null
   } = params;
 
   // Décomposer l'autoconsommation an 1 en deux composantes :
@@ -288,6 +293,10 @@ function buildCashflows(params) {
   const flows = [];
 
   let price = price_y1;
+  // LOT3-HPHC-VALO : prix effectifs indexés au même rythme que le prix plat (elec_growth
+  // identique HP/HC → pondérations horaires invariantes sur l'horizon).
+  let priceAuto = Number.isFinite(Number(price_auto_y1)) && Number(price_auto_y1) > 0 ? Number(price_auto_y1) : price_y1;
+  let priceVb = Number.isFinite(Number(price_vb_y1)) && Number(price_vb_y1) > 0 ? Number(price_vb_y1) : price_y1;
   let prod = prod_y1;
   let auto = auto_y1;
   let surplus = surplus_y1;
@@ -318,18 +327,18 @@ function buildCashflows(params) {
       surplus = Math.max(0, prod - auto);
     }
 
-    const gain_auto = auto * price;
+    const gain_auto = auto * priceAuto;
     const gain_oa = isVirtualBattery
       ? _vbOverflow * oa_rate           // dégradé chaque année (voir init _vbOverflow)
       : surplus * oa_rate;
     const import_savings_eur = (isVirtualBattery && _vbImportSavings !== null)
-      ? Math.max(0, _vbImportSavings) * price  // dégradé chaque année (voir init _vbImportSavings)
+      ? Math.max(0, _vbImportSavings) * priceVb  // dégradé chaque année (voir init _vbImportSavings)
       : 0;
 
     // HYBRIDE : énergie cédée par le physique dégradé, récupérée par le virtuel à sa valeur nette
     // (prix évité − restitution). Évite à la fois de la perdre (ancien bug) et de la sur-créditer.
     const transferred_recovery_eur = (isVirtualBattery && _vbImportSavings !== null)
-      ? _transferredFromPhysicalKwh * Math.max(0, price - _virtRestitRate)
+      ? _transferredFromPhysicalKwh * Math.max(0, priceVb - _virtRestitRate)
       : 0;
 
     let total = gain_auto + gain_oa + import_savings_eur + transferred_recovery_eur;
@@ -368,6 +377,8 @@ function buildCashflows(params) {
     });
 
     price *= 1 + elec_growth_pct / 100;
+    priceAuto *= 1 + elec_growth_pct / 100;
+    priceVb *= 1 + elec_growth_pct / 100;
     prod *= 1 - pv_degradation_pct / 100;
     // PV direct auto suit la dégradation PV ; contribution batterie suit sa propre dégradation physique
     const _battContribBefore = _battContrib;
@@ -445,7 +456,9 @@ function computeAnnualBillAfterSolarYear1(sc, priceEurKwh) {
         ) ?? 0
       : 0;
 
-  return Math.max(0, importKwh * priceEurKwh + virtualAnnualCost);
+  // LOT3-HPHC-VALO : import résiduel au prix effectif d'import (pondéré HP/HC 8760) si dispo.
+  const priceImport = firstFiniteNumber(sc?.pricing?.p_eff_import) ?? priceEurKwh;
+  return Math.max(0, importKwh * priceImport + virtualAnnualCost);
 }
 
 function computeBillSavingsYear1(sc, priceEurKwh) {
@@ -456,7 +469,10 @@ function computeBillSavingsYear1(sc, priceEurKwh) {
   );
   if (consumptionKwh == null || consumptionKwh < 0) return null;
 
-  const billBeforeSolar = consumptionKwh * priceEurKwh;
+  // LOT3-HPHC-VALO : facture avant solaire au prix effectif conso (pondéré HP/HC 8760)
+  // quand sc.pricing existe ; sinon prix plat historique.
+  const priceConso = firstFiniteNumber(sc?.pricing?.p_eff_conso) ?? priceEurKwh;
+  const billBeforeSolar = consumptionKwh * priceConso;
   const billAfterSolar = computeAnnualBillAfterSolarYear1(sc, priceEurKwh);
   if (billAfterSolar == null) return null;
 
@@ -656,7 +672,11 @@ export async function computeFinance(ctx, scenarios) {
         battery_contribution_y1: _battContribY1,
         battery_degradation_pct: econ.battery_degradation_pct,
         pv_degradation_first_year_pct: econ.pv_degradation_first_year_pct,
-        virtual_restitution_rate_eur_kwh: virtualRestitutionRatePerKwh
+        virtual_restitution_rate_eur_kwh: virtualRestitutionRatePerKwh,
+        // LOT3-HPHC-VALO : prix effectifs HP/HC du scénario (attachés par calc.controller
+        // via attachHpHcPricingToScenarios) ; null → prix plat historique.
+        price_auto_y1: sc.pricing?.p_eff_auto ?? null,
+        price_vb_y1: sc.pricing?.p_eff_vb ?? null
       });
 
       const _isVbScenario = sc.name === "BATTERY_VIRTUAL" || sc.name === "BATTERY_HYBRID";

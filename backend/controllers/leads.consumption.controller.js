@@ -33,6 +33,9 @@ export async function patchConsumption(req, res) {
       tariff_type,
       grid_type,
       meter_power_kva,
+      elec_price_base_eur_kwh,
+      elec_price_hp_eur_kwh,
+      elec_price_hc_eur_kwh,
       equipement_actuel,
       equipement_actuel_params,
       equipements_a_venir
@@ -135,6 +138,27 @@ export async function patchConsumption(req, res) {
     if (meter_power_kva !== undefined) {
       updates.push(`meter_power_kva = $${idx++}`);
       values.push(meter_power_kva);
+    }
+
+    // LOT2-PRIX-COMPTEUR : prix électricité client (€/kWh TTC, facture fournisseur).
+    // null = effacement (retour au défaut org). Garde-fou 0 < prix < 2 €/kWh.
+    for (const [field, raw] of [
+      ["elec_price_base_eur_kwh", elec_price_base_eur_kwh],
+      ["elec_price_hp_eur_kwh", elec_price_hp_eur_kwh],
+      ["elec_price_hc_eur_kwh", elec_price_hc_eur_kwh],
+    ]) {
+      if (raw === undefined) continue;
+      if (raw === null || raw === "") {
+        updates.push(`${field} = $${idx++}`);
+        values.push(null);
+        continue;
+      }
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n <= 0 || n >= 2) {
+        return res.status(400).json({ error: `${field} : prix €/kWh invalide (attendu entre 0 et 2)` });
+      }
+      updates.push(`${field} = $${idx++}`);
+      values.push(n);
     }
 
     if (equipement_actuel !== undefined) {

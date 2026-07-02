@@ -32,7 +32,15 @@ export function buildLegacyPayloadFromSolarNext(solarnextPayload) {
     params: {
       reseau_type: installation.reseau_type,
       puissance_kva: lead.puissance_kva,
-      tarif_kwh: lead.tarif_kwh
+      tarif_kwh: lead.tarif_kwh,
+      // LOT2-PRIX-COMPTEUR : contrat + prix client fiche compteur.
+      // hp_hc sert de hint HPHC à resolveP2ContractType quand le devis BV ne fixe pas contract_type ;
+      // les prix HP/HC alimentent la valorisation p_eff (Lot 3).
+      hp_hc: lead.hp_hc === true,
+      tariff_type: lead.tariff_type ?? null,
+      elec_price_base_eur_kwh: lead.elec_price_base_eur_kwh ?? null,
+      elec_price_hp_eur_kwh: lead.elec_price_hp_eur_kwh ?? null,
+      elec_price_hc_eur_kwh: lead.elec_price_hc_eur_kwh ?? null
     },
     conso: consommation,
     forcage: {

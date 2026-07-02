@@ -47,6 +47,11 @@ import {
 } from "../services/virtualBatteryP2Finance.service.js";
 import { resolveP2VirtualBatterySimulationCapacityKwh } from "../services/virtualBatteryP2CapacityResolve.service.js";
 import { resolveHpHcHourlyMask } from "../services/pv/hphcMask.service.js";
+import {
+  resolveHpHcPricingContext,
+  effectivePriceForHourlyWeights,
+  attachHpHcPricingToScenarios,
+} from "../services/pv/hphcPricing.service.js";
 import { mapScenarioToV2 } from "../services/scenarioV2Mapper.service.js";
 import { attachNormalizedEnergyKpiFields } from "../services/energyKpisNormalize.service.js";
 import * as financeService from "../services/financeService.js";
@@ -779,6 +784,10 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     ctx.meta.scenario_uses_piloted_profile = ctx.solar_piloting_enabled === true;
 
 
+    // LOT3-HPHC-VALO : contexte de valorisation HP/HC (contrat HPHC + prix HP/HC fiche compteur).
+    // null si non applicable → tous les chemins de valorisation gardent le prix plat historique.
+    ctx._hphcPricingCtx = resolveHpHcPricingContext(ctx);
+
     // ======================================================================
     // SECTION 5 — Calcul des scénarios énergie
     // Scénarios : BASE · BATTERY_PHYSICAL · BATTERY_VIRTUAL · BATTERY_HYBRID
@@ -1336,7 +1345,13 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 null,
               hourlyDischargeKwh: vbSim.virtual_battery_hourly_discharge_kwh,
               hphcHourlyIsHp: contractType === "HPHC" ? (vbInput.hphc_hourly_slot_is_hp ?? resolveHpHcHourlyMask(vbInput, ctx)) : null,
-              tariffElectricityPerKwh: tariffKwh,
+              // LOT3-HPHC-VALO : l'import résiduel VB est facturé à son prix effectif HP/HC
+              // (pondéré par les heures d'import réelles) quand le contexte existe, sinon prix plat.
+              tariffElectricityPerKwh:
+                effectivePriceForHourlyWeights(
+                  vbSim.virtual_battery_hourly_grid_import_kwh,
+                  ctx._hphcPricingCtx
+                ) ?? tariffKwh,
               oaRatePerKwh: oaRate,
               virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
             });
@@ -1639,7 +1654,12 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 selectedCapacityKwh: simCapacityKwhH,
                 hourlyDischargeKwh: vbSimHEffective.virtual_battery_hourly_discharge_kwh,
                 hphcHourlyIsHp: contractTypeH === "HPHC" ? (vbInputH.hphc_hourly_slot_is_hp ?? resolveHpHcHourlyMask(vbInputH, ctx)) : null,
-                tariffElectricityPerKwh: tariffKwhH,
+                // LOT3-HPHC-VALO : import résiduel hybride au prix effectif HP/HC (cf. scénario virtuel).
+                tariffElectricityPerKwh:
+                  effectivePriceForHourlyWeights(
+                    vbSimHEffective.virtual_battery_hourly_grid_import_kwh,
+                    ctx._hphcPricingCtx
+                  ) ?? tariffKwhH,
                 oaRatePerKwh: oaRateH,
                 virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
               });
@@ -1811,6 +1831,13 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
 
     for (const _sk of Object.keys(scenarios)) {
       attachNormalizedEnergyKpiFields(scenarios[_sk]);
+    }
+
+    // LOT3-HPHC-VALO : attache sc.pricing (p_eff conso/auto/import/vb) aux 4 scénarios
+    // avant computeFinance. financeService utilise ces prix effectifs quand ils existent ;
+    // sinon (contrat BASE, prix non saisis) : comportement historique inchangé au bit près.
+    if (ctx._hphcPricingCtx) {
+      attachHpHcPricingToScenarios(scenarios, ctx, battPhysicalResult, ctx._hphcPricingCtx);
     }
 
     // ======================================================================

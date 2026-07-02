@@ -47,6 +47,10 @@ export interface OverviewLeadSnapshot {
   supplier_name?: string;
   consumption_profile?: string;
   tariff_type?: string;
+  /** LOT2-PRIX-COMPTEUR : prix électricité client (€/kWh TTC, facture fournisseur) */
+  elec_price_base_eur_kwh?: number | null;
+  elec_price_hp_eur_kwh?: number | null;
+  elec_price_hc_eur_kwh?: number | null;
   grid_type?: string;
   meter_power_kva?: number;
   /** Pilotage charge — chaîne moteur (ex. « ve pac ballon ») */
@@ -109,6 +113,9 @@ export function applyMeterRowToLeadSnapshot(
     hp_hc: meter.hp_hc as OverviewLeadSnapshot["hp_hc"],
     supplier_name: meter.supplier_name as OverviewLeadSnapshot["supplier_name"],
     tariff_type: meter.tariff_type as OverviewLeadSnapshot["tariff_type"],
+    elec_price_base_eur_kwh: meter.elec_price_base_eur_kwh as OverviewLeadSnapshot["elec_price_base_eur_kwh"],
+    elec_price_hp_eur_kwh: meter.elec_price_hp_eur_kwh as OverviewLeadSnapshot["elec_price_hp_eur_kwh"],
+    elec_price_hc_eur_kwh: meter.elec_price_hc_eur_kwh as OverviewLeadSnapshot["elec_price_hc_eur_kwh"],
     energy_profile: meter.energy_profile as OverviewLeadSnapshot["energy_profile"],
     equipement_actuel: meter.equipement_actuel as OverviewLeadSnapshot["equipement_actuel"],
     equipement_actuel_params: meter.equipement_actuel_params as OverviewLeadSnapshot["equipement_actuel_params"],
@@ -160,6 +167,11 @@ export function buildConsumptionPayload(
     supplier_name: formLead.supplier_name,
     consumption_profile: formLead.consumption_profile,
     tariff_type: formLead.tariff_type,
+    // LOT2-PRIX-COMPTEUR : undefined = champ jamais chargé → ne pas envoyer (évite tout effacement) ;
+    // null = effacement volontaire par l'utilisateur.
+    ...(formLead.elec_price_base_eur_kwh !== undefined ? { elec_price_base_eur_kwh: formLead.elec_price_base_eur_kwh } : {}),
+    ...(formLead.elec_price_hp_eur_kwh !== undefined ? { elec_price_hp_eur_kwh: formLead.elec_price_hp_eur_kwh } : {}),
+    ...(formLead.elec_price_hc_eur_kwh !== undefined ? { elec_price_hc_eur_kwh: formLead.elec_price_hc_eur_kwh } : {}),
     grid_type: formLead.grid_type,
     meter_power_kva: formLead.meter_power_kva,
     consumption_pdl: formLead.consumption_pdl,

@@ -33,6 +33,9 @@ export function buildMeterSnapshotRecord(ctx) {
     hp_hc: energyLead.hp_hc ?? null,
     supplier_name: energyLead.supplier_name ?? null,
     tariff_type: energyLead.tariff_type ?? null,
+    elec_price_base_eur_kwh: energyLead.elec_price_base_eur_kwh ?? null,
+    elec_price_hp_eur_kwh: energyLead.elec_price_hp_eur_kwh ?? null,
+    elec_price_hc_eur_kwh: energyLead.elec_price_hc_eur_kwh ?? null,
     energy_profile_has_hourly: hasHourly,
     equipement_actuel: energyLead.equipement_actuel ?? null,
     equipements_a_venir_json,
@@ -110,6 +113,16 @@ export function buildMeterCalcDiffLinesFr(prev, next) {
   }
   if (!snapSame(prev.tariff_type, next.tariff_type)) {
     lines.push(`Type de tarif modifié : ${prev.tariff_type ?? "—"} → ${next.tariff_type ?? "—"}`);
+  }
+  // LOT2-PRIX-COMPTEUR : traçabilité des prix client entre deux calculs.
+  if (!snapSame(prev.elec_price_base_eur_kwh, next.elec_price_base_eur_kwh)) {
+    lines.push(`Prix élec BASE modifié : ${fmtFrNum(prev.elec_price_base_eur_kwh)} → ${fmtFrNum(next.elec_price_base_eur_kwh)} €/kWh`);
+  }
+  if (!snapSame(prev.elec_price_hp_eur_kwh, next.elec_price_hp_eur_kwh)) {
+    lines.push(`Prix élec HP modifié : ${fmtFrNum(prev.elec_price_hp_eur_kwh)} → ${fmtFrNum(next.elec_price_hp_eur_kwh)} €/kWh`);
+  }
+  if (!snapSame(prev.elec_price_hc_eur_kwh, next.elec_price_hc_eur_kwh)) {
+    lines.push(`Prix élec HC modifié : ${fmtFrNum(prev.elec_price_hc_eur_kwh)} → ${fmtFrNum(next.elec_price_hc_eur_kwh)} €/kWh`);
   }
   if (!snapSame(prev.energy_profile_has_hourly, next.energy_profile_has_hourly)) {
     lines.push(

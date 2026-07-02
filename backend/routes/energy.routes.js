@@ -26,6 +26,7 @@ import {
   monthlySumsFromHourly,
 } from "../services/energy/solteoImportService.js";
 import { mergeLeadEquipmentIntoConsoLayer } from "../services/leadEquipmentMerge.service.js";
+import { parseEnedisOffPeakLabel } from "../services/pv/hphcMask.service.js";
 import { resolveSystemDocumentMetadata } from "../services/documentMetadata.service.js";
 import { isSuperAdminLikeRole } from "../lib/superAdminUserGuards.js";
 
@@ -541,6 +542,13 @@ router.post(
     // --- 1) Parsing ---
     const contract = files.c68Json ? parseC68(files.c68Json) : null;
     if (files.c68Json && !contract) warnings.push("c68.json fourni mais structure non reconnue");
+    // LOT1-HC-WINDOW : plages HC exploitables par le moteur (masque HP/HC).
+    // Persistées dans energy_profile.contract ; les leads déjà importés sont couverts
+    // par le re-parse de plage_hc côté payload builder.
+    if (contract) {
+      contract.off_peak_periods = parseEnedisOffPeakLabel(contract.plage_hc);
+      contract.future_off_peak_periods = parseEnedisOffPeakLabel(contract.futures_plages_hc);
+    }
 
     let dailyPoints = null;
     if (files.r65Json) {
@@ -753,9 +761,14 @@ router.post(
       : contract?.tariff_type === "tempo" ? "Tempo"
       : contract?.tariff_type === "base" ? "Base"
       : null;
+    // LOT1-HC-WINDOW : fenêtre HC réelle visible dans le résumé contrat persisté.
+    const tarifLabelWithHc =
+      tarifLabel === "HP/HC" && contract?.plage_hc
+        ? `HP/HC ${String(contract.plage_hc).replace(/^HC\s*/i, "").trim()}`
+        : tarifLabel;
     const contractSummary = contract
       ? [
-          tarifLabel,
+          tarifLabelWithHc,
           contract.puissance_souscrite_kva != null ? `${contract.puissance_souscrite_kva} kVA` : null,
           contract.tension_livraison ?? null,
         ].filter(Boolean).join(" — ") || null

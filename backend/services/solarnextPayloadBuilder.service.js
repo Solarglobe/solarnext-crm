@@ -31,6 +31,7 @@ import { computeWeightedShadingCombinedPct } from "./shading/weightedShadingKpi.
 import { auditMultiPanShadingMismatch } from "./shading/shadingCommercialAudit.service.js";
 import { resolveConsumptionCsv } from "./consumptionCsvResolver.service.js";
 import { extractPvInverterFromCalpinagePayload } from "./pv/inverterFinanceContext.js";
+import { parseEnedisOffPeakLabel } from "./pv/hphcMask.service.js";
 import { resolvePvInverterEngineFields } from "./pv/resolveInverterFromDb.service.js";
 import {
   METER_FIELDS_FROM_LEAD,
@@ -143,6 +144,8 @@ export async function resolveStudyVersionMeterContext(pool, { studyId, versionNu
     `SELECT l.id, l.full_name, l.first_name, l.last_name, l.site_address_id,
             l.consumption_mode, l.consumption_annual_kwh, l.consumption_annual_calculated_kwh,
             l.consumption_profile, l.grid_type, l.meter_power_kva, l.energy_profile,
+            l.hp_hc, l.tariff_type,
+            l.elec_price_base_eur_kwh, l.elec_price_hp_eur_kwh, l.elec_price_hc_eur_kwh,
             l.equipement_actuel, l.equipement_actuel_params, l.equipements_a_venir
      FROM leads l
      WHERE l.id = $1 AND l.organization_id = $2 AND (l.archived_at IS NULL)`,
@@ -528,10 +531,30 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     economicSnapshot,
     studyData,
   });
+  // LOT2-PRIX-COMPTEUR : prix client saisis dans la fiche compteur (facture fournisseur —
+  // JAMAIS présents dans les flux Enedis). Priorité tarif projet : étude/devis explicite >
+  // prix compteur > réglages org. Pour un contrat HP/HC sans prix BASE, le tarif « plat » de
+  // repli est la moyenne pondérée temps (16 h HP / 8 h HC) ; la valorisation fine heure par
+  // heure est faite par p_eff (Lot 3) à partir de elec_price_hp/hc transmis ci-dessous.
+  const numOrNullPrice = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const meterPriceBase = numOrNullPrice(energyLead.elec_price_base_eur_kwh);
+  const meterPriceHp = numOrNullPrice(energyLead.elec_price_hp_eur_kwh);
+  const meterPriceHc = numOrNullPrice(energyLead.elec_price_hc_eur_kwh);
+  const meterPriceFlat =
+    meterPriceBase != null
+      ? meterPriceBase
+      : meterPriceHp != null && meterPriceHc != null
+        ? Math.round(((meterPriceHp * 16 + meterPriceHc * 8) / 24) * 100000) / 100000
+        : null;
   const tarifKwh =
     explicitTariffKwh != null
       ? explicitTariffKwh
-      : (params.economics?.price_eur_kwh ?? DEFAULT_ECONOMICS_FALLBACK.price_eur_kwh);
+      : meterPriceFlat != null
+        ? meterPriceFlat
+        : (params.economics?.price_eur_kwh ?? DEFAULT_ECONOMICS_FALLBACK.price_eur_kwh);
 
   // Prix batterie physique : uniquement depuis config_json (devis technique), jamais settings.pricing
   const batteryPhysicalConfig = economicSnapshot?.battery_physical ?? economicSnapshot?.batteries?.physical;
@@ -914,6 +937,21 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       virtual_battery_input.capacity_kwh = capFromVbNew;
     }
   }
+  // LOT1-HC-WINDOW : fenêtre HC réelle Enedis (C68 plage_hc) → moteur.
+  // resolveOffPeakPeriods (hphcMask.service) lit vbInput.off_peak_periods en premier candidat ;
+  // sans cette injection, le masque HP/HC tourne sur le défaut 23h-07h même quand la vraie
+  // fenêtre du client est connue (ex. Bedouelle : 22h30-06h30, futures plages HC de jour).
+  // Priorité : plages déjà parsées à l'import Solteo ; sinon re-parse du libellé brut
+  // (couvre les leads importés avant le Lot 1, energy_profile.contract.plage_hc persisté).
+  if (virtual_battery_input && typeof virtual_battery_input === "object" && virtual_battery_input.off_peak_periods == null) {
+    const contractHc = energyProfileEarly?.contract;
+    const offPeakFromImport =
+      Array.isArray(contractHc?.off_peak_periods) && contractHc.off_peak_periods.length
+        ? contractHc.off_peak_periods
+        : null;
+    const offPeak = offPeakFromImport ?? parseEnedisOffPeakLabel(contractHc?.plage_hc);
+    if (offPeak) virtual_battery_input.off_peak_periods = offPeak;
+  }
   if (
     virtual_battery_input.enabled &&
     (virtual_battery_input.annual_subscription_ttc == null ||
@@ -975,6 +1013,12 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       lon,
       puissance_kva: Number(energyLead.meter_power_kva) || 9,
       tarif_kwh: tarifKwh,
+      // LOT2-PRIX-COMPTEUR : contrat + prix client vers le moteur (hint HPHC + valorisation p_eff Lot 3).
+      hp_hc: energyLead.hp_hc === true,
+      tariff_type: energyLead.tariff_type ?? null,
+      elec_price_base_eur_kwh: meterPriceBase,
+      elec_price_hp_eur_kwh: meterPriceHp,
+      elec_price_hc_eur_kwh: meterPriceHc,
     },
     consommation: {
       mode: mapConsumptionMode(energyLead.consumption_mode),

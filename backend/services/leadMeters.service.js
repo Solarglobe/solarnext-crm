@@ -20,6 +20,9 @@ export const METER_FIELDS_FROM_LEAD = [
   "hp_hc",
   "supplier_name",
   "tariff_type",
+  "elec_price_base_eur_kwh",
+  "elec_price_hp_eur_kwh",
+  "elec_price_hc_eur_kwh",
   "energy_profile",
   "equipement_actuel",
   "equipement_actuel_params",
@@ -69,6 +72,7 @@ export async function ensureDefaultLeadMeter(db, leadId, organizationId) {
        consumption_pdl, meter_power_kva, grid_type, consumption_mode,
        consumption_annual_kwh, consumption_annual_calculated_kwh,
        consumption_profile, hp_hc, supplier_name, tariff_type,
+       elec_price_base_eur_kwh, elec_price_hp_eur_kwh, elec_price_hc_eur_kwh,
        energy_profile, equipement_actuel, equipement_actuel_params, equipements_a_venir
      )
      SELECT
@@ -87,6 +91,9 @@ export async function ensureDefaultLeadMeter(db, leadId, organizationId) {
        COALESCE(l.hp_hc, false),
        l.supplier_name,
        l.tariff_type,
+       l.elec_price_base_eur_kwh,
+       l.elec_price_hp_eur_kwh,
+       l.elec_price_hc_eur_kwh,
        l.energy_profile,
        l.equipement_actuel,
        l.equipement_actuel_params,
@@ -140,6 +147,9 @@ export async function syncDefaultMeterFromLeadRow(db, leadRow) {
        hp_hc = COALESCE($10, false),
        supplier_name = $11,
        tariff_type = $12,
+       elec_price_base_eur_kwh = $17,
+       elec_price_hp_eur_kwh = $18,
+       elec_price_hc_eur_kwh = $19,
        energy_profile = $13::jsonb,
        equipement_actuel = $14,
        equipement_actuel_params = $15::jsonb,
@@ -165,6 +175,9 @@ export async function syncDefaultMeterFromLeadRow(db, leadRow) {
         ? JSON.stringify(leadRow.equipement_actuel_params)
         : null,
       leadRow.equipements_a_venir != null ? JSON.stringify(leadRow.equipements_a_venir) : null,
+      leadRow.elec_price_base_eur_kwh ?? null,
+      leadRow.elec_price_hp_eur_kwh ?? null,
+      leadRow.elec_price_hc_eur_kwh ?? null,
     ]
   );
 }
@@ -326,6 +339,9 @@ export async function syncLeadFlatFromMeterRow(db, meterRow) {
        hp_hc = COALESCE($8, false),
        supplier_name = $9,
        tariff_type = $10,
+       elec_price_base_eur_kwh = $17,
+       elec_price_hp_eur_kwh = $18,
+       elec_price_hc_eur_kwh = $19,
        energy_profile = $11::jsonb,
        equipement_actuel = $12,
        equipement_actuel_params = $13::jsonb,
@@ -351,6 +367,9 @@ export async function syncLeadFlatFromMeterRow(db, meterRow) {
       meterRow.equipements_a_venir != null ? JSON.stringify(meterRow.equipements_a_venir) : null,
       meterRow.lead_id,
       meterRow.organization_id,
+      meterRow.elec_price_base_eur_kwh ?? null,
+      meterRow.elec_price_hp_eur_kwh ?? null,
+      meterRow.elec_price_hc_eur_kwh ?? null,
     ]
   );
 }
@@ -390,6 +409,7 @@ export async function createLeadMeter(db, leadId, organizationId, name, copyFrom
          consumption_pdl, meter_power_kva, grid_type, consumption_mode,
          consumption_annual_kwh, consumption_annual_calculated_kwh,
          consumption_profile, hp_hc, supplier_name, tariff_type,
+         elec_price_base_eur_kwh, elec_price_hp_eur_kwh, elec_price_hc_eur_kwh,
          energy_profile, equipement_actuel, equipement_actuel_params, equipements_a_venir
        )
        SELECT
@@ -408,6 +428,9 @@ export async function createLeadMeter(db, leadId, organizationId, name, copyFrom
          COALESCE(d.hp_hc, false),
          d.supplier_name,
          d.tariff_type,
+         d.elec_price_base_eur_kwh,
+         d.elec_price_hp_eur_kwh,
+         d.elec_price_hc_eur_kwh,
          d.energy_profile,
          d.equipement_actuel,
          d.equipement_actuel_params,
@@ -448,6 +471,9 @@ const PATCHABLE_METER_COLUMNS = new Set([
   "hp_hc",
   "supplier_name",
   "tariff_type",
+  "elec_price_base_eur_kwh",
+  "elec_price_hp_eur_kwh",
+  "elec_price_hc_eur_kwh",
   "energy_profile",
   "equipement_actuel",
   "equipement_actuel_params",
