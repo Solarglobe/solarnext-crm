@@ -44,8 +44,16 @@ echo "♻ Reload PM2..."
 pm2 reload solarnext-api --wait-ready
 
 # 5. Health check
-sleep 3
-HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health/ready || echo "000")
+HTTP_STATUS="000"
+for attempt in $(seq 1 12); do
+    sleep 5
+    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health/ready || echo "000")
+    if [ "$HTTP_STATUS" = "200" ]; then
+        echo "âœ… Health check OK (HTTP $HTTP_STATUS, tentative $attempt/12)"
+        break
+    fi
+    echo "â³ Health check attente (HTTP $HTTP_STATUS, tentative $attempt/12)"
+done
 if [ "$HTTP_STATUS" = "200" ]; then
     echo "✅ Health check OK (HTTP $HTTP_STATUS)"
 else
