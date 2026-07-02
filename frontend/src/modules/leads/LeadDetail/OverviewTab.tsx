@@ -1696,7 +1696,7 @@ export default function OverviewTab({
               onGridEditingChange={onMonthlyGridEditingChange}
               onGridSectionLeave={onFlushOverviewSave}
             />
-            <MonthlyConsumptionChart monthlyKwh={monthsMap.map((m) => m.kwh)} />
+            <MonthlyConsumptionChart monthlyKwh={Array.from({ length: 12 }, (_, i) => monthsMap[i + 1] ?? 0)} />
           </>
         )}
         {consumptionMode === "PDL" && (

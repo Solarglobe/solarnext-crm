@@ -648,7 +648,7 @@ export default function LeadMeterModal({
                 monthsMap={monthsMap}
                 onMonthsChange={setMonthlyLocal}
               />
-              <MonthlyConsumptionChart monthlyKwh={monthsMap.map((m) => m.kwh)} />
+              <MonthlyConsumptionChart monthlyKwh={Array.from({ length: 12 }, (_, i) => monthsMap[i + 1] ?? 0)} />
             </>
           )}
           {consumptionMode === "PDL" && (
