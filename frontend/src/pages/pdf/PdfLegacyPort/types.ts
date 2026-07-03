@@ -15,6 +15,7 @@ export interface P1Auto {
   p1_k_autonomie?: number | string;
   p1_k_tri?: number | string;
   p1_k_gains?: number | string;
+  p1_k_capex?: number | string;
   p1_param_kva?: string;
   p1_param_reseau?: string;
   p1_param_conso?: string;

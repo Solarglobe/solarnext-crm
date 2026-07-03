@@ -199,14 +199,14 @@
 .pdf-legacy-port #p1.p1-premium-page .p1-premium__kpi-band {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 3.25mm;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 2.25mm;
   padding: 3mm 0 1mm;
   border-bottom: 0.35mm solid var(--p1-line-soft);
 }
 
 .pdf-legacy-port #p1.p1-premium-page .p1-premium__kpi-cell {
-  padding: 2.75mm 2.5mm 3mm;
+  padding: 2.45mm 2mm 2.65mm;
   border-radius: 2.6mm;
   background: rgba(255, 255, 255, 0.92);
   border: 0.28mm solid rgba(195, 152, 71, 0.18);
@@ -217,7 +217,7 @@
 }
 
 .pdf-legacy-port #p1.p1-premium-page .p1-premium__kpi-label {
-  font-size: 2.55mm;
+  font-size: 2.35mm;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -226,7 +226,7 @@
 }
 
 .pdf-legacy-port #p1.p1-premium-page .p1-premium__kpi-value {
-  font-size: 4.35mm;
+  font-size: 4mm;
   font-weight: 800;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -235,7 +235,7 @@
 }
 
 .pdf-legacy-port #p1.p1-premium-page .p1-premium__kpi-micro {
-  font-size: 2.75mm;
+  font-size: 2.45mm;
   color: var(--p1-muted);
   font-weight: 500;
   line-height: 1.3;

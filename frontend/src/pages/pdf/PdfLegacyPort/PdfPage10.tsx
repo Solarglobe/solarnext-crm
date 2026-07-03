@@ -113,7 +113,7 @@ export default function PdfPage10({
   const subInk = "#374151";
   const softSub = "#4b5563";
 
-  const kpiValueSize = "9.2mm";
+  const kpiValueSize = "7.15mm";
 
   const kpiCards = [
     {
@@ -214,7 +214,7 @@ export default function PdfPage10({
           minHeight: 0,
           display: "flex",
           flexDirection: "column",
-          gap: "1.5mm",
+          gap: "1.15mm",
           width: "100%",
           alignSelf: "stretch",
         }}
@@ -235,7 +235,7 @@ export default function PdfPage10({
         >
           <div
             style={{
-              fontSize: "5.65mm",
+              fontSize: "5.15mm",
               fontWeight: 900,
               color: titleInk,
               lineHeight: 1.12,
@@ -272,8 +272,8 @@ export default function PdfPage10({
             width: "100%",
             alignSelf: "stretch",
             display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "1.65mm",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: "1.35mm",
             flexShrink: 0,
           }}
         >
@@ -283,7 +283,7 @@ export default function PdfPage10({
               style={{
                 borderRadius: "4mm",
                 padding: "2.05mm 2.8mm",
-                minHeight: "19.5mm",
+                minHeight: "17mm",
                 background: k.bg,
                 border: k.border,
                 boxShadow: "0 1.5mm 5mm rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85)",
@@ -294,7 +294,7 @@ export default function PdfPage10({
             >
               <div
                 style={{
-                  fontSize: "2.7mm",
+                  fontSize: "2.35mm",
                   fontWeight: 800,
                   color: titleInk,
                   textTransform: "uppercase",
@@ -304,7 +304,7 @@ export default function PdfPage10({
                 {k.label}
               </div>
               <div style={{ fontSize: kpiValueSize, fontWeight: 900, color: k.accent, lineHeight: 1.02, letterSpacing: "-0.03em" }}>{k.line}</div>
-              <div style={{ fontSize: "2.55mm", color: softSub, fontWeight: 500 }}>{k.sub}</div>
+              <div style={{ fontSize: "2.25mm", color: softSub, fontWeight: 500, lineHeight: 1.2 }}>{k.sub}</div>
             </div>
           ))}
         </div>
@@ -315,15 +315,15 @@ export default function PdfPage10({
               width: "100%",
               alignSelf: "stretch",
               borderRadius: "3mm",
-              padding: "2mm 2.6mm",
+              padding: "1.45mm 2.2mm",
               border: "0.35mm solid rgba(195,152,71,0.35)",
               background: "rgba(255,251,235,0.9)",
-              fontSize: "2.65mm",
+              fontSize: "2.42mm",
               color: subInk,
-              lineHeight: 1.45,
+              lineHeight: 1.28,
             }}
           >
-            <div style={{ fontWeight: 800, marginBottom: "1mm", color: titleInk }}>Poste annuel batterie virtuelle (TTC)</div>
+            <div style={{ fontWeight: 800, marginBottom: "0.55mm", color: titleInk }}>Poste annuel batterie virtuelle (TTC)</div>
             {num(rv.energy_purchase_from_grid_eur) != null ? (
               <div>Achat réseau (énergie, {fmtInt(rv.grid_import_kwh as number)} kWh) : {fmtEUR(rv.energy_purchase_from_grid_eur as number)}</div>
             ) : null}
@@ -341,7 +341,7 @@ export default function PdfPage10({
               <div>Frais d&apos;activation (année 1) : {fmtEUR(rv.virtual_battery_activation_ttc as number)}</div>
             ) : null}
             {typeof rv.supplier_subscription_note === "string" && rv.supplier_subscription_note ? (
-              <div style={{ marginTop: "0.6mm", fontSize: "2.35mm", color: softSub }}>{String(rv.supplier_subscription_note)}</div>
+              <div style={{ marginTop: "0.35mm", fontSize: "2.12mm", color: softSub }}>{String(rv.supplier_subscription_note)}</div>
             ) : null}
           </div>
         ) : null}
@@ -354,7 +354,7 @@ export default function PdfPage10({
             flexShrink: 0,
             background: "linear-gradient(180deg, #171717 0%, #0a0a0a 100%)",
             boxShadow: "0 2mm 6mm rgba(0,0,0,0.35)",
-            padding: "1.85mm 2.4mm 1.7mm",
+            padding: "1.35mm 2.1mm 1.25mm",
           }}
         >
           <div
@@ -364,7 +364,7 @@ export default function PdfPage10({
               color: "rgba(255,255,255,0.95)",
               letterSpacing: "0.12em",
               textTransform: "uppercase",
-              marginBottom: "0.85mm",
+              marginBottom: "0.55mm",
               textAlign: "left",
             }}
           >
@@ -432,7 +432,7 @@ export default function PdfPage10({
             alignSelf: "stretch",
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
-            gap: "2.1mm",
+            gap: "1.55mm",
             alignItems: "stretch",
             alignContent: "start",
             flex: "0 0 auto",
@@ -441,7 +441,7 @@ export default function PdfPage10({
         >
           <div
             style={{
-              padding: "3.2mm 3.5mm",
+              padding: "2.45mm 2.85mm",
               borderRadius: "4mm",
               background: "linear-gradient(165deg, #fff 0%, #f9fafb 100%)",
               border: "0.35mm solid #e5e7eb",
@@ -453,9 +453,9 @@ export default function PdfPage10({
               alignItems: "start",
             }}
           >
-            <div style={{ display: "flex", flexDirection: "column", gap: "1.45mm", flexShrink: 0, minHeight: 0 }}>
-              <div style={{ fontSize: "3.85mm", fontWeight: 900, color: titleInk, flexShrink: 0 }}>Caractéristiques du projet</div>
-              <ul style={{ margin: 0, padding: "0 0 0 4mm", fontSize: "3.25mm", color: subInk, lineHeight: 1.48, fontWeight: 500, flexShrink: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.05mm", flexShrink: 0, minHeight: 0 }}>
+              <div style={{ fontSize: "3.45mm", fontWeight: 900, color: titleInk, flexShrink: 0 }}>Caractéristiques du projet</div>
+              <ul style={{ margin: 0, padding: "0 0 0 3.4mm", fontSize: "2.85mm", color: subInk, lineHeight: 1.36, fontWeight: 500, flexShrink: 0 }}>
                 <li style={{ marginBottom: "0.55mm" }}>
                   {nbPanels != null && Number(nbPanels) > 0 ? (
                     <>Installation de <strong style={{ color: ink }}>{fmtInt(nbPanels)}</strong> panneaux</>
@@ -481,7 +481,7 @@ export default function PdfPage10({
 
           <div
             style={{
-              padding: "3mm 3.2mm",
+              padding: "2.35mm 2.75mm",
               borderRadius: "4mm",
               background: `linear-gradient(165deg, ${hexToRgba(gold, 0.12)} 0%, #fff 52%)`,
               border: `0.42mm solid ${hexToRgba(gold, 0.38)}`,
@@ -491,15 +491,15 @@ export default function PdfPage10({
               display: "flex",
               flexDirection: "column",
               justifyContent: "flex-start",
-              gap: "1.75mm",
+              gap: "1.15mm",
             }}
           >
-            <div style={{ fontSize: "3.85mm", fontWeight: 900, color: titleInk, flexShrink: 0 }}>Enjeux du photovoltaïque aujourd&apos;hui</div>
+            <div style={{ fontSize: "3.45mm", fontWeight: 900, color: titleInk, flexShrink: 0 }}>Enjeux du photovoltaïque aujourd&apos;hui</div>
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: "1mm",
+                gap: "0.55mm",
                 flex: "0 0 auto",
                 minHeight: 0,
                 justifyContent: "flex-start",
@@ -516,8 +516,8 @@ export default function PdfPage10({
                     display: "flex",
                     gap: "1.4mm",
                     alignItems: "flex-start",
-                    paddingBottom: idx < 2 ? "1.15mm" : "0.4mm",
-                    marginBottom: idx < 2 ? "1.15mm" : 0,
+                    paddingBottom: idx < 2 ? "0.75mm" : "0.2mm",
+                    marginBottom: idx < 2 ? "0.75mm" : 0,
                     borderBottom: idx < 2 ? `0.25mm solid ${hexToRgba(gold, 0.28)}` : "none",
                     flexShrink: 0,
                   }}
@@ -541,8 +541,8 @@ export default function PdfPage10({
                     {x.icon}
                   </span>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: "2.95mm", fontWeight: 800, color: titleInk, lineHeight: 1.12 }}>{x.t}</div>
-                    <div style={{ fontSize: "2.65mm", color: softSub, lineHeight: 1.22, marginTop: "0.28mm" }}>{x.d}</div>
+                    <div style={{ fontSize: "2.65mm", fontWeight: 800, color: titleInk, lineHeight: 1.12 }}>{x.t}</div>
+                    <div style={{ fontSize: "2.35mm", color: softSub, lineHeight: 1.18, marginTop: "0.2mm" }}>{x.d}</div>
                   </div>
                 </div>
               ))}
@@ -551,20 +551,20 @@ export default function PdfPage10({
             <div
               style={{
                 flexShrink: 0,
-                padding: "1.45mm 0 0",
+                padding: "1mm 0 0",
                 borderTop: `0.4mm solid ${hexToRgba(gold, 0.42)}`,
                 textAlign: "left",
               }}
             >
-              <div style={{ fontSize: "3.55mm", fontWeight: 900, color: titleInk, marginBottom: "0.55mm" }}>Le dispositif retenu est :</div>
-              <div style={{ fontSize: "3.35mm", color: ink, fontWeight: 700, lineHeight: 1.32 }}>
+              <div style={{ fontSize: "3.15mm", fontWeight: 900, color: titleInk, marginBottom: "0.35mm" }}>Le dispositif retenu est :</div>
+              <div style={{ fontSize: "2.95mm", color: ink, fontWeight: 700, lineHeight: 1.24 }}>
                 <span style={{ color: gold, fontWeight: 900 }}>✔</span> rentable &nbsp;&nbsp;
                 <span style={{ color: gold, fontWeight: 900 }}>✔</span> durable &nbsp;&nbsp;
                 <span style={{ color: gold, fontWeight: 900 }}>✔</span> immédiatement activable
               </div>
               <div
                 style={{
-                  fontSize: "3.45mm",
+                  fontSize: "3.05mm",
                   fontWeight: 900,
                   color: ink,
                   marginTop: "0.62mm",
@@ -573,10 +573,10 @@ export default function PdfPage10({
               >
                 Le projet peut être engagé dès validation du dossier
               </div>
-              <div style={{ fontSize: "3.05mm", color: subInk, marginTop: "0.5mm", fontWeight: 500, lineHeight: 1.3 }}>
+              <div style={{ fontSize: "2.72mm", color: subInk, marginTop: "0.35mm", fontWeight: 500, lineHeight: 1.22 }}>
                 Gain net cumulé sur 25 ans (estimation) : <strong style={{ color: ink, fontWeight: 800 }}>{fmtEUR(gains25)}</strong> — même base que l&apos;étude financière (page 2).
               </div>
-              <div style={{ fontSize: "2.7mm", color: "#6b7280", marginTop: "0.8mm", lineHeight: 1.35 }}>
+              <div style={{ fontSize: "2.35mm", color: "#6b7280", marginTop: "0.45mm", lineHeight: 1.22 }}>
                 Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte.
               </div>
             </div>
@@ -587,7 +587,7 @@ export default function PdfPage10({
           style={{
             width: "100%",
             alignSelf: "stretch",
-            display: "flex",
+            display: "none",
             alignItems: "center",
             justifyContent: "flex-start",
             gap: "2.4mm",

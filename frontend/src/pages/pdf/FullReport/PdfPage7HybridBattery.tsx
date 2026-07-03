@@ -250,10 +250,11 @@ export default function PdfPage7HybridBattery({
   const comparison = data.comparison ?? {};
   const limits = Array.isArray(data.limits) ? data.limits.slice(0, 3) : [];
 
-  const badgeText =
-    data.title != null && String(data.title).trim() !== ""
-      ? String(data.title)
-      : "Configuration hybride : physique + virtuelle en cascade";
+  const badgeText = "Configuration hybride";
+  const subtitleText =
+    data.subtitle != null && String(data.subtitle).trim() !== ""
+      ? String(data.subtitle)
+      : "Physique + virtuelle en cascade : la batterie physique gere les cycles journaliers, le surplus residuel devient un credit kWh.";
 
   // Calcul de la barre de répartition (largeurs relatives en %)
   const total = num(layers.total_valorised_kwh) ?? 1;
@@ -319,7 +320,7 @@ export default function PdfPage7HybridBattery({
     >
       {/* Sous-titre */}
       <p style={{ margin: "0 0 1.5mm 0", fontSize: "3.2mm", lineHeight: 1.38, color: "#555", flexShrink: 0 }}>
-        {val(data.subtitle)}
+        {val(subtitleText)}
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "3.5mm", flex: 1, minHeight: 0 }}>

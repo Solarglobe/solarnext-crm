@@ -49,6 +49,7 @@
         p1_k_autonomie: a.p1_k_autonomie,
         p1_k_tri: a.p1_k_tri,
         p1_k_gains: a.p1_k_gains,
+        p1_k_capex: a.p1_k_capex,
         p1_param_kva: a.p1_param_kva,
         p1_param_reseau: a.p1_param_reseau,
         p1_param_conso: a.p1_param_conso,
@@ -71,6 +72,7 @@
     set("p1_k_autonomie", a.p1_k_autonomie);
     set("p1_k_tri", a.p1_k_tri);
     set("p1_k_gains", a.p1_k_gains);
+    set("p1_k_capex", a.p1_k_capex);
 
     // PARAMÈTRES (p1_param_conso : nombre → format "21 541 kWh/an" côté front)
     set("p1_param_kva", a.p1_param_kva);

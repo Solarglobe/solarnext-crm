@@ -61,6 +61,7 @@
     set("p1_k_autonomie", a.p1_k_autonomie);
     set("p1_k_tri", a.p1_k_tri);
     set("p1_k_gains", a.p1_k_gains);
+    set("p1_k_capex", a.p1_k_capex);
 
     // PARAMÈTRES
     set("p1_param_kva", a.p1_param_kva);

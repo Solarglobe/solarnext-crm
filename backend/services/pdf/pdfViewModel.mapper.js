@@ -735,6 +735,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     num(financeActive.economie_total) ??
     numOrZero(financeActive.economie_year_1) * horizonYearsPdf;
   const irrPct = num(financeActive.irr_pct);
+  const capexRaw = num(financeActive.capex_ttc);
+  const capex = numOrZero(financeActive.capex_ttc);
 
   const p1_auto = {
     p1_client: clientName || "—",
@@ -749,13 +751,13 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p1_k_tri: oneDecimalPercent(irrPct),
     p1_k_gains: formatCurrency0(economieTotal),
     p1_k_gains_label: `Gains (${horizonYearsPdf} ans)`,
+    p1_k_capex: capexRaw != null ? formatCurrency0(capexRaw) : null,
     p1_param_kva: puissanceKva != null ? `${puissanceKva} kVA` : "",
     p1_param_reseau: reseauType === "mono" ? "Monophasé" : reseauType === "tri" ? "Triphasé" : reseauType || "—",
     p1_param_conso: consoAnnuelle,
   };
 
   const roiYears = Math.max(0, numOrZero(financeActive.roi_years));
-  const capex = numOrZero(financeActive.capex_ttc);
   const factureRestante = numOrZero(financeActive.facture_restante ?? finance.facture_restante);
 
   // Comparatif financier : dépenses électricité sur 25 ans

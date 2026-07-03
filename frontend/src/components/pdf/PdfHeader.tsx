@@ -44,6 +44,11 @@ const BADGE_STYLE: React.CSSProperties = {
   borderRadius: "999mm",
   color: `var(--brand, ${BRAND_FALLBACK})`,
   background: "rgba(255, 255, 255, 0.92)",
+  maxWidth: "calc(100% - var(--logoW, 0mm) - var(--metaW, 110mm) - 18mm)",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  textAlign: "center",
 };
 
 /**

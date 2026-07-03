@@ -70,6 +70,7 @@ export default function PdfPage1({
         autonomy: a?.p1_k_autonomie,
         irr: a?.p1_k_tri,
         gains25: a?.p1_k_gains,
+        capex: a?.p1_k_capex,
         kva: a?.p1_param_kva,
         reseau: a?.p1_param_reseau,
         consoAnnual: a?.p1_param_conso,
@@ -200,6 +201,13 @@ export default function PdfPage1({
               27 000 €
             </div>
             <div className="p1-premium__kpi-micro">Projection indicative</div>
+          </div>
+          <div className="p1-premium__kpi-cell p1-premium__kpi-cell--capex">
+            <div className="p1-premium__kpi-label">Investissement TTC</div>
+            <div className="p1-premium__kpi-value" id="p1_k_capex">
+              -
+            </div>
+            <div className="p1-premium__kpi-micro">CAPEX scenario retenu</div>
           </div>
         </div>
 
