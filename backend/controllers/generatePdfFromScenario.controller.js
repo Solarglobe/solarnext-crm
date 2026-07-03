@@ -11,6 +11,7 @@ import { generatePdfForVersion } from "./pdfGeneration.controller.js";
 import { getAbsolutePath } from "../services/localStorage.service.js";
 import { ensureLeadCommercialProposalFromScenarioPdf } from "../services/documents.service.js";
 import { resolveQuotePdfClientSlug } from "../services/quotePdfStorageName.js";
+import { buildStudyPdfFileName, extractPdfNameFactsFromSnapshot } from "../services/studyPdfFileName.util.js";
 import { CALC_ENGINE_VERSION } from "../services/calc/calc.constants.js";
 
 const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
@@ -144,6 +145,12 @@ export async function generatePdfFromScenario(req, res) {
             payload.leadDocument = { status: "error", reason: "STORAGE_KEY_MISSING" };
           } else {
             const pdfBuffer = await fs.readFile(getAbsolutePath(storageKey));
+            // Nom identique au document d'étude affiché sur le portail client :
+            // Etude-Scenario[-XkWc][-NBatterie(s)].pdf (mêmes faits, même snapshot).
+            const proposalFileName = buildStudyPdfFileName(
+              scenarioId,
+              extractPdfNameFactsFromSnapshot(snapshot)
+            );
             const leadResult = await ensureLeadCommercialProposalFromScenarioPdf({
               pdfBuffer,
               organizationId: org,
@@ -156,6 +163,8 @@ export async function generatePdfFromScenario(req, res) {
               scenarioLabelFr: SCENARIO_LABELS_FR[scenarioId] || scenarioId,
               clientSlug,
               sourceStudyVersionDocumentId: doc.id,
+              fileName: proposalFileName,
+              displayName: proposalFileName.replace(/\.pdf$/i, ""),
             });
             if (leadResult.status === "skipped") {
               payload.leadDocument = { status: "skipped", reason: leadResult.reason };

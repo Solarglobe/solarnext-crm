@@ -235,6 +235,9 @@ export async function buildSelectedScenarioSnapshot({
         scenario.hardware?.battery_usable_kwh ??
         scenario.hardware?.battery_capacity_kwh ??
         null,
+      // Nombre d'unités batteries physiques (1 si mono, N si multi) — sert au
+      // nommage des PDF (Etude-...-NBatterie(s).pdf) et à l'affichage.
+      unites: scenario.hardware?.battery_units ?? null,
       type:
         scenarioId === "BATTERY_PHYSICAL"
           ? "physique"

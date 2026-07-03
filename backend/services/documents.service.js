@@ -585,6 +585,10 @@ export async function ensureLeadCommercialProposalFromScenarioPdf(params) {
     scenarioLabelFr,
     clientSlug,
     sourceStudyVersionDocumentId,
+    // Nom/libellé imposés par l'appelant (Etude-Scenario-XkWc-NBatterie(s)) pour
+    // rester identique au document d'étude du portail client. Fallback : ancien nommage.
+    fileName: preferredFileName,
+    displayName: preferredDisplayName,
   } = params;
 
   const leadId = leadIdParam != null && String(leadIdParam).trim() !== "" ? String(leadIdParam).trim() : null;
@@ -611,7 +615,10 @@ export async function ensureLeadCommercialProposalFromScenarioPdf(params) {
     studyNumber != null && String(studyNumber).trim()
       ? String(studyNumber).trim()
       : String(studyId ?? "");
-  const displayName = `Proposition commerciale – ${scenarioLabelFrResolved} · ${studyNumberResolved}`;
+  const displayName =
+    preferredDisplayName && String(preferredDisplayName).trim()
+      ? String(preferredDisplayName).trim()
+      : `Proposition commerciale – ${scenarioLabelFrResolved} · ${studyNumberResolved}`;
   const scenarioSlug = SCENARIO_FILE_SLUGS[scenarioKey] || normalizeClientName(scenarioLabelFrResolved);
   const clientSlugResolved = clientSlug && String(clientSlug).trim() ? String(clientSlug).trim() : null;
 
@@ -623,6 +630,9 @@ export async function ensureLeadCommercialProposalFromScenarioPdf(params) {
     clientSlug: clientSlugResolved,
     scenarioSlug,
     sourceStudyVersionDocumentId,
+    ...(preferredFileName && String(preferredFileName).trim()
+      ? { fileName: String(preferredFileName).trim() }
+      : {}),
   });
 
   return { ok: true, status: "created", document: doc };

@@ -10,7 +10,7 @@ import * as pdfGenService from "../services/pdfGeneration.service.js";
 import { createPdfRenderToken } from "../services/pdfRenderToken.service.js";
 import { putEphemeralSnapshot } from "../services/pdfEphemeralSnapshot.service.js";
 import { saveStudyPdfDocument } from "../services/documents.service.js";
-import { buildStudyPdfFileName } from "../services/studyPdfFileName.util.js";
+import { buildStudyPdfFileName, extractPdfNameFactsFromSnapshot } from "../services/studyPdfFileName.util.js";
 import { mergeOrganizationCgvPdfAppend } from "../services/legalCgvPdfMerge.service.js";
 import { FINANCIAL_DOCUMENT_PDF_KIND } from "../constants/financialDocumentPdfKind.js";
 import { isPdfBlockedByConfidence } from "../services/calculationConfidence.service.js";
@@ -102,11 +102,16 @@ export async function generatePdfForVersion(params, options = {}) {
     pdfBuffer = await mergeOrganizationCgvPdfAppend(pdfBuffer, organizationId);
   }
 
-  const { clientName, studyName } = await studiesService.getStudyPdfDisplayNameParts(studyId, organizationId);
+  // Nommage : Etude-Scenario[-XkWc][-NBatterie(s)].pdf — sans nom client
+  // (téléchargement depuis la fiche lead ; le portail est déjà propre au client).
+  // Les faits (kWc, nb batteries) viennent du snapshot utilisé pour CE PDF.
+  const snapshotForName =
+    ephemeralSnapshot != null && typeof ephemeralSnapshot === "object"
+      ? ephemeralSnapshot
+      : version.selected_scenario_snapshot;
   const pdfDisplayName = buildStudyPdfFileName(
-    clientName,
-    studyName,
-    scenarioIdForPdf ?? version.selected_scenario_id
+    scenarioIdForPdf ?? version.selected_scenario_id,
+    extractPdfNameFactsFromSnapshot(snapshotForName)
   );
 
   const doc = await saveStudyPdfDocument(
