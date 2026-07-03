@@ -24,6 +24,7 @@ export interface AdminUser {
   email: string;
   first_name?: string | null;
   last_name?: string | null;
+  phone?: string | null;
   /** Présent si le backend expose un nom affichable (sinon utiliser email côté UI). */
   name?: string | null;
   status: string;
@@ -42,6 +43,7 @@ export async function adminCreateUser(body: {
   password: string;
   first_name?: string | null;
   last_name?: string | null;
+  phone?: string | null;
   roleIds?: string[];
 }): Promise<AdminUser> {
   const res = await apiFetch(apiUrl(`${BASE}/users`), {
@@ -59,6 +61,7 @@ export async function adminUpdateUser(
     status?: string;
     first_name?: string | null;
     last_name?: string | null;
+    phone?: string | null;
     roleIds?: string[];
   }
 ): Promise<AdminUser> {

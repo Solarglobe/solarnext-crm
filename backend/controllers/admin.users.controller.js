@@ -67,7 +67,7 @@ export async function list(req, res) {
     const org = orgId(req);
     const result = await pool.query(
       `SELECT u.id, u.email, u.status, u.last_login, u.created_at,
-              u.first_name, u.last_name,
+              u.first_name, u.last_name, u.phone,
               NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS name,
               COALESCE(
                 (SELECT array_agg(r.code) FROM rbac_user_roles ur
@@ -110,6 +110,7 @@ export async function create(req, res) {
     const { email, password, roleIds = [] } = req.body;
     const firstName = normOptName(req.body.first_name);
     const lastName = normOptName(req.body.last_name);
+    const phone = normOptName(req.body.phone);
 
     if (!email || !password) {
       return res.status(400).json({ error: "email et password requis" });
@@ -130,11 +131,11 @@ export async function create(req, res) {
 
     const passwordHash = await hashPassword(password);
     const insert = await pool.query(
-      `INSERT INTO users (organization_id, email, password_hash, status, first_name, last_name, email_verified)
-       VALUES ($1, $2, $3, 'active', $4, $5, false)
-       RETURNING id, email, status, created_at, first_name, last_name, email_verified,
+      `INSERT INTO users (organization_id, email, password_hash, status, first_name, last_name, phone, email_verified)
+       VALUES ($1, $2, $3, 'active', $4, $5, $6, false)
+       RETURNING id, email, status, created_at, first_name, last_name, phone, email_verified,
          NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)), '') AS name`,
-      [org, emailNorm, passwordHash, firstName, lastName]
+      [org, emailNorm, passwordHash, firstName, lastName, phone]
     );
     const user = insert.rows[0];
     const verification = await createEmailVerificationToken(user.id);
@@ -252,6 +253,10 @@ export async function update(req, res) {
       updates.push(`last_name = $${idx++}`);
       values.push(normOptName(req.body.last_name));
     }
+    if (req.body.phone !== undefined) {
+      updates.push(`phone = $${idx++}`);
+      values.push(normOptName(req.body.phone));
+    }
 
     if (updates.length > 0) {
       values.push(id);
@@ -285,7 +290,7 @@ export async function update(req, res) {
 
     const updated = await pool.query(
       `SELECT u.id, u.email, u.status, u.last_login, u.created_at,
-              u.first_name, u.last_name,
+              u.first_name, u.last_name, u.phone,
               NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS name,
               COALESCE(
                 (SELECT array_agg(r.code) FROM rbac_user_roles ur
@@ -304,6 +309,7 @@ export async function update(req, res) {
     if (status !== undefined) changed.push("status");
     if (req.body.first_name !== undefined) changed.push("first_name");
     if (req.body.last_name !== undefined) changed.push("last_name");
+    if (req.body.phone !== undefined) changed.push("phone");
     const changedNoRoles = changed.filter((c) => c !== "roles");
     if (changedNoRoles.length > 0) {
       void logAuditEvent({

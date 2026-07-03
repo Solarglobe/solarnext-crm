@@ -9,6 +9,7 @@ import {
   userHasSuperAdminRbacRole,
   userIsLiveSuperAdminByDb,
   sqlAndUserNotSuperAdmin,
+  sqlAndUserNotSuperAdminUnlessOrgSales,
 } from "../lib/superAdminUserGuards.js";
 
 test("isJwtSuperAdmin détecte le JWT", () => {
@@ -84,5 +85,12 @@ test("sqlAndUserNotSuperAdmin contient les deux exclusions legacy/RBAC", () => {
   const s = sqlAndUserNotSuperAdmin("u");
   assert.match(s, /rbac_user_roles/);
   assert.match(s, /user_roles/);
+  assert.match(s, /SUPER_ADMIN/);
+});
+
+test("sqlAndUserNotSuperAdminUnlessOrgSales laisse passer un super-admin commercial de son org", () => {
+  const s = sqlAndUserNotSuperAdminUnlessOrgSales("u");
+  assert.match(s, /SALES/);
+  assert.match(s, /r_sales\.organization_id = u\.organization_id/);
   assert.match(s, /SUPER_ADMIN/);
 });

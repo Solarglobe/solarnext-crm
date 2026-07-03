@@ -467,7 +467,13 @@ interface OverviewTabProps {
   /** Bouton "Identique au siège social" : copie billing_address_id → site_address_id */
   onCopyBillingToSite?: () => Promise<void>;
   consumptionMonthly: { month: number; kwh: number }[];
-  users: { id: string; email?: string }[];
+  users: {
+    id: string;
+    email?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    phone?: string | null;
+  }[];
   leadSources: LeadsMeta["sources"];
   /** Brouillon — aucun PATCH */
   onLeadChange: (p: Partial<OverviewLead>) => void;
@@ -1266,7 +1272,10 @@ export default function OverviewTab({
                 id="lead-assigned-user"
                 options={[
                   { value: "", label: "—" },
-                  ...users.map((u) => ({ value: u.id, label: u.email || u.id })),
+                  ...users.map((u) => {
+                    const name = [u.first_name?.trim(), u.last_name?.trim()].filter(Boolean).join(" ").trim();
+                    return { value: u.id, label: name ? `${name} - ${u.email || u.id}` : u.email || u.id };
+                  }),
                 ]}
                 value={lead.assigned_user_id ?? ""}
                 onChange={(v) => onLeadChange({ assigned_user_id: v || undefined })}

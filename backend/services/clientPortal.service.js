@@ -750,6 +750,7 @@ export async function buildClientPortalPayload(db, ctx) {
     `SELECT u.first_name AS advisor_first_name,
             u.last_name AS advisor_last_name,
             u.email AS user_email,
+            u.phone AS user_phone,
             o.phone AS org_phone,
             o.name AS org_name,
             o.trade_name AS org_trade_name,
@@ -773,7 +774,7 @@ export async function buildClientPortalPayload(db, ctx) {
     first_name: fn || null,
     last_name: ln || null,
     email: advRow?.user_email ?? null,
-    phone: advRow?.org_phone?.trim() || null,
+    phone: advRow?.user_phone?.trim() || advRow?.org_phone?.trim() || null,
   };
 
   const enc = encodeURIComponent(rawToken);

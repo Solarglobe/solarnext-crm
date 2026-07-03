@@ -27,11 +27,12 @@ import { logMutationDiff, TRACKED_LEAD_FIELDS } from "../../services/mutationLog
 import { AuditActions } from "../../services/audit/auditActions.js";
 import { assertOrgOwnership } from "../../services/security/assertOrgOwnership.js";
 import { resolveArchiveScopeFromQuery } from "../../services/leadsListFilterSql.service.js";
-import {
-  isJwtSuperAdmin,
-  sqlAndUserNotSuperAdmin,
-  effectiveSuperAdminRequestBypass,
-} from "../../lib/superAdminUserGuards.js";
+import {
+  isJwtSuperAdmin,
+  sqlAndUserNotSuperAdmin,
+  sqlAndUserNotSuperAdminUnlessOrgSales,
+  effectiveSuperAdminRequestBypass,
+} from "../../lib/superAdminUserGuards.js";
 import {
   hasEffectiveLeadReadScope,
   hasEffectiveLeadUpdateScope,
@@ -1221,10 +1222,10 @@ export async function getMeta(req, res) {
         [org]
       ),
       pool.query(
-        `SELECT u.id, u.email FROM users u
-         WHERE u.organization_id = $1
-         ${!isJwtSuperAdmin(req) ? sqlAndUserNotSuperAdmin("u") : ""}
-         ORDER BY u.email`,
+        `SELECT u.id, u.email, u.first_name, u.last_name, u.phone FROM users u
+         WHERE u.organization_id = $1
+         ${!isJwtSuperAdmin(req) ? sqlAndUserNotSuperAdminUnlessOrgSales("u") : ""}
+         ORDER BY NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.email`,
         [org]
       ),
       pool.query(

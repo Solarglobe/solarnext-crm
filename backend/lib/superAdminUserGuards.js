@@ -119,6 +119,36 @@ export function sqlAndUserNotSuperAdmin(alias = "u") {
 }
 
 /**
+ * Pour les listes d'assignation métier : masque les super-admins techniques,
+ * sauf s'ils portent aussi le rôle commercial RBAC de leur organisation.
+ * @param {string} alias
+ */
+export function sqlAndUserNotSuperAdminUnlessOrgSales(alias = "u") {
+  const a = alias.trim() || "u";
+  return ` AND (
+    EXISTS (
+      SELECT 1 FROM rbac_user_roles ur_sales
+      JOIN rbac_roles r_sales ON r_sales.id = ur_sales.role_id
+      WHERE ur_sales.user_id = ${a}.id
+        AND UPPER(TRIM(r_sales.code)) = 'SALES'
+        AND r_sales.organization_id = ${a}.organization_id
+    )
+    OR (
+      NOT EXISTS (
+        SELECT 1 FROM rbac_user_roles ur_sa
+        JOIN rbac_roles r_sa ON r_sa.id = ur_sa.role_id
+        WHERE ur_sa.user_id = ${a}.id AND UPPER(TRIM(r_sa.code)) = '${SUPER_ADMIN_ROLE_CODE}'
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM user_roles ur_leg
+        JOIN roles r_leg ON r_leg.id = ur_leg.role_id
+        WHERE ur_leg.user_id = ${a}.id AND UPPER(TRIM(r_leg.name)) = '${SUPER_ADMIN_ROLE_CODE}'
+      )
+    )
+  )`;
+}
+
+/**
  * @param {import("pg").Pool} pool
  * @param {string[]} roleIds
  */

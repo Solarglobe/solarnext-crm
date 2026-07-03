@@ -400,7 +400,13 @@ export interface LeadsMeta {
     is_closed?: boolean;
     code?: string | null;
   }[];
-  users: { id: string; email?: string }[];
+  users: {
+    id: string;
+    email?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    phone?: string | null;
+  }[];
   sources: {
     id: string;
     name: string;

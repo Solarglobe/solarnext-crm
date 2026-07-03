@@ -44,6 +44,7 @@ type UserFormState = {
   password: string;
   first_name: string;
   last_name: string;
+  phone: string;
   status: string;
   roleIds: string[];
   teamIds: string[];
@@ -72,6 +73,7 @@ function serializeForm(f: UserFormState): string {
     password: f.password,
     first_name: f.first_name,
     last_name: f.last_name,
+    phone: f.phone,
     status: f.status,
     roleIds: [...f.roleIds].sort(),
     teamIds: [...f.teamIds].sort(),
@@ -105,6 +107,7 @@ function UserNameCell({ u }: { u: AdminUser }) {
   );
   const primary = displayPrimaryName(u);
   const email = u.email || "";
+  const phone = u.phone?.trim() || "";
   const color = getAvatarColor(primary);
   return (
     <div className="admin-users-name-cell">
@@ -114,6 +117,7 @@ function UserNameCell({ u }: { u: AdminUser }) {
       <div className="admin-users-name-cell-text">
         <span className="admin-users-cell-name-primary">{primary}</span>
         {hasName && email ? <span className="admin-users-cell-name-email">{email}</span> : null}
+        {phone ? <span className="admin-users-cell-name-email">{phone}</span> : null}
       </div>
     </div>
   );
@@ -242,6 +246,7 @@ const emptyForm = (): UserFormState => ({
   password: "",
   first_name: "",
   last_name: "",
+  phone: "",
   status: "active",
   roleIds: [],
   teamIds: [],
@@ -381,6 +386,7 @@ export function AdminTabUsers() {
       password: "",
       first_name: user.first_name?.trim() ?? "",
       last_name: user.last_name?.trim() ?? "",
+      phone: user.phone?.trim() ?? "",
       status: user.status || "active",
       roleIds,
       teamIds: [],
@@ -416,6 +422,7 @@ export function AdminTabUsers() {
           status: form.status,
           first_name: form.first_name.trim() || null,
           last_name: form.last_name.trim() || null,
+          phone: form.phone.trim() || null,
           ...(form.password ? { password: form.password } : {}),
           roleIds: form.roleIds,
         });
@@ -429,6 +436,7 @@ export function AdminTabUsers() {
           password: form.password,
           first_name: form.first_name.trim() || undefined,
           last_name: form.last_name.trim() || undefined,
+          phone: form.phone.trim() || undefined,
           roleIds: form.roleIds,
         });
         if (form.teamIds.length > 0 || form.agencyIds.length > 0) {
@@ -514,6 +522,7 @@ export function AdminTabUsers() {
       list = list.filter((u) => {
         const name = normSearch(displayPrimaryName(u));
         const email = normSearch(u.email || "");
+        const phone = normSearch(u.phone || "");
         const rolesStr = (u.roles || []).join(" ").toLowerCase();
         const m = userMemberships[u.id];
         const teams = (m?.teamNames || []).join(" ").toLowerCase();
@@ -521,6 +530,7 @@ export function AdminTabUsers() {
         return (
           name.includes(q) ||
           email.includes(q) ||
+          phone.includes(q) ||
           rolesStr.includes(q) ||
           teams.includes(q) ||
           agencies.includes(q) ||
@@ -770,6 +780,20 @@ export function AdminTabUsers() {
                       placeholder="Optionnel"
                     />
                   </div>
+                </div>
+                <div className="admin-users-modal-field admin-users-modal-field--full">
+                  <label className="admin-users-modal-label" htmlFor="admin-user-phone">
+                    Telephone
+                  </label>
+                  <input
+                    id="admin-user-phone"
+                    type="tel"
+                    value={form.phone}
+                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    className="sn-input admin-users-modal-input"
+                    autoComplete="tel"
+                    placeholder="Optionnel"
+                  />
                 </div>
                 {!editingUser ? (
                   <div className="admin-users-modal-field admin-users-modal-field--full">

@@ -355,7 +355,13 @@ export function useLeadDetail() {
   const [billingGeoValidationModalOpen, setBillingGeoValidationModalOpen] = useState(false);
 
   // ——— Meta ———
-  const [users, setUsers] = useState<{ id: string; email?: string }[]>([]);
+  const [users, setUsers] = useState<{
+    id: string;
+    email?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    phone?: string | null;
+  }[]>([]);
   const [leadSources, setLeadSources] = useState<LeadsMeta["sources"]>([]);
 
   // ——— Documents ———
