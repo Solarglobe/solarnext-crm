@@ -349,6 +349,14 @@ export async function buildSelectedScenarioSnapshot({
     irr_pct: scenario.finance?.irr_pct ?? null,
     facture_restante: scenario.finance?.residual_bill_eur ?? null,
     revenu_surplus: scenario.finance?.surplus_revenue_eur ?? null,
+    // FIX « Coût batterie virtuelle/an : 0 € » — persister le coût annuel TTC du service VB
+    // (abonnement stockage + contribution + restitution) pour le PDF quand le snapshot est
+    // la source des finances (sinon numOrZero → 0 € affiché, incohérent avec les économies nettes).
+    virtual_battery_cost_annual:
+      vf?.annual_total_virtual_cost_ttc ??
+      scenario._virtualBatteryQuote?.annual_cost_ttc ??
+      scenario.finance?.virtual_battery_cost_annual ??
+      null,
     estimated_annual_bill_eur:
       scenario.finance?.estimated_annual_bill_eur ??
       scenario.finance?.residual_bill_eur ??

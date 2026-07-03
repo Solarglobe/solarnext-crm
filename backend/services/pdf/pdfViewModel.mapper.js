@@ -777,6 +777,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const vbAnnualServiceCostTtc = numOrZero(
     financeActive.virtual_battery_finance?.annual_total_virtual_cost_ttc ??
       finance.virtual_battery_finance?.annual_total_virtual_cost_ttc ??
+      // FIX « Coût batterie virtuelle/an : 0 € » — les finances issues de scenarios_v2 ne portent
+      // pas virtual_battery_finance mais exposent le total annuel du service (abonnement stockage
+      // + contribution + restitution) via virtual_battery_cost_annual (scenarioV2Mapper).
+      financeActive.virtual_battery_cost_annual ??
+      finance.virtual_battery_cost_annual ??
       financeActive._virtualBatteryQuote?.annual_cost_ttc ??
       finance._virtualBatteryQuote?.annual_cost_ttc
   );
