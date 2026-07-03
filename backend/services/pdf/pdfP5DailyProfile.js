@@ -186,8 +186,10 @@ export function buildP5DailyProfiles(params) {
       annualProductionKwh,
       latitudeDeg
     );
+    /* Pas de préfixe « Production : » ici — PdfPage5 ajoute déjà le label en gras
+       (doublon « Production : Production : » vu en production, audit 2026-07-03). */
     prodNote =
-      "Production : profil journalier reconstruit à partir du bilan annuel/mensuel et de la largeur de journée solaire (énergie du jour = production annuelle ÷ 365).";
+      "profil journalier reconstruit à partir du bilan annuel/mensuel et de la largeur de journée solaire (énergie du jour = production annuelle ÷ 365).";
   }
 
   let consommation_kw;
@@ -203,7 +205,7 @@ export function buildP5DailyProfiles(params) {
       monthlyConsumptionKwh12
     );
     consoNote =
-      "Consommation : profil journalier estimatif (pas de mesure horaire) ; cohérent avec la consommation annuelle.";
+      "profil journalier estimatif (pas de mesure horaire) ; cohérent avec la consommation annuelle.";
   }
 
   return {

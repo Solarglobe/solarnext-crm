@@ -110,6 +110,14 @@ export default function PdfPage7({
   const pBat = Math.round(safeNum(pct.p_bat_pct));
   const pSurplusPct = Math.round(safeNum(pct.p_surplus_pct));
   const pSurplusKwh = p7.p_surplus ?? 0;
+  /* FIX injecté/crédité (audit 2026-07-03) — en scénario stockage, exported = 0 :
+     on affiche le surplus valorisé (batterie + crédit + export résiduel) et on adapte
+     le vocabulaire (« converti en crédit » plutôt que « injecté »). */
+  const isStorageScenario =
+    (p7 as unknown as { is_storage_scenario?: boolean }).is_storage_scenario === true;
+  const surplusValoriseKwh = safeNum(
+    (p7 as unknown as { p_surplus_valorise?: number }).p_surplus_valorise
+  );
   const consoKwh = p7.consumption_kwh ?? 0;
   const autoKwh = p7.autoconsumption_kwh ?? 0;
   const prodKwh = p7.production_kwh ?? 0;
@@ -342,7 +350,7 @@ export default function PdfPage7({
                     </div>
                     <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.6mm", lineHeight: 1.25 }}>
                       {isBatteryScenario
-                        ? `${fmtKwh(shownKwh)} consommés au moment de la production — total avec batterie en page suivante`
+                        ? `${fmtKwh(shownKwh)} consommés au moment de la production. Le détail complet avec batterie est présenté en page suivante.`
                         : `Vous utiliserez environ ${fmtKwh(shownKwh)} de votre production solaire`}
                     </div>
                   </>
@@ -389,8 +397,8 @@ export default function PdfPage7({
               </div>
               <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.6mm", lineHeight: 1.25 }}>
                 {solarCoveragePct >= 50
-                  ? "Plus de la moitié de votre consommation est couverte par votre installation solaire"
-                  : `Vous couvrez environ ${fmtPct(solarCoveragePct)} de vos besoins avec votre installation solaire`}
+                  ? "Plus de la moitié de votre consommation est couverte par votre installation solaire (facture hors abonnement compteur)"
+                  : `Vous couvrez environ ${fmtPct(solarCoveragePct)} de vos besoins avec votre installation solaire (facture hors abonnement compteur)`}
               </div>
             </div>
           </div>
@@ -428,7 +436,12 @@ export default function PdfPage7({
                   <div style={{ fontSize: "3.12mm", color: "#444", lineHeight: 1.42 }}>
                     <div style={{ fontWeight: 600, marginBottom: "1.1mm" }}>{fmtKwh(prodKwh)} produits par an</div>
                     <div>• {fmtKwh(autoKwh)} consommés sur place</div>
-                    <div>• {fmtKwh(pSurplusKwh)} injectés sur le réseau</div>
+                    <div>
+                      •{" "}
+                      {isStorageScenario
+                        ? `${fmtKwh(surplusValoriseKwh)} valorisés via stockage / crédit`
+                        : `${fmtKwh(pSurplusKwh)} injectés sur le réseau`}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -469,7 +482,11 @@ export default function PdfPage7({
                 <ol className="p7-lecture-steps p7-lecture-steps--compact">
                   <li>une part de la production est consommée directement sur site</li>
                   <li>le complément est assuré par le réseau selon les périodes</li>
-                  <li>le surplus est injecté et valorisé selon les conditions du dossier</li>
+                  <li>
+                    {isStorageScenario
+                      ? "le surplus est stocké puis restitué, ou injecté et converti en crédit kWh (batterie virtuelle)"
+                      : "le surplus est injecté et valorisé selon les conditions du dossier"}
+                  </li>
                 </ol>
                 <p style={{ margin: "1mm 0 0 0", fontSize: "3mm", color: "#B08B2E", lineHeight: 1.42, fontWeight: 600 }}>
                   {cBat > 0 || pBat > 0

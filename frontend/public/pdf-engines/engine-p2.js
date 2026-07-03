@@ -51,6 +51,19 @@
     const eco25 = parseEur(a.p2_economie_totale) ?? parseEur(a.p2_economie_nette);
 
     [5, 10, 15, 20, 25].forEach(function (y) {
+      // FIX jalons réels : le backend fournit désormais p2_sans_5..25 / p2_avec_5..25 /
+      // p2_eco_5..25 calculés depuis la vraie série de flux indexée (baseline commune
+      // à toutes les variantes). La règle de trois (RATIOS) ne sert plus que de
+      // fallback pour les payloads antérieurs au correctif.
+      const sansExplicit = parseEur(a["p2_sans_" + y]);
+      const avecExplicit = parseEur(a["p2_avec_" + y]);
+      const ecoExplicit = parseEur(a["p2_eco_" + y]);
+      if (sansExplicit != null && avecExplicit != null && ecoExplicit != null) {
+        set("p2_sans_" + y, formatEur(sansExplicit));
+        set("p2_avec_" + y, formatEur(avecExplicit));
+        set("p2_eco_" + y, formatEur(ecoExplicit));
+        return;
+      }
       const r = RATIOS[y];
       set("p2_sans_" + y, formatEur(sans25 != null ? Math.round(sans25 * r) : null));
       set("p2_avec_" + y, formatEur(avec25 != null ? Math.round(avec25 * r) : null));

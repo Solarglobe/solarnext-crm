@@ -786,10 +786,83 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       finance._virtualBatteryQuote?.annual_cost_ttc
   );
   const annualBillWithSolar = factureRestante + vbAnnualServiceCostTtc;
-  const gridCostWithSolar = Math.round(annualBillWithSolar * horizonYearsPdf);
-  const gridCostWithoutSolar = Math.round(economieTotal + gridCostWithSolar + capex);
-  // Économie brute = différence pure de factures électricité (sans investissement)
-  const economieGross = gridCostWithoutSolar - gridCostWithSolar;
+  // ── FIX BASELINE COMMUNE + JALONS RÉELS (audit Bedouelle 2026-07-03) ────────────
+  // Avant : « Avec solaire » = facture an 1 × horizon (PLAT, non indexé) et « Sans
+  // solaire » reconstruit algébriquement (éco nette + avec + capex) → la baseline
+  // dépendait du scénario (109 620 € en 12 kWc vs 98 356 € en 9 kWc, même client !)
+  // et les jalons 5/10/15/20 ans (règle de trois engine-p2) contredisaient le ROI.
+  // Après :
+  //   • sans_Y  = facture an 1 SANS solaire (définition moteur : economie_an1 =
+  //     facture_avant − facture_après) indexée elec_growth_pct — identique pour
+  //     toutes les variantes d'un même client ;
+  //   • eco_Y   = cumul_gains_eur[Y] de la VRAIE série annual_cashflows (celle qui
+  //     alimente déjà ROI/TRI et la page « Gains nets » → cohérence garantie) ;
+  //   • avec_Y  = sans_Y − eco_Y.
+  // Fallback intégral sur l'ancienne reconstruction si série/baseline absentes.
+  const _p2Flows = (() => {
+    const f =
+      scenarioForFinance?.finance?.annual_cashflows ??
+      (Array.isArray(scenarioForFinance?.cashflows) ? scenarioForFinance.cashflows : null);
+    return Array.isArray(f) ? f : [];
+  })();
+  const _p2CumulGainsAtYear = (y) => {
+    if (_p2Flows.length === 0) return null;
+    const row =
+      _p2Flows.find((f) => num(f?.year) === y) ??
+      (_p2Flows.length >= y ? _p2Flows[y - 1] : null);
+    if (!row) return null;
+    // Deux formes possibles : moteur (cumul_gains_eur) ou snapshot (cumul_gains)
+    return num(row.cumul_gains_eur ?? row.cumul_gains);
+  };
+  const _p2EcoAn1 = num(financeActive.economie_an1) ?? num(financeActive.economie_year_1);
+  const _p2PriceEffConso = num(scenarioForFinance?.pricing?.p_eff_conso);
+  // Priorité : conso × prix effectif (source unique, strictement commune aux variantes) ;
+  // sinon reconstruction par la définition moteur de l'économie an 1.
+  const _p2BillBeforeY1 =
+    (consoAnnuelle != null && _p2PriceEffConso != null
+      ? consoAnnuelle * _p2PriceEffConso
+      : null) ??
+    (_p2EcoAn1 != null ? _p2EcoAn1 + annualBillWithSolar : null);
+  const _p2Growth = (snapshotElecGrowth ?? 0) / 100;
+  const _p2BaselineCumulAtYear = (y) => {
+    if (_p2BillBeforeY1 == null || !(y > 0)) return null;
+    const cumul =
+      _p2Growth !== 0
+        ? _p2BillBeforeY1 * ((Math.pow(1 + _p2Growth, y) - 1) / _p2Growth)
+        : _p2BillBeforeY1 * y;
+    return Math.round(cumul);
+  };
+  const _p2Baseline25 = _p2BaselineCumulAtYear(horizonYearsPdf);
+  const _p2CumulGains25 = _p2CumulGainsAtYear(horizonYearsPdf);
+  const _p2UseRealSeries = _p2Baseline25 != null && _p2CumulGains25 != null;
+
+  let gridCostWithoutSolar;
+  let gridCostWithSolar;
+  let economieGross;
+  if (_p2UseRealSeries) {
+    gridCostWithoutSolar = _p2Baseline25;
+    economieGross = Math.round(_p2CumulGains25);
+    gridCostWithSolar = Math.max(0, gridCostWithoutSolar - economieGross);
+  } else {
+    gridCostWithSolar = Math.round(annualBillWithSolar * horizonYearsPdf);
+    gridCostWithoutSolar = Math.round(economieTotal + gridCostWithSolar + capex);
+    // Économie brute = différence pure de factures électricité (sans investissement)
+    economieGross = gridCostWithoutSolar - gridCostWithSolar;
+  }
+
+  // Jalons explicites 5/10/15/20/25 ans → engine-p2 (fallback règle de trois sinon).
+  const p2Milestones = {};
+  if (_p2UseRealSeries) {
+    for (const y of [5, 10, 15, 20, 25]) {
+      const yEff = Math.min(y, horizonYearsPdf);
+      const sansY = _p2BaselineCumulAtYear(yEff);
+      const ecoY = _p2CumulGainsAtYear(yEff);
+      if (sansY == null || ecoY == null) continue;
+      p2Milestones[`p2_sans_${y}`] = formatCurrency0(sansY);
+      p2Milestones[`p2_eco_${y}`] = formatCurrency0(Math.round(ecoY));
+      p2Milestones[`p2_avec_${y}`] = formatCurrency0(Math.max(0, sansY - Math.round(ecoY)));
+    }
+  }
 
   const primeAmount = resolvePdfPrimeAutoconsoEur({
     systemPowerKw,
@@ -810,6 +883,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p2_date: dateDisplay,
     p2_sans_solaire: formatCurrency0(gridCostWithoutSolar),
     p2_avec_solaire: formatCurrency0(gridCostWithSolar),
+    // Jalons réels 5/10/15/20/25 ans (baseline commune indexée + série moteur).
+    // L'engine-p2 les utilise s'ils sont présents ; sinon fallback règle de trois.
+    ...p2Milestones,
     // p2_economie_totale = économie BRUTE (sans_solaire - avec_solaire)
     // Garantit que eco_Y = sans_Y - avec_Y pour chaque jalon de l'engine-p2.js
     p2_economie_totale: formatCurrency0(economieGross),
@@ -908,15 +984,69 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
        (NORTH-FALLBACK-FIX) ; les dossiers non revalidés affichent leur valeur stockée. */
     num(site.orientation_deg);
   const _p3bOrientationLetter = orientationMap[String(site.orientation_deg || "").toUpperCase()] || null;
+  /* FIX « Nord (0°) » (audit Bedouelle 2026-07-03) — sur toiture plate (tilt ≈ 0°),
+     l'azimut du SUPPORT est une valeur par défaut sans signification : l'engine p3b la
+     convertissait en « Nord (0°) », catastrophique à lire pour le client. Sur toit plat :
+       1. si le calepinage phase 3 porte un système de pose lesté validé
+          (options.flat_roof_mounting, snapshot Lot A) → orientation réelle des MODULES
+          (sud simple + inclinaison imposée par le système) ;
+       2. sinon → mention neutre « Toiture plate — non significative ».
+     Les valeurs textuelles traversent formatOrientation() sans transformation.
+     L'inclinaison reste celle du SUPPORT (libellé de la carte : « Inclinaison (support) »). */
+  // LOT D — matériel de pose toit plat : lignes PDF depuis le snapshot Lot A
+  // (options.flat_roof_mounting, déjà validé structurellement côté extraction ;
+  // [] / "" quand absent → rien d'affiché, rétrocompat totale). Calculé ici (avant
+  // p3b_auto) et réutilisé par `offer` plus bas.
+  const _flatRoofMountingPdf = formatFlatRoofMountingForPdf(options.flat_roof_mounting ?? null);
+  const _p3bFlatMountingList = Array.isArray(options.flat_roof_mounting)
+    ? options.flat_roof_mounting
+    : null;
+  const _p3bFlatMounting =
+    _p3bFlatMountingList && _p3bFlatMountingList.length > 0 ? _p3bFlatMountingList[0] : null;
+  const _p3bIsFlat = _p3bTilt != null && Math.abs(_p3bTilt) < 1;
+  const _p3bOrientationDisplay = _p3bIsFlat
+    ? _p3bFlatMounting
+      ? `Sud — modules inclinés ${_p3bFlatMounting.tilt_deg}° (${_p3bFlatMounting.brand})`
+      : "Toiture plate — non significative"
+    : _p3bAzimuth != null
+      ? _p3bAzimuth
+      : (_p3bOrientationLetter || "");
   const p3b_auto = {
     client: clientName,
     ref,
     date: dateDisplay,
     inclinaison: _p3bTilt != null ? `${_p3bTilt}°` : "",
-    orientation: _p3bAzimuth != null ? _p3bAzimuth : (_p3bOrientationLetter || ""),
+    orientation: _p3bOrientationDisplay,
     surface_m2: num(installation.surface_panneaux_m2) ?? (numOrZero(installation.panneaux_nombre) * 2),
     nb_panneaux: numOrZero(installation.panneaux_nombre),
     layout_snapshot: options.calpinage_layout_snapshot ?? null,
+    // LOT D bis — système de pose toit plat, affiché sur la page calepinage
+    // (le devis technique le porte déjà ; le dossier PDF doit dire la même chose).
+    systemes_pose: _flatRoofMountingPdf.lines,
+    systeme_pose_note: _flatRoofMountingPdf.note,
+    // Architecture électrique (micro-onduleurs) — data-driven, null si non applicable.
+    // Répond à « le dossier affiche 12 kWc tri mais ne prouve pas l'architecture AC » :
+    // nombre de micros, ratio, répartition par phase. Le détail protections/sections
+    // reste à la préparation technique (mention prudente côté frontend).
+    elec_architecture: (() => {
+      const model = [str(onduleur.marque), str(onduleur.modele)].filter(Boolean).join(" ").trim();
+      const nbPanneaux = numOrZero(installation.panneaux_nombre);
+      if (!model || nbPanneaux <= 0) return null;
+      const isMicro = /\bMI[\s-]?\d|micro/i.test(model);
+      if (!isMicro) return null;
+      // Atmoce MI1000 : 1 micro-onduleur pour 2 panneaux. Autres micros : ratio inconnu → non affiché.
+      const panelsPerMicro = /MI[\s-]?1000/i.test(model) ? 2 : null;
+      const microCount = panelsPerMicro ? Math.ceil(nbPanneaux / panelsPerMicro) : null;
+      const isTri = reseauType === "tri";
+      return {
+        onduleur_label: model,
+        nb_micro: microCount,
+        panels_per_micro: panelsPerMicro,
+        reseau: isTri ? "Triphasé" : reseauType === "mono" ? "Monophasé" : null,
+        par_phase:
+          isTri && microCount != null && microCount % 3 === 0 ? microCount / 3 : null,
+      };
+    })(),
   };
 
   const consumptionKwh = num(energy.consumption_kwh) ?? consoAnnuelle ?? 0;
@@ -1182,11 +1312,6 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const batterieHtPdf = Math.round(numOrZero(pdfBatteryScenario?.finance?.capex_ttc));
   const primeAmountRounded = Math.round(primeAmount);
   const totalTtcOffer = Math.round(capex * 1.1);
-  // LOT D — matériel de pose toit plat : lignes PDF depuis le snapshot Lot A
-  // (options.flat_roof_mounting, déjà validé structurellement côté extraction ;
-  // [] / "" quand absent → PdfPage3 n'affiche rien, rétrocompat totale).
-  const _flatRoofMountingPdf = formatFlatRoofMountingForPdf(options.flat_roof_mounting ?? null);
-
   const offer = {
     materiel_ht: offerMateriel,
     batterie_ht: batterieHtPdf,
@@ -1529,6 +1654,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           },
           c_grid: numOrZero(gridImportCanonicalP7),
           p_surplus: numOrZero(surplusP7),
+          // FIX « 0 kWh injectés » vs « surplus injecté et valorisé » (audit 2026-07-03) :
+          // en scénario stockage le surplus part en batterie/crédit (exported_kwh = 0) ;
+          // le frontend affiche alors le surplus VALORISÉ et adapte le vocabulaire.
+          is_storage_scenario: isBatScen,
+          p_surplus_valorise: isBatScen
+            ? numOrZero(restoredP7) + numOrZero(surplusP7)
+            : numOrZero(surplusP7),
+          credited_kwh: numOrZero(creditedP7),
           consumption_kwh: numOrZero(consoP7),
           autoconsumption_kwh: numOrZero(autoP7),
           production_kwh: numOrZero(prodP7),
@@ -1592,15 +1725,23 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           num(selectedScenario?.finance?.residual_bill_eur) ??
           num(financeActive?.residual_bill_eur);
 
+        // FIX libellé hybride (audit 2026-07-03) — cette page est aussi rendue pour
+        // BATTERY_HYBRID : le titre/libellés « batterie virtuelle » seuls sont incomplets
+        // (la page suivante détaille physique + virtuelle → incohérence pour le client).
+        const _p7vbIsHybrid = selectedKey === "BATTERY_HYBRID";
         return {
           meta: {
             client: clientName,
             ref,
             date: dateDisplay,
           },
-          title: "Impact réel de votre batterie virtuelle",
-          subtitle:
-            "Comprendre précisément ce qu’elle change dans votre projet solaire",
+          is_hybrid: _p7vbIsHybrid,
+          title: _p7vbIsHybrid
+            ? "Impact réel de votre stockage (physique + virtuel)"
+            : "Impact réel de votre batterie virtuelle",
+          subtitle: _p7vbIsHybrid
+            ? "Comprendre précisément ce que vos deux batteries changent dans votre projet solaire"
+            : "Comprendre précisément ce qu’elle change dans votre projet solaire",
           source: {
             consumption_kwh: consumptionKwh,
             production_kwh: productionKwh,

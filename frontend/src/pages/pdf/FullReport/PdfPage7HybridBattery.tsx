@@ -80,6 +80,51 @@ function fmtPtsFromRatio(v: unknown): string {
   return `+${(n * 100).toFixed(1).replace(".", ",")} pts`;
 }
 
+// ── Pictos SVG inline ────────────────────────────────────────────────────────────
+// FIX tofu (audit 2026-07-03) : les emoji ☀️/🔋/🌐/✅ sortaient en carrés vides dans
+// le PDF final (pas de police emoji dans l'environnement de rendu). SVG inline =
+// rendu déterministe quel que soit le conteneur.
+function IconSun({ size = "3.5mm" }: { size?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, display: "block" }} aria-hidden="true">
+      <circle cx="12" cy="12" r="4.5" fill="#f5c33b" stroke="#e0a800" strokeWidth="1.5" />
+      <path
+        d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"
+        stroke="#e0a800"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+function IconBattery({ size = "3.5mm" }: { size?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, display: "block" }} aria-hidden="true">
+      <rect x="2.5" y="7" width="17" height="10" rx="2" stroke="#27ae60" strokeWidth="2" />
+      <rect x="20.5" y="10" width="2.5" height="4" rx="0.8" fill="#27ae60" />
+      <rect x="5" y="9.5" width="4" height="5" rx="0.8" fill="#27ae60" />
+      <rect x="10" y="9.5" width="4" height="5" rx="0.8" fill="#8fd6ad" />
+    </svg>
+  );
+}
+function IconGlobe({ size = "3.5mm" }: { size?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, display: "block" }} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="#2980b9" strokeWidth="1.8" />
+      <ellipse cx="12" cy="12" rx="4" ry="9" stroke="#2980b9" strokeWidth="1.5" />
+      <path d="M3.6 9h16.8M3.6 15h16.8" stroke="#2980b9" strokeWidth="1.5" />
+    </svg>
+  );
+}
+function IconCheck({ size = "3.5mm" }: { size?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, display: "block" }} aria-hidden="true">
+      <circle cx="12" cy="12" r="10" fill="#27ae60" />
+      <path d="M7 12.5l3.2 3.2L17 9" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 // ── Styles partagés ─────────────────────────────────────────────────────────────
 const CARD_SOFT_BASE: React.CSSProperties = {
   padding: "3.6mm 3.3mm",
@@ -106,7 +151,7 @@ function LayerRow({
   isTotal,
   brandHex,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   sub?: string;
   value: string;
@@ -155,7 +200,7 @@ function CascadeStep({
   brandHex,
 }: {
   step: string;
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   desc: string;
   last?: boolean;
@@ -357,7 +402,8 @@ export default function PdfPage7HybridBattery({
               {fmtEur(kpis.estimated_annual_bill_eur)}
             </div>
             <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
-              Après application des deux couches de stockage
+              Après application des deux couches de stockage — hors abonnement compteur
+              (part fixe du fournisseur)
             </div>
           </div>
         </div>
@@ -372,21 +418,21 @@ export default function PdfPage7HybridBattery({
             </div>
             <CascadeStep
               step="1"
-              icon="☀️"
+              icon={<IconSun />}
               title="Autoconsommation directe"
               desc="La production solaire couvre immédiatement la consommation du moment."
               brandHex={brandHex}
             />
             <CascadeStep
               step="2"
-              icon="🔋"
+              icon={<IconBattery />}
               title="Batterie physique"
               desc="Le surplus de la journée est stocké et restitué le soir lors des pics de consommation."
               brandHex={brandHex}
             />
             <CascadeStep
               step="3"
-              icon="🌐"
+              icon={<IconGlobe />}
               title="Batterie virtuelle"
               desc="Le surplus résiduel est converti en crédits kWh pour réduire les factures d'import en hiver."
               last
@@ -502,28 +548,28 @@ export default function PdfPage7HybridBattery({
                 Contribution de chaque couche
               </div>
               <LayerRow
-                icon="☀️"
+                icon={<IconSun size="4mm" />}
                 label="Autoconsommation directe"
                 sub="Production → consommation immédiate"
                 value={fmtKwh(layers.direct_auto_kwh)}
                 brandHex={brandHex}
               />
               <LayerRow
-                icon="🔋"
+                icon={<IconBattery size="4mm" />}
                 label="Batterie physique"
                 sub="Charge jour · décharge soir"
                 value={fmtKwh(layers.physical_battery_kwh)}
                 brandHex={brandHex}
               />
               <LayerRow
-                icon="🌐"
+                icon={<IconGlobe size="4mm" />}
                 label="Crédit batterie virtuelle"
                 sub="Surplus → crédit kWh contractuel"
                 value={fmtKwh(layers.virtual_battery_kwh)}
                 brandHex={brandHex}
               />
               <LayerRow
-                icon="✅"
+                icon={<IconCheck size="4mm" />}
                 label="Total valorisé"
                 value={fmtKwh(layers.total_valorised_kwh)}
                 isTotal
@@ -567,7 +613,7 @@ export default function PdfPage7HybridBattery({
                     border: "0.3mm solid rgba(39,174,96,.22)",
                   }}
                 >
-                  <span style={{ fontSize: "3.5mm", flexShrink: 0 }}>🔋</span>
+                  <span style={{ flexShrink: 0, marginTop: "0.3mm" }}><IconBattery /></span>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: "2.9mm", color: "#1a6b3a" }}>Physique → cycles journaliers</div>
                     <div style={{ fontSize: "2.65mm", color: "#444", marginTop: "0.4mm", lineHeight: 1.35 }}>
@@ -585,7 +631,7 @@ export default function PdfPage7HybridBattery({
                     border: "0.3mm solid rgba(41,128,185,.22)",
                   }}
                 >
-                  <span style={{ fontSize: "3.5mm", flexShrink: 0 }}>🌐</span>
+                  <span style={{ flexShrink: 0, marginTop: "0.3mm" }}><IconGlobe /></span>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: "2.9mm", color: "#1a4a6b" }}>Virtuelle → buffer saisonnier</div>
                     <div style={{ fontSize: "2.65mm", color: "#444", marginTop: "0.4mm", lineHeight: 1.35 }}>

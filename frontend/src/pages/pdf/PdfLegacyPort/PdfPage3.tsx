@@ -66,10 +66,46 @@ export default function PdfPage3({
       ? (selfConsumedKwh / productionKwh) * 100
       : null;
   const exportKwh =
-    (energy?.export_kwh ?? energy?.surplus_kwh) != null &&
-    Number.isFinite(Number(energy?.export_kwh ?? energy?.surplus_kwh))
-      ? Number(energy?.export_kwh ?? energy?.surplus_kwh)
+    (energy?.export_kwh ?? energy?.exported_kwh ?? energy?.surplus_kwh) != null &&
+    Number.isFinite(Number(energy?.export_kwh ?? energy?.exported_kwh ?? energy?.surplus_kwh))
+      ? Number(energy?.export_kwh ?? energy?.exported_kwh ?? energy?.surplus_kwh)
       : null;
+
+  /* FIX « Énergie injectée : 0 kWh » (audit Bedouelle 2026-07-03) — en scénario batterie
+     (physique / virtuelle / hybride), le moteur met exported_kwh à 0 car le surplus est
+     stocké ou converti en crédit : afficher 0 contredit le texte « le surplus est injecté
+     et valorisé ». Pour ces scénarios, on affiche le surplus VALORISÉ (restitution physique
+     + crédit virtuel utilisé + export résiduel) — même grandeur que la « Restitution
+     batterie » de la page production, cohérence inter-pages garantie. */
+  const scenarioType = String(
+    (viewModel as { selected_scenario_snapshot?: { scenario_type?: string } })
+      ?.selected_scenario_snapshot?.scenario_type ?? ""
+  );
+  const isStorageScenario = scenarioType.startsWith("BATTERY");
+  const nOrZero = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : 0);
+  const valorizedSurplusKwh = isStorageScenario
+    ? nOrZero(energy?.battery_discharge_kwh) +
+      nOrZero(energy?.virtual_battery_discharge_kwh) +
+      nOrZero(exportKwh)
+    : null;
+
+  /* LOT D bis — système de pose toit plat + architecture électrique (payload p3b_auto). */
+  const p3bAuto = (fullReport?.p3b as {
+    p3b_auto?: {
+      systemes_pose?: string[];
+      systeme_pose_note?: string;
+      elec_architecture?: {
+        onduleur_label?: string;
+        nb_micro?: number | null;
+        panels_per_micro?: number | null;
+        reseau?: string | null;
+        par_phase?: number | null;
+      } | null;
+    };
+  } | undefined)?.p3b_auto;
+  const posesLines = Array.isArray(p3bAuto?.systemes_pose) ? p3bAuto!.systemes_pose! : [];
+  const poseNote = p3bAuto?.systeme_pose_note ?? "";
+  const elecArch = p3bAuto?.elec_architecture ?? null;
 
   // Puissance : hydratation DOM (engine ne fournit pas power_kwc)
   useEffect(() => {
@@ -218,6 +254,47 @@ export default function PdfPage3({
                 <span id="p3b_puissance" style={{ fontSize: "3.6mm", fontWeight: 600, color: "#333" }}>—</span>
               </div>
             </div>
+            {(posesLines.length > 0 || elecArch) && (
+              <div
+                style={{
+                  marginTop: "2mm",
+                  paddingTop: "2.2mm",
+                  borderTop: "0.15mm solid rgba(195,152,71,0.25)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1.4mm",
+                  fontSize: "3mm",
+                  lineHeight: 1.4,
+                  color: "#374151",
+                }}
+              >
+                {posesLines.length > 0 && (
+                  <div>
+                    <span style={{ fontWeight: 700, color: "#333" }}>Système de pose : </span>
+                    {posesLines.join(" · ")}
+                    {poseNote ? (
+                      <span style={{ color: "#64748b" }}> — {poseNote}</span>
+                    ) : null}
+                  </div>
+                )}
+                {elecArch && (
+                  <div>
+                    <span style={{ fontWeight: 700, color: "#333" }}>Architecture électrique : </span>
+                    {elecArch.nb_micro != null
+                      ? `${elecArch.nb_micro} micro-onduleurs ${elecArch.onduleur_label ?? ""}`.trim()
+                      : `micro-onduleurs ${elecArch.onduleur_label ?? ""}`.trim()}
+                    {elecArch.panels_per_micro != null
+                      ? ` (1 pour ${elecArch.panels_per_micro} panneaux)`
+                      : ""}
+                    {elecArch.reseau ? ` — raccordement ${elecArch.reseau.toLowerCase()}` : ""}
+                    {elecArch.par_phase != null ? `, ${elecArch.par_phase} par phase` : ""}
+                    <span style={{ color: "#64748b" }}>
+                      {" — répartition des branches AC, protections et sections de câble validées en préparation technique, conformément aux limites fabricant."}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
             <p style={{ margin: "2.5mm 0 0 0", fontSize: "3mm", color: "#64748b", lineHeight: 1.4 }}>
               Ces éléments définissent le dimensionnement et la performance du générateur retenu.
             </p>
@@ -264,9 +341,17 @@ export default function PdfPage3({
                 </span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                <span style={{ fontSize: "2.8mm", color: "#7a7a7a" }}>Énergie injectée</span>
+                <span style={{ fontSize: "2.8mm", color: "#7a7a7a" }}>
+                  {isStorageScenario ? "Surplus valorisé (batterie / crédit)" : "Énergie injectée"}
+                </span>
                 <span style={{ fontSize: "4mm", fontWeight: 700, color: "#333" }}>
-                  {exportKwh != null ? `${Math.round(exportKwh).toLocaleString("fr-FR")} kWh` : "—"}
+                  {isStorageScenario
+                    ? valorizedSurplusKwh != null && valorizedSurplusKwh > 0
+                      ? `${Math.round(valorizedSurplusKwh).toLocaleString("fr-FR")} kWh`
+                      : "—"
+                    : exportKwh != null
+                      ? `${Math.round(exportKwh).toLocaleString("fr-FR")} kWh`
+                      : "—"}
                 </span>
               </div>
             </div>

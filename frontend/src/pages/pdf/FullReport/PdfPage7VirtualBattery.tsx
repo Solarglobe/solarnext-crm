@@ -115,6 +115,9 @@ export default function PdfPage7VirtualBattery({
   }, [organization?.id, organization?.logo_image_key, organization?.logo_url, viewModel?.meta]);
 
   const meta = data.meta ?? {};
+  /* FIX libellé hybride (audit 2026-07-03) — en scénario hybride, cette page couvre
+     les DEUX couches de stockage : les libellés « batterie virtuelle » seuls sont faux. */
+  const isHybrid = (data as { is_hybrid?: boolean }).is_hybrid === true;
   const withBattery = data.with_virtual_battery ?? {};
   const maxTheoretical = data.max_theoretical ?? {};
   const kpis = (data as { kpis?: Record<string, unknown> }).kpis ?? {};
@@ -188,7 +191,11 @@ export default function PdfPage7VirtualBattery({
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", flex: 1, minHeight: 0 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "3.1mm", flexShrink: 0 }}>
           <div className="card soft" style={CARD_SOFT_BASE}>
-            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Énergie solaire utilisée (direct + batterie virtuelle)</div>
+            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
+              {isHybrid
+                ? "Énergie solaire utilisée (direct + batterie physique + batterie virtuelle)"
+                : "Énergie solaire utilisée (direct + batterie virtuelle)"}
+            </div>
             <div style={{ fontSize: "6.5mm", fontWeight: 800, lineHeight: 1 }}>{fmtKwh(kpis.energy_solar_used_kwh ?? withBattery.pv_total_used_kwh)}</div>
             <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
               {`Vous utiliserez environ ${fmtKwh(kpis.energy_solar_used_kwh ?? withBattery.pv_total_used_kwh)} de votre production solaire`}
@@ -210,7 +217,7 @@ export default function PdfPage7VirtualBattery({
             </div>
             <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
               {num(kpis.estimated_annual_bill_eur) != null
-                ? `Votre facture d’électricité sera d’environ ${Math.round(num(kpis.estimated_annual_bill_eur) as number).toLocaleString("fr-FR")} € par an`
+                ? `Votre facture d’électricité sera d’environ ${Math.round(num(kpis.estimated_annual_bill_eur) as number).toLocaleString("fr-FR")} € par an (hors abonnement compteur)`
                 : EMPTY}
             </div>
           </div>
@@ -254,10 +261,17 @@ export default function PdfPage7VirtualBattery({
               style={{ ...CARD_SOFT_BASE, display: "flex", flexDirection: "column", gap: "2.2mm", flexShrink: 0 }}
             >
               <div style={{ fontWeight: 700, fontSize: "3.2mm", color: brandHex }}>
-                Ce que la batterie virtuelle change — couverture de vos besoins
+                {isHybrid
+                  ? "Ce que le stockage (physique + virtuel) change — couverture de vos besoins"
+                  : "Ce que la batterie virtuelle change — couverture de vos besoins"}
               </div>
               {row("Sans batterie", pctS, "linear-gradient(90deg,#9ca3af,#6b7280)", false)}
-              {row("Avec batterie virtuelle", pctA, "linear-gradient(90deg,#34d399,#0b6e4f)", true)}
+              {row(
+                isHybrid ? "Avec batteries physique + virtuelle" : "Avec batterie virtuelle",
+                pctA,
+                "linear-gradient(90deg,#34d399,#0b6e4f)",
+                true
+              )}
             </div>
           );
         })()}
