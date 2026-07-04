@@ -288,14 +288,101 @@ export async function saveQuoteSignedPdfDocument(pdfBuffer, organizationId, quot
 }
 
 /**
+ * Une proposition commerciale est stockée en double : le miroir attaché au lead
+ * (entity_type='lead', visible dans l'onglet Documents) ET la source study_version
+ * (entity_type='study_version', affichée par le portail client). Le miroir référence
+ * sa source via metadata_json.source_study_version_document_id.
+ *
+ * Supprimer l'un sans l'autre laisse le portail réafficher la source via son repli.
+ * Ces helpers permettent une suppression en cascade des deux exemplaires.
+ */
+function isCommercialProposalDoc(doc) {
+  const dt = String(doc?.document_type ?? "").toLowerCase().trim();
+  const cat = String(doc?.document_category ?? "").toUpperCase().trim();
+  return dt === "study_pdf" || dt === "study_proposal" || cat === "COMMERCIAL_PROPOSAL";
+}
+
+function readMetadataObject(meta) {
+  if (!meta) return {};
+  if (typeof meta === "object" && !Array.isArray(meta)) return meta;
+  if (typeof meta === "string") {
+    try {
+      const parsed = JSON.parse(meta);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+/**
+ * Retourne la liste (dédupliquée) des documents à supprimer pour couvrir les deux
+ * exemplaires d'une proposition commerciale. Pour tout autre type de document,
+ * retourne uniquement le document cible.
+ * @param {import("pg").PoolClient} client
+ * @param {{ id: string, storage_key: string|null, entity_type?: string|null, entity_id?: string|null, document_type?: string|null, document_category?: string|null, metadata_json?: unknown }} doc
+ * @param {string} organizationId
+ * @returns {Promise<Array<{ id: string, storage_key: string|null }>>}
+ */
+export async function collectProposalCascadeTargets(client, doc, organizationId) {
+  const byId = new Map();
+  byId.set(String(doc.id), { id: doc.id, storage_key: doc.storage_key ?? null });
+  if (!isCommercialProposalDoc(doc)) return Array.from(byId.values());
+
+  const add = (rows) => {
+    for (const r of rows) {
+      if (!byId.has(String(r.id))) byId.set(String(r.id), { id: r.id, storage_key: r.storage_key ?? null });
+    }
+  };
+
+  const et = String(doc.entity_type ?? "").toLowerCase().trim();
+  const meta = readMetadataObject(doc.metadata_json);
+
+  if (et === "lead" || et === "client") {
+    // Miroir → retrouver la source study_version référencée explicitement.
+    const srcDocId =
+      meta.source_study_version_document_id != null
+        ? String(meta.source_study_version_document_id).trim()
+        : "";
+    if (srcDocId) {
+      const r = await client.query(
+        `SELECT id, storage_key FROM entity_documents
+         WHERE id = $1 AND organization_id = $2
+           AND document_type IN ('study_pdf', 'study_proposal')`,
+        [srcDocId, organizationId]
+      );
+      add(r.rows);
+    }
+  } else if (et === "study_version" || et === "study") {
+    // Source → retrouver les miroirs lead/client qui la référencent.
+    const r = await client.query(
+      `SELECT id, storage_key FROM entity_documents
+       WHERE organization_id = $1
+         AND entity_type IN ('lead', 'client')
+         AND document_type IN ('study_pdf', 'study_proposal')
+         AND metadata_json->>'source_study_version_document_id' = $2`,
+      [organizationId, String(doc.id)]
+    );
+    add(r.rows);
+  }
+
+  return Array.from(byId.values());
+}
+
+/**
  * Supprime un document (DB + fichier). Transaction atomique.
  * Si deleteFile échoue → rollback DB, document conservé.
+ * Pour une proposition commerciale, supprime en cascade le miroir lead ET la source
+ * study_version (les deux exemplaires), afin de la retirer aussi du portail client.
  * @throws 404 si absent ou archivé, 403 si cross-org
  */
 export async function deleteDocument(id, organizationId) {
   return withTx(pool, async (client) => {
     const docRes = await client.query(
-      `SELECT id, storage_key, organization_id, archived_at FROM entity_documents WHERE id = $1`,
+      `SELECT id, storage_key, organization_id, archived_at,
+              entity_type, entity_id, document_type, document_category, metadata_json
+       FROM entity_documents WHERE id = $1`,
       [id]
     );
     if (docRes.rows.length === 0) {
@@ -310,13 +397,17 @@ export async function deleteDocument(id, organizationId) {
       err.statusCode = 404;
       throw err;
     }
-    const storageKey = doc.storage_key;
 
-    await localStorageDelete(storageKey);
+    const targets = await collectProposalCascadeTargets(client, doc, organizationId);
+
+    for (const t of targets) {
+      // deleteFile est idempotent (ENOENT ignoré) ; en cas d'échec réel → rollback.
+      await localStorageDelete(t.storage_key);
+    }
 
     await client.query(
-      `DELETE FROM entity_documents WHERE id = $1 AND organization_id = $2`,
-      [id, organizationId]
+      `DELETE FROM entity_documents WHERE id = ANY($1::uuid[]) AND organization_id = $2`,
+      [targets.map((t) => t.id), organizationId]
     );
   });
 }

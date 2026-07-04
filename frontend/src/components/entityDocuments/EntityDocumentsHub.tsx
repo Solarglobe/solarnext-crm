@@ -360,6 +360,7 @@ export default function EntityDocumentsHub({
                 {list.map((doc) => {
                   const title = doc.displayName?.trim() || doc.file_name;
                   const sys = isSystemGenerated(doc);
+                  const isProposal = doc.documentCategory === "COMMERCIAL_PROPOSAL";
                   const isRecent = doc.id === newestDocumentId;
                   const lifecycle = resolveDocumentLifecycleBadge(doc.document_type);
                   return (
@@ -423,7 +424,7 @@ export default function EntityDocumentsHub({
                         >
                           {downloadingId === doc.id ? "Téléchargement…" : "Télécharger"}
                         </button>
-                        {sys ? (
+                        {sys && !isProposal ? (
                           <button
                             type="button"
                             className={styles.btnArchiveDoc}
@@ -603,7 +604,7 @@ export default function EntityDocumentsHub({
         title={confirmDocumentAction?.type === "delete" ? "Supprimer ce document ?" : "Archiver ce document ?"}
         message={
           confirmDocumentAction?.type === "delete"
-            ? "Le fichier sera retiré du dossier. Cette action est définitive."
+            ? "Le fichier sera définitivement supprimé du dossier et de l'espace client. Cette action est irréversible."
             : "Le document disparaîtra des listes actives sans supprimer le dossier client."
         }
         confirmLabel={confirmDocumentAction?.type === "delete" ? "Supprimer" : "Archiver"}
