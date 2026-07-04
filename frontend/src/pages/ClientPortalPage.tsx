@@ -106,6 +106,8 @@ type PortalPayload = {
     last_name: string | null;
     email: string | null;
     phone: string | null;
+    mobile: string | null;
+    company_phone: string | null;
   };
 };
 
@@ -372,6 +374,8 @@ function parsePortalPayload(raw: unknown): PortalPayload {
     last_name: normPortalStr(rawAdv.last_name),
     email: normPortalStr(rawAdv.email),
     phone: normPortalStr(rawAdv.phone),
+    mobile: normPortalStr(rawAdv.mobile),
+    company_phone: normPortalStr(rawAdv.company_phone),
   };
   const site = (client as Record<string, unknown>).site;
   if (!site || typeof site !== "object") throw new Error("Réponse serveur invalide (adresse).");
@@ -824,14 +828,25 @@ export default function ClientPortalPage() {
                 {contactIncomplete ? (
                   <p className="cp-advisor-fallback-msg">Un conseiller vous sera attribué prochainement.</p>
                 ) : null}
-                {data.advisor.phone ? (
+                {data.advisor.mobile ? (
                   <div className="cp-advisor-contact-block">
-                    <span className="cp-advisor-contact-label">Téléphone</span>
+                    <span className="cp-advisor-contact-label">Portable du conseiller</span>
                     <a
                       className="cp-advisor-contact-value"
-                      href={`tel:${String(data.advisor.phone).replace(/\s/g, "")}`}
+                      href={`tel:${String(data.advisor.mobile).replace(/\s/g, "")}`}
                     >
-                      {data.advisor.phone}
+                      {data.advisor.mobile}
+                    </a>
+                  </div>
+                ) : null}
+                {data.advisor.company_phone ? (
+                  <div className="cp-advisor-contact-block">
+                    <span className="cp-advisor-contact-label">Téléphone de l’entreprise</span>
+                    <a
+                      className="cp-advisor-contact-value"
+                      href={`tel:${String(data.advisor.company_phone).replace(/\s/g, "")}`}
+                    >
+                      {data.advisor.company_phone}
                     </a>
                   </div>
                 ) : null}

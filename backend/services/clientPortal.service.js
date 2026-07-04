@@ -770,11 +770,18 @@ export async function buildClientPortalPayload(db, ctx) {
       : null;
   const fn = advRow?.advisor_first_name != null ? String(advRow.advisor_first_name).trim() : "";
   const ln = advRow?.advisor_last_name != null ? String(advRow.advisor_last_name).trim() : "";
+  const advisorMobile = advRow?.user_phone?.trim() || null;
+  const companyPhone = advRow?.org_phone?.trim() || null;
   const advisor = {
     first_name: fn || null,
     last_name: ln || null,
     email: advRow?.user_email ?? null,
-    phone: advRow?.user_phone?.trim() || advRow?.org_phone?.trim() || null,
+    /** Mobile du commercial dédié (users.phone). Repli sur le tel entreprise si absent. */
+    phone: advisorMobile || companyPhone,
+    /** Portable du commercial, exposé séparément (peut coexister avec company_phone). */
+    mobile: advisorMobile,
+    /** Téléphone général de l'entreprise (organizations.phone). */
+    company_phone: companyPhone,
   };
 
   const enc = encodeURIComponent(rawToken);

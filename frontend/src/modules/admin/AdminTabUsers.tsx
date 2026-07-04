@@ -783,7 +783,7 @@ export function AdminTabUsers() {
                 </div>
                 <div className="admin-users-modal-field admin-users-modal-field--full">
                   <label className="admin-users-modal-label" htmlFor="admin-user-phone">
-                    Telephone
+                    Téléphone / portable (visible client)
                   </label>
                   <input
                     id="admin-user-phone"
@@ -792,7 +792,7 @@ export function AdminTabUsers() {
                     onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                     className="sn-input admin-users-modal-input"
                     autoComplete="tel"
-                    placeholder="Optionnel"
+                    placeholder="Ex. 06 12 34 56 78 — affiché au client sur son espace"
                   />
                 </div>
                 {!editingUser ? (

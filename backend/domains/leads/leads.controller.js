@@ -450,8 +450,14 @@ export async function getById(req, res) {
     }
     const { readAll: canReadAll, readSelf: canReadSelf } = leadReadFlagsForQuery(req, perms);
 
-    let query = `SELECT l.*, ps.name as stage_name FROM leads l
+    let query = `SELECT l.*, ps.name as stage_name,
+       u.first_name AS assigned_user_first_name,
+       u.last_name AS assigned_user_last_name,
+       u.email AS assigned_user_email,
+       u.phone AS assigned_user_phone
+       FROM leads l
        LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
+       LEFT JOIN users u ON u.id = l.assigned_user_id AND u.organization_id = l.organization_id
        WHERE l.id = $1 AND l.organization_id = $2`;
     const params = [id, org];
     if (canReadSelf && !canReadAll) {

@@ -370,6 +370,11 @@ export interface OverviewLead {
   roof_type?: string;
   frame_type?: string;
   assigned_user_id?: string;
+  /** Nom/contact du commercial assigné (renvoyé par GET /leads/:id, même si super-admin masqué de la liste). */
+  assigned_user_first_name?: string | null;
+  assigned_user_last_name?: string | null;
+  assigned_user_email?: string | null;
+  assigned_user_phone?: string | null;
   site_address_id?: string;
   /** Stocké côté API : { engine: { annual_kwh, hourly, debug? } } (conso moteur) */
   energy_profile?: Record<string, unknown> | unknown | null;
@@ -1276,6 +1281,23 @@ export default function OverviewTab({
                     const name = [u.first_name?.trim(), u.last_name?.trim()].filter(Boolean).join(" ").trim();
                     return { value: u.id, label: name ? `${name} - ${u.email || u.id}` : u.email || u.id };
                   }),
+                  // Commercial assigné absent de la liste (ex. super-admin masqué) : l'ajouter
+                  // pour que son nom s'affiche quand même, à partir des champs renvoyés par le lead.
+                  ...(lead.assigned_user_id && !users.some((u) => u.id === lead.assigned_user_id)
+                    ? [
+                        (() => {
+                          const name = [lead.assigned_user_first_name?.trim(), lead.assigned_user_last_name?.trim()]
+                            .filter(Boolean)
+                            .join(" ")
+                            .trim();
+                          const email = lead.assigned_user_email || "";
+                          return {
+                            value: lead.assigned_user_id,
+                            label: name ? `${name}${email ? ` - ${email}` : ""}` : email || lead.assigned_user_id,
+                          };
+                        })(),
+                      ]
+                    : []),
                 ]}
                 value={lead.assigned_user_id ?? ""}
                 onChange={(v) => onLeadChange({ assigned_user_id: v || undefined })}
