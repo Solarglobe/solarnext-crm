@@ -41,6 +41,9 @@ const STATUS_LABELS: Record<FicheTechniqueStatus, string> = {
 
 type SortByField = "created_at" | "name";
 type SortOrder = "asc" | "desc";
+type RefreshListOptions = {
+  force?: boolean;
+};
 
 type EmptyKind = "category" | "search" | "filters";
 
@@ -359,12 +362,12 @@ export default function InstallationFicheTechniquePage() {
   );
 
   const refreshList = useCallback(
-    async (pageOverride?: number, categoryOverride?: string) => {
+    async (pageOverride?: number, categoryOverride?: string, options: RefreshListOptions = {}) => {
       const category = categoryOverride ?? activeCategory;
       const effectivePage = pageOverride != null ? pageOverride : page;
       const key = listKeyFor(category, effectivePage);
       const cached = listCacheRef.current.get(key);
-      if (cached) {
+      if (cached && !options.force) {
         setListError(null);
         setItems(cached.data.map(mapListItemToRow));
         setTotal(cached.total);
@@ -748,11 +751,12 @@ export default function InstallationFicheTechniquePage() {
         const created = await uploadFicheTechnique(fd);
         listCacheRef.current.clear();
         pendingHighlightIdRef.current = created.id;
+        setSelectedRowId(null);
         setActiveCategory(formCategory);
         setPage(0);
-        await refreshList(0, formCategory);
-        showCrmInlineToast("Fiche technique ajoutée.", "success");
         closeUpload();
+        await refreshList(0, formCategory, { force: true });
+        showCrmInlineToast("Fiche technique ajoutée.", "success");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Échec de l’upload";
         setUploadLocalError(msg);
