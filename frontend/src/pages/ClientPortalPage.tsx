@@ -482,7 +482,7 @@ export default function ClientPortalPage() {
       return;
     }
     const url = `${API_BASE}/api/client-portal/${encodeURIComponent(token)}`;
-    fetch(url)
+    fetch(url, { cache: "no-store" })
       .then(async (r) => {
         if (r.status === 401) {
           throw new Error("Lien expiré ou invalide.");

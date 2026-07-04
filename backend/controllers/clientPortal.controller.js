@@ -26,6 +26,10 @@ const userId = (req) => req.user.userId ?? req.user.id;
  */
 export async function getClientPortal(req, res) {
   try {
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
     const rawToken = req.params.token;
     if (!rawToken || String(rawToken).length < 16) {
       return res.status(401).json({ error: "Token invalide", code: "PORTAL_TOKEN_INVALID" });
