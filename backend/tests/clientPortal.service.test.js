@@ -170,7 +170,7 @@ describe("clientPortal.service", () => {
     );
     assert.equal(
       isPortalClientDocument({ entity_type: "lead", document_type: "lead_attachment" }),
-      false
+      true
     );
     assert.equal(
       isPortalClientDocument({ entity_type: "lead", document_type: "study_pdf" }),
@@ -186,10 +186,11 @@ describe("clientPortal.service", () => {
       { id: "l2", entity_type: "lead", document_type: "lead_attachment" },
     ];
     const portal = rows.filter((r) => isPortalClientDocument(r));
-    assert.equal(portal.length, 2);
+    assert.equal(portal.length, 3);
     assert.ok(!portal.some((r) => r.id === "q1"));
     assert.ok(portal.some((r) => r.id === "l1"));
     assert.ok(portal.some((r) => r.id === "c1"));
+    assert.ok(portal.some((r) => r.id === "l2"));
   });
 
   it("normalizePortalFileName — trim + lower", () => {

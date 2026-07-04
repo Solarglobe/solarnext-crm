@@ -270,21 +270,22 @@ function getStoryPrimaryParagraph(data: PortalPayload, brand: string): string {
   return map[key] ?? map.UNKNOWN;
 }
 
-type DocGroupId = "proposal" | "quote" | "invoice";
+type DocGroupId = "proposal" | "quote" | "invoice" | "document";
 
 /** Retourne le groupe ou null si le document ne doit pas être affiché. */
-function categorizePortalDocument(docType: string | null | undefined): DocGroupId | null {
+function categorizePortalDocument(docType: string | null | undefined): DocGroupId {
   const t = (docType ?? "").toLowerCase().trim();
   if (t === "study_pdf" || t === "study_proposal") return "proposal";
   if (t === "quote_pdf" || t === "quote_pdf_signed") return "quote";
   if (t === "invoice_pdf" || t === "credit_note_pdf") return "invoice";
-  return null;
+  return "document";
 }
 
 const DOCUMENT_SECTION_ORDER: { key: DocGroupId; title: string }[] = [
   { key: "proposal", title: "Proposition commerciale :" },
   { key: "quote", title: "Devis :" },
   { key: "invoice", title: "Factures :" },
+  { key: "document", title: "Documents :" },
 ];
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
@@ -518,11 +519,12 @@ export default function ClientPortalPage() {
       proposal: [],
       quote: [],
       invoice: [],
+      document: [],
     };
     if (!data?.documents.length) return empty;
     for (const d of data.documents) {
       const g = categorizePortalDocument(d.type);
-      if (g != null) empty[g].push(d);
+      empty[g].push(d);
     }
     return empty;
   }, [data]);

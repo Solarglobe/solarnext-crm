@@ -271,14 +271,6 @@ export function resolvePortalDocumentLabel(documentType) {
  * NB : les propositions commerciales sauvegardées sur le lead utilisent document_type='study_pdf'
  * (via saveStudyProposalPdfOnLeadDocument). 'study_proposal' est gardé comme filet de sécurité.
  */
-const PORTAL_ALLOWED_DOC_TYPES = [
-  "quote_pdf",
-  "quote_pdf_signed",
-  "study_pdf",
-  "study_proposal",
-  "invoice_pdf",
-];
-
 /**
  * Documents visibles espace client : miroirs sur le lead ET sur le client CRM (factures copiées côté client, etc.).
  * @param {Record<string, unknown>} doc
@@ -286,8 +278,6 @@ const PORTAL_ALLOWED_DOC_TYPES = [
  */
 export function isPortalClientDocument(doc) {
   const et = String(doc.entity_type ?? "").toLowerCase().trim();
-  const dt = String(doc.document_type ?? "").toLowerCase().trim();
-  if (!PORTAL_ALLOWED_DOC_TYPES.includes(dt)) return false;
   if (et === "lead" || et === "client") return true;
   return false;
 }
@@ -767,7 +757,6 @@ export async function buildClientPortalPayload(db, ctx) {
            AND ed.entity_id = $3::uuid
          )
        )
-       AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed', 'study_pdf', 'study_proposal', 'invoice_pdf')
        AND NOT EXISTS (
          SELECT 1 FROM invoices cancelled_invoice
          WHERE ed.document_type = 'invoice_pdf'
@@ -911,7 +900,6 @@ export async function assertDocumentInPortalScope(db, { organizationId, leadId, 
        AND ed.organization_id = $2
        AND ed.archived_at IS NULL
        AND ed.is_client_visible IS TRUE
-       AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed', 'study_pdf', 'study_proposal', 'invoice_pdf')
        AND NOT EXISTS (
          SELECT 1 FROM invoices cancelled_invoice
          WHERE ed.document_type = 'invoice_pdf'
