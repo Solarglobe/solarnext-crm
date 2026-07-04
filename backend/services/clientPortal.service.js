@@ -289,9 +289,6 @@ export function isPortalClientDocument(doc) {
   const dt = String(doc.document_type ?? "").toLowerCase().trim();
   if (!PORTAL_ALLOWED_DOC_TYPES.includes(dt)) return false;
   if (et === "lead" || et === "client") return true;
-  if (et === "quote" && (dt === "quote_pdf" || dt === "quote_pdf_signed")) return true;
-  if (et === "invoice" && dt === "invoice_pdf") return true;
-  if ((et === "study" || et === "study_version") && (dt === "study_pdf" || dt === "study_proposal")) return true;
   return false;
 }
 
@@ -405,19 +402,6 @@ export function dedupeByFileNameKeepNewest(docs) {
   return dedupeByEntityIdKeepNewest(docs);
 }
 
-function portalDocumentFamily(row) {
-  const dt = String(row?.document_type ?? "").toLowerCase().trim();
-  if (dt === "quote_pdf" || dt === "quote_pdf_signed") return "quote";
-  if (dt === "study_pdf" || dt === "study_proposal") return "proposal";
-  if (dt === "invoice_pdf") return "invoice";
-  return "other";
-}
-
-function isPortalMirrorDocument(row) {
-  const et = String(row?.entity_type ?? "").toLowerCase().trim();
-  return et === "lead" || et === "client";
-}
-
 function newestFirst(a, b) {
   const aTime = new Date(/** @type {Date|string|undefined} */ (a.created_at) || 0).getTime();
   const bTime = new Date(/** @type {Date|string|undefined} */ (b.created_at) || 0).getTime();
@@ -426,34 +410,7 @@ function newestFirst(a, b) {
 
 export function selectPortalDocumentsForResponse(rows) {
   const candidates = Array.isArray(rows) ? rows.filter((d) => isPortalClientDocument(d)) : [];
-  const mirrors = dedupeByEntityIdKeepNewest(candidates.filter((d) => isPortalMirrorDocument(d)));
-  const sources = dedupeByEntityIdKeepNewest(candidates.filter((d) => !isPortalMirrorDocument(d)));
-
-  const mirrorFamilies = new Set(mirrors.map((d) => portalDocumentFamily(d)));
-  const selected = [...mirrors];
-
-  if (!mirrorFamilies.has("quote")) {
-    const fallbackQuote = sources.filter((d) => portalDocumentFamily(d) === "quote").sort(newestFirst)[0];
-    if (fallbackQuote) selected.push(fallbackQuote);
-  }
-
-  if (!mirrorFamilies.has("proposal")) {
-    const fallbackProposal = sources.filter((d) => portalDocumentFamily(d) === "proposal").sort(newestFirst)[0];
-    if (fallbackProposal) selected.push(fallbackProposal);
-  }
-
-  const invoiceKeys = new Set(
-    selected.filter((d) => portalDocumentFamily(d) === "invoice").map((d) => portalDocumentDedupeKey(d))
-  );
-  for (const invoice of sources.filter((d) => portalDocumentFamily(d) === "invoice")) {
-    const key = portalDocumentDedupeKey(invoice);
-    if (!invoiceKeys.has(key)) {
-      selected.push(invoice);
-      invoiceKeys.add(key);
-    }
-  }
-
-  return dedupeByEntityIdKeepNewest(selected).sort(newestFirst);
+  return dedupeByEntityIdKeepNewest(candidates).sort(newestFirst);
 }
 
 /**
@@ -809,61 +766,6 @@ export async function buildClientPortalPayload(db, ctx) {
            AND ed.entity_type = 'client'
            AND ed.entity_id = $3::uuid
          )
-         OR (
-           ed.entity_type = 'quote'
-           AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed')
-           AND EXISTS (
-             SELECT 1 FROM quotes q
-             WHERE q.id = ed.entity_id
-               AND q.organization_id = $1
-               AND (q.archived_at IS NULL)
-               AND (
-                 q.lead_id = $2::uuid
-                 OR ($3::uuid IS NOT NULL AND q.client_id = $3::uuid)
-               )
-           )
-         )
-         OR (
-           ed.entity_type = 'invoice'
-           AND ed.document_type = 'invoice_pdf'
-           AND EXISTS (
-             SELECT 1 FROM invoices i
-             WHERE i.id = ed.entity_id
-               AND i.organization_id = $1
-               AND (i.archived_at IS NULL)
-               AND (
-                 i.lead_id = $2::uuid
-                 OR ($3::uuid IS NOT NULL AND i.client_id = $3::uuid)
-               )
-           )
-         )
-         OR (
-           ed.entity_type = 'study'
-           AND ed.document_type IN ('study_pdf', 'study_proposal')
-           AND EXISTS (
-             SELECT 1 FROM studies s
-             WHERE s.id = ed.entity_id
-               AND s.organization_id = $1
-               AND (
-                 s.lead_id = $2::uuid
-                 OR ($3::uuid IS NOT NULL AND s.client_id = $3::uuid)
-               )
-           )
-         )
-         OR (
-           ed.entity_type = 'study_version'
-           AND ed.document_type IN ('study_pdf', 'study_proposal')
-           AND EXISTS (
-             SELECT 1 FROM study_versions sv
-             INNER JOIN studies s ON s.id = sv.study_id AND s.organization_id = sv.organization_id
-             WHERE sv.id = ed.entity_id
-               AND sv.organization_id = $1
-               AND (
-                 s.lead_id = $2::uuid
-                 OR ($3::uuid IS NOT NULL AND s.client_id = $3::uuid)
-               )
-           )
-         )
        )
        AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed', 'study_pdf', 'study_proposal', 'invoice_pdf')
        AND NOT EXISTS (
@@ -1034,61 +936,6 @@ export async function assertDocumentInPortalScope(db, { organizationId, leadId, 
        AND (
          (ed.entity_type = 'lead' AND ed.entity_id = l.id)
          OR (ed.entity_type = 'client' AND l.client_id IS NOT NULL AND ed.entity_id = l.client_id)
-         OR (
-           ed.entity_type = 'quote'
-           AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed')
-           AND EXISTS (
-             SELECT 1 FROM quotes q
-             WHERE q.id = ed.entity_id
-               AND q.organization_id = ed.organization_id
-               AND (q.archived_at IS NULL)
-               AND (
-                 q.lead_id = l.id
-                 OR (l.client_id IS NOT NULL AND q.client_id = l.client_id)
-               )
-           )
-         )
-         OR (
-           ed.entity_type = 'invoice'
-           AND ed.document_type = 'invoice_pdf'
-           AND EXISTS (
-             SELECT 1 FROM invoices i
-             WHERE i.id = ed.entity_id
-               AND i.organization_id = ed.organization_id
-               AND (i.archived_at IS NULL)
-               AND (
-                 i.lead_id = l.id
-                 OR (l.client_id IS NOT NULL AND i.client_id = l.client_id)
-               )
-           )
-         )
-         OR (
-           ed.entity_type = 'study'
-           AND ed.document_type IN ('study_pdf', 'study_proposal')
-           AND EXISTS (
-             SELECT 1 FROM studies s
-             WHERE s.id = ed.entity_id
-               AND s.organization_id = ed.organization_id
-               AND (
-                 s.lead_id = l.id
-                 OR (l.client_id IS NOT NULL AND s.client_id = l.client_id)
-               )
-           )
-         )
-         OR (
-           ed.entity_type = 'study_version'
-           AND ed.document_type IN ('study_pdf', 'study_proposal')
-           AND EXISTS (
-             SELECT 1 FROM study_versions sv
-             INNER JOIN studies s ON s.id = sv.study_id AND s.organization_id = sv.organization_id
-             WHERE sv.id = ed.entity_id
-               AND sv.organization_id = ed.organization_id
-               AND (
-                 s.lead_id = l.id
-                 OR (l.client_id IS NOT NULL AND s.client_id = l.client_id)
-               )
-           )
-         )
        )`,
     [documentId, organizationId, leadId]
   );

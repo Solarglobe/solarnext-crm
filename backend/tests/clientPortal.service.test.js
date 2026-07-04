@@ -158,15 +158,15 @@ describe("clientPortal.service", () => {
     );
     assert.equal(
       isPortalClientDocument({ entity_type: "quote", document_type: "quote_pdf" }),
-      true
+      false
     );
     assert.equal(
       isPortalClientDocument({ entity_type: "quote", document_type: "quote_pdf_signed" }),
-      true
+      false
     );
     assert.equal(
       isPortalClientDocument({ entity_type: "invoice", document_type: "invoice_pdf" }),
-      true
+      false
     );
     assert.equal(
       isPortalClientDocument({ entity_type: "lead", document_type: "lead_attachment" }),
@@ -186,8 +186,8 @@ describe("clientPortal.service", () => {
       { id: "l2", entity_type: "lead", document_type: "lead_attachment" },
     ];
     const portal = rows.filter((r) => isPortalClientDocument(r));
-    assert.equal(portal.length, 3);
-    assert.ok(portal.some((r) => r.id === "q1"));
+    assert.equal(portal.length, 2);
+    assert.ok(!portal.some((r) => r.id === "q1"));
     assert.ok(portal.some((r) => r.id === "l1"));
     assert.ok(portal.some((r) => r.id === "c1"));
   });
@@ -308,9 +308,7 @@ describe("clientPortal.service", () => {
       },
     ];
     const out = selectPortalDocumentsForResponse(rows);
-    assert.equal(out.filter((d) => String(d.document_type).startsWith("quote_pdf")).length, 1);
-    assert.ok(out.some((d) => d.id === "q-new"));
-    assert.ok(out.some((d) => d.id === "inv-1"));
+    assert.equal(out.length, 0);
   });
 
   it("selectPortalDocumentsForResponse garde les devis explicitement ajoutÃ©s aux Documents", () => {
