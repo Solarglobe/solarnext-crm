@@ -117,8 +117,9 @@ export async function getClientPortalDocumentFile(req, res) {
 
     const mime = doc.mime_type || "application/octet-stream";
     const safeName = path.basename(doc.file_name || "document");
+    const disposition = req.query.download === "1" || req.query.download === "true" ? "attachment" : "inline";
     res.setHeader("Content-Type", mime);
-    res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(safeName)}`);
+    res.setHeader("Content-Disposition", `${disposition}; filename*=UTF-8''${encodeURIComponent(safeName)}`);
     res.setHeader("Cache-Control", "private, no-store");
 
     const stream = fs.createReadStream(abs);

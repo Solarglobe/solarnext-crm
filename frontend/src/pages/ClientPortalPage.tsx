@@ -451,6 +451,12 @@ function docHref(d: PortalPayload["documents"][0]): string {
   return `${API_BASE}${u}`;
 }
 
+function docDownloadHref(d: PortalPayload["documents"][0]): string {
+  const href = docHref(d);
+  const separator = href.includes("?") ? "&" : "?";
+  return `${href}${separator}download=1`;
+}
+
 /** Logo hero : CRM (upload entreprise) ou repli asset statique. */
 function heroLogoSrc(data: PortalPayload): string {
   const u = data.meta.organization_logo_url?.trim();
@@ -776,6 +782,7 @@ export default function ClientPortalPage() {
                       <h4 className="cp-doc-group__title">{title}</h4>
                       {list.map((d) => {
                         const href = docHref(d);
+                        const downloadHref = docDownloadHref(d);
                         const dateStr = formatPortalDateFr(d.created_at);
                         return (
                           <div key={d.id} className="cp-doc-row">
@@ -792,9 +799,8 @@ export default function ClientPortalPage() {
                               </a>
                               <a
                                 className="cp-btn-doc cp-btn-doc--outline"
-                                href={href}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                href={downloadHref}
+                                download={getDocumentPrimaryTitle(d)}
                               >
                                 Télécharger
                               </a>
