@@ -182,6 +182,8 @@ export async function buildSelectedScenarioSnapshot({
     puissance_kwc: technical?.power_kwc ?? technical?.total_power_kwc ?? null,
     production_annuelle_kwh: technical?.production_annual_kwh ?? null,
     surface_panneaux_m2: null,
+    // Multi-pan : liste des pans portant des panneaux (affichage orientations multiples PDF).
+    pans: Array.isArray(technical?.pans) ? technical.pans : null,
   };
 
   const equipment = {

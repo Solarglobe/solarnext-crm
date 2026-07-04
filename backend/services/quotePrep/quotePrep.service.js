@@ -345,6 +345,15 @@ async function buildTechnicalSummary(calpinageRow, calpinageDataRow = null) {
     panel: panel ?? undefined,
     inverter: inverter ?? undefined,
     inverter_totals: inverter_totals ?? undefined,
+    // Multi-pan : liste des pans PORTANT des panneaux (pour l'affichage des orientations
+    // multiples sur le PDF). Additif — n'altère pas orientation_deg (pan principal).
+    pans: pansArray
+      .map((p) => ({
+        azimuth_deg: p.orientationDeg ?? p.orientation_deg ?? p.azimuth ?? null,
+        tilt_deg: p.tiltDeg ?? p.tilt_deg ?? p.tilt ?? null,
+        panel_count: _panPanelCount(p),
+      }))
+      .filter((p) => p.panel_count > 0),
     // LOT D — matériel de pose toit plat (null = rien à afficher, comportement inchangé)
     flat_roof_mounting: extractFlatRoofMountingFromPans(pansArray),
   };

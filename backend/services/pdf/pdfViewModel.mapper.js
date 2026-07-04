@@ -1011,12 +1011,30 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     : _p3bAzimuth != null
       ? _p3bAzimuth
       : (_p3bOrientationLetter || "");
+  // Multi-pan : si plusieurs pans portent des panneaux, afficher toutes les orientations
+  // sur une seule ligne (ex. « Sud-Ouest 215° · Nord 5° ») au lieu du seul pan principal.
+  const _CARDINALS_FR_16 = [
+    "Nord", "Nord-Nord-Est", "Nord-Est", "Est-Nord-Est", "Est", "Est-Sud-Est", "Sud-Est", "Sud-Sud-Est",
+    "Sud", "Sud-Sud-Ouest", "Sud-Ouest", "Ouest-Sud-Ouest", "Ouest", "Ouest-Nord-Ouest", "Nord-Ouest", "Nord-Nord-Ouest",
+  ];
+  const _azToCardinalFr = (deg) => {
+    const nAz = Number(deg);
+    if (!Number.isFinite(nAz)) return null;
+    const aAz = ((nAz % 360) + 360) % 360;
+    return `${_CARDINALS_FR_16[Math.round(aAz / 22.5) % 16]} ${Math.round(aAz)}°`;
+  };
+  const _installPans = Array.isArray(installation.pans) ? installation.pans : [];
+  const _panOrientDisplays = _installPans
+    .filter((pp) => Number(pp?.panel_count) > 0 && Number.isFinite(Number(pp?.azimuth_deg)))
+    .map((pp) => _azToCardinalFr(pp.azimuth_deg))
+    .filter(Boolean);
+  const _p3bOrientationMulti = _panOrientDisplays.length >= 2 ? _panOrientDisplays.join(" · ") : null;
   const p3b_auto = {
     client: clientName,
     ref,
     date: dateDisplay,
     inclinaison: _p3bTilt != null ? `${_p3bTilt}°` : "",
-    orientation: _p3bOrientationDisplay,
+    orientation: (!_p3bIsFlat && _p3bOrientationMulti) ? _p3bOrientationMulti : _p3bOrientationDisplay,
     surface_m2: num(installation.surface_panneaux_m2) ?? (numOrZero(installation.panneaux_nombre) * 2),
     nb_panneaux: numOrZero(installation.panneaux_nombre),
     layout_snapshot: options.calpinage_layout_snapshot ?? null,
