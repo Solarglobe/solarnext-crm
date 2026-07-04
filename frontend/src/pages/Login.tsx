@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  ensureAuthenticated,
+  getCurrentUser,
   login,
-  isAuthenticated,
   LoginAmbiguousError,
 } from "../services/auth.service";
 import { applyTheme, readStoredTheme } from "../theme/themeApply";
@@ -107,6 +108,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionChecking, setSessionChecking] = useState(true);
   /** Désambiguïsation login quand le même email existe dans plusieurs organisations. */
   const [orgChoices, setOrgChoices] = useState<
     { id: string; name: string | null }[] | null
@@ -125,9 +127,25 @@ export default function Login() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated()) {
-      navigate("/dashboard", { replace: true });
+    let cancelled = false;
+    async function restoreExistingSession() {
+      try {
+        const ok = await ensureAuthenticated();
+        if (!ok || cancelled) return;
+        const user = await getCurrentUser().catch(() => null);
+        if (cancelled) return;
+        const shouldOnboard =
+          user?.onboardingCompleted === false &&
+          user?.internalHomeOrganization !== true;
+        navigate(shouldOnboard ? "/onboarding" : "/dashboard", { replace: true });
+      } finally {
+        if (!cancelled) setSessionChecking(false);
+      }
     }
+    void restoreExistingSession();
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -296,7 +314,7 @@ export default function Login() {
 
             {error ? <p className="login-error">{error}</p> : null}
 
-            <button type="submit" className="login-submit" disabled={loading}>
+            <button type="submit" className="login-submit" disabled={loading || sessionChecking}>
               {loading ? "Connexion…" : "Se connecter"}
             </button>
           </form>
