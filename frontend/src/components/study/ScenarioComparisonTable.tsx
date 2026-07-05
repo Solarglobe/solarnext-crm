@@ -746,7 +746,7 @@ export default function ScenarioComparisonTable({
     <div className={`scenario-comparison-premium ${className}`}>
       <div
         className="scenario-comparison-grid"
-        style={{ ["--sn-scenario-cols"]: visibleColumns.length } as React.CSSProperties}
+        style={{ ["--sn-scenario-cols"]: Math.min(visibleColumns.length, 4) } as React.CSSProperties}
       >
         {visibleColumns.map(({ id, originalIndex, scenario }) => {
           const title = columnLabels[id] ?? COLUMN_LABELS_DEFAULT[id];
