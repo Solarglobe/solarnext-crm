@@ -38,11 +38,17 @@ export function getHorizonCacheDsmSuffix() {
   const urlTemplate  = (process.env.DSM_GEOTIFF_URL_TEMPLATE || "").trim();
   const dsmEnable    = process.env.DSM_ENABLE === "true";
 
+  // CP-FAR-MNS-01 — Le produit sursol (MNS/MNH) doit entrer dans la clé de cache,
+  // sinon un horizon « terrain nu » déjà mémorisé serait resservi après bascule MNS.
+  // Défaut MNT → suffixe vide → clés historiques inchangées.
+  const product    = (process.env.DSM_PRODUCT || "MNT").toUpperCase();
+  const prodSuffix = (dsmEnable && (product === "MNS" || product === "MNH")) ? `:prod=${product}` : "";
+
   if (providerType === "HTTP_GEOTIFF" && urlTemplate && dsmEnable) {
-    return ":dsm=geotiff";
+    return ":dsm=geotiff" + prodSuffix;
   }
 
-  return ":dsm=api";   // IGN Géoplateforme ou PVGIS selon disponibilité
+  return ":dsm=api" + prodSuffix;   // IGN Géoplateforme ou PVGIS selon disponibilité
 }
 
 /**
