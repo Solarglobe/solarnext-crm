@@ -18,15 +18,21 @@ import { openAuthenticatedDocumentInNewTab } from "@/utils/documentDownload";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
 
-type ScenarioId = "BASE" | "BATTERY_PHYSICAL" | "BATTERY_VIRTUAL" | "BATTERY_HYBRID";
+type ScenarioId =
+  | "BASE" | "BATTERY_PHYSICAL" | "BATTERY_VIRTUAL" | "BATTERY_HYBRID"
+  | "VEHICLE_V2H" | "VEHICLE_V2H_PHYSICAL" | "VEHICLE_V2H_VIRTUAL" | "VEHICLE_V2H_PHYSICAL_VIRTUAL";
 
 
-const COLUMN_ORDER: ScenarioId[] = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
+const COLUMN_ORDER: ScenarioId[] = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID", "VEHICLE_V2H", "VEHICLE_V2H_PHYSICAL", "VEHICLE_V2H_VIRTUAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"];
 const COLUMN_LABELS: Record<ScenarioId, string> = {
   BASE: "Sans batterie",
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
   BATTERY_HYBRID: "Hybride : physique + virtuelle",
+  VEHICLE_V2H: "Voiture V2H",
+  VEHICLE_V2H_PHYSICAL: "Voiture V2H + batterie physique",
+  VEHICLE_V2H_VIRTUAL: "Voiture V2H + batterie virtuelle",
+  VEHICLE_V2H_PHYSICAL_VIRTUAL: "Voiture V2H + physique + virtuelle",
 };
 
 function showToast(message: string, isError: boolean) {
@@ -48,7 +54,8 @@ function normalizeOrderedScenarios(scenarios: ScenarioV2Type[]): (ScenarioV2Type
 }
 
 function parseSelectedScenarioId(raw: unknown): ScenarioId | null {
-  if (raw === "BASE" || raw === "BATTERY_PHYSICAL" || raw === "BATTERY_VIRTUAL" || raw === "BATTERY_HYBRID") return raw;
+  const ALL: ScenarioId[] = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID", "VEHICLE_V2H", "VEHICLE_V2H_PHYSICAL", "VEHICLE_V2H_VIRTUAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"];
+  if (typeof raw === "string" && (ALL as string[]).includes(raw)) return raw as ScenarioId;
   return null;
 }
 

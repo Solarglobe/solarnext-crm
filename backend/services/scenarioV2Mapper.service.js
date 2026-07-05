@@ -17,6 +17,10 @@ const LABELS = {
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
   BATTERY_HYBRID: "Hybride : physique + virtuelle",
+  VEHICLE_V2H: "Voiture V2H",
+  VEHICLE_V2H_PHYSICAL: "Voiture V2H + batterie physique",
+  VEHICLE_V2H_VIRTUAL: "Voiture V2H + batterie virtuelle",
+  VEHICLE_V2H_PHYSICAL_VIRTUAL: "Voiture V2H + physique + virtuelle",
 };
 
 function round2(x) {
@@ -57,8 +61,8 @@ function minPositiveCap(...vals) {
 
 export function mapScenarioToV2(scenario, ctx) {
   const id = scenario.name ?? "BASE";
-  const isVirtualLike = id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID";
-  const isPhysicalLike = id === "BATTERY_PHYSICAL" || id === "BATTERY_HYBRID";
+  const isVirtualLike = id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID" || id === "VEHICLE_V2H_VIRTUAL" || id === "VEHICLE_V2H_PHYSICAL_VIRTUAL";
+  const isPhysicalLike = id === "BATTERY_PHYSICAL" || id === "BATTERY_HYBRID" || id === "VEHICLE_V2H_PHYSICAL" || id === "VEHICLE_V2H_PHYSICAL_VIRTUAL";
   if (scenario.name === "BATTERY_VIRTUAL" && process.env.NODE_ENV !== "production" && process.env.DEBUG_BV_MAPPER === "1") {
     console.log("=== BV MAPPER INPUT ===");
     console.log(JSON.stringify(scenario, null, 2));

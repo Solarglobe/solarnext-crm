@@ -167,6 +167,10 @@ const COLUMN_LABELS_DEFAULT: Record<string, string> = {
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
   BATTERY_HYBRID: "Hybride : physique + virtuelle",
+  VEHICLE_V2H: "Voiture V2H",
+  VEHICLE_V2H_PHYSICAL: "Voiture V2H + batterie physique",
+  VEHICLE_V2H_VIRTUAL: "Voiture V2H + batterie virtuelle",
+  VEHICLE_V2H_PHYSICAL_VIRTUAL: "Voiture V2H + physique + virtuelle",
 };
 
 const COLUMN_SUBTITLES: Record<string, string> = {
@@ -174,6 +178,10 @@ const COLUMN_SUBTITLES: Record<string, string> = {
   BATTERY_PHYSICAL: "Stockage local + gestion du surplus.",
   BATTERY_VIRTUAL: "Crédit de votre surplus, utilisé plus tard.",
   BATTERY_HYBRID: "Physique + crédit du surplus résiduel. Intérêt : autonomie et secours en cas de coupure — pas l'économie €/an maximale.",
+  VEHICLE_V2H: "La batterie du véhicule alimente la maison quand il est branché (V2H).",
+  VEHICLE_V2H_PHYSICAL: "Batterie physique + voiture V2H en complément.",
+  VEHICLE_V2H_VIRTUAL: "Voiture V2H + crédit du surplus résiduel.",
+  VEHICLE_V2H_PHYSICAL_VIRTUAL: "Physique + voiture V2H + crédit du surplus résiduel.",
 };
 
 function formatCurrency(v: number | null | undefined): string {
@@ -425,7 +433,7 @@ function buildKeyIndicatorRows(
   return rows;
 }
 
-const SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"] as const;
+const SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID", "VEHICLE_V2H", "VEHICLE_V2H_PHYSICAL", "VEHICLE_V2H_VIRTUAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"] as const;
 export type ScenarioColumnId = (typeof SCENARIO_IDS)[number];
 
 export interface VisibleColumn {
@@ -666,6 +674,10 @@ const IMPACT_SCENE_HEADLINE: Record<ScenarioColumnId, string> = {
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
   BATTERY_HYBRID: "Hybride physique + virtuelle",
+  VEHICLE_V2H: "Voiture V2H",
+  VEHICLE_V2H_PHYSICAL: "Voiture V2H + physique",
+  VEHICLE_V2H_VIRTUAL: "Voiture V2H + virtuelle",
+  VEHICLE_V2H_PHYSICAL_VIRTUAL: "Voiture V2H + physique + virtuelle",
 };
 
 export default function ScenarioComparisonTable({
@@ -683,10 +695,9 @@ export default function ScenarioComparisonTable({
   redownloading = false,
   className = "",
 }: ScenarioComparisonTableProps) {
-  const scenarios =
-    orderedScenarios.length >= 4
-      ? orderedScenarios.slice(0, 4)
-      : [...orderedScenarios, ...Array(4 - orderedScenarios.length).fill(null)];
+  // PHASE 3B — plus de plafonnement à 4 : le tableau suit COLUMN_ORDER (aligné SCENARIO_IDS) ;
+  // les colonnes absentes (dont scénarios V2H non générés) sont filtrées par computeVisibleColumns.
+  const scenarios = orderedScenarios;
 
   const baseEconomieY1 =
     scenarios[0]?.finance?.economie_year_1 != null &&

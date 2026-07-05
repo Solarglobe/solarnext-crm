@@ -15,12 +15,16 @@ import { buildStudyPdfFileName, extractPdfNameFactsFromSnapshot } from "../servi
 import { CALC_ENGINE_VERSION } from "../services/calc/calc.constants.js";
 import { evaluateScenarioSelectable, SCENARIO_SELECTABLE_MESSAGES } from "../services/scenarioSelectable.js";
 
-const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
+const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID", "VEHICLE_V2H", "VEHICLE_V2H_PHYSICAL", "VEHICLE_V2H_VIRTUAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"];
 const SCENARIO_LABELS_FR = {
   BASE: "Sans batterie",
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
   BATTERY_HYBRID: "Hybride : physique + virtuelle",
+  VEHICLE_V2H: "Voiture V2H",
+  VEHICLE_V2H_PHYSICAL: "Voiture V2H + batterie physique",
+  VEHICLE_V2H_VIRTUAL: "Voiture V2H + batterie virtuelle",
+  VEHICLE_V2H_PHYSICAL_VIRTUAL: "Voiture V2H + physique + virtuelle",
 };
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.userId ?? req.user?.id ?? null;

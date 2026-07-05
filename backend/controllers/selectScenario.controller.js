@@ -15,7 +15,7 @@ import { AuditActions } from "../services/audit/auditActions.js";
 import { lockFinancialScenario } from "../services/financialScenarios.service.js";
 import { evaluateScenarioSelectable, SCENARIO_SELECTABLE_MESSAGES } from "../services/scenarioSelectable.js";
 
-const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
+const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID", "VEHICLE_V2H", "VEHICLE_V2H_PHYSICAL", "VEHICLE_V2H_VIRTUAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"];
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.userId ?? req.user?.id ?? null;
 
