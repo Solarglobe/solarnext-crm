@@ -1876,6 +1876,10 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               energy_basis: "hourly_8760",
               energy: {
                 prod: e.production_kwh, auto: e.auto_kwh, surplus: e.surplus_kwh, import: e.grid_import_kwh, conso: e.consumption_kwh,
+                production_kwh: e.production_kwh,
+                consumption_kwh: e.consumption_kwh,
+                grid_import_kwh: e.grid_import_kwh,
+                billable_import_kwh: e.billable_import_kwh,
                 ev_v2h_discharge_kwh: e.ev_v2h_discharge_kwh, ev_solar_charge_kwh: e.ev_solar_charge_kwh,
                 ev_grid_charge_kwh: e.ev_grid_charge_kwh, ev_trip_consumption_kwh: e.ev_trip_consumption_kwh,
                 ev_battery_losses_kwh: e.ev_battery_losses_kwh, ev_reserve_kwh: e.ev_reserve_kwh,
@@ -1894,9 +1898,17 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               sc.energy.physical_grid_export_kwh = e.pre_virtual_surplus_kwh;
               sc.energy.physical_grid_import_kwh = e.pre_virtual_import_kwh;
               sc.billable_import_kwh = e.billable_import_kwh;
+              sc.energy.billable_import_kwh = e.billable_import_kwh;
+              sc.energy.virtual_battery_overflow_export_kwh = e.surplus_kwh;
+              sc.energy.virtual_battery_discharge_kwh = e.virtual_discharged_kwh ?? 0;
+              sc.used_credit_kwh = e.virtual_discharged_kwh ?? 0;
               // OPEX batterie virtuelle (abonnement/restitution) réutilisée de BATTERY_VIRTUAL.
               if (scenarios.BATTERY_VIRTUAL?.virtual_battery_finance) sc.virtual_battery_finance = scenarios.BATTERY_VIRTUAL.virtual_battery_finance;
               if (scenarios.BATTERY_VIRTUAL?._virtualBatteryQuote) sc._virtualBatteryQuote = scenarios.BATTERY_VIRTUAL._virtualBatteryQuote;
+              sc._virtualBattery8760 = {
+                virtual_battery_total_discharged_kwh: e.virtual_discharged_kwh ?? 0,
+                virtual_battery_overflow_export_kwh: e.surplus_kwh,
+              };
               sc.battery = { enabled: (e.pre_virtual_discharge_kwh ?? 0) > 0, annual_discharge_kwh: e.pre_virtual_discharge_kwh ?? 0 };
             }
             if (id === "VEHICLE_V2H_VIRTUAL") sc.capex_ttc = virtualActivationFeeV2H;

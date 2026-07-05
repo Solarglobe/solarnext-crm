@@ -110,3 +110,70 @@ test("economie_an1 is bill savings, not net cashflow with maintenance or capex e
     "bill_before_solar_minus_bill_after_solar_year1"
   );
 });
+
+test("vehicle V2H + virtual battery cannot be worse than virtual battery alone when vehicle is free", async () => {
+  const ctx = baseCtx();
+  const virtualFinance = {
+    annual_grid_import_cost_ttc: 1000,
+    annual_total_virtual_cost_ttc: 100,
+    annual_virtual_discharge_cost_ttc: 0,
+    annual_overflow_export_revenue_ttc: 0,
+  };
+  const virtualQuote = { annual_cost_ttc: 100, detail: { recurring_annual_ttc: 100 } };
+
+  const out = await computeFinance(ctx, {
+    BASE: baseScenario(),
+    BATTERY_VIRTUAL: baseScenario({
+      name: "BATTERY_VIRTUAL",
+      auto_kwh: 5000,
+      surplus_kwh: 1000,
+      import_kwh: 5000,
+      billable_import_kwh: 5000,
+      energy: {
+        production_kwh: 6000,
+        consumption_kwh: 10000,
+        surplus: 1000,
+        import: 5000,
+        billable_import_kwh: 5000,
+        virtual_battery_overflow_export_kwh: 1000,
+      },
+      virtual_battery_finance: virtualFinance,
+      _virtualBatteryQuote: virtualQuote,
+      _virtualBattery8760: { virtual_battery_overflow_export_kwh: 1000 },
+    }),
+    VEHICLE_V2H_VIRTUAL: baseScenario({
+      name: "VEHICLE_V2H_VIRTUAL",
+      auto_kwh: 5500,
+      surplus_kwh: 900,
+      import_kwh: 4500,
+      billable_import_kwh: 4500,
+      energy: {
+        production_kwh: 6000,
+        consumption_kwh: 10000,
+        surplus: 900,
+        import: 4500,
+        billable_import_kwh: 4500,
+        physical_auto_kwh: 4500,
+        physical_grid_import_kwh: 5500,
+        physical_grid_export_kwh: 1500,
+        virtual_battery_overflow_export_kwh: 900,
+      },
+      virtual_battery_finance: virtualFinance,
+      _virtualBatteryQuote: virtualQuote,
+      _virtualBattery8760: { virtual_battery_overflow_export_kwh: 900 },
+      battery: { enabled: false, annual_discharge_kwh: 0 },
+    }),
+  });
+
+  const virtualOnly = out.scenarios.BATTERY_VIRTUAL;
+  const mixed = out.scenarios.VEHICLE_V2H_VIRTUAL;
+
+  assert.ok(
+    mixed.economie_an1 >= virtualOnly.economie_an1,
+    `expected V2H+virtual economie_an1 (${mixed.economie_an1}) >= virtual (${virtualOnly.economie_an1})`
+  );
+  assert.ok(
+    mixed.economie_25a >= virtualOnly.economie_25a,
+    `expected V2H+virtual economie_25a (${mixed.economie_25a}) >= virtual (${virtualOnly.economie_25a})`
+  );
+});

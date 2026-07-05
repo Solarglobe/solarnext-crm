@@ -472,7 +472,7 @@ function computeAnnualBillAfterSolarYear1(sc, priceEurKwh) {
   if (importKwh == null) return null;
 
   const virtualAnnualCost =
-    sc?.name === "BATTERY_VIRTUAL" || sc?.name === "BATTERY_HYBRID"
+    VIRTUAL_CREDIT_FINANCE.has(sc?.name)
       ? firstFiniteNumber(
           sc?.costs?.battery_virtual_annual_cost,
           sc?._virtualBatteryQuote?.annual_cost_ttc
@@ -693,10 +693,11 @@ export async function computeFinance(ctx, scenarios) {
         inverter_cost_pct: econ.inverter_cost_pct,
         capex_ttc,
         virtual_battery_import_savings: virtualImportSavingsKwh,
-        virtual_battery_mode: sc.name === "BATTERY_VIRTUAL" || sc.name === "BATTERY_HYBRID",
+        virtual_battery_mode: VIRTUAL_CREDIT_FINANCE.has(sc.name),
         virtual_overflow_export_kwh:
           sc._virtualBattery8760?.virtual_battery_overflow_export_kwh ??
           sc.energy?.virtual_battery_overflow_export_kwh ??
+          sc.surplus_kwh ??
           0,
         battery_contribution_y1: _battContribY1,
         battery_degradation_pct: econ.battery_degradation_pct,
@@ -708,7 +709,7 @@ export async function computeFinance(ctx, scenarios) {
         price_vb_y1: sc.pricing?.p_eff_vb ?? null
       });
 
-      const _isVbScenario = sc.name === "BATTERY_VIRTUAL" || sc.name === "BATTERY_HYBRID";
+      const _isVbScenario = VIRTUAL_CREDIT_FINANCE.has(sc.name);
       if (_isVbScenario && sc.virtual_battery_finance) {
         const recurring = Number(sc.virtual_battery_finance.annual_total_virtual_cost_ttc);
         const act = Number(sc.virtual_battery_finance.annual_activation_fee_ttc || 0) || 0;
@@ -771,7 +772,7 @@ export async function computeFinance(ctx, scenarios) {
           roi_years,
           irr_pct: irr_pct !== null ? round(irr_pct * 100, 2) : null
         };
-        if (sc.name === "BATTERY_VIRTUAL" || sc.name === "BATTERY_HYBRID") {
+        if (VIRTUAL_CREDIT_FINANCE.has(sc.name)) {
           const virtualImportSavingsEur =
             virtualImportSavingsKwh != null && Number.isFinite(virtualImportSavingsKwh)
               ? virtualImportSavingsKwh * econ.price_eur_kwh
