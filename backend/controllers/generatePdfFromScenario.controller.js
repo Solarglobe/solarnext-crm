@@ -13,6 +13,7 @@ import { ensureLeadCommercialProposalFromScenarioPdf } from "../services/documen
 import { resolveQuotePdfClientSlug } from "../services/quotePdfStorageName.js";
 import { buildStudyPdfFileName, extractPdfNameFactsFromSnapshot } from "../services/studyPdfFileName.util.js";
 import { CALC_ENGINE_VERSION } from "../services/calc/calc.constants.js";
+import { evaluateScenarioSelectable, SCENARIO_SELECTABLE_MESSAGES } from "../services/scenarioSelectable.js";
 
 const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
 const SCENARIO_LABELS_FR = {
@@ -61,15 +62,21 @@ export async function generatePdfFromScenario(req, res) {
       });
     }
 
-    const hasScenario = (scenariosV2 || []).some((s) => (s.id || s.name) === scenarioId);
-    if (!hasScenario) {
-      return res.status(400).json({
-        error: `Scénario ${scenarioId} introuvable dans scenarios_v2`,
+    // STEP 2a — GARDE SÉLECTIONNABILITÉ : absent / _skipped / incomplet (données manquantes).
+    // Ne bloque JAMAIS sur une économie faible/nulle/négative ni un ROI non rentable calculé.
+    const selectedV2 = (scenariosV2 || []).find((s) => (s.id || s.name) === scenarioId) || null;
+    const selectable = evaluateScenarioSelectable(selectedV2, scenarioId);
+    if (!selectable.selectable) {
+      const status = selectable.reason === "SCENARIO_ABSENT" ? 400 : 409;
+      return res.status(status).json({
+        error: "SCENARIO_NOT_SELECTABLE",
+        reason: selectable.reason,
+        scenario_id: scenarioId,
+        message: SCENARIO_SELECTABLE_MESSAGES[selectable.reason] ?? "Ce scénario ne peut pas être exporté en PDF.",
       });
     }
 
     // STEP 2b — GARDE SNAPSHOT PERIME / BLOQUE : jamais de PDF sur une base non a jour.
-    const selectedV2 = (scenariosV2 || []).find((s) => (s.id || s.name) === scenarioId) || {};
     const snapshotEngineVersion = dataJson.scenarios_engine_version ?? selectedV2.scenarios_engine_version ?? null;
     const staleSnapshot = snapshotEngineVersion !== CALC_ENGINE_VERSION;
     if (selectedV2.display_blocked === true || selectedV2.needs_recompute === true || staleSnapshot) {

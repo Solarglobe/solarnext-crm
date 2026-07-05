@@ -721,14 +721,19 @@ export default function ScenarioComparisonTable({
           const title = columnLabels[id] ?? COLUMN_LABELS_DEFAULT[id];
           const subtitle = COLUMN_SUBTITLES[id];
           const badge = resolveColumnBadge(id, scenario);
-          // PHASE 1 — Garde-fou sélection/PDF : un actif choisi mais incomplet
+          // PHASE 1/2 — Garde-fou sélection/PDF : un actif choisi mais incomplet
           // (_skipped / "incomplete") ou non exploitable ("missing"/"unsuitable")
           // reste AFFICHÉ (avec son alerte) mais n'est PAS sélectionnable.
+          // BASE (« sans batterie ») reste TOUJOURS sélectionnable dès qu'il est présent
+          // (aligné sur le helper backend evaluateScenarioSelectable) : bloqué seulement
+          // s'il est absent ou _skipped, jamais pour "incomplete"/"unsuitable".
           const isBlockedForSelection =
-            badge.kind === "missing" ||
-            badge.kind === "unsuitable" ||
-            badge.kind === "incomplete" ||
-            (scenario as { _skipped?: boolean } | null)?._skipped === true;
+            (scenario as { _skipped?: boolean } | null)?._skipped === true ||
+            (id === "BASE"
+              ? scenario == null
+              : badge.kind === "missing" ||
+                badge.kind === "unsuitable" ||
+                badge.kind === "incomplete");
 
           const energy = stabilizedVirtualReadModel(id, scenario);
           const baseEnergy = scenarios[0]?.energy ?? {};

@@ -225,7 +225,7 @@ describe("ScenariosPage", () => {
     // 1) Bandeau de péremption affiché
     await waitFor(() => {
       expect(
-        screen.getByText("Les scénarios doivent être recalculés avec le nouveau moteur.")
+        screen.getByText("Snapshot périmé — recalcul requis")
       ).toBeInTheDocument();
     });
     // 2) Bouton de recalcul présent
@@ -242,7 +242,7 @@ describe("ScenariosPage", () => {
     });
     await waitFor(() => {
       expect(
-        screen.queryByText("Les scénarios doivent être recalculés avec le nouveau moteur.")
+        screen.queryByText("Snapshot périmé — recalcul requis")
       ).not.toBeInTheDocument();
     });
     expect(screen.queryByTestId("scenarios-stale")).not.toBeInTheDocument();

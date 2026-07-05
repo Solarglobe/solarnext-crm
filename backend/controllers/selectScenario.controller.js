@@ -13,6 +13,7 @@ import { isPdfBlockedByConfidence } from "../services/calculationConfidence.serv
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
 import { lockFinancialScenario } from "../services/financialScenarios.service.js";
+import { evaluateScenarioSelectable, SCENARIO_SELECTABLE_MESSAGES } from "../services/scenarioSelectable.js";
 
 const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
@@ -57,6 +58,21 @@ export async function selectScenario(req, res) {
     if (!Array.isArray(scenariosV2) || scenariosV2.length === 0) {
       return res.status(400).json({
         error: "scenarios_v2 absent ou vide. Lancez le calcul (run-study) avant de sélectionner un scénario.",
+      });
+    }
+
+    // Phase 2 — GARDE SÉLECTIONNABILITÉ (harmonisée avec generatePdfFromScenario) :
+    // un scénario absent / _skipped / incomplet ne doit ni être figé ni générer de PDF.
+    // Ne bloque JAMAIS sur une économie faible/nulle/négative ni un ROI non rentable calculé.
+    const selectedV2 = (scenariosV2 || []).find((s) => (s.id || s.name) === scenarioId) || null;
+    const selectable = evaluateScenarioSelectable(selectedV2, scenarioId);
+    if (!selectable.selectable) {
+      const status = selectable.reason === "SCENARIO_ABSENT" ? 400 : 409;
+      return res.status(status).json({
+        error: "SCENARIO_NOT_SELECTABLE",
+        reason: selectable.reason,
+        scenario_id: scenarioId,
+        message: SCENARIO_SELECTABLE_MESSAGES[selectable.reason] ?? "Ce scénario ne peut pas être figé.",
       });
     }
 
