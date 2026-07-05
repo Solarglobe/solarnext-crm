@@ -54,6 +54,7 @@ export function buildLegacyPayloadFromSolarNext(solarnextPayload) {
     panel_input: solarnextPayload?.panel_input ?? null,
     battery_input: solarnextPayload?.battery_input ?? null,
     virtual_battery_input: solarnextPayload?.virtual_battery_input ?? null,
+    vehicle_v2h_input: solarnextPayload?.vehicle_v2h_input ?? null,
     installation: installation && typeof installation === "object" ? installation : null,
     /** Ombrage mono-pan (null = inconnu / non transmis — ne pas traiter comme 0 % fiable). */
     shadingLossPct: (() => {

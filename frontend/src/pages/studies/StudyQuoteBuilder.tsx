@@ -110,6 +110,20 @@ interface BatteryOption {
   capacity_kwh?: number | null;
 }
 
+/** Phase 3C — Config Véhicule V2H (simulation). Persistée dans economic_state.data.vehicleV2h. */
+interface VehicleV2hConfig {
+  enabled: boolean;
+  capacity_kwh?: number | null;
+  min_reserve_pct?: number | null;
+  max_charge_kw?: number | null;
+  max_discharge_kw?: number | null;
+  roundtrip_efficiency_pct?: number | null;
+  weekday_plug_in_hour?: number | null;
+  weekday_departure_hour?: number | null;
+  weekend_present?: boolean;
+  daily_drive_kwh?: number | null;
+}
+
 /** Format retourné par GET /api/admin/quote-catalog (items[].) */
 interface CatalogItemApi {
   id: string;
@@ -139,6 +153,8 @@ interface EconomicData {
   };
   /** Config batterie virtuelle (grilles) — stockée dans config_json.virtualBattery */
   virtualBattery?: VirtualBatteryConfig | null;
+  /** Config Véhicule V2H (simulation) — stockée dans data.vehicleV2h */
+  vehicleV2h?: VehicleV2hConfig | null;
   totals?: { ht: number; tva: number; ttc: number; net: number };
   /** Financement optionnel — persistant dans economic_state.data.financing */
   financing?: FinancingConfig | null;
@@ -176,6 +192,7 @@ const DEFAULT_ECONOMIC_DATA: EconomicData = {
   },
   conditions: { discount_percent: 0, discount_amount: 0 },
   virtualBattery: null,
+  vehicleV2h: null,
   financing: { ...DEFAULT_FINANCING },
 };
 
@@ -1732,6 +1749,132 @@ export default function StudyQuoteBuilder() {
               locked={locked}
             />
           </div>
+
+          {/* Phase 3C — Véhicule électrique V2H (simulation, aucun matériel au devis) */}
+          <section className="sqb-section sqb-vehicle-v2h">
+            <h2 className="sqb-h2">Véhicule électrique V2H — simulation</h2>
+            <label className="sqb-label sqb-field-inline" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={!!economic.vehicleV2h?.enabled}
+                disabled={locked}
+                onChange={(e) => updateEconomic((d) => ({
+                  ...d,
+                  vehicleV2h: e.target.checked
+                    ? {
+                        enabled: true,
+                        capacity_kwh: d.vehicleV2h?.capacity_kwh ?? null,
+                        min_reserve_pct: d.vehicleV2h?.min_reserve_pct ?? 50,
+                        max_charge_kw: d.vehicleV2h?.max_charge_kw ?? 11,
+                        max_discharge_kw: d.vehicleV2h?.max_discharge_kw ?? 5,
+                        roundtrip_efficiency_pct: d.vehicleV2h?.roundtrip_efficiency_pct ?? 85,
+                        weekday_plug_in_hour: d.vehicleV2h?.weekday_plug_in_hour ?? 18,
+                        weekday_departure_hour: d.vehicleV2h?.weekday_departure_hour ?? 7,
+                        weekend_present: d.vehicleV2h?.weekend_present ?? true,
+                        daily_drive_kwh: d.vehicleV2h?.daily_drive_kwh ?? 0,
+                      }
+                    : { ...(d.vehicleV2h ?? { enabled: false }), enabled: false },
+                }))}
+              />
+              Activer la simulation V2H (la batterie du véhicule alimente la maison quand il est branché)
+            </label>
+            {economic.vehicleV2h?.enabled && (
+              <div className="sqb-financing-inline" style={{ flexWrap: "wrap", gap: 12, marginTop: 12 }}>
+                <label className="sqb-label sqb-field-inline">
+                  Capacité batterie (kWh)
+                  <LocaleNumberInput
+                    className="sn-input" min={0} disabled={locked} displayEmptyWhenZero
+                    value={Number(economic.vehicleV2h?.capacity_kwh ?? 0)}
+                    placeholder="60"
+                    onChange={(n) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), capacity_kwh: n } }))}
+                    aria-label="Capacité batterie véhicule"
+                  />
+                </label>
+                <label className="sqb-label sqb-field-inline">
+                  Réserve mobilité (%)
+                  <LocaleNumberInput
+                    className="sn-input" min={0} disabled={locked} displayEmptyWhenZero
+                    value={Number(economic.vehicleV2h?.min_reserve_pct ?? 0)}
+                    placeholder="50"
+                    onChange={(n) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), min_reserve_pct: n } }))}
+                    aria-label="Réserve minimale véhicule"
+                  />
+                </label>
+                <label className="sqb-label sqb-field-inline">
+                  Puissance charge (kW)
+                  <LocaleNumberInput
+                    className="sn-input" min={0} disabled={locked} displayEmptyWhenZero
+                    value={Number(economic.vehicleV2h?.max_charge_kw ?? 0)}
+                    placeholder="11"
+                    onChange={(n) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), max_charge_kw: n } }))}
+                    aria-label="Puissance charge V2H"
+                  />
+                </label>
+                <label className="sqb-label sqb-field-inline">
+                  Puissance décharge (kW)
+                  <LocaleNumberInput
+                    className="sn-input" min={0} disabled={locked} displayEmptyWhenZero
+                    value={Number(economic.vehicleV2h?.max_discharge_kw ?? 0)}
+                    placeholder="5"
+                    onChange={(n) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), max_discharge_kw: n } }))}
+                    aria-label="Puissance décharge V2H"
+                  />
+                </label>
+                <label className="sqb-label sqb-field-inline">
+                  Rendement (%)
+                  <LocaleNumberInput
+                    className="sn-input" min={0} disabled={locked} displayEmptyWhenZero
+                    value={Number(economic.vehicleV2h?.roundtrip_efficiency_pct ?? 0)}
+                    placeholder="85"
+                    onChange={(n) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), roundtrip_efficiency_pct: n } }))}
+                    aria-label="Rendement V2H"
+                  />
+                </label>
+                <label className="sqb-label sqb-field-inline">
+                  Branchement semaine (h)
+                  <LocaleNumberInput
+                    className="sn-input" min={0} disabled={locked} integer displayEmptyWhenZero
+                    value={Number(economic.vehicleV2h?.weekday_plug_in_hour ?? 0)}
+                    placeholder="18"
+                    onChange={(n) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), weekday_plug_in_hour: n } }))}
+                    aria-label="Heure branchement semaine"
+                  />
+                </label>
+                <label className="sqb-label sqb-field-inline">
+                  Départ semaine (h)
+                  <LocaleNumberInput
+                    className="sn-input" min={0} disabled={locked} integer displayEmptyWhenZero
+                    value={Number(economic.vehicleV2h?.weekday_departure_hour ?? 0)}
+                    placeholder="7"
+                    onChange={(n) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), weekday_departure_hour: n } }))}
+                    aria-label="Heure départ semaine"
+                  />
+                </label>
+                <label className="sqb-label sqb-field-inline">
+                  Conso trajets (kWh/j)
+                  <LocaleNumberInput
+                    className="sn-input" min={0} disabled={locked} displayEmptyWhenZero
+                    value={Number(economic.vehicleV2h?.daily_drive_kwh ?? 0)}
+                    placeholder="8"
+                    onChange={(n) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), daily_drive_kwh: n } }))}
+                    aria-label="Consommation trajets"
+                  />
+                </label>
+                <label className="sqb-label sqb-field-inline" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={economic.vehicleV2h?.weekend_present !== false}
+                    disabled={locked}
+                    onChange={(e) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), weekend_present: e.target.checked } }))}
+                  />
+                  Présente le week-end
+                </label>
+              </div>
+            )}
+            <p className="sqb-helper" style={{ marginTop: 8 }}>
+              Simulation uniquement — aucun matériel ajouté au devis. La recharge réseau nécessaire à la mobilité est tracée séparément et n'entre pas dans les économies.
+            </p>
+          </section>
 
           <section className="sqb-section sqb-section--financing sqb-financing">
           <h2 className="sqb-h2">Financement</h2>

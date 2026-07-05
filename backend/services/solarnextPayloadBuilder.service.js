@@ -1002,6 +1002,29 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     }));
   }
 
+  // Phase 3C V2H — vehicle_v2h_input depuis economic_snapshot.vehicleV2h (option de simulation).
+  let vehicle_v2h_input = null;
+  {
+    const v2hCfg = economicSnapshot?.vehicleV2h;
+    if (v2hCfg && v2hCfg.enabled === true && Number(v2hCfg.capacity_kwh) > 0) {
+      const rtPct = v2hCfg.roundtrip_efficiency_pct != null ? Number(v2hCfg.roundtrip_efficiency_pct) : 85;
+      vehicle_v2h_input = {
+        enabled: true,
+        capacity_kwh: Number(v2hCfg.capacity_kwh),
+        min_reserve_pct: v2hCfg.min_reserve_pct != null ? Number(v2hCfg.min_reserve_pct) : 50,
+        max_charge_kw: v2hCfg.max_charge_kw != null ? Number(v2hCfg.max_charge_kw) : 11,
+        max_discharge_kw: v2hCfg.max_discharge_kw != null ? Number(v2hCfg.max_discharge_kw) : 5,
+        roundtrip_efficiency: Math.max(0, Math.min(1, rtPct / 100)),
+        weekday_plug_in_hour: v2hCfg.weekday_plug_in_hour != null ? Number(v2hCfg.weekday_plug_in_hour) : 18,
+        weekday_departure_hour: v2hCfg.weekday_departure_hour != null ? Number(v2hCfg.weekday_departure_hour) : 7,
+        weekend_present: v2hCfg.weekend_present !== false,
+        daily_drive_kwh: v2hCfg.daily_drive_kwh != null ? Number(v2hCfg.daily_drive_kwh) : 0,
+      };
+    } else if (v2hCfg && v2hCfg.enabled === true) {
+      vehicle_v2h_input = { enabled: true }; // activé mais incomplet → calc.controller émettra _skipped
+    }
+  }
+
   const payload = {
     studyId,
     versionId: versionNum,
@@ -1074,6 +1097,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     panel_input,
     battery_input,
     virtual_battery_input,
+    vehicle_v2h_input,
     /** Audit commercial ombrage (PDF / calculation_confidence) — non consommé par le moteur PV. */
     shading_commercial_audit: shadingCommercialAudit,
   };
