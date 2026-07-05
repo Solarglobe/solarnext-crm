@@ -428,6 +428,30 @@ function buildKeyIndicatorRows(
 const SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"] as const;
 export type ScenarioColumnId = (typeof SCENARIO_IDS)[number];
 
+export interface VisibleColumn {
+  id: ScenarioColumnId;
+  originalIndex: number;
+  scenario: ScenarioV2 | null;
+}
+
+/**
+ * PHASE 1 — Colonnes à afficher dynamiquement.
+ * « Sans batterie » (BASE) toujours présent ; les autres n'apparaissent que si leur
+ * scénario est présent (actif sélectionné). Un scénario absent (null = non choisi)
+ * est masqué ; un scénario présent mais incomplet (_skipped) reste visible.
+ * On conserve l'index ORIGINAL (position dans le tableau complet, aligné sur les
+ * stats/étoiles calculées sur ce même tableau) — JAMAIS l'index du tableau filtré.
+ */
+export function computeVisibleColumns(
+  scenarios: readonly (ScenarioV2 | null)[]
+): VisibleColumn[] {
+  return SCENARIO_IDS.map((id, originalIndex) => ({
+    id,
+    originalIndex,
+    scenario: scenarios[originalIndex] ?? null,
+  })).filter(({ id, scenario }) => id === "BASE" || scenario != null);
+}
+
 export type ScenarioSelectContext = { addToDocuments: boolean };
 
 interface ScenarioComparisonTableProps {
@@ -685,14 +709,26 @@ export default function ScenarioComparisonTable({
     )
   );
 
+  const visibleColumns = computeVisibleColumns(scenarios);
+
   return (
     <div className={`scenario-comparison-premium ${className}`}>
-      <div className="scenario-comparison-grid">
-        {SCENARIO_IDS.map((id, index) => {
-          const scenario = scenarios[index] as ScenarioV2 | null;
+      <div
+        className="scenario-comparison-grid"
+        style={{ ["--sn-scenario-cols"]: visibleColumns.length } as React.CSSProperties}
+      >
+        {visibleColumns.map(({ id, originalIndex, scenario }) => {
           const title = columnLabels[id] ?? COLUMN_LABELS_DEFAULT[id];
           const subtitle = COLUMN_SUBTITLES[id];
           const badge = resolveColumnBadge(id, scenario);
+          // PHASE 1 — Garde-fou sélection/PDF : un actif choisi mais incomplet
+          // (_skipped / "incomplete") ou non exploitable ("missing"/"unsuitable")
+          // reste AFFICHÉ (avec son alerte) mais n'est PAS sélectionnable.
+          const isBlockedForSelection =
+            badge.kind === "missing" ||
+            badge.kind === "unsuitable" ||
+            badge.kind === "incomplete" ||
+            (scenario as { _skipped?: boolean } | null)?._skipped === true;
 
           const energy = stabilizedVirtualReadModel(id, scenario);
           const baseEnergy = scenarios[0]?.energy ?? {};
@@ -808,9 +844,9 @@ export default function ScenarioComparisonTable({
               : null;
 
           const keyIndicatorRows = buildKeyIndicatorRows(id, energy, finance, solarCoveragePct, {
-            auto: commercialIndicatorStars.auto.has(index),
-            tri: commercialIndicatorStars.tri.has(index),
-            savings: commercialIndicatorStars.savings.has(index),
+            auto: commercialIndicatorStars.auto.has(originalIndex),
+            tri: commercialIndicatorStars.tri.has(originalIndex),
+            savings: commercialIndicatorStars.savings.has(originalIndex),
           });
 
           const capexTtc = finiteNumberOrNull(finance.capex_ttc);
@@ -850,7 +886,7 @@ export default function ScenarioComparisonTable({
                         <span className="sn-badge sn-badge-danger">Non adapté</span>
                       )}
                     </div>
-                    {scenario != null && bestGainNetIndices.has(index) ? (
+                    {scenario != null && bestGainNetIndices.has(originalIndex) ? (
                       <span className="scenario-best-option-badge">Meilleure option</span>
                     ) : null}
                   </div>
@@ -1416,8 +1452,7 @@ export default function ScenarioComparisonTable({
                                 disabled={
                                   selectionDisabled ||
                                   pdfFlowBusy ||
-                                  badge.kind === "missing" ||
-                                  badge.kind === "unsuitable" ||
+                                  isBlockedForSelection ||
                                   isOtherLocked ||
                                   lockBlocksAll
                                 }
@@ -1439,8 +1474,7 @@ export default function ScenarioComparisonTable({
                             disabled={
                               selectionDisabled ||
                               pdfFlowBusy ||
-                              badge.kind === "missing" ||
-                              badge.kind === "unsuitable" ||
+                              isBlockedForSelection ||
                               isOtherLocked ||
                               lockBlocksAll
                             }
@@ -1478,7 +1512,7 @@ export default function ScenarioComparisonTable({
         }
         .scenario-comparison-grid {
           display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(var(--sn-scenario-cols, 4), minmax(0, 1fr));
           gap: 16px;
         }
         @media (max-width: 1200px) {
