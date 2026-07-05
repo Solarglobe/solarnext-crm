@@ -144,6 +144,12 @@ export function buildV2hEnergyScenarios({
       surplus_kwh: vb.ok ? (vb.virtual_battery_overflow_export_kwh ?? 0) : v.surplus_kwh,
       virtual_discharged_kwh: vbDischarged,
       _virtual_sim_ok: vb.ok === true,
+      // Étape PRÉ-virtuelle (V2H) — attendue par la finance hybride pour valoriser le virtuel sur résidu.
+      pre_virtual_auto_kwh: v.auto_kwh,
+      pre_virtual_surplus_kwh: v.surplus_kwh,
+      pre_virtual_import_kwh: v.grid_import_kwh,
+      pre_virtual_discharge_kwh: 0, // pas de batterie physique MAISON ici (le V2H ne se dégrade pas en v1)
+      billable_import_kwh: vb.ok ? vb.grid_import_kwh : v.grid_import_kwh,
       ...evFields(v),
     };
   }
@@ -154,6 +160,7 @@ export function buildV2hEnergyScenarios({
     const impAfterP = residualImport(conso_hourly, p.auto_hourly);
     const v = runV2H(p.surplus_hourly, impAfterP);
     const impAfterV = residualImport(impAfterP, v.auto_hourly);
+    const impAfterVtot = Math.round(sum(impAfterV));
     const vb = runVirt(v.surplus_hourly, impAfterV);
     const vbDischarged = vb.ok ? (vb.virtual_battery_total_discharged_kwh ?? 0) : 0;
     out.VEHICLE_V2H_PHYSICAL_VIRTUAL = {
@@ -164,6 +171,12 @@ export function buildV2hEnergyScenarios({
       physical_discharge_kwh: p.annual_discharge_kwh ?? 0,
       virtual_discharged_kwh: vbDischarged,
       _virtual_sim_ok: vb.ok === true,
+      // Étape PRÉ-virtuelle (physique + V2H) pour la finance hybride.
+      pre_virtual_auto_kwh: Math.round(p.auto_kwh + v.auto_kwh),
+      pre_virtual_surplus_kwh: v.surplus_kwh,
+      pre_virtual_import_kwh: impAfterVtot,
+      pre_virtual_discharge_kwh: p.annual_discharge_kwh ?? 0, // dégradation = batterie physique MAISON seulement
+      billable_import_kwh: vb.ok ? vb.grid_import_kwh : v.grid_import_kwh,
       ...evFields(v),
     };
   }

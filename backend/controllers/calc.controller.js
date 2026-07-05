@@ -1883,6 +1883,21 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               },
               annual: { prod_kwh: e.production_kwh, conso_kwh: e.consumption_kwh, auto_kwh: e.auto_kwh, surplus_kwh: e.surplus_kwh },
             };
+            // Dégradation physique MAISON (le V2H ne se dégrade pas en v1) : batterie physique du combo.
+            if (id === "VEHICLE_V2H_PHYSICAL") {
+              sc.battery = { enabled: true, annual_discharge_kwh: e.physical_discharge_kwh ?? 0 };
+            }
+            // Combos incluant le virtuel → valorisés comme l'hybride : étape pré-virtuelle + OPEX VB.
+            if (id === "VEHICLE_V2H_VIRTUAL" || id === "VEHICLE_V2H_PHYSICAL_VIRTUAL") {
+              sc.energy.physical_auto_kwh = e.pre_virtual_auto_kwh;
+              sc.energy.physical_grid_export_kwh = e.pre_virtual_surplus_kwh;
+              sc.energy.physical_grid_import_kwh = e.pre_virtual_import_kwh;
+              sc.billable_import_kwh = e.billable_import_kwh;
+              // OPEX batterie virtuelle (abonnement/restitution) réutilisée de BATTERY_VIRTUAL.
+              if (scenarios.BATTERY_VIRTUAL?.virtual_battery_finance) sc.virtual_battery_finance = scenarios.BATTERY_VIRTUAL.virtual_battery_finance;
+              if (scenarios.BATTERY_VIRTUAL?._virtualBatteryQuote) sc._virtualBatteryQuote = scenarios.BATTERY_VIRTUAL._virtualBatteryQuote;
+              sc.battery = { enabled: (e.pre_virtual_discharge_kwh ?? 0) > 0, annual_discharge_kwh: e.pre_virtual_discharge_kwh ?? 0 };
+            }
             if (id === "VEHICLE_V2H_VIRTUAL") sc.capex_ttc = virtualActivationFeeV2H;
             addEnergyKpisToScenario(sc, ctx);
             scenarios[id] = sc;

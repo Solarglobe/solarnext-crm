@@ -557,6 +557,12 @@ function lcoe(capex_net, prod_y1, degradation_pct, horizon_years, discount_rate 
 // ======================================================================
 // CALCUL FINANCIER PRINCIPAL
 // ======================================================================
+// Phase 3B V2H — les combos incluant le virtuel se valorisent comme l'HYBRIDE
+// (étape physique/V2H puis virtuel sur résidu). ⚠️ Chiffres à valider en réel.
+const HYBRID_LIKE_FINANCE = new Set(["BATTERY_HYBRID", "VEHICLE_V2H_VIRTUAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"]);
+const VIRTUAL_CREDIT_FINANCE = new Set(["BATTERY_VIRTUAL", "BATTERY_HYBRID", "VEHICLE_V2H_VIRTUAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"]);
+const PHYSICAL_DEGRADE_FINANCE = new Set(["BATTERY_PHYSICAL", "BATTERY_HYBRID", "VEHICLE_V2H_PHYSICAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"]);
+
 export async function computeFinance(ctx, scenarios) {
   if (process.env.NODE_ENV !== "production") {
     console.log("[A1] finance_input reçu =", ctx.finance_input);
@@ -633,25 +639,25 @@ export async function computeFinance(ctx, scenarios) {
       const auto_y1 =
         sc.name === "BATTERY_VIRTUAL"
           ? (baseScenario?.auto_kwh ?? baseScenario?.energy?.auto ?? sc.auto_kwh ?? 0)
-          : sc.name === "BATTERY_HYBRID"
+          : HYBRID_LIKE_FINANCE.has(sc.name)
             ? (sc.energy?.physical_auto_kwh ?? scenarios.BATTERY_PHYSICAL?.auto_kwh ?? scenarios.BATTERY_PHYSICAL?.energy?.auto ?? sc.auto_kwh ?? 0)
           : (sc.auto_kwh ?? 0);
       const surplus_y1 =
         sc.name === "BATTERY_VIRTUAL"
           ? (baseScenario?.surplus_kwh ?? baseScenario?.energy?.surplus ?? sc.surplus_kwh ?? 0)
-          : sc.name === "BATTERY_HYBRID"
+          : HYBRID_LIKE_FINANCE.has(sc.name)
             ? (sc.energy?.physical_grid_export_kwh ?? scenarios.BATTERY_PHYSICAL?.surplus_kwh ?? scenarios.BATTERY_PHYSICAL?.energy?.surplus ?? sc.surplus_kwh ?? 0)
           : (sc.surplus_kwh ?? 0);
       const oa_rate = kwc < 9 ? econ.oa_rate_lt_9 : econ.oa_rate_gte_9;
 
       const baseImportKwh = baseScenario?.energy?.import ?? baseScenario?.import_kwh ?? 0;
       const virtualSavingsReferenceImportKwh =
-        sc.name === "BATTERY_HYBRID"
+        HYBRID_LIKE_FINANCE.has(sc.name)
           ? (sc.energy?.physical_grid_import_kwh ?? scenarios.BATTERY_PHYSICAL?.import_kwh ?? scenarios.BATTERY_PHYSICAL?.energy?.import ?? baseImportKwh)
           : baseImportKwh;
       const billableImportKwh = sc.billable_import_kwh ?? sc.energy?.billable_import_kwh ?? null;
       const virtualImportSavingsKwh =
-        (sc.name === "BATTERY_VIRTUAL" || sc.name === "BATTERY_HYBRID") && billableImportKwh != null && Number.isFinite(billableImportKwh)
+        VIRTUAL_CREDIT_FINANCE.has(sc.name) && billableImportKwh != null && Number.isFinite(billableImportKwh)
           ? Math.max(0, (virtualSavingsReferenceImportKwh || 0) - billableImportKwh)
           : null;
 
@@ -660,7 +666,7 @@ export async function computeFinance(ctx, scenarios) {
       // Les scénarios BASE / BATTERY_VIRTUAL reçoivent battery_contribution_y1 = 0
       // → comportement identique à avant (rétrocompatible).
       const _battContribY1 =
-        (sc.name === "BATTERY_PHYSICAL" || sc.name === "BATTERY_HYBRID")
+        PHYSICAL_DEGRADE_FINANCE.has(sc.name)
           ? (sc.battery?.annual_discharge_kwh ?? 0)
           : 0;
 
