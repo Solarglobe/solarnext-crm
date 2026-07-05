@@ -211,6 +211,7 @@ export async function calculateSmartpitch(req, res) {
     ctx.finance_input = form?.finance_input ?? null;
     ctx.battery_input = form?.battery_input ?? null;
     ctx.virtual_battery_input = form?.virtual_battery_input ?? null;
+    ctx.vehicle_v2h_input = form?.vehicle_v2h_input ?? null; // Phase 3 V2H : propage la config véhicule vers le contexte moteur
 
     // ------------------------------------------------------------
     // FORÇAGE — Version PRO unifiée (Pipeline identique au normal)
