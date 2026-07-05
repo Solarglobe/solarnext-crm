@@ -53,6 +53,7 @@ import {
   attachHpHcPricingToScenarios,
 } from "../services/pv/hphcPricing.service.js";
 import { mapScenarioToV2 } from "../services/scenarioV2Mapper.service.js";
+import { buildV2hEnergyScenarios } from "../services/v2hScenarios.service.js";
 import { attachNormalizedEnergyKpiFields } from "../services/energyKpisNormalize.service.js";
 import * as financeService from "../services/financeService.js";
 import * as impactService from "../services/impactService.js";
@@ -1828,6 +1829,71 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       }
     }
 
+
+    // -----------------------------------------------------------------------
+    // VEHICLE_V2H* — Voiture V2H (Phase 3B-2b). Gaté par vehicle_v2h_input.enabled.
+    // DÉFENSIF : tout échec → scénarios V2H omis, les 4 scénarios existants INTACTS.
+    // Décision v1 : aucun coût V2H ajouté (CAPEX = composants batterie maison).
+    // ev_grid_charge_kwh reste informatif (hors ROI). ⚠️ Finance V2H à valider en réel.
+    // -----------------------------------------------------------------------
+    if (ctx.vehicle_v2h_input?.enabled === true) {
+      try {
+        const consoHourlyV2H = resolveRawScenarioConsumptionHourly(ctx);
+        const pvHourlyV2H = ctx.pv?.hourly;
+        if (
+          Array.isArray(pvHourlyV2H) && pvHourlyV2H.length === 8760 &&
+          Array.isArray(consoHourlyV2H) && consoHourlyV2H.length === 8760
+        ) {
+          let virtualCapacityKwhV2H = null;
+          try { virtualCapacityKwhV2H = resolveVirtualBatteryCapacityKwh(ctx.virtual_battery_input || {}); } catch (_) {}
+          if (virtualCapacityKwhV2H == null || !(Number(virtualCapacityKwhV2H) > 0)) {
+            virtualCapacityKwhV2H = Number(scenarios.BATTERY_VIRTUAL?.battery_virtual?.capacity_simulated_kwh) || 10;
+          }
+          const v2hEnergy = buildV2hEnergyScenarios({
+            pv_hourly: pvHourlyV2H,
+            conso_hourly: consoHourlyV2H,
+            physicalBattery: ctx.battery_input,
+            virtualConfig: ctx.virtual_battery_input,
+            virtualCapacityKwh: virtualCapacityKwhV2H,
+            vehicle: ctx.vehicle_v2h_input,
+            // Année de la conso indisponible dans ctx → défaut du helper (DEFAULT_SIMULATION_YEAR).
+          });
+          const virtualActivationFeeV2H = Number(scenarios.BATTERY_VIRTUAL?.capex_ttc) || 0;
+          for (const id of Object.keys(v2hEnergy)) {
+            const e = v2hEnergy[id];
+            if (e._skipped === true) {
+              scenarios[id] = {
+                name: id, _v2: true, vehicle_v2h: true, _skipped: true,
+                finance: { roi_years: null, irr: null, lcoe: null, cashflows: null, note: "vehicle_v2h_" + (e.reason || "skipped") },
+              };
+              continue;
+            }
+            const sc = {
+              name: id, _v2: true, vehicle_v2h: true,
+              scenario_uses_piloted_profile: ctx.solar_piloting_enabled === true,
+              prod_kwh: e.production_kwh, auto_kwh: e.auto_kwh, surplus_kwh: e.surplus_kwh, conso_kwh: e.consumption_kwh,
+              energy_basis: "hourly_8760",
+              energy: {
+                prod: e.production_kwh, auto: e.auto_kwh, surplus: e.surplus_kwh, import: e.grid_import_kwh, conso: e.consumption_kwh,
+                ev_v2h_discharge_kwh: e.ev_v2h_discharge_kwh, ev_solar_charge_kwh: e.ev_solar_charge_kwh,
+                ev_grid_charge_kwh: e.ev_grid_charge_kwh, ev_trip_consumption_kwh: e.ev_trip_consumption_kwh,
+                ev_battery_losses_kwh: e.ev_battery_losses_kwh, ev_reserve_kwh: e.ev_reserve_kwh,
+                ev_plugged_hours_year: e.ev_plugged_hours_year,
+                hourly: null,
+              },
+              annual: { prod_kwh: e.production_kwh, conso_kwh: e.consumption_kwh, auto_kwh: e.auto_kwh, surplus_kwh: e.surplus_kwh },
+            };
+            if (id === "VEHICLE_V2H_VIRTUAL") sc.capex_ttc = virtualActivationFeeV2H;
+            addEnergyKpisToScenario(sc, ctx);
+            scenarios[id] = sc;
+          }
+        } else {
+          console.warn("[VEHICLE_V2H] profils PV/conso 8760 indisponibles → scénarios V2H omis");
+        }
+      } catch (v2hErr) {
+        console.error("[VEHICLE_V2H] génération échouée (scénarios existants intacts):", v2hErr?.message ?? v2hErr);
+      }
+    }
 
     for (const _sk of Object.keys(scenarios)) {
       attachNormalizedEnergyKpiFields(scenarios[_sk]);

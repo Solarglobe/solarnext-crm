@@ -152,6 +152,29 @@ export function resolveScenarioCapexTtcV2(sc, ctx) {
     if (pvCapex == null) return null;
     return pvCapex + batteryPhysExtra;
   }
+  // Phase 3B V2H — décision v1 : AUCUN coût véhicule ajouté. Chaque combo réutilise
+  // le CAPEX de ses composants batterie MAISON (la voiture n'est pas un matériel vendu).
+  if (sc.name === "VEHICLE_V2H") {
+    // Voiture seule → PV uniquement (comme BASE).
+    return pvCapex;
+  }
+  if (sc.name === "VEHICLE_V2H_PHYSICAL") {
+    // + batterie physique maison → même CAPEX que BATTERY_PHYSICAL.
+    if (pvCapex == null) return null;
+    return pvCapex + batteryPhysExtra;
+  }
+  if (sc.name === "VEHICLE_V2H_VIRTUAL") {
+    // + batterie virtuelle → PV + frais d'activation VB (comme BATTERY_VIRTUAL).
+    const virtRaw = sc.capex_ttc != null ? Number(sc.capex_ttc) : 0;
+    const virtAdd = Number.isFinite(virtRaw) && virtRaw > 0 ? virtRaw : 0;
+    if (pvCapex == null) return null;
+    return pvCapex + virtAdd;
+  }
+  if (sc.name === "VEHICLE_V2H_PHYSICAL_VIRTUAL") {
+    // triplette → PV + batterie physique (abonnement VB = OPEX), comme BATTERY_HYBRID.
+    if (pvCapex == null) return null;
+    return pvCapex + batteryPhysExtra;
+  }
   return null;
 }
 
