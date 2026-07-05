@@ -1003,6 +1003,17 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
   }
 
   // Phase 3C V2H — vehicle_v2h_input depuis economic_snapshot.vehicleV2h (option de simulation).
+  // Normalise la grille de presence 7x24 (lundi..dimanche x 0..23) -> booleens ; null si invalide.
+  function normalizeV2hPresenceGrid(g) {
+    if (!Array.isArray(g) || g.length !== 7) return null;
+    const out = [];
+    for (let d = 0; d < 7; d++) {
+      const row = g[d];
+      if (!Array.isArray(row) || row.length !== 24) return null;
+      out.push(row.map((cell) => cell === true || cell === 1 || cell === "1"));
+    }
+    return out;
+  }
   let vehicle_v2h_input = null;
   {
     const v2hCfg = economicSnapshot?.vehicleV2h;
@@ -1015,6 +1026,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
         max_charge_kw: v2hCfg.max_charge_kw != null ? Number(v2hCfg.max_charge_kw) : 11,
         max_discharge_kw: v2hCfg.max_discharge_kw != null ? Number(v2hCfg.max_discharge_kw) : 5,
         roundtrip_efficiency: Math.max(0, Math.min(1, rtPct / 100)),
+        presence_grid: normalizeV2hPresenceGrid(v2hCfg.presence_grid), // grille 7x24 (prioritaire)
         weekday_plug_in_hour: v2hCfg.weekday_plug_in_hour != null ? Number(v2hCfg.weekday_plug_in_hour) : 18,
         weekday_departure_hour: v2hCfg.weekday_departure_hour != null ? Number(v2hCfg.weekday_departure_hour) : 7,
         weekend_present: v2hCfg.weekend_present !== false,

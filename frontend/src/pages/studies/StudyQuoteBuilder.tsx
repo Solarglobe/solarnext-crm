@@ -122,6 +122,118 @@ interface VehicleV2hConfig {
   weekday_departure_hour?: number | null;
   weekend_present?: boolean;
   daily_drive_kwh?: number | null;
+  /** Grille de présence 7 jours (lundi..dimanche) x 24 h ; true = véhicule branché à domicile. */
+  presence_grid?: boolean[][] | null;
+}
+
+const V2H_DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+/** Défaut « navetteur » : semaine branchée sauf 8h-18h (au travail), week-end branché en continu. */
+function makeDefaultPresenceGrid(): boolean[][] {
+  return Array.from({ length: 7 }, (_, dd) => {
+    const weekend = dd >= 5;
+    return Array.from({ length: 24 }, (_, h) => (weekend ? true : h < 8 || h >= 18));
+  });
+}
+
+function normalizePresenceGridProp(g?: boolean[][] | null): boolean[][] {
+  if (Array.isArray(g) && g.length === 7 && g.every((r) => Array.isArray(r) && r.length === 24)) {
+    return g.map((r) => r.map((c) => c === true));
+  }
+  return makeDefaultPresenceGrid();
+}
+
+/** Grille cliquable 7x24 pour saisir les heures de présence du véhicule (plusieurs plages/jour). */
+function V2hPresenceGrid({
+  grid,
+  disabled,
+  onChange,
+}: {
+  grid?: boolean[][] | null;
+  disabled?: boolean;
+  onChange: (g: boolean[][]) => void;
+}) {
+  const g = normalizePresenceGridProp(grid);
+  const paintRef = useRef<boolean | null>(null);
+
+  const setCell = (dd: number, h: number, val: boolean) => {
+    if (disabled) return;
+    const next = g.map((row) => row.slice());
+    next[dd][h] = val;
+    onChange(next);
+  };
+  const setRow = (dd: number, val: boolean) => {
+    if (disabled) return;
+    const next = g.map((row) => row.slice());
+    next[dd] = Array.from({ length: 24 }, () => val);
+    onChange(next);
+  };
+  const copyDayToWeek = (src: number) => {
+    if (disabled) return;
+    const row = g[src].slice();
+    onChange(Array.from({ length: 7 }, () => row.slice()));
+  };
+  const pluggedCount = g.reduce((s, row) => s + row.filter(Boolean).length, 0);
+
+  return (
+    <div
+      className="v2h-grid-wrap"
+      style={{ width: "100%", marginTop: 4 }}
+      onMouseLeave={() => { paintRef.current = null; }}
+      onMouseUp={() => { paintRef.current = null; }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+        Présence du véhicule branché — cliquez ou glissez les heures où il est à domicile
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ borderCollapse: "collapse", userSelect: "none", fontSize: 10 }}>
+          <thead>
+            <tr>
+              <th style={{ padding: "2px 6px" }} />
+              {Array.from({ length: 24 }, (_, h) => (
+                <th key={h} style={{ padding: "1px 0", width: 15, color: "#64748b", fontWeight: h % 6 === 0 ? 700 : 400 }}>{h}</th>
+              ))}
+              <th style={{ padding: "2px 6px" }} />
+            </tr>
+          </thead>
+          <tbody>
+            {V2H_DAYS.map((label, dd) => (
+              <tr key={dd}>
+                <td style={{ padding: "2px 6px", fontWeight: 600, whiteSpace: "nowrap" }}>{label}</td>
+                {Array.from({ length: 24 }, (_, h) => {
+                  const on = g[dd][h];
+                  return (
+                    <td
+                      key={h}
+                      onMouseDown={() => { if (disabled) return; const v = !on; paintRef.current = v; setCell(dd, h, v); }}
+                      onMouseEnter={() => { if (!disabled && paintRef.current !== null) setCell(dd, h, paintRef.current); }}
+                      title={`${label} ${String(h).padStart(2, "0")}:00 — ${on ? "branché" : "absent"}`}
+                      style={{
+                        width: 15,
+                        height: 18,
+                        border: "1px solid #e2e8f0",
+                        background: on ? "#22c55e" : "#f1f5f9",
+                        cursor: disabled ? "default" : "pointer",
+                      }}
+                    />
+                  );
+                })}
+                <td style={{ padding: "0 4px", whiteSpace: "nowrap" }}>
+                  <button type="button" disabled={disabled} onClick={() => setRow(dd, true)} style={{ fontSize: 9, marginRight: 2 }}>tout</button>
+                  <button type="button" disabled={disabled} onClick={() => setRow(dd, false)} style={{ fontSize: 9, marginRight: 2 }}>rien</button>
+                  <button type="button" disabled={disabled} onClick={() => copyDayToWeek(dd)} style={{ fontSize: 9 }} title="Copier ce jour sur toute la semaine">→ 7j</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+        Vert = branché (V2H possible) · gris = absent · {pluggedCount} h/sem. branché.
+        Exemple « branché 00-16 et 20-24 » : laissez seulement 16-19 en gris.
+      </div>
+    </div>
+  );
 }
 
 /** Format retourné par GET /api/admin/quote-catalog (items[].) */
@@ -1772,6 +1884,7 @@ export default function StudyQuoteBuilder() {
                         weekday_departure_hour: d.vehicleV2h?.weekday_departure_hour ?? 7,
                         weekend_present: d.vehicleV2h?.weekend_present ?? true,
                         daily_drive_kwh: d.vehicleV2h?.daily_drive_kwh ?? 0,
+                        presence_grid: d.vehicleV2h?.presence_grid ?? makeDefaultPresenceGrid(),
                       }
                     : { ...(d.vehicleV2h ?? { enabled: false }), enabled: false },
                 }))}
@@ -1831,26 +1944,6 @@ export default function StudyQuoteBuilder() {
                   />
                 </label>
                 <label className="sqb-label sqb-field-inline">
-                  Branchement semaine (h)
-                  <LocaleNumberInput
-                    className="sn-input" min={0} disabled={locked} integer displayEmptyWhenZero
-                    value={Number(economic.vehicleV2h?.weekday_plug_in_hour ?? 0)}
-                    placeholder="18"
-                    onChange={(n) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), weekday_plug_in_hour: n } }))}
-                    aria-label="Heure branchement semaine"
-                  />
-                </label>
-                <label className="sqb-label sqb-field-inline">
-                  Départ semaine (h)
-                  <LocaleNumberInput
-                    className="sn-input" min={0} disabled={locked} integer displayEmptyWhenZero
-                    value={Number(economic.vehicleV2h?.weekday_departure_hour ?? 0)}
-                    placeholder="7"
-                    onChange={(n) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), weekday_departure_hour: n } }))}
-                    aria-label="Heure départ semaine"
-                  />
-                </label>
-                <label className="sqb-label sqb-field-inline">
                   Conso trajets (kWh/j)
                   <LocaleNumberInput
                     className="sn-input" min={0} disabled={locked} displayEmptyWhenZero
@@ -1860,15 +1953,13 @@ export default function StudyQuoteBuilder() {
                     aria-label="Consommation trajets"
                   />
                 </label>
-                <label className="sqb-label sqb-field-inline" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={economic.vehicleV2h?.weekend_present !== false}
+                <div style={{ flexBasis: "100%", width: "100%" }}>
+                  <V2hPresenceGrid
+                    grid={economic.vehicleV2h?.presence_grid ?? null}
                     disabled={locked}
-                    onChange={(e) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), weekend_present: e.target.checked } }))}
+                    onChange={(gnext) => updateEconomic((d) => ({ ...d, vehicleV2h: { enabled: true, ...(d.vehicleV2h || {}), presence_grid: gnext } }))}
                   />
-                  Présente le week-end
-                </label>
+                </div>
               </div>
             )}
             <p className="sqb-helper" style={{ marginTop: 8 }}>

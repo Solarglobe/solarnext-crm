@@ -36,6 +36,7 @@ function vehicleV2hParams(v, simulationYear) {
     min_soc_pct: v.min_reserve_pct != null ? Number(v.min_reserve_pct) : 50,
     availability_hourly: buildV2hAvailabilityHourly(
       {
+        presence_grid: v.presence_grid, // prioritaire (grille 7x24) ; sinon repli legacy
         weekday_plug_in_hour: v.weekday_plug_in_hour,
         weekday_departure_hour: v.weekday_departure_hour,
         weekend_present: v.weekend_present,

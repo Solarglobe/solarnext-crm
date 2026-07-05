@@ -68,3 +68,30 @@ test("DEFAULT_SIMULATION_YEAR exporté et cohérent (défaut = sans année)", ()
   assert.equal(typeof DEFAULT_SIMULATION_YEAR, "number");
   assert.deepEqual(buildV2hAvailabilityHourly(PRES), buildV2hAvailabilityHourly(PRES, DEFAULT_SIMULATION_YEAR));
 });
+
+// ─── Mode grille 7×24 (Phase : présence par jour) ───
+test("grille : plusieurs plages/jour (branché 0-16 ET 20-24 → débranché 16-19)", () => {
+  const grid = Array.from({ length: 7 }, () => {
+    const row = Array(24).fill(true);
+    for (let hod = 16; hod < 20; hod++) row[hod] = false; // débranché 16h→19h
+    return row;
+  });
+  const a = buildV2hAvailabilityHourly({ presence_grid: grid }, 2026);
+  assert.equal(a.length, 8760);
+  assert.equal(a[12], 1, "12h branché");
+  assert.equal(a[17], 0, "17h débranché");
+  assert.equal(a[22], 1, "22h branché");
+});
+
+test("grille : jours mappés lun=0..dim=6 (2026 : 1er janv = jeudi)", () => {
+  const grid = Array.from({ length: 7 }, (_, d) => Array(24).fill(d === 0)); // seul lundi branché
+  const a = buildV2hAvailabilityHourly({ presence_grid: grid }, 2026);
+  assert.equal(a[4 * 24 + 10], 1, "Jan 5 = lundi → branché");
+  assert.equal(a[5 * 24 + 10], 0, "Jan 6 = mardi → débranché");
+  assert.equal(a[0 * 24 + 10], 0, "Jan 1 = jeudi → débranché");
+});
+
+test("grille invalide → repli mode legacy (pas de crash)", () => {
+  const a = buildV2hAvailabilityHourly({ presence_grid: [[true]], weekday_plug_in_hour: 18, weekday_departure_hour: 7 }, 2026);
+  assert.equal(a.length, 8760);
+});
