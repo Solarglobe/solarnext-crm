@@ -1,9 +1,5 @@
 // ======================================================================
-// SMARTPITCH — SIMULATION BATTERIE 8760H (paramètres devis uniquement)
-// Phase 3 V2H : extension par un paramètre OPTIONNEL `v2h` à défauts NEUTRES.
-// Sans `v2h`, le comportement est STRICTEMENT identique (batterie physique/
-// hybride inchangées) — les champs de retour existants sont préservés à
-// l'identique ; seuls des champs ev_* additionnels sont ajoutés.
+// SMARTPITCH — SIMULATION BATTERIE 8760H (paramètres devis uniquement, pas de 7 kWh hardcodé)
 // ======================================================================
 
 /**
@@ -49,22 +45,15 @@ function passThroughNoBattery(pv_hourly, conso_hourly) {
 }
 
 /**
- * Simule la batterie 8760h.
- * @param {{ pv_hourly: number[], conso_hourly: number[], battery?: object,
- *           v2h?: { min_soc_pct?: number, availability_hourly?: number[],
- *                   daily_drive_kwh?: number, daily_drive_hour?: number } }} opts
+ * Simule la batterie 8760h. Paramètres uniquement depuis battery (devis / payload).
+ * @param {{ pv_hourly: number[], conso_hourly: number[], battery?: object }} opts
  *   battery: { enabled?, capacity_kwh?, roundtrip_efficiency?, max_charge_kw?, max_discharge_kw? }
- *   v2h (optionnel, défauts neutres) :
- *     - min_soc_pct : réserve minimale % (défaut 10 → comportement historique)
- *     - availability_hourly : 8760×(0/1) heures branché (défaut null → toujours dispo)
- *     - daily_drive_kwh : conso trajets/jour (défaut 0 → aucun trajet, aucune recharge réseau)
- *     - daily_drive_hour : heure UTC du prélèvement trajet (défaut 7)
+ * @returns Résultat avec ok/reason si refus, sinon { ok: true, pv_hourly, conso_hourly, auto_hourly, surplus_hourly, ... }
  */
 export function simulateBattery8760({
   pv_hourly,
   conso_hourly,
   battery,
-  v2h,
 }) {
   if (!Array.isArray(pv_hourly) || pv_hourly.length !== 8760) {
     return { ok: false, reason: "INVALID_PV_HOURLY" };
@@ -96,23 +85,9 @@ export function simulateBattery8760({
     ? Math.max(0, Number(battery.max_discharge_kw))
     : Infinity;
 
-  // --- Phase 3 V2H : paramètres optionnels à défauts NEUTRES ---
-  const minSOCpct = (v2h && Number.isFinite(Number(v2h.min_soc_pct)))
-    ? Math.max(0, Math.min(100, Number(v2h.min_soc_pct)))
-    : 10;
-  const availability = (v2h && Array.isArray(v2h.availability_hourly) && v2h.availability_hourly.length === 8760)
-    ? v2h.availability_hourly
-    : null;
-  const dailyDriveKwh = (v2h && Number.isFinite(Number(v2h.daily_drive_kwh)))
-    ? Math.max(0, Number(v2h.daily_drive_kwh))
-    : 0;
-  const driveHour = (v2h && Number.isFinite(Number(v2h.daily_drive_hour)))
-    ? (((Math.trunc(Number(v2h.daily_drive_hour)) % 24) + 24) % 24)
-    : 7;
-
+  const minSOCpct = 10;
   const SOC_min = capacity_kwh * (minSOCpct / 100);
-  let SOC = Math.max(capacity_kwh * 0.45, SOC_min);
-  const SOC_start = SOC;
+  let SOC = capacity_kwh * 0.45;
 
   let auto_total = 0;
   let surplus_total = 0;
@@ -122,13 +97,6 @@ export function simulateBattery8760({
   let discharge_total = 0;
   let direct_total = 0;
   let surplus_before_battery_total = 0;
-
-  // Compteurs V2H (0 hors V2H)
-  let ev_solar_charge_total = 0;
-  let ev_grid_charge_total = 0;
-  let ev_trip_total = 0;
-  let ev_losses_total = 0;
-  let plugged_hours = 0;
 
   const auto_hourly = [];
   const direct_self_consumption_hourly = [];
@@ -142,69 +110,44 @@ export function simulateBattery8760({
   for (let h = 0; h < 8760; h++) {
     const pv = pv_hourly[h] || 0;
     const load = conso_hourly[h] || 0;
-    const available = availability ? (availability[h] === 1 || availability[h] === true) : true;
-    if (available) plugged_hours++;
-
-    // (5a) Trajet quotidien : prélèvement sur la batterie à driveHour (V2H uniquement).
-    if (dailyDriveKwh > 0 && (h % 24) === driveHour) {
-      const ev_trip = Math.min(dailyDriveKwh, SOC);
-      SOC -= ev_trip;
-      ev_trip_total += ev_trip;
-    }
 
     const direct = Math.min(pv, load);
     let surplus = pv - direct;
     const surplus_before_battery = Math.max(0, surplus);
 
     let charge_in = 0;
-    let charge_eff = 0;
-    let grid_in = 0;
-    let grid_eff = 0;
-    let discharge_out = 0;
-    let discharge_eff = 0;
-
-    if (available) {
-      // Charge depuis le surplus solaire (logique historique inchangée).
-      if (surplus > 0.15) {
-        charge_in = Math.min(surplus, pCh);
-      }
-      charge_eff = charge_in * effCh;
-      const room = capacity_kwh - SOC;
-      if (charge_eff > room) {
-        charge_eff = room;
-        charge_in = effCh > 0 ? charge_eff / effCh : 0;
-      }
-      SOC += charge_eff;
-      surplus -= charge_in;
-
-      // (5b) Recharge réseau minimale vers SOC_min (V2H uniquement : daily_drive_kwh > 0).
-      if (dailyDriveKwh > 0 && SOC < SOC_min) {
-        const powerLeft = Math.max(0, pCh - charge_in);
-        grid_in = Math.min((SOC_min - SOC) / (effCh > 0 ? effCh : 1), powerLeft);
-        grid_eff = grid_in * effCh;
-        if (SOC + grid_eff > SOC_min) {
-          grid_eff = SOC_min - SOC;
-          grid_in = effCh > 0 ? grid_eff / effCh : 0;
-        }
-        SOC += grid_eff;
-      }
-
-      // Décharge vers la maison (borne SOC_min inchangée ; V2H ne franchit jamais la réserve).
-      const need = load - direct;
-      if (need > 0) discharge_out = Math.min(need, pDis);
-      discharge_eff = effDis > 0 ? discharge_out / effDis : 0;
-      const maxDis = SOC - SOC_min;
-      if (discharge_eff > maxDis) {
-        discharge_eff = Math.max(0, maxDis);
-        discharge_out = discharge_eff * effDis;
-      }
-      SOC -= discharge_eff;
+    if (surplus > 0.15) {
+      charge_in = Math.min(surplus, pCh);
     }
-    // Si non disponible (véhicule absent) : ni charge ni décharge côté maison ; SOC inchangé (hors trajet).
+
+    let charge_eff = charge_in * effCh;
+
+    const room = capacity_kwh - SOC;
+    if (charge_eff > room) {
+      charge_eff = room;
+      charge_in = charge_eff / effCh;
+    }
+
+    SOC += charge_eff;
+    surplus -= charge_in;
+
+    const need = load - direct;
+    let discharge_out = 0;
+
+    if (need > 0) discharge_out = Math.min(need, pDis);
+
+    let discharge_eff = discharge_out / effDis;
+
+    const maxDis = SOC - SOC_min;
+    if (discharge_eff > maxDis) {
+      discharge_eff = maxDis;
+      discharge_out = discharge_eff * effDis;
+    }
+
+    SOC -= discharge_eff;
 
     const auto_h = direct + discharge_out;
     const import_h = Math.max(0, load - auto_h);
-    const loss_h = (charge_in - charge_eff) + (grid_in - grid_eff) + (discharge_eff - discharge_out);
 
     auto_total += auto_h;
     grid_total += import_h;
@@ -214,10 +157,6 @@ export function simulateBattery8760({
     discharge_total += discharge_out;
     direct_total += direct;
     surplus_before_battery_total += surplus_before_battery;
-
-    ev_solar_charge_total += charge_in;
-    ev_grid_charge_total += grid_in;
-    ev_losses_total += Math.max(0, loss_h);
 
     auto_hourly.push(auto_h);
     direct_self_consumption_hourly.push(direct);
@@ -273,15 +212,5 @@ export function simulateBattery8760({
     equivalent_cycles,
     daily_cycles_avg,
     battery_utilization_rate,
-    // --- Phase 3 V2H (0 / neutres hors contexte V2H) ---
-    ev_v2h_discharge_kwh: Math.round(discharge_total),
-    ev_solar_charge_kwh: Math.round(ev_solar_charge_total),
-    ev_grid_charge_kwh: Math.round(ev_grid_charge_total),
-    ev_trip_consumption_kwh: Math.round(ev_trip_total),
-    ev_battery_losses_kwh: Math.round(ev_losses_total),
-    ev_reserve_kwh: Math.round(SOC_min),
-    ev_plugged_hours_year: availability ? plugged_hours : 8760,
-    ev_soc_start_kwh: SOC_start,
-    ev_soc_end_kwh: SOC,
   };
 }
