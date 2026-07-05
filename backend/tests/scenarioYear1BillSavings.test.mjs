@@ -119,6 +119,10 @@ test("vehicle V2H + virtual battery cannot be worse than virtual battery alone w
     annual_virtual_discharge_cost_ttc: 0,
     annual_overflow_export_revenue_ttc: 0,
   };
+  const vehicleVirtualFinance = {
+    ...virtualFinance,
+    annual_grid_import_cost_ttc: 700,
+  };
   const virtualQuote = { annual_cost_ttc: 100, detail: { recurring_annual_ttc: 100 } };
 
   const out = await computeFinance(ctx, {
@@ -158,7 +162,7 @@ test("vehicle V2H + virtual battery cannot be worse than virtual battery alone w
         physical_grid_export_kwh: 1500,
         virtual_battery_overflow_export_kwh: 900,
       },
-      virtual_battery_finance: virtualFinance,
+      virtual_battery_finance: vehicleVirtualFinance,
       _virtualBatteryQuote: virtualQuote,
       _virtualBattery8760: { virtual_battery_overflow_export_kwh: 900 },
       battery: { enabled: false, annual_discharge_kwh: 0 },
@@ -169,8 +173,8 @@ test("vehicle V2H + virtual battery cannot be worse than virtual battery alone w
   const mixed = out.scenarios.VEHICLE_V2H_VIRTUAL;
 
   assert.ok(
-    mixed.economie_an1 >= virtualOnly.economie_an1,
-    `expected V2H+virtual economie_an1 (${mixed.economie_an1}) >= virtual (${virtualOnly.economie_an1})`
+    mixed.economie_an1 > virtualOnly.economie_an1,
+    `expected V2H+virtual economie_an1 (${mixed.economie_an1}) > virtual (${virtualOnly.economie_an1})`
   );
   assert.ok(
     mixed.economie_25a >= virtualOnly.economie_25a,

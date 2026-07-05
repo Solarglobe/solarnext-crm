@@ -254,7 +254,7 @@ function stabilizedVirtualReadModel(
   scenario: ScenarioV2 | null
 ): ScenarioV2Energy {
   const energy = scenario?.energy ?? {};
-  if (id !== "BATTERY_VIRTUAL" && id !== "BATTERY_HYBRID") return energy;
+  if (!isVirtualLikeScenarioId(id)) return energy;
 
   const stabilized =
     scenario?.stabilized && typeof scenario.stabilized === "object"
@@ -390,9 +390,9 @@ function buildKeyIndicatorRows(
   );
   if (selfCons != null)
     rows.push({
-      label: id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID" ? "PV valorisé" : "Autoconsommation PV",
+      label: isVirtualLikeScenarioId(id) ? "PV valorisé" : "Autoconsommation PV",
       value: formatPercent(selfCons),
-      star: id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID" ? false : stars.auto,
+      star: isVirtualLikeScenarioId(id) ? false : stars.auto,
     });
 
   const coverPref = finiteNumberOrNull(energy.solar_coverage_pct ?? energy.self_production_pct);
@@ -435,6 +435,14 @@ function buildKeyIndicatorRows(
 
 const SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID", "VEHICLE_V2H", "VEHICLE_V2H_PHYSICAL", "VEHICLE_V2H_VIRTUAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"] as const;
 export type ScenarioColumnId = (typeof SCENARIO_IDS)[number];
+
+function isVirtualLikeScenarioId(id: ScenarioColumnId): boolean {
+  return id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID" || id === "VEHICLE_V2H_VIRTUAL" || id === "VEHICLE_V2H_PHYSICAL_VIRTUAL";
+}
+
+function isPhysicalLikeScenarioId(id: ScenarioColumnId): boolean {
+  return id === "BATTERY_PHYSICAL" || id === "BATTERY_HYBRID" || id === "VEHICLE_V2H_PHYSICAL" || id === "VEHICLE_V2H_PHYSICAL_VIRTUAL";
+}
 
 export interface VisibleColumn {
   id: ScenarioColumnId;
@@ -647,6 +655,10 @@ function ctaLabel(id: ScenarioColumnId): string {
   if (id === "BASE") return "Choisir sans stockage";
   if (id === "BATTERY_PHYSICAL") return "Choisir batterie physique";
   if (id === "BATTERY_HYBRID") return "Choisir hybride physique + virtuelle";
+  if (id === "VEHICLE_V2H") return "Choisir voiture V2H";
+  if (id === "VEHICLE_V2H_PHYSICAL") return "Choisir voiture V2H + physique";
+  if (id === "VEHICLE_V2H_VIRTUAL") return "Choisir voiture V2H + virtuelle";
+  if (id === "VEHICLE_V2H_PHYSICAL_VIRTUAL") return "Choisir voiture V2H + physique + virtuelle";
   return "Choisir batterie virtuelle";
 }
 
@@ -829,7 +841,7 @@ export default function ScenarioComparisonTable({
           );
           const physicalRestoredKwh = firstFiniteNumber(
             energy.physical_battery_discharge_kwh,
-            id === "BATTERY_PHYSICAL" ? energy.battery_discharge_kwh : null,
+            isPhysicalLikeScenarioId(id) ? energy.battery_discharge_kwh : null,
             scenario?.battery_discharge_kwh
           );
           const virtualSentKwh = firstFiniteNumber(
@@ -846,8 +858,8 @@ export default function ScenarioComparisonTable({
           );
           const surplusToVirtualOrGridKwh = firstFiniteNumber(
             energy.surplus_to_virtual_or_grid_kwh,
-            id === "BATTERY_PHYSICAL" ? energy.surplus_kwh : null,
-            id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID"
+            id === "BATTERY_PHYSICAL" || id === "VEHICLE_V2H_PHYSICAL" ? energy.surplus_kwh : null,
+            isVirtualLikeScenarioId(id)
               ? (virtualSentKwh ?? 0) + (overflowKwh != null ? Number(overflowKwh) : 0)
               : null
           );
@@ -866,7 +878,7 @@ export default function ScenarioComparisonTable({
 
           const residualBillEur = getResidualBillEurForDisplay(finance);
           const solarUsedKwh =
-            id === "BATTERY_VIRTUAL" &&
+            isVirtualLikeScenarioId(id) &&
             energy.site_solar_or_credit_used_kwh != null &&
             Number.isFinite(Number(energy.site_solar_or_credit_used_kwh))
               ? Number(energy.site_solar_or_credit_used_kwh)
@@ -990,7 +1002,7 @@ export default function ScenarioComparisonTable({
                   </section>
 
                   <div className="scenario-row-delta">
-                    {id === "BATTERY_PHYSICAL" || id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID" ? (
+                    {id !== "BASE" ? (
                       badge.kind === "available" &&
                       baseEconomieY1 != null &&
                       finance.economie_year_1 != null &&
@@ -1138,7 +1150,7 @@ export default function ScenarioComparisonTable({
                       tip="Part de la production consommée immédiatement, avant toute batterie."
                       value={formatPercent(directSelfPct)}
                     />
-                    {(id === "BATTERY_PHYSICAL" || id === "BATTERY_HYBRID") && (
+                    {isPhysicalLikeScenarioId(id) && (
                       <>
                         <MiniRow
                           label="Charge physique"
@@ -1152,7 +1164,7 @@ export default function ScenarioComparisonTable({
                         />
                       </>
                     )}
-                    {(id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID") && (
+                    {isVirtualLikeScenarioId(id) && (
                       <>
                         <MiniRow
                           label="Crédit virtuel utilisé"
@@ -1168,12 +1180,12 @@ export default function ScenarioComparisonTable({
                     )}
                     <MiniRow
                       label={
-                        id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID"
+                        isVirtualLikeScenarioId(id)
                           ? "Couverture crédit"
                           : "Autoconso finale"
                       }
                       tip={
-                        id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID"
+                        isVirtualLikeScenarioId(id)
                           ? "Part de la consommation couverte après crédit virtuel. Ce n'est pas une batterie physique."
                           : "Taux final du scénario après stockage physique, calculé sur la production PV."
                       }
@@ -1185,9 +1197,9 @@ export default function ScenarioComparisonTable({
                   <section
                     className="scenario-block scenario-row-bat-hw"
                     aria-label="Matériel batterie"
-                    aria-hidden={(id !== "BATTERY_PHYSICAL" && id !== "BATTERY_HYBRID") || undefined}
+                    aria-hidden={!isPhysicalLikeScenarioId(id) || undefined}
                   >
-                    {(id === "BATTERY_PHYSICAL" || id === "BATTERY_HYBRID") && (() => {
+                    {isPhysicalLikeScenarioId(id) && (() => {
                       const cap = finiteNumberOrNull(hardware.battery_capacity_kwh);
                       const units = finiteNumberOrNull(hardware.battery_units);
                       const chargKw = finiteNumberOrNull(hardware.battery_max_charge_kw);

@@ -120,6 +120,91 @@ function monthlySumsFromHourly(values) {
   return out;
 }
 
+function attachVirtualBatteryFinanceForV2hScenario({ ctx, scenario, energyResult, virtualCapacityKwh }) {
+  const vbSim = energyResult?._virtualBattery8760;
+  if (!vbSim?.ok) return;
+
+  const vbInput = ctx.virtual_battery_input || {};
+  const providerRaw = vbInput.provider_code || vbInput.provider;
+  const providerCodeUpper = providerRaw ? String(providerRaw).toUpperCase() : "";
+  const useP2 = providerCodeUpper && P2_PROVIDER_CODES.has(providerCodeUpper);
+  const installedKwc = scenario.kwc ?? scenario.metadata?.kwc ?? ctx.pv?.kwc ?? 0;
+  const tariffKwh = resolveRetailElectricityKwhPrice(ctx);
+  const oaRate = resolveOaRateForKwc(ctx, installedKwc);
+  const requiredCapacity = Number(energyResult.virtual_required_capacity_kwh);
+  const requiredCapacityKwh = Number.isFinite(requiredCapacity) && requiredCapacity > 0
+    ? requiredCapacity
+    : Number(virtualCapacityKwh) || 0;
+
+  let subscriptionAnnual = 0;
+
+  if (useP2) {
+    const contractType = resolveP2ContractType(vbInput, ctx);
+    const p2Wrap = computeVirtualBatteryP2Finance({
+      providerCode: providerRaw,
+      contractType,
+      installedKwc,
+      meterKva: Number(ctx.site?.puissance_kva ?? ctx.form?.params?.puissance_kva ?? 9),
+      vbSim,
+      unboundedRequiredCapacityKwh: requiredCapacityKwh,
+      selectedCapacityKwh: virtualCapacityKwh,
+      hourlyDischargeKwh: vbSim.virtual_battery_hourly_discharge_kwh,
+      hphcHourlyIsHp: contractType === "HPHC" ? (vbInput.hphc_hourly_slot_is_hp ?? resolveHpHcHourlyMask(vbInput, ctx)) : null,
+      tariffElectricityPerKwh:
+        effectivePriceForHourlyWeights(vbSim.virtual_battery_hourly_grid_import_kwh, ctx._hphcPricingCtx) ?? tariffKwh,
+      oaRatePerKwh: oaRate,
+      virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
+    });
+
+    scenario.virtual_battery_finance = p2Wrap.virtual_battery_finance;
+    scenario.virtual_battery_business = computeVirtualBatteryBusiness({
+      virtual_battery_finance: p2Wrap.virtual_battery_finance,
+      baseImportKwh: energyResult.pre_virtual_import_kwh,
+      virtImportKwh: energyResult.billable_import_kwh,
+      baseOverflowOrSurplusKwh: energyResult.pre_virtual_surplus_kwh,
+      virtOverflowKwh: energyResult.surplus_kwh,
+      tariffElectricityPerKwh: tariffKwh,
+      oaRatePerKwh: oaRate,
+      includeActivationInVirtualYear1: false,
+      annual_virtual_discharge_kwh: vbSim.virtual_battery_total_discharged_kwh,
+    });
+    subscriptionAnnual = Number(p2Wrap.annual_recurring_provider_cost_ttc) || 0;
+    scenario._virtualBatteryP2 = {
+      required_capacity_kwh: requiredCapacityKwh,
+      simulation_capacity_kwh: virtualCapacityKwh,
+      provider_tier_status: p2Wrap.provider_tier_status ?? "OK",
+      capacity_source: "vehicle_v2h_residual",
+      note: "capacity_recomputed_after_vehicle_v2h",
+    };
+  } else {
+    const creditResult = {
+      ok: true,
+      billable_import_kwh: energyResult.billable_import_kwh,
+      credited_kwh: vbSim.virtual_battery_total_charged_kwh ?? 0,
+      used_credit_kwh: vbSim.virtual_battery_total_discharged_kwh ?? 0,
+      remaining_credit_kwh: vbSim.virtual_battery_credit_end_kwh ?? 0,
+    };
+    const costDetail = computeVirtualBatteryAnnualCost({ creditResult, config: vbInput });
+    subscriptionAnnual = Number(costDetail.annual_cost_ttc) || 0;
+    scenario._virtualBatteryQuote = {
+      annual_cost_ttc: subscriptionAnnual,
+      annual_cost_ht: null,
+      net_gain_annual: null,
+      detail: costDetail,
+    };
+  }
+
+  if (!scenario._virtualBatteryQuote) {
+    scenario._virtualBatteryQuote = {
+      annual_cost_ttc: subscriptionAnnual,
+      annual_cost_ht: null,
+      net_gain_annual: null,
+      detail: { p2: true, recurring_annual_ttc: subscriptionAnnual },
+    };
+  }
+  scenario.costs = { ...(scenario.costs || {}), battery_virtual_annual_cost: subscriptionAnnual };
+}
+
 function resolveRawScenarioConsumptionHourly(ctx) {
   return ctx?.conso?.hourly || ctx?.conso?.clamped || null;
 }
@@ -1901,14 +1986,30 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               sc.energy.billable_import_kwh = e.billable_import_kwh;
               sc.energy.virtual_battery_overflow_export_kwh = e.surplus_kwh;
               sc.energy.virtual_battery_discharge_kwh = e.virtual_discharged_kwh ?? 0;
+              sc.energy.credited_kwh = e._virtualBattery8760?.virtual_battery_total_charged_kwh ?? 0;
+              sc.energy.used_credit_kwh = e.virtual_discharged_kwh ?? 0;
+              sc.energy.restored_kwh = e.virtual_discharged_kwh ?? 0;
+              sc.energy.remaining_credit_kwh = e._virtualBattery8760?.virtual_battery_credit_end_kwh ?? 0;
               sc.used_credit_kwh = e.virtual_discharged_kwh ?? 0;
-              // OPEX batterie virtuelle (abonnement/restitution) réutilisée de BATTERY_VIRTUAL.
-              if (scenarios.BATTERY_VIRTUAL?.virtual_battery_finance) sc.virtual_battery_finance = scenarios.BATTERY_VIRTUAL.virtual_battery_finance;
-              if (scenarios.BATTERY_VIRTUAL?._virtualBatteryQuote) sc._virtualBatteryQuote = scenarios.BATTERY_VIRTUAL._virtualBatteryQuote;
-              sc._virtualBattery8760 = {
+              // Finance virtuelle recalculée sur le résidu réel après V2H, jamais copiée depuis BATTERY_VIRTUAL.
+              sc.credited_kwh = e._virtualBattery8760?.virtual_battery_total_charged_kwh ?? 0;
+              sc.remaining_credit_kwh = e._virtualBattery8760?.virtual_battery_credit_end_kwh ?? 0;
+              sc._virtualBattery8760 = e._virtualBattery8760 ?? {
                 virtual_battery_total_discharged_kwh: e.virtual_discharged_kwh ?? 0,
                 virtual_battery_overflow_export_kwh: e.surplus_kwh,
               };
+              sc.battery_virtual = {
+                enabled: true,
+                capacity_simulated_kwh: virtualCapacityKwhV2H,
+                annual_charge_kwh: e._virtualBattery8760?.virtual_battery_total_charged_kwh ?? 0,
+                annual_discharge_kwh: e.virtual_discharged_kwh ?? 0,
+                annual_throughput_kwh: (e._virtualBattery8760?.virtual_battery_total_charged_kwh ?? 0) + (e.virtual_discharged_kwh ?? 0),
+                credited_kwh: e._virtualBattery8760?.virtual_battery_total_charged_kwh ?? 0,
+                restored_kwh: e.virtual_discharged_kwh ?? 0,
+                overflow_export_kwh: e.surplus_kwh,
+                cycles_equivalent: virtualCapacityKwhV2H > 0 ? (e.virtual_discharged_kwh ?? 0) / virtualCapacityKwhV2H : null,
+              };
+              attachVirtualBatteryFinanceForV2hScenario({ ctx, scenario: sc, energyResult: e, virtualCapacityKwh: virtualCapacityKwhV2H });
               sc.battery = { enabled: (e.pre_virtual_discharge_kwh ?? 0) > 0, annual_discharge_kwh: e.pre_virtual_discharge_kwh ?? 0 };
             }
             if (id === "VEHICLE_V2H_VIRTUAL") sc.capex_ttc = virtualActivationFeeV2H;

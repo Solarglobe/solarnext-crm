@@ -44,6 +44,17 @@ const call = (over = {}) => buildV2hEnergyScenarios({
   virtualCapacityKwh: 10, vehicle: VEHICLE, simulationYear: 2026, ...over,
 });
 
+test("combos virtuels V2H exposent la simulation virtuelle residuelle pour la finance", () => {
+  const all = call({ physicalBattery: PHYS, virtualConfig: VIRT });
+  for (const id of ["VEHICLE_V2H_VIRTUAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"]) {
+    const s = all[id];
+    assert.ok(s._virtualBattery8760?.ok, `${id}: simulation virtuelle complete attendue`);
+    assert.equal(s.billable_import_kwh, s._virtualBattery8760.grid_import_kwh);
+    assert.equal(s.virtual_discharged_kwh, s._virtualBattery8760.virtual_battery_total_discharged_kwh);
+    assert.ok(Number.isFinite(Number(s.virtual_required_capacity_kwh)), `${id}: capacite requise attendue`);
+  }
+});
+
 test("voiture désactivée → aucun scénario V2H (non-régression)", () => {
   assert.deepEqual(buildV2hEnergyScenarios({ pv_hourly: PV, conso_hourly: CONSO, vehicle: { enabled: false } }), {});
   assert.deepEqual(buildV2hEnergyScenarios({ pv_hourly: PV, conso_hourly: CONSO, vehicle: undefined }), {});

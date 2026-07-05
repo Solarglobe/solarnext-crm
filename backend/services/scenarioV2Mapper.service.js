@@ -289,7 +289,7 @@ export function mapScenarioToV2(scenario, ctx) {
     residual_bill_eur: scenario.residual_bill_eur ?? null,
     surplus_revenue_eur: scenario.surplus_revenue_eur ?? null
   };
-  if (id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID") {
+  if (isVirtualLike) {
     const vf = scenario.virtual_battery_finance;
     const p2TotalBill =
       vf && typeof vf === "object"

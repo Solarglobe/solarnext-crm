@@ -13,6 +13,7 @@
 
 import { simulateBattery8760 } from "./batteryService.js";
 import { simulateVirtualBattery8760 } from "./virtualBattery8760.service.js";
+import { simulateVirtualBattery8760Unbounded } from "./virtualBatteryUnboundedSim.service.js";
 import { buildV2hAvailabilityHourly } from "./v2hAvailability.js";
 
 function sum(arr) { let s = 0; for (let i = 0; i < arr.length; i++) s += arr[i] || 0; return s; }
@@ -136,6 +137,7 @@ export function buildV2hEnergyScenarios({
   if (virtEnabled) {
     const v = runV2H(pv_hourly, conso_hourly);
     const impAfterV = residualImport(conso_hourly, v.auto_hourly);
+    const unbounded = simulateVirtualBattery8760Unbounded({ pv_hourly: v.surplus_hourly, conso_hourly: impAfterV });
     const vb = runVirt(v.surplus_hourly, impAfterV);
     const vbDischarged = vb.ok ? (vb.virtual_battery_total_discharged_kwh ?? 0) : 0;
     out.VEHICLE_V2H_VIRTUAL = {
@@ -151,6 +153,8 @@ export function buildV2hEnergyScenarios({
       pre_virtual_import_kwh: v.grid_import_kwh,
       pre_virtual_discharge_kwh: 0, // pas de batterie physique MAISON ici (le V2H ne se dégrade pas en v1)
       billable_import_kwh: vb.ok ? vb.grid_import_kwh : v.grid_import_kwh,
+      virtual_required_capacity_kwh: unbounded.ok ? (unbounded.required_capacity_kwh ?? null) : null,
+      _virtualBattery8760: vb.ok ? vb : null,
       ...evFields(v),
     };
   }
@@ -162,6 +166,7 @@ export function buildV2hEnergyScenarios({
     const v = runV2H(p.surplus_hourly, impAfterP);
     const impAfterV = residualImport(impAfterP, v.auto_hourly);
     const impAfterVtot = Math.round(sum(impAfterV));
+    const unbounded = simulateVirtualBattery8760Unbounded({ pv_hourly: v.surplus_hourly, conso_hourly: impAfterV });
     const vb = runVirt(v.surplus_hourly, impAfterV);
     const vbDischarged = vb.ok ? (vb.virtual_battery_total_discharged_kwh ?? 0) : 0;
     out.VEHICLE_V2H_PHYSICAL_VIRTUAL = {
@@ -178,6 +183,8 @@ export function buildV2hEnergyScenarios({
       pre_virtual_import_kwh: impAfterVtot,
       pre_virtual_discharge_kwh: p.annual_discharge_kwh ?? 0, // dégradation = batterie physique MAISON seulement
       billable_import_kwh: vb.ok ? vb.grid_import_kwh : v.grid_import_kwh,
+      virtual_required_capacity_kwh: unbounded.ok ? (unbounded.required_capacity_kwh ?? null) : null,
+      _virtualBattery8760: vb.ok ? vb : null,
       ...evFields(v),
     };
   }
