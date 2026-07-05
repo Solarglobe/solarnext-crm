@@ -484,6 +484,10 @@ const INITIAL_ADD_TO_DOCS: Record<ScenarioColumnId, boolean> = {
   BATTERY_PHYSICAL: false,
   BATTERY_VIRTUAL: false,
   BATTERY_HYBRID: false,
+  VEHICLE_V2H: false,
+  VEHICLE_V2H_PHYSICAL: false,
+  VEHICLE_V2H_VIRTUAL: false,
+  VEHICLE_V2H_PHYSICAL_VIRTUAL: false,
 };
 
 function Tip({ text, children }: { text: string; children: React.ReactNode }) {
@@ -665,6 +669,22 @@ const IMPACT_LINES: Record<
   BATTERY_HYBRID: [
     { icon: "🔋", text: "Stockage physique + crédit virtuel en cascade" },
     { icon: "🚀", text: "Autonomie maximisée" },
+  ],
+  VEHICLE_V2H: [
+    { icon: "🚗", text: "La voiture alimente la maison (V2H)" },
+    { icon: "🔌", text: "Disponible quand le véhicule est branché" },
+  ],
+  VEHICLE_V2H_PHYSICAL: [
+    { icon: "🔋", text: "Batterie physique + voiture V2H" },
+    { icon: "🏡", text: "Autonomie renforcée" },
+  ],
+  VEHICLE_V2H_VIRTUAL: [
+    { icon: "🚗", text: "Voiture V2H + crédit du surplus" },
+    { icon: "📈", text: "Autoconsommation optimisée" },
+  ],
+  VEHICLE_V2H_PHYSICAL_VIRTUAL: [
+    { icon: "🔋", text: "Physique + voiture V2H + crédit virtuel" },
+    { icon: "🚀", text: "Autonomie maximale" },
   ],
 };
 
