@@ -109,13 +109,16 @@ test("bornes SOC : jamais < 0 ni > capacité", () => {
   }
 });
 
-test("branchée en journée + solaire abondant → le solaire domine la recharge (ev_solar_charge > ev_grid_charge)", () => {
-  // Voiture toujours branchée (télétravail) + gros solaire midi → la recharge vient surtout du solaire.
+test("mobilité SÉPARÉE : ev_grid_charge = ev_trip = daily_drive×365, et les trajets ne réduisent PAS l'autoconso maison", () => {
   const allPlugged = new Array(8760).fill(1);
-  const r = runV2H(makePv(30), makeConso(0.3), { availability_hourly: allPlugged, daily_drive_kwh: 8 });
-  assert.ok(r.ev_solar_charge_kwh > 0, "recharge solaire attendue");
-  assert.ok(r.ev_solar_charge_kwh > r.ev_grid_charge_kwh,
-    `le solaire (${r.ev_solar_charge_kwh}) doit dominer le réseau (${r.ev_grid_charge_kwh})`);
+  const noDrive = runV2H(makePv(30), makeConso(0.3), { availability_hourly: allPlugged, daily_drive_kwh: 0 });
+  const withDrive = runV2H(makePv(30), makeConso(0.3), { availability_hourly: allPlugged, daily_drive_kwh: 8 });
+  // mobilité tracée à part, valeur fixe
+  assert.equal(withDrive.ev_grid_charge_kwh, Math.round(8 * 365));
+  assert.equal(withDrive.ev_trip_consumption_kwh, Math.round(8 * 365));
+  assert.equal(noDrive.ev_grid_charge_kwh, 0);
+  // POINT CLÉ : les trajets ne changent pas l'autoconso maison (pas de double peine)
+  assert.equal(withDrive.auto_kwh, noDrive.auto_kwh);
 });
 
 test("aucun solaire + trajets → recharge réseau nécessaire (ev_grid_charge_kwh > 0), tracée à part", () => {

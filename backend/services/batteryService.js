@@ -145,12 +145,9 @@ export function simulateBattery8760({
     const available = availability ? (availability[h] === 1 || availability[h] === true) : true;
     if (available) plugged_hours++;
 
-    // (5a) Trajet quotidien : prélèvement sur la batterie à driveHour (V2H uniquement).
-    if (dailyDriveKwh > 0 && (h % 24) === driveHour) {
-      const ev_trip = Math.min(dailyDriveKwh, SOC);
-      SOC -= ev_trip;
-      ev_trip_total += ev_trip;
-    }
+    // (5a) Trajets : ne consomment PAS le solaire destiné à la maison (pas de double peine).
+    // La réserve (SOC_min) réserve déjà la capacité mobilité ; la conso trajets est une
+    // énergie RÉSEAU séparée, comptée après la boucle (ev_grid_charge, hors économies).
 
     const direct = Math.min(pv, load);
     let surplus = pv - direct;
@@ -177,17 +174,8 @@ export function simulateBattery8760({
       SOC += charge_eff;
       surplus -= charge_in;
 
-      // (5b) Recharge réseau minimale vers SOC_min (V2H uniquement : daily_drive_kwh > 0).
-      if (dailyDriveKwh > 0 && SOC < SOC_min) {
-        const powerLeft = Math.max(0, pCh - charge_in);
-        grid_in = Math.min((SOC_min - SOC) / (effCh > 0 ? effCh : 1), powerLeft);
-        grid_eff = grid_in * effCh;
-        if (SOC + grid_eff > SOC_min) {
-          grid_eff = SOC_min - SOC;
-          grid_in = effCh > 0 ? grid_eff / effCh : 0;
-        }
-        SOC += grid_eff;
-      }
+      // (5b) Réserve = plancher statique (mobilité). Pas de recharge réseau ici : les trajets
+      // sont couverts par la réserve, refacturée séparément (ev_grid_charge, après la boucle).
 
       // Décharge vers la maison (borne SOC_min inchangée ; V2H ne franchit jamais la réserve).
       const need = load - direct;
@@ -227,6 +215,12 @@ export function simulateBattery8760({
     batt_charge_input_hourly.push(charge_in);
     batt_charge_hourly.push(charge_eff);
     battery_soc_hourly.push(SOC);
+  }
+
+  // Mobilité V2H : trajets = énergie RÉSEAU séparée (ne touche pas le service maison).
+  if (dailyDriveKwh > 0) {
+    ev_trip_total = dailyDriveKwh * 365;
+    ev_grid_charge_total = dailyDriveKwh * 365;
   }
 
   const pv_total = pv_hourly.reduce((a, b) => a + (b || 0), 0);
