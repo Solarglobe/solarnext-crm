@@ -12,6 +12,7 @@
 import * as surfaceDsmProvider       from "./surfaceDsmProvider.js";
 import * as ignGeoplatformeApiProvider from "./ignGeoplatformeApiProvider.js";
 import * as pvgisHorizonProvider      from "./pvgisHorizonProvider.js";
+import { isSurfaceProductEnabled, getLidarSurfaceDataDir } from "./dsm/dsmConfig.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,16 @@ function _isHttpGeotiffConfigured() {
   return (
     (process.env.DSM_PROVIDER_TYPE ?? "").toUpperCase() === "HTTP_GEOTIFF" &&
     Boolean(process.env.DSM_GEOTIFF_URL_TEMPLATE) &&
+    process.env.DSM_ENABLE === "true"
+  );
+}
+
+// CP-FAR-MNS-01 — MNS/MNH LiDAR HD (dalles GeoTIFF L93 locales) : sursol inclus.
+// Activé uniquement si DSM_PRODUCT=MNS|MNH + répertoire dalles + DSM_ENABLE=true.
+function _isLocalSurfaceConfigured() {
+  return (
+    isSurfaceProductEnabled() &&
+    Boolean(getLidarSurfaceDataDir()) &&
     process.env.DSM_ENABLE === "true"
   );
 }
@@ -135,11 +146,19 @@ export async function computeHorizonMaskAuto(params) {
     if (result) return result;
   }
 
+  // 1bis) MNS/MNH LiDAR HD (dalles GeoTIFF locales) — SURSOL inclus (arbres + bâti).
+  //       En tête de l'API RGE ALTI (terrain seul) : là où le LiDAR couvre, on voit
+  //       la végétation ; sinon on cascade vers le terrain nu (honnête, cf. ci-dessous).
+  if (_isLocalSurfaceConfigured()) {
+    const result = await _tryProvider("IGN_LIDAR_MNS", surfaceDsmProvider, params);
+    if (result) return result;
+  }
+
   if (_isUnitHorizonFixtureEnabled()) {
     return _buildUnitHorizonFixture(params);
   }
 
-  // 2) IGN Géoplateforme — France + DOM + COM (ign_rge_alti_wld)
+  // 2) IGN Géoplateforme — France + DOM + COM (ign_rge_alti_wld, TERRAIN nu — sol seul)
   //    Sites hors couverture retournent -99999 → coverageRatio < 5% → provider suivant
   if (ignGeoplatformeApiProvider.isAvailable({ lat, lon }).available) {
     const result = await _tryProvider("IGN_GEOPLATEFORME", ignGeoplatformeApiProvider, params);

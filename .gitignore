@@ -126,3 +126,7 @@ backend/scripts/output/
 backend/backups/*
 !backend/backups/.gitkeep
 .claude/ 
+
+# --- Ombrage MNS LiDAR HD : cache de dalles telechargees (ne pas versionner) ---
+backend/data/dsm/mns/
+*.tif

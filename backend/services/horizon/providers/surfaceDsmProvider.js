@@ -11,7 +11,9 @@ import * as reliefOnlyProvider from "./reliefOnlyProvider.js";
 import { getTileHeights, getDsmGridForRadius } from "./dsm/dsmProviderHttpGeotiff.js";
 import { dsmGridToHorizonMask } from "./dsm/dsmToHorizonMask.js";
 import { fetchDsmReal } from "./dsm/dsmRealProvider.js";
-import { getDsmEnvConfig } from "./dsm/dsmConfig.js";
+import { getDsmEnvConfig, getDsmProduct, isSurfaceProductEnabled, getLidarSurfaceDataDir } from "./dsm/dsmConfig.js";
+import { createIgnLidarGeotiffTileLoader } from "./ign/ignLidarGeotiffTileLoader.js";
+import { ensureMnsTilesForPoint } from "./ign/ignLidarMnsFetcher.js";
 import { getDsmTile, setDsmTile, dsmTileKey } from "./dsm/dsmTileCache.js";
 import { computeHorizonRaycastHD } from "../hd/horizonRaycastHdCore.js";
 import { createDsmGridSampler, getSiteElevation } from "../hd/dsmGridSampler.js";
@@ -455,11 +457,38 @@ export async function computeMask(params) {
     }
   }
 
-  if (providerType === "IGN_RGE_ALTI" && dsmEnable) {
+  // CP-FAR-MNS-01 — Produit sursol (MNS/MNH LiDAR HD) : dalles GeoTIFF L93 via
+  // le même moteur que RGE ALTI (index bbox + sampler 2154 + raycast HD), seul le
+  // loader change. Déclenché quand DSM_PRODUCT=MNS|MNH (sinon comportement inchangé).
+  const surfaceProduct = isSurfaceProductEnabled();
+  const dsmProductCode = getDsmProduct();
+  const surfaceMeta = surfaceProduct
+    ? { product: dsmProductCode, dataProduct: `LIDAR_${dsmProductCode}`, includesSurfaceObjects: true }
+    : { product: "MNT", dataProduct: "IGN_RGE_ALTI", includesSurfaceObjects: false };
+  if ((providerType === "IGN_RGE_ALTI" || surfaceProduct) && dsmEnable) {
     try {
-      const dataDir = getIgnDsmDataDir();
+      const dataDir = surfaceProduct
+        ? (getLidarSurfaceDataDir() || getIgnDsmDataDir())
+        : getIgnDsmDataDir();
+
+      // CP-FAR-MNS-01 — Téléchargement « à la demande » des dalles MNS/MNH couvrant
+      // le point (gated DSM_LIDAR_ONDEMAND). Idempotent : ne re-télécharge pas le cache.
+      // Échec réseau → on poursuit sur le cache/index existant, puis cascade honnête.
+      if (surfaceProduct && process.env.DSM_LIDAR_ONDEMAND === "true") {
+        try {
+          const fetchRadius = Math.min(
+            hdEnabled ? getHdConfig().maxDist : radius_m,
+            Number(process.env.DSM_LIDAR_MAX_RADIUS_M || 1500)
+          );
+          const r = await ensureMnsTilesForPoint({ lat, lon, radius_m: fetchRadius, dataDir, product: dsmProductCode });
+          log("MNS on-demand:", JSON.stringify(r));
+        } catch (e) {
+          log("MNS on-demand échec (poursuite sur cache/index):", e?.message ?? e);
+        }
+      }
+
       const indexPath = path.join(dataDir, "index.json");
-      if (!fs.existsSync(indexPath)) throw new Error("IGN index.json absent (run build-ign-index-bboxes)");
+      if (!fs.existsSync(indexPath)) throw new Error(`IGN index.json absent dans ${dataDir} (run build-ign-index-bboxes)`);
       const index = JSON.parse(fs.readFileSync(indexPath, "utf8"));
       if (!index.tiles || index.tiles.length === 0 || !index.tiles[0].bboxLambert93) {
         throw new Error("IGN index sans bbox (run build-ign-index-bboxes)");
@@ -469,7 +498,9 @@ export async function computeMask(params) {
       const effectiveRadius = hdEnabled ? hdCfg.maxDist : radius_m;
       const gridResM = hdEnabled ? hdCfg.gridRes : 10;
       const selected = selectTilesForRadius(center, effectiveRadius, index);
-      const tileLoader = createIgnTileLoader({ dataDir });
+      const tileLoader = surfaceProduct
+        ? createIgnLidarGeotiffTileLoader({ dataDir })
+        : createIgnTileLoader({ dataDir });
       const samplerAsync = createIgnHeightSampler({ tilesIndex: { tiles: selected }, tileLoader });
       const t0 = Date.now();
       const localGrid = await buildLocalGrid2154(
@@ -515,7 +546,7 @@ export async function computeMask(params) {
               gridResolutionMeters: localGrid.stepMeters,
               provider: "IGN_RGE_ALTI",
             },
-            meta: { providerType: "IGN_RGE_ALTI", algorithm: "GRID", elapsedMs: hdElapsed },
+            meta: { providerType: "IGN_RGE_ALTI", algorithm: "GRID", elapsedMs: hdElapsed, ...surfaceMeta },
           };
         }
         const mask = [];
@@ -544,6 +575,7 @@ export async function computeMask(params) {
             providerType: "IGN_RGE_ALTI",
             algorithm: "RAYCAST_HD",
             elapsedMs: hdElapsed,
+            ...surfaceMeta,
           },
         };
       }
@@ -572,7 +604,7 @@ export async function computeMask(params) {
           gridResolutionMeters: localGrid.stepMeters,
           provider: "IGN_RGE_ALTI",
         },
-        meta: { providerType: "IGN_RGE_ALTI", algorithm: "GRID", elapsedMs: elapsed },
+        meta: { providerType: "IGN_RGE_ALTI", algorithm: "GRID", elapsedMs: elapsed, ...surfaceMeta },
       };
     } catch (err) {
       log("IGN_RGE_ALTI provider failed, fallback RELIEF_ONLY:", err.message);
