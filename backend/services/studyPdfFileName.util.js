@@ -22,6 +22,14 @@ export function mapScenarioName(id) {
       return "BatterieVirtuelle";
     case "BATTERY_HYBRID":
       return "Hybride";
+    case "VEHICLE_V2H":
+      return "V2H";
+    case "VEHICLE_V2H_PHYSICAL":
+      return "V2H";
+    case "VEHICLE_V2H_VIRTUAL":
+      return "V2H-BatterieVirtuelle";
+    case "VEHICLE_V2H_PHYSICAL_VIRTUAL":
+      return "V2H-BatterieVirtuelle";
     default:
       return "Scenario";
   }
@@ -66,7 +74,10 @@ export function buildStudyPdfFileName(selectedScenarioId, opts = {}) {
   const kwcSeg = formatKwcSegment(opts.kwc);
   if (kwcSeg) parts.push(kwcSeg);
   const isPhysicalLike =
-    selectedScenarioId === "BATTERY_PHYSICAL" || selectedScenarioId === "BATTERY_HYBRID";
+    selectedScenarioId === "BATTERY_PHYSICAL" ||
+    selectedScenarioId === "BATTERY_HYBRID" ||
+    selectedScenarioId === "VEHICLE_V2H_PHYSICAL" ||
+    selectedScenarioId === "VEHICLE_V2H_PHYSICAL_VIRTUAL";
   if (isPhysicalLike) {
     const n = Number(opts.batteryUnits);
     const units = Number.isFinite(n) && n >= 1 ? Math.round(n) : 1;

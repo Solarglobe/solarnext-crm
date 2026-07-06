@@ -21,6 +21,13 @@ function run() {
   assert(mapScenarioName("BATTERY_PHYSICAL") === "BatteriePhysique", "BATTERY_PHYSICAL");
   assert(mapScenarioName("BATTERY_VIRTUAL") === "BatterieVirtuelle", "BATTERY_VIRTUAL");
   assert(mapScenarioName("BATTERY_HYBRID") === "Hybride", "BATTERY_HYBRID");
+  assert(mapScenarioName("VEHICLE_V2H") === "V2H", "VEHICLE_V2H");
+  assert(mapScenarioName("VEHICLE_V2H_PHYSICAL") === "V2H", "VEHICLE_V2H_PHYSICAL");
+  assert(mapScenarioName("VEHICLE_V2H_VIRTUAL") === "V2H-BatterieVirtuelle", "VEHICLE_V2H_VIRTUAL");
+  assert(
+    mapScenarioName("VEHICLE_V2H_PHYSICAL_VIRTUAL") === "V2H-BatterieVirtuelle",
+    "VEHICLE_V2H_PHYSICAL_VIRTUAL"
+  );
   assert(mapScenarioName(undefined) === "Scenario", "fallback scenario");
   assert(mapScenarioName("OTHER") === "Scenario", "unknown id");
 
@@ -51,6 +58,25 @@ function run() {
     buildStudyPdfFileName("BATTERY_PHYSICAL", { kwc: 3.88, batteryUnits: 1 }) ===
       "Etude-BatteriePhysique-3-88kWc-1Batterie.pdf",
     "kWc décimal filename-safe"
+  );
+  assert(
+    buildStudyPdfFileName("VEHICLE_V2H", { kwc: 12 }) === "Etude-V2H-12kWc.pdf",
+    "V2H seul"
+  );
+  assert(
+    buildStudyPdfFileName("VEHICLE_V2H_VIRTUAL", { kwc: 12 }) ===
+      "Etude-V2H-BatterieVirtuelle-12kWc.pdf",
+    "V2H + batterie virtuelle"
+  );
+  assert(
+    buildStudyPdfFileName("VEHICLE_V2H_PHYSICAL", { kwc: 12, batteryUnits: 2 }) ===
+      "Etude-V2H-12kWc-2Batteries.pdf",
+    "V2H + batteries physiques"
+  );
+  assert(
+    buildStudyPdfFileName("VEHICLE_V2H_PHYSICAL_VIRTUAL", { kwc: 12, batteryUnits: 2 }) ===
+      "Etude-V2H-BatterieVirtuelle-12kWc-2Batteries.pdf",
+    "V2H + virtuel + batteries physiques"
   );
   assert(buildStudyPdfFileName(null) === "Etude-Scenario.pdf", "fallback Etude-Scenario");
 
