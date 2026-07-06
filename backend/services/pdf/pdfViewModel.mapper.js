@@ -1962,8 +1962,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           is_hybrid: _p7vbIsHybrid,
           is_vehicle_v2h: _p7vbIsVehicle,
           title: _p7vbIsHybrid
-            ? "Impact réel de votre stockage (physique + virtuel)"
-            : "Impact réel de votre batterie virtuelle",
+            ? "Impact stockage hybride"
+            : "Impact batterie virtuelle",
           subtitle: _p7vbIsHybrid
             ? "Comprendre précisément ce que vos deux batteries changent dans votre projet solaire"
             : "Comprendre précisément ce qu’elle change dans votre projet solaire",

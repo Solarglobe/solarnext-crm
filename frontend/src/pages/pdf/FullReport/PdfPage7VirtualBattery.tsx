@@ -123,10 +123,15 @@ export default function PdfPage7VirtualBattery({
   const kpis = (data as { kpis?: Record<string, unknown> }).kpis ?? {};
   const limits = Array.isArray(data.limits) ? data.limits.slice(0, 3) : [];
 
-  const badgeText =
+  const rawBadgeText =
     data.title != null && String(data.title).trim() !== ""
       ? String(data.title)
       : "Impact réel de votre batterie virtuelle";
+  const badgeText = /Impact réel de votre batterie virtuelle/i.test(rawBadgeText)
+    ? "Impact batterie virtuelle"
+    : /Impact réel de votre stockage/i.test(rawBadgeText)
+      ? "Impact stockage hybride"
+      : rawBadgeText;
 
   return (
     <PdfPageLayout
@@ -153,6 +158,13 @@ export default function PdfPage7VirtualBattery({
               ) : null
             }
             badge={badgeText}
+            badgeStyle={{
+              maxWidth: "118mm",
+              overflow: "visible",
+              textOverflow: "clip",
+              fontSize: "5.6mm",
+              padding: "1mm 3mm",
+            }}
             metaColumn={
               <div
                 className="meta-compact"

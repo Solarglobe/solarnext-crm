@@ -30,12 +30,12 @@ function vmForScenario(scenarioType: "BASE" | "BATTERY_VIRTUAL") {
 describe("PdfLegacyPort — page batterie virtuelle", () => {
   it("BASE: page absente", () => {
     const { queryByText } = render(<PdfLegacyPort viewModel={vmForScenario("BASE")} />);
-    expect(queryByText("Impact réel de votre batterie virtuelle")).not.toBeInTheDocument();
+    expect(queryByText("Impact batterie virtuelle")).not.toBeInTheDocument();
   });
 
   it("BATTERY_VIRTUAL: page présente", () => {
     const { getByText } = render(<PdfLegacyPort viewModel={vmForScenario("BATTERY_VIRTUAL")} />);
-    expect(getByText("Impact réel de votre batterie virtuelle")).toBeInTheDocument();
+    expect(getByText("Impact batterie virtuelle")).toBeInTheDocument();
   });
 
   it("affiche la page si le payload batterie virtuelle existe sans meta scenarioType", () => {

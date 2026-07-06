@@ -39,11 +39,11 @@ function buildViewModel(withVirtualBatteryPage: boolean) {
 describe("FullReport — page batterie virtuelle", () => {
   it("scenario BASE: page absente", () => {
     const { queryByText } = render(<FullReport viewModel={buildViewModel(false)} />);
-    expect(queryByText("Impact réel de votre batterie virtuelle")).not.toBeInTheDocument();
+    expect(queryByText("Impact batterie virtuelle")).not.toBeInTheDocument();
   });
 
   it("scenario BATTERY_VIRTUAL: page presente", () => {
     const { getByText } = render(<FullReport viewModel={buildViewModel(true)} />);
-    expect(getByText("Impact réel de votre batterie virtuelle")).toBeInTheDocument();
+    expect(getByText("Impact batterie virtuelle")).toBeInTheDocument();
   });
 });
