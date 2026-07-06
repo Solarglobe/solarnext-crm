@@ -290,10 +290,15 @@ const DOCUMENT_SECTION_ORDER: { key: DocGroupId; title: string }[] = [
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   MAISON: "Maison",
+  HOUSE: "Maison",
   APPARTEMENT: "Appartement",
+  APARTMENT: "Appartement",
   IMMEUBLE: "Immeuble",
+  BUILDING: "Immeuble",
   LOCAL_PRO: "Local professionnel",
+  COMMERCIAL: "Local professionnel",
   AUTRE: "Autre",
+  OTHER: "Autre",
 };
 
 function propertyTypeDisplay(raw: string | null | undefined): string {
@@ -545,7 +550,7 @@ export default function ClientPortalPage() {
     );
   }
 
-  const subline = ["Projet photovoltaïque", data.client.site.city, data.client.property_type]
+  const subline = ["Projet photovoltaïque", data.client.site.city, propertyTypeDisplay(data.client.property_type)]
     .filter(Boolean)
     .join(" · ");
 
