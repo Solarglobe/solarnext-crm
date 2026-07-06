@@ -1975,7 +1975,15 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             };
             // Dégradation physique MAISON (le V2H ne se dégrade pas en v1) : batterie physique du combo.
             if (id === "VEHICLE_V2H_PHYSICAL") {
-              sc.battery = { enabled: true, annual_discharge_kwh: e.physical_discharge_kwh ?? 0 };
+              sc.energy.physical_battery_charge_kwh = e.physical_charge_kwh ?? 0;
+              sc.energy.physical_battery_discharge_kwh = e.physical_discharge_kwh ?? 0;
+              sc.battery_charge_kwh = e.physical_charge_kwh ?? 0;
+              sc.battery_discharge_kwh = e.physical_discharge_kwh ?? 0;
+              sc.battery = {
+                enabled: true,
+                annual_charge_kwh: e.physical_charge_kwh ?? 0,
+                annual_discharge_kwh: e.physical_discharge_kwh ?? 0,
+              };
             }
             // Combos incluant le virtuel → valorisés comme l'hybride : étape pré-virtuelle + OPEX VB.
             if (id === "VEHICLE_V2H_VIRTUAL" || id === "VEHICLE_V2H_PHYSICAL_VIRTUAL") {
@@ -2010,7 +2018,15 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 cycles_equivalent: virtualCapacityKwhV2H > 0 ? (e.virtual_discharged_kwh ?? 0) / virtualCapacityKwhV2H : null,
               };
               attachVirtualBatteryFinanceForV2hScenario({ ctx, scenario: sc, energyResult: e, virtualCapacityKwh: virtualCapacityKwhV2H });
-              sc.battery = { enabled: (e.pre_virtual_discharge_kwh ?? 0) > 0, annual_discharge_kwh: e.pre_virtual_discharge_kwh ?? 0 };
+              sc.energy.physical_battery_charge_kwh = e.physical_charge_kwh ?? 0;
+              sc.energy.physical_battery_discharge_kwh = e.pre_virtual_discharge_kwh ?? 0;
+              sc.battery_charge_kwh = e.physical_charge_kwh ?? 0;
+              sc.battery_discharge_kwh = e.pre_virtual_discharge_kwh ?? 0;
+              sc.battery = {
+                enabled: (e.pre_virtual_discharge_kwh ?? 0) > 0,
+                annual_charge_kwh: e.physical_charge_kwh ?? 0,
+                annual_discharge_kwh: e.pre_virtual_discharge_kwh ?? 0,
+              };
             }
             if (id === "VEHICLE_V2H_VIRTUAL") sc.capex_ttc = virtualActivationFeeV2H;
             addEnergyKpisToScenario(sc, ctx);

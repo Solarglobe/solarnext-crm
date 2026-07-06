@@ -110,6 +110,15 @@ function isVirtualLikeScenarioId(id) {
   );
 }
 
+function isStorageScenarioId(id) {
+  return (
+    id === "BATTERY_PHYSICAL" ||
+    id === "BATTERY_VIRTUAL" ||
+    id === "BATTERY_HYBRID" ||
+    isVehicleV2hScenarioId(id)
+  );
+}
+
 function canonicalGridImportKwh(energy) {
   const e = energy || {};
   return (
@@ -150,6 +159,7 @@ function resolveBatteryRestoredKwhForPdf(scenario, energy) {
       : null;
 
   return (
+    num(vehicleV2h.ev_v2h_discharge_kwh) ??
     num(e.battery_discharge_kwh) ??
     num(e.physical_battery_discharge_kwh) ??
     num(scenario?.battery_discharge_kwh) ??
@@ -162,7 +172,6 @@ function resolveBatteryRestoredKwhForPdf(scenario, energy) {
     num(scenario?.used_credit_kwh) ??
     num(virtualBattery.annual_discharge_kwh) ??
     num(virtualBattery.restored_kwh) ??
-    num(vehicleV2h.ev_v2h_discharge_kwh) ??
     0
   );
 }
@@ -1141,19 +1150,41 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     (Array.isArray(selectedScenario?.energy?.monthly) ? selectedScenario.energy.monthly : null) ??
     (Array.isArray(energy?.monthly) ? energy.monthly : null) ??
     (Array.isArray(snapshot.monthly) ? snapshot.monthly : null);
-  const isBatteryScenario = selectedKey === "BATTERY_PHYSICAL" || selectedKey === "BATTERY_VIRTUAL" || selectedKey === "BATTERY_HYBRID";
+  const isBatteryScenario = isStorageScenarioId(selectedKey);
 
   if (Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12) {
     consoMonthly = scenarioMonthly.slice(0, 12).map((m) => numOrZero(m.conso_kwh ?? m.conso));
     autoMonthly = scenarioMonthly.slice(0, 12).map((m) => numOrZero(m.auto_kwh ?? m.auto));
     surplusMonthly = scenarioMonthly.slice(0, 12).map((m) => numOrZero(m.surplus_kwh ?? m.surplus));
   } else {
-    // INTERDICTION DE RECONSTRUCTION : aucune courbe mensuelle fabriquee a partir de l'annuel.
-    // (Les snapshots perimes/incomplets sont refuses en amont par la garde PDF.)
     consumptionMonthlyMissing = true;
-    consoMonthly = Array.from({ length: 12 }, () => 0);
-    autoMonthly = Array.from({ length: 12 }, () => 0);
-    surplusMonthly = Array.from({ length: 12 }, () => 0);
+    const annualConsoForMonthly =
+      num(selectedScenario?.energy?.consumption_kwh ?? selectedScenario?.energy?.conso) ??
+      num(energy?.consumption_kwh ?? energy?.conso) ??
+      num(consumptionKwh) ??
+      0;
+    const annualAutoForMonthly =
+      num(selectedScenario?.energy?.total_pv_used_on_site_kwh) ??
+      num(selectedScenario?.energy?.autoconsumption_kwh) ??
+      num(selectedScenario?.energy?.auto) ??
+      num(energy?.total_pv_used_on_site_kwh) ??
+      num(energy?.autoconsumption_kwh) ??
+      num(energy?.auto) ??
+      0;
+    const annualSurplusForMonthly =
+      num(selectedScenario?.energy?.exported_kwh) ??
+      num(selectedScenario?.energy?.surplus_kwh ?? selectedScenario?.energy?.surplus) ??
+      Math.max(0, (num(selectedScenario?.energy?.production_kwh ?? selectedScenario?.energy?.prod) ?? annualKwh) - annualAutoForMonthly);
+    const monthlyProdSum = monthly.reduce((a, b) => a + numOrZero(b), 0);
+    consoMonthly = uniformMonthly12FromTotal(annualConsoForMonthly);
+    autoMonthly =
+      monthlyProdSum > 0
+        ? monthly.map((m) => (numOrZero(m) / monthlyProdSum) * annualAutoForMonthly)
+        : uniformMonthly12FromTotal(annualAutoForMonthly);
+    surplusMonthly =
+      monthlyProdSum > 0
+        ? monthly.map((m) => (numOrZero(m) / monthlyProdSum) * annualSurplusForMonthly)
+        : uniformMonthly12FromTotal(annualSurplusForMonthly);
   }
 
   const officialMonthlyConsumption =
@@ -1198,7 +1229,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     });
   }
 
-  const isVirtualLikeScenario = selectedKey === "BATTERY_VIRTUAL" || selectedKey === "BATTERY_HYBRID";
+  const isVirtualLikeScenario = isVirtualLikeScenarioId(selectedKey);
   const officialConsoForP6 =
     isVirtualLikeScenario && selectedScenario?.energy && typeof selectedScenario.energy === "object"
       ? num(selectedScenario.energy.consumption_kwh ?? selectedScenario.energy.conso)
@@ -1228,8 +1259,27 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     }
   }
 
-  let batMonthly = isBatteryScenario && Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12
-    ? scenarioMonthly.slice(0, 12).map((m) => numOrZero(m.batt_kwh ?? m.batt))
+  const restoredAnnualForMonthly = isVehicleV2hSelected
+    ? (
+        num(selectedScenario?.battery_discharge_kwh) ??
+        num(selectedScenario?.energy?.physical_battery_discharge_kwh) ??
+        num(selectedScenario?.battery?.annual_discharge_kwh) ??
+        0
+      ) +
+      (num(selectedScenario?.vehicle_v2h?.ev_v2h_discharge_kwh) ?? 0) +
+      (
+        num(selectedScenario?.energy?.virtual_battery_discharge_kwh) ??
+        num(selectedScenario?.energy?.used_credit_kwh) ??
+        num(selectedScenario?.battery_virtual?.annual_discharge_kwh) ??
+        0
+      )
+    : resolveBatteryRestoredKwhForPdf(selectedScenario, selectedScenario?.energy ?? energy);
+  let batMonthly = isBatteryScenario
+    ? (Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12
+        ? scenarioMonthly.slice(0, 12).map((m) => numOrZero(m.batt_kwh ?? m.batt))
+        : (autoMonthly.reduce((a, b) => a + numOrZero(b), 0) > 0
+            ? autoMonthly.map((m) => (numOrZero(m) / autoMonthly.reduce((a, b) => a + numOrZero(b), 0)) * restoredAnnualForMonthly)
+            : uniformMonthly12FromTotal(restoredAnnualForMonthly)))
     : Array(12).fill(0);
   let gridMonthly = consoMonthly.map((c, i) => Math.max(0, c - Math.max(0, (autoMonthly[i] ?? 0) - (batMonthly[i] ?? 0)) - batMonthly[i]));
 
@@ -1419,10 +1469,13 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   // P4 — chiffres energie additionnels, dependants du scenario selectionne (page synthese production).
   const _p4DirectKwh = num(_energyFlowsShared.direct_self_consumption_kwh) ?? Math.max(0, (autoAnnuelle ?? 0) - (_sharedRestoredKwh ?? 0));
   const _p4SurplusBrutKwh = Math.max(0, (prodAnnuelle ?? 0) - _p4DirectKwh);
-  const _p4ChargeKwh =
-    num(selectedScenario?.battery_charge_kwh) ??
-    num(selectedScenario?.energy?.battery_charge_kwh) ??
-    num(selectedScenario?.battery?.annual_charge_kwh);
+  const _p4ChargeKwh = isVehicleV2hSelected
+    ? null
+    : (
+        num(selectedScenario?.battery_charge_kwh) ??
+        num(selectedScenario?.energy?.battery_charge_kwh) ??
+        num(selectedScenario?.battery?.annual_charge_kwh)
+      );
   const _p4RestitutionKwh = _sharedRestoredKwh ?? 0;
   const _p4PertesKwh = (_p4ChargeKwh != null) ? Math.max(0, _p4ChargeKwh - _p4RestitutionKwh) : null;
   const _p4RevenuReventeEur = numOrZero(financeActive.revenu_surplus ?? finance.revenu_surplus);
@@ -1636,11 +1689,25 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           selectedScenario?.vehicle_v2h && typeof selectedScenario.vehicle_v2h === "object"
             ? selectedScenario.vehicle_v2h
             : {};
-        const restoredP7 =
-          num(energyP7.restored_kwh) ??
-          num(energyP7.used_credit_kwh) ??
-          (isVehicleV2hSelected ? num(v2hForP7.ev_v2h_discharge_kwh) : null) ??
+        const physicalForP7 =
+          num(selectedScenario?.battery_discharge_kwh) ??
+          num(energyP7.physical_battery_discharge_kwh) ??
+          num(selectedScenario?.battery?.annual_discharge_kwh) ??
           0;
+        const vehicleForP7 = isVehicleV2hSelected ? (num(v2hForP7.ev_v2h_discharge_kwh) ?? 0) : 0;
+        const virtualForP7 =
+          num(energyP7.virtual_battery_discharge_kwh) ??
+          num(energyP7.used_credit_kwh) ??
+          num(selectedScenario?.battery_virtual?.annual_discharge_kwh) ??
+          0;
+        const restoredP7 =
+          isVehicleV2hSelected
+            ? physicalForP7 + vehicleForP7 + virtualForP7
+            : (
+                num(energyP7.restored_kwh) ??
+                num(energyP7.used_credit_kwh) ??
+                0
+              );
         const creditedP7 =
           num(energyP7.credited_kwh) ??
           (isVehicleV2hSelected ? num(v2hForP7.ev_solar_charge_kwh) : null) ??
@@ -1713,8 +1780,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           // le frontend affiche alors le surplus VALORISÉ et adapte le vocabulaire.
           is_storage_scenario: isBatScen,
           is_vehicle_v2h_scenario: isVehicleV2hSelected,
-          storage_label: isVehicleV2hSelected ? "V2H" : "Batterie",
-          storage_long_label: isVehicleV2hSelected ? "voiture V2H" : "batterie",
+          storage_label: isVehicleV2hSelected ? "Stockage" : "Batterie",
+          storage_long_label: isVehicleV2hSelected ? "stockage V2H" : "batterie",
           p_surplus_valorise: isBatScen
             ? numOrZero(restoredP7) + numOrZero(surplusP7)
             : numOrZero(surplusP7),
@@ -1998,6 +2065,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         const physicalKwh =
           num(selectedScenario.battery_discharge_kwh) ??
           num(selectedScenario.energy?.physical_battery_discharge_kwh) ??
+          num(selectedScenario.battery?.annual_discharge_kwh) ??
           0;
         const virtualKwh =
           num(v2hEnergy.used_credit_kwh) ??

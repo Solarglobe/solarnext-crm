@@ -240,7 +240,7 @@ export default function PdfPage7VehicleV2h({
         <MetricCard brandHex={brandHex} label="Facture estimee" value={fmtEur(kpis.estimated_annual_bill_eur)} sub={`couverture solaire ${fmtPct(kpis.solar_coverage_pct)}`} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2.8mm", flex: 1, minHeight: 0, marginTop: "1.4mm" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2.8mm", flex: "0 0 auto", minHeight: 0, marginTop: "1.4mm" }}>
         <div style={{ padding: "3.3mm", border: "0.35mm solid rgba(195,152,71,.26)", borderRadius: "3.8mm", background: "#fffdf8", minHeight: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "1.8mm", color: brandHex, fontSize: "3.25mm", fontWeight: 850, marginBottom: "2mm" }}>
             <IconCar size="5mm" />
@@ -264,6 +264,16 @@ export default function PdfPage7VehicleV2h({
 
           <div style={{ marginTop: "2.2mm", padding: "2mm 2.2mm", borderRadius: "2.6mm", background: "linear-gradient(135deg, rgba(91,196,224,.13), rgba(195,152,71,.08))", fontSize: "2.75mm", color: "#444", lineHeight: 1.35 }}>
             La mobilite reste prioritaire : les trajets et la reserve sont separes du bilan economique maison.
+          </div>
+          <div style={{ marginTop: "1.6mm", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.4mm" }}>
+            <div style={{ padding: "1.5mm 1.8mm", borderRadius: "2.2mm", background: "#fff", border: "0.25mm solid rgba(195,152,71,.16)" }}>
+              <div style={{ fontSize: "2.25mm", color: "#777", fontWeight: 750 }}>Import avant stockage</div>
+              <div style={{ marginTop: "0.45mm", fontSize: "3mm", fontWeight: 850, color: "#181818" }}>{fmtKwh(energy.base_import_kwh)}</div>
+            </div>
+            <div style={{ padding: "1.5mm 1.8mm", borderRadius: "2.2mm", background: "#fff", border: "0.25mm solid rgba(195,152,71,.16)" }}>
+              <div style={{ fontSize: "2.25mm", color: "#777", fontWeight: 750 }}>Import apres cascade</div>
+              <div style={{ marginTop: "0.45mm", fontSize: "3mm", fontWeight: 850, color: "#181818" }}>{fmtKwh(energy.final_import_kwh)}</div>
+            </div>
           </div>
         </div>
 

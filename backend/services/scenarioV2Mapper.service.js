@@ -408,7 +408,7 @@ export function mapScenarioToV2(scenario, ctx) {
     typeof scenario.battery === "object" &&
     scenario.battery !== null &&
     scenario.battery.enabled === true &&
-    scenario.battery.annual_charge_kwh != null;
+    (scenario.battery.annual_charge_kwh != null || scenario.battery.annual_discharge_kwh != null);
 
   const assumptions = {
     battery_enabled:
@@ -439,14 +439,19 @@ export function mapScenarioToV2(scenario, ctx) {
             Number(scenario.battery.battery_utilization_rate) * 100
           ),
           battery_throughput_kwh: Math.round(
-            Number(scenario.battery.annual_throughput_kwh)
+            firstFiniteNum(scenario.battery.annual_throughput_kwh, scenario.battery.annual_charge_kwh, scenario.battery.annual_discharge_kwh) ?? 0
           ),
-          battery_charge_kwh: Math.round(Number(scenario.battery.annual_charge_kwh)),
+          battery_charge_kwh: Math.round(firstFiniteNum(scenario.battery.annual_charge_kwh, scenario.energy?.physical_battery_charge_kwh) ?? 0),
           battery_charge_from_surplus_kwh: Math.round(
-            Number(scenario.battery.annual_charge_from_surplus_kwh ?? scenario.energy?.physical_battery_charge_from_surplus_kwh ?? scenario.battery.annual_charge_kwh)
+            firstFiniteNum(
+              scenario.battery.annual_charge_from_surplus_kwh,
+              scenario.energy?.physical_battery_charge_from_surplus_kwh,
+              scenario.battery.annual_charge_kwh,
+              scenario.energy?.physical_battery_charge_kwh
+            ) ?? 0
           ),
           battery_discharge_kwh: Math.round(
-            Number(scenario.battery.annual_discharge_kwh)
+            firstFiniteNum(scenario.battery.annual_discharge_kwh, scenario.energy?.physical_battery_discharge_kwh) ?? 0
           ),
         }
       : {};

@@ -128,6 +128,7 @@ export function buildV2hEnergyScenarios({
       auto_kwh: Math.round(p.auto_kwh + v.auto_kwh),
       grid_import_kwh: v.grid_import_kwh,
       surplus_kwh: v.surplus_kwh,
+      physical_charge_kwh: p.annual_charge_kwh ?? 0,
       physical_discharge_kwh: p.annual_discharge_kwh ?? 0,
       ...evFields(v),
     };
@@ -174,6 +175,7 @@ export function buildV2hEnergyScenarios({
       auto_kwh: Math.round(p.auto_kwh + v.auto_kwh + vbDischarged),
       grid_import_kwh: vb.ok ? vb.grid_import_kwh : v.grid_import_kwh,
       surplus_kwh: vb.ok ? (vb.virtual_battery_overflow_export_kwh ?? 0) : v.surplus_kwh,
+      physical_charge_kwh: p.annual_charge_kwh ?? 0,
       physical_discharge_kwh: p.annual_discharge_kwh ?? 0,
       virtual_discharged_kwh: vbDischarged,
       _virtual_sim_ok: vb.ok === true,
