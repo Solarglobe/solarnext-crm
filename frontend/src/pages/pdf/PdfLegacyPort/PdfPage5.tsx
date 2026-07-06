@@ -108,7 +108,14 @@ export default function PdfPage5({
                 />
               ) : null
             }
-            badge="Impact photovoltaïque — journée type"
+            badge="Impact PV - journée type"
+            badgeStyle={{
+              maxWidth: "118mm",
+              overflow: "visible",
+              textOverflow: "clip",
+              fontSize: "5.6mm",
+              padding: "1mm 3mm",
+            }}
             metaColumn={
               <div
                 className="meta-compact"
