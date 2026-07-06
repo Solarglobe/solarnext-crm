@@ -1304,6 +1304,28 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   }
 
   const p4ConsoMonthly = p4ConsoMonthlyOverride ?? consoMonthly;
+  const explicitDirectMonthly =
+    Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12
+      ? scenarioMonthly
+          .slice(0, 12)
+          .map((m) => num(m.direct_self_consumption_kwh))
+      : null;
+  const hasExplicitDirectMonthly =
+    Array.isArray(explicitDirectMonthly) && explicitDirectMonthly.some((v) => v != null && v >= 0);
+  const explicitStorageMonthly =
+    Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12
+      ? scenarioMonthly.slice(0, 12).map((m) => {
+          const physical = num(m.physical_battery_discharge_kwh);
+          const vehicle = num(m.vehicle_v2h_discharge_kwh);
+          const virtual = num(m.virtual_battery_discharge_kwh);
+          if (physical != null || vehicle != null || virtual != null) {
+            return numOrZero(physical) + numOrZero(vehicle) + numOrZero(virtual);
+          }
+          return null;
+        })
+      : null;
+  const hasExplicitStorageMonthly =
+    Array.isArray(explicitStorageMonthly) && explicitStorageMonthly.some((v) => v != null && v > 0);
 
   const restoredAnnualForMonthly = isVehicleV2hSelected
     ? (
@@ -1327,6 +1349,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             ? autoMonthly.map((m) => (numOrZero(m) / autoMonthly.reduce((a, b) => a + numOrZero(b), 0)) * restoredAnnualForMonthly)
             : uniformMonthly12FromTotal(restoredAnnualForMonthly)))
     : Array(12).fill(0);
+  const p4BatMonthly =
+    isBatteryScenario && hasExplicitStorageMonthly
+      ? explicitStorageMonthly.map((v) => numOrZero(v))
+      : batMonthly.slice(0, 12);
+  const p4DirectMonthly =
+    hasExplicitDirectMonthly
+      ? explicitDirectMonthly.map((v) => numOrZero(v))
+      : autoMonthly.map((a, i) => Math.max(0, numOrZero(a) - numOrZero(p4BatMonthly[i])));
   let gridMonthly = consoMonthly.map((c, i) => Math.max(0, c - Math.max(0, (autoMonthly[i] ?? 0) - (batMonthly[i] ?? 0)) - batMonthly[i]));
 
   if (isVirtualLikeScenario) {
@@ -1642,9 +1672,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         consommation_kwh: p4ConsoMonthly,
         consommation_kwh_source: p4ConsumptionMonthlySource,
         consommation_kwh_reference: officialMonthlyConsumption,
-        autoconso_kwh: dirMonthly,
+        autoconso_kwh: p4DirectMonthly,
         surplus_kwh: surplusMonthly,
-        batterie_kwh: batMonthly,
+        batterie_kwh: p4BatMonthly,
         // Synthèse annuelle (données réelles)
         production_annuelle: prodAnnuelle,
         consommation_annuelle: consoAnnuelleP4,
@@ -1667,6 +1697,15 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         pertes_batterie_kwh: _p4PertesKwh != null ? Math.round(_p4PertesKwh) : null,
         credit_virtuel_utilise_kwh: Math.round(_p4RestitutionKwh),
         cout_batterie_virtuelle_eur: Math.round(vbAnnualServiceCostTtc),
+        storage_legend_label: isVehicleV2hSelected || isVirtualLikeScenario ? "Stockage restitué" : "Énergie stockée",
+        storage_legend_sublabel:
+          isVehicleV2hSelected && isVirtualLikeScenario
+            ? "V2H + batterie virtuelle"
+            : isVehicleV2hSelected
+              ? "voiture V2H"
+              : isVirtualLikeScenario
+                ? "batterie virtuelle"
+                : "batterie",
         kpi_labels: {
           pv_self_consumption: "Autoconsommation PV",
           site_autonomy: "Autonomie site",

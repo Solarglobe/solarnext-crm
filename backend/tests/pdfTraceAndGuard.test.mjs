@@ -119,3 +119,50 @@ test("T7 - PDF Enedis : les 8760h priment sur une reference mensuelle plate", ()
   assert.ok(conso[0] > conso[6], "courbe Enedis saisonnalisee, pas ligne droite");
   assert.strictEqual(vm.fullReport?.p4?.consommation_kwh_source, "enedis_hourly_monthly");
 });
+
+test("T8 - PDF P4 : le direct mensuel et le stockage restitue restent les flux reels", () => {
+  const direct = [80, 90, 160, 260, 380, 470, 430, 360, 250, 150, 90, 70];
+  const vehicle = [20, 25, 55, 90, 140, 190, 170, 130, 90, 60, 35, 25];
+  const virtual = [120, 130, 60, 30, 10, 0, 0, 20, 160, 310, 420, 300];
+  const monthly = direct.map((d, i) => ({
+    prod: 500,
+    conso: 900,
+    auto: d + vehicle[i] + virtual[i],
+    surplus: 0,
+    import: 900 - d - vehicle[i] - virtual[i],
+    batt: vehicle[i] + virtual[i],
+    direct_self_consumption_kwh: d,
+    vehicle_v2h_discharge_kwh: vehicle[i],
+    virtual_battery_discharge_kwh: virtual[i],
+  }));
+  const vm = mapSelectedScenarioSnapshotToPdfViewModel(
+    {
+      ...snap({ consumption_source: "ENEDIS_HOURLY", scenario_uses_piloted_profile: false }, true),
+      scenario_type: "VEHICLE_V2H_VIRTUAL",
+      energy: {
+        production_kwh: 6000,
+        consumption_kwh: 10800,
+        autoconsumption_kwh: direct.reduce((a, b) => a + b, 0) + vehicle.reduce((a, b) => a + b, 0) + virtual.reduce((a, b) => a + b, 0),
+        direct_self_consumption_kwh: direct.reduce((a, b) => a + b, 0),
+        ev_v2h_discharge_kwh: vehicle.reduce((a, b) => a + b, 0),
+        virtual_battery_discharge_kwh: virtual.reduce((a, b) => a + b, 0),
+        grid_import_kwh: 10800 - direct.reduce((a, b) => a + b, 0) - vehicle.reduce((a, b) => a + b, 0) - virtual.reduce((a, b) => a + b, 0),
+        monthly,
+      },
+      vehicle_v2h: {
+        enabled: true,
+        ev_v2h_discharge_kwh: vehicle.reduce((a, b) => a + b, 0),
+      },
+      battery_virtual: {
+        enabled: true,
+        annual_discharge_kwh: virtual.reduce((a, b) => a + b, 0),
+      },
+      production: { annual_kwh: 6000, monthly_kwh: Array(12).fill(500) },
+    },
+    opts
+  );
+  assert.deepStrictEqual(vm.fullReport?.p4?.autoconso_kwh, direct);
+  assert.deepStrictEqual(vm.fullReport?.p4?.batterie_kwh, vehicle.map((v, i) => v + virtual[i]));
+  assert.strictEqual(vm.fullReport?.p4?.storage_legend_label, "Stockage restitué");
+  assert.strictEqual(vm.fullReport?.p4?.storage_legend_sublabel, "V2H + batterie virtuelle");
+});

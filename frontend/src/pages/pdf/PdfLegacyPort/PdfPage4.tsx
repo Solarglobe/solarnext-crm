@@ -70,6 +70,8 @@ export interface P4Data {
   pertes_batterie_kwh?: number | null;
   credit_virtuel_utilise_kwh?: number | null;
   cout_batterie_virtuelle_eur?: number | null;
+  storage_legend_label?: string | null;
+  storage_legend_sublabel?: string | null;
 }
 
 export default function PdfPage4({
@@ -148,6 +150,8 @@ export default function PdfPage4({
   const revenuReventeEur = p4.revenu_revente_eur ?? econVm.annualRevenue ?? null;
   const coutVbEur = p4.cout_batterie_virtuelle_eur ?? null;
   const pertesKwh = p4.pertes_batterie_kwh ?? null;
+  const storageLegendLabel = p4.storage_legend_label || "Énergie stockée";
+  const storageLegendSublabel = p4.storage_legend_sublabel || "batterie";
   // 2 emplacements de synthèse dépendants du scénario (même nombre d'items → mise en page inchangée)
   const extraItems: { label: string; value: string }[] = isV2h
     ? [
@@ -332,7 +336,7 @@ export default function PdfPage4({
           {batt.some((b) => (b ?? 0) > 0) && (
             <>
               <span className="pill pill-green" />
-              <div className="legend-text"><b>Énergie stockée</b><br /><span className="sub">batterie</span></div>
+              <div className="legend-text"><b>{storageLegendLabel}</b><br /><span className="sub">{storageLegendSublabel}</span></div>
             </>
           )}
         </div>
