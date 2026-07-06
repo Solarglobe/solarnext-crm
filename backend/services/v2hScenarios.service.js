@@ -20,6 +20,17 @@ function sum(arr) { let s = 0; for (let i = 0; i < arr.length; i++) s += arr[i] 
 function residualImport(conso, autoHourly) {
   return conso.map((c, h) => Math.max(0, (c || 0) - (autoHourly[h] || 0)));
 }
+function addHourlyTrace(target, trace) {
+  target._hourlyTrace = {
+    direct_self_consumption_hourly: trace.direct_self_consumption_hourly ?? null,
+    physical_battery_discharge_hourly: trace.physical_battery_discharge_hourly ?? null,
+    vehicle_v2h_discharge_hourly: trace.vehicle_v2h_discharge_hourly ?? null,
+    virtual_battery_discharge_hourly: trace.virtual_battery_discharge_hourly ?? null,
+    auto_hourly: trace.auto_hourly ?? null,
+    surplus_hourly: trace.surplus_hourly ?? null,
+  };
+  return target;
+}
 
 /** Config batterie (hardware) du véhicule pour simulateBattery8760. */
 function vehicleBatteryConfig(v) {
@@ -111,11 +122,18 @@ export function buildV2hEnergyScenarios({
   // 1) VEHICLE_V2H — voiture seule
   {
     const v = runV2H(pv_hourly, conso_hourly);
-    out.VEHICLE_V2H = {
+    out.VEHICLE_V2H = addHourlyTrace({
       ...base("VEHICLE_V2H"),
       auto_kwh: v.auto_kwh, grid_import_kwh: v.grid_import_kwh, surplus_kwh: v.surplus_kwh,
       ...evFields(v),
-    };
+    }, {
+      direct_self_consumption_hourly: v.direct_self_consumption_hourly,
+      physical_battery_discharge_hourly: Array(8760).fill(0),
+      vehicle_v2h_discharge_hourly: v.batt_discharge_hourly,
+      virtual_battery_discharge_hourly: Array(8760).fill(0),
+      auto_hourly: v.auto_hourly,
+      surplus_hourly: v.surplus_hourly,
+    });
   }
 
   // 2) VEHICLE_V2H_PHYSICAL — physique puis V2H sur résidu
@@ -123,7 +141,8 @@ export function buildV2hEnergyScenarios({
     const p = runPhys(pv_hourly, conso_hourly);
     const impAfterP = residualImport(conso_hourly, p.auto_hourly);
     const v = runV2H(p.surplus_hourly, impAfterP);
-    out.VEHICLE_V2H_PHYSICAL = {
+    const autoHourly = p.auto_hourly.map((a, h) => (a || 0) + (v.auto_hourly[h] || 0));
+    out.VEHICLE_V2H_PHYSICAL = addHourlyTrace({
       ...base("VEHICLE_V2H_PHYSICAL"),
       auto_kwh: Math.round(p.auto_kwh + v.auto_kwh),
       grid_import_kwh: v.grid_import_kwh,
@@ -131,7 +150,14 @@ export function buildV2hEnergyScenarios({
       physical_charge_kwh: p.annual_charge_kwh ?? 0,
       physical_discharge_kwh: p.annual_discharge_kwh ?? 0,
       ...evFields(v),
-    };
+    }, {
+      direct_self_consumption_hourly: p.direct_self_consumption_hourly,
+      physical_battery_discharge_hourly: p.batt_discharge_hourly,
+      vehicle_v2h_discharge_hourly: v.batt_discharge_hourly,
+      virtual_battery_discharge_hourly: Array(8760).fill(0),
+      auto_hourly: autoHourly,
+      surplus_hourly: v.surplus_hourly,
+    });
   }
 
   // 3) VEHICLE_V2H_VIRTUAL — V2H puis virtuel sur résidu
@@ -141,7 +167,9 @@ export function buildV2hEnergyScenarios({
     const unbounded = simulateVirtualBattery8760Unbounded({ pv_hourly: v.surplus_hourly, conso_hourly: impAfterV });
     const vb = runVirt(v.surplus_hourly, impAfterV);
     const vbDischarged = vb.ok ? (vb.virtual_battery_total_discharged_kwh ?? 0) : 0;
-    out.VEHICLE_V2H_VIRTUAL = {
+    const vbDischargeHourly = vb.ok ? vb.virtual_battery_hourly_discharge_kwh : Array(8760).fill(0);
+    const autoHourly = v.auto_hourly.map((a, h) => (a || 0) + (vbDischargeHourly[h] || 0));
+    out.VEHICLE_V2H_VIRTUAL = addHourlyTrace({
       ...base("VEHICLE_V2H_VIRTUAL"),
       auto_kwh: Math.round(v.auto_kwh + vbDischarged),
       grid_import_kwh: vb.ok ? vb.grid_import_kwh : v.grid_import_kwh,
@@ -157,7 +185,14 @@ export function buildV2hEnergyScenarios({
       virtual_required_capacity_kwh: unbounded.ok ? (unbounded.required_capacity_kwh ?? null) : null,
       _virtualBattery8760: vb.ok ? vb : null,
       ...evFields(v),
-    };
+    }, {
+      direct_self_consumption_hourly: v.direct_self_consumption_hourly,
+      physical_battery_discharge_hourly: Array(8760).fill(0),
+      vehicle_v2h_discharge_hourly: v.batt_discharge_hourly,
+      virtual_battery_discharge_hourly: vbDischargeHourly,
+      auto_hourly: autoHourly,
+      surplus_hourly: vb.ok ? vb.virtual_battery_hourly_overflow_export_kwh : v.surplus_hourly,
+    });
   }
 
   // 4) VEHICLE_V2H_PHYSICAL_VIRTUAL — physique → V2H → virtuel
@@ -170,7 +205,9 @@ export function buildV2hEnergyScenarios({
     const unbounded = simulateVirtualBattery8760Unbounded({ pv_hourly: v.surplus_hourly, conso_hourly: impAfterV });
     const vb = runVirt(v.surplus_hourly, impAfterV);
     const vbDischarged = vb.ok ? (vb.virtual_battery_total_discharged_kwh ?? 0) : 0;
-    out.VEHICLE_V2H_PHYSICAL_VIRTUAL = {
+    const vbDischargeHourly = vb.ok ? vb.virtual_battery_hourly_discharge_kwh : Array(8760).fill(0);
+    const autoHourly = p.auto_hourly.map((a, h) => (a || 0) + (v.auto_hourly[h] || 0) + (vbDischargeHourly[h] || 0));
+    out.VEHICLE_V2H_PHYSICAL_VIRTUAL = addHourlyTrace({
       ...base("VEHICLE_V2H_PHYSICAL_VIRTUAL"),
       auto_kwh: Math.round(p.auto_kwh + v.auto_kwh + vbDischarged),
       grid_import_kwh: vb.ok ? vb.grid_import_kwh : v.grid_import_kwh,
@@ -188,7 +225,14 @@ export function buildV2hEnergyScenarios({
       virtual_required_capacity_kwh: unbounded.ok ? (unbounded.required_capacity_kwh ?? null) : null,
       _virtualBattery8760: vb.ok ? vb : null,
       ...evFields(v),
-    };
+    }, {
+      direct_self_consumption_hourly: p.direct_self_consumption_hourly,
+      physical_battery_discharge_hourly: p.batt_discharge_hourly,
+      vehicle_v2h_discharge_hourly: v.batt_discharge_hourly,
+      virtual_battery_discharge_hourly: vbDischargeHourly,
+      auto_hourly: autoHourly,
+      surplus_hourly: vb.ok ? vb.virtual_battery_hourly_overflow_export_kwh : v.surplus_hourly,
+    });
   }
 
   return out;

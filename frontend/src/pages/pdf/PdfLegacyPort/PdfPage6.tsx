@@ -74,7 +74,14 @@ export default function PdfPage6({
                 />
               ) : null
             }
-            badge="Énergie solaire utilisée et achat réseau"
+            badge="Solaire utilisé et achats réseau"
+            badgeStyle={{
+              maxWidth: "126mm",
+              overflow: "visible",
+              textOverflow: "clip",
+              fontSize: "5.1mm",
+              padding: "1mm 3mm",
+            }}
             metaColumn={
               <div
                 className="meta-compact"

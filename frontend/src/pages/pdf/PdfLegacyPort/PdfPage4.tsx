@@ -65,6 +65,7 @@ export interface P4Data {
   surplus_brut_kwh?: number | null;
   revenu_revente_eur?: number | null;
   restitution_batterie_kwh?: number | null;
+  restitution_vehicle_v2h_kwh?: number | null;
   charge_batterie_kwh?: number | null;
   pertes_batterie_kwh?: number | null;
   credit_virtuel_utilise_kwh?: number | null;
@@ -141,6 +142,7 @@ export default function PdfPage4({
   const econVm = (viewModel?.economics ?? {}) as { annualRevenue?: number | null };
   const battTotalKwh = batt.reduce((a, b) => a + (b ?? 0), 0);
   const restitutionKwh = p4.restitution_batterie_kwh ?? (battTotalKwh > 0 ? battTotalKwh : null);
+  const restitutionVehicleV2hKwh = p4.restitution_vehicle_v2h_kwh ?? null;
   const directKwh = Math.max(0, autoAnnuelle - (restitutionKwh ?? 0));
   const surplusBrutKwh = p4.surplus_brut_kwh ?? Math.max(0, prodAnnuelle - directKwh);
   const revenuReventeEur = p4.revenu_revente_eur ?? econVm.annualRevenue ?? null;
@@ -149,7 +151,7 @@ export default function PdfPage4({
   // 2 emplacements de synthèse dépendants du scénario (même nombre d'items → mise en page inchangée)
   const extraItems: { label: string; value: string }[] = isV2h
     ? [
-        { label: "Restitution voiture V2H", value: fmtKwh(restitutionKwh) },
+        { label: "Restitution voiture V2H", value: fmtKwh(restitutionVehicleV2hKwh ?? restitutionKwh) },
         pertesKwh != null
           ? { label: "Pertes stockage", value: fmtKwh(pertesKwh) }
           : { label: "Surplus valorise", value: fmtKwh(surplusAnnuelle) },

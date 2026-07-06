@@ -148,6 +148,20 @@ function resolveBatteryRestoredKwhForPdf(scenario, energy) {
     scenario?.vehicle_v2h && typeof scenario.vehicle_v2h === "object"
       ? scenario.vehicle_v2h
       : {};
+  if (vehicleV2h.enabled === true) {
+    return (
+      (num(e.physical_battery_discharge_kwh) ??
+        num(scenario?.battery_discharge_kwh) ??
+        num(battery.annual_discharge_kwh) ??
+        0) +
+      (num(vehicleV2h.ev_v2h_discharge_kwh) ?? num(e.ev_v2h_discharge_kwh) ?? 0) +
+      (num(e.virtual_battery_discharge_kwh) ??
+        num(e.used_credit_kwh) ??
+        num(virtualBattery.annual_discharge_kwh) ??
+        num(virtualBattery.restored_kwh) ??
+        0)
+    );
+  }
   const inferredFromDirect =
     num(e.total_pv_used_on_site_kwh ?? e.autoconsumption_kwh ?? e.energy_solar_used_kwh ?? e.auto) != null &&
     num(e.direct_self_consumption_kwh) != null
@@ -159,7 +173,6 @@ function resolveBatteryRestoredKwhForPdf(scenario, energy) {
       : null;
 
   return (
-    num(vehicleV2h.ev_v2h_discharge_kwh) ??
     num(e.battery_discharge_kwh) ??
     num(e.physical_battery_discharge_kwh) ??
     num(scenario?.battery_discharge_kwh) ??
@@ -1595,7 +1608,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         consommation_kwh: p4ConsoMonthly,
         consommation_kwh_source: p4ConsumptionMonthlySource,
         consommation_kwh_reference: officialMonthlyConsumption,
-        autoconso_kwh: autoMonthly,
+        autoconso_kwh: dirMonthly,
         surplus_kwh: surplusMonthly,
         batterie_kwh: batMonthly,
         // Synthèse annuelle (données réelles)
@@ -1611,6 +1624,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         surplus_brut_kwh: Math.round(_p4SurplusBrutKwh),
         revenu_revente_eur: Math.round(_p4RevenuReventeEur),
         restitution_batterie_kwh: Math.round(_p4RestitutionKwh),
+        restitution_vehicle_v2h_kwh: Math.round(
+          num(selectedScenario?.vehicle_v2h?.ev_v2h_discharge_kwh) ??
+          num(_energyFlowsShared.ev_v2h_discharge_kwh) ??
+          0
+        ),
         charge_batterie_kwh: _p4ChargeKwh != null ? Math.round(_p4ChargeKwh) : null,
         pertes_batterie_kwh: _p4PertesKwh != null ? Math.round(_p4PertesKwh) : null,
         credit_virtuel_utilise_kwh: Math.round(_p4RestitutionKwh),

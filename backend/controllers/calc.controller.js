@@ -1973,6 +1973,49 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               },
               annual: { prod_kwh: e.production_kwh, conso_kwh: e.consumption_kwh, auto_kwh: e.auto_kwh, surplus_kwh: e.surplus_kwh },
             };
+            const v2hTrace = e._hourlyTrace && typeof e._hourlyTrace === "object" ? e._hourlyTrace : null;
+            if (
+              v2hTrace &&
+              Array.isArray(v2hTrace.auto_hourly) &&
+              v2hTrace.auto_hourly.length === 8760 &&
+              Array.isArray(v2hTrace.surplus_hourly) &&
+              v2hTrace.surplus_hourly.length === 8760
+            ) {
+              const physicalDischargeHourly = Array.isArray(v2hTrace.physical_battery_discharge_hourly)
+                ? v2hTrace.physical_battery_discharge_hourly
+                : Array(8760).fill(0);
+              const vehicleDischargeHourly = Array.isArray(v2hTrace.vehicle_v2h_discharge_hourly)
+                ? v2hTrace.vehicle_v2h_discharge_hourly
+                : Array(8760).fill(0);
+              const virtualDischargeHourly = Array.isArray(v2hTrace.virtual_battery_discharge_hourly)
+                ? v2hTrace.virtual_battery_discharge_hourly
+                : Array(8760).fill(0);
+              const storageDischargeHourly = physicalDischargeHourly.map(
+                (v, h) => (Number(v) || 0) + (Number(vehicleDischargeHourly[h]) || 0) + (Number(virtualDischargeHourly[h]) || 0)
+              );
+              const monthlyV2h = aggregateMonthly(ctx.pv.hourly, consoHourlyV2H, {
+                auto_hourly: v2hTrace.auto_hourly,
+                surplus_hourly: v2hTrace.surplus_hourly,
+                batt_discharge_hourly: storageDischargeHourly,
+              });
+              const monthlyV2hDirect = monthlySumsFromHourly(v2hTrace.direct_self_consumption_hourly);
+              const monthlyV2hPhysical = monthlySumsFromHourly(physicalDischargeHourly);
+              const monthlyV2hVehicle = monthlySumsFromHourly(vehicleDischargeHourly);
+              const monthlyV2hVirtual = monthlySumsFromHourly(virtualDischargeHourly);
+              sc.energy.direct_self_consumption_kwh = monthlyV2hDirect.reduce((a, b) => a + (Number(b) || 0), 0);
+              sc.energy.monthly = monthlyV2h.map((m, i) => ({
+                prod: m.prod_kwh,
+                conso: m.conso_kwh,
+                auto: m.auto_kwh,
+                surplus: m.surplus_kwh,
+                import: m.import_kwh,
+                batt: m.batt_kwh,
+                direct_self_consumption_kwh: monthlyV2hDirect[i],
+                physical_battery_discharge_kwh: monthlyV2hPhysical[i],
+                vehicle_v2h_discharge_kwh: monthlyV2hVehicle[i],
+                virtual_battery_discharge_kwh: monthlyV2hVirtual[i],
+              }));
+            }
             // Dégradation physique MAISON (le V2H ne se dégrade pas en v1) : batterie physique du combo.
             if (id === "VEHICLE_V2H_PHYSICAL") {
               sc.energy.physical_battery_charge_kwh = e.physical_charge_kwh ?? 0;
