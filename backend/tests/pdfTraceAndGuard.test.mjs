@@ -35,6 +35,15 @@ function snap(trace, withMonthly = true) {
 }
 const opts = { studyId: "s1", versionId: "v1", studyNumber: "SGS-2026-0117" };
 
+function hourlyByMonth(valuesByMonth) {
+  const daysPerMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const out = [];
+  for (let m = 0; m < 12; m++) {
+    for (let h = 0; h < daysPerMonth[m] * 24; h++) out.push(valuesByMonth[m]);
+  }
+  return out;
+}
+
 test("T1 — PDF refusé si display_blocked=true", () => {
   const g = pdfGuard({ display_blocked: true }, CALC_ENGINE_VERSION);
   assert.strictEqual(g.blocked, true);
@@ -94,4 +103,19 @@ test("T6 — aucun fallback ne reconstruit une courbe mensuelle manquante", () =
   assert.strictEqual(noMonthly.consumption_monthly_missing, true);
   const sumNo = (noMonthly.fullReport?.p4?.consommation_kwh || []).reduce((a, b) => a + (Number(b) || 0), 0);
   assert.strictEqual(sumNo, 0, "aucune courbe reconstruite");
+});
+
+test("T7 - PDF Enedis : les 8760h priment sur une reference mensuelle plate", () => {
+  const hourly = hourlyByMonth([2.2, 2.1, 1.9, 1.7, 1.4, 1.2, 1.1, 1.2, 1.5, 1.8, 2.0, 2.3]);
+  const vm = mapSelectedScenarioSnapshotToPdfViewModel(
+    snap({ consumption_source: "ENEDIS_HOURLY", scenario_uses_piloted_profile: false }, false),
+    {
+      ...opts,
+      p5_conso_hourly_kw_8760: hourly,
+      consumption_monthly_reference: Array(12).fill(1099),
+    }
+  );
+  const conso = vm.fullReport?.p4?.consommation_kwh || [];
+  assert.ok(conso[0] > conso[6], "courbe Enedis saisonnalisee, pas ligne droite");
+  assert.strictEqual(vm.fullReport?.p4?.consommation_kwh_source, "enedis_hourly_monthly");
 });

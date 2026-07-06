@@ -622,6 +622,30 @@ function sumMonthly(monthly) {
     : 0;
 }
 
+function monthlySumsFrom8760(values) {
+  if (!Array.isArray(values) || values.length < 8760) return null;
+  const daysPerMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const out = [];
+  let index = 0;
+  for (const days of daysPerMonth) {
+    let sum = 0;
+    for (let h = 0; h < days * 24; h++, index++) {
+      sum += Number(values[index]) || 0;
+    }
+    out.push(Math.round(sum));
+  }
+  return out.some((v) => v > 0) ? out : null;
+}
+
+function monthlyShapeSpread(monthly) {
+  if (!Array.isArray(monthly) || monthly.length < MONTHS_COUNT) return 0;
+  const values = monthly.slice(0, MONTHS_COUNT).map((v) => numOrZero(v)).filter((v) => v > 0);
+  if (values.length === 0) return 0;
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  if (avg <= 0) return 0;
+  return (Math.max(...values) - Math.min(...values)) / avg;
+}
+
 function hourly8760ToAvg24(hourly) {
   if (!Array.isArray(hourly) || hourly.length < 24) return Array(24).fill(0);
   const len = hourly.length;
@@ -1189,7 +1213,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       num(selectedScenario?.energy?.surplus_kwh ?? selectedScenario?.energy?.surplus) ??
       Math.max(0, (num(selectedScenario?.energy?.production_kwh ?? selectedScenario?.energy?.prod) ?? annualKwh) - annualAutoForMonthly);
     const monthlyProdSum = monthly.reduce((a, b) => a + numOrZero(b), 0);
-    consoMonthly = uniformMonthly12FromTotal(annualConsoForMonthly);
+    consoMonthly = Array(MONTHS_COUNT).fill(0);
     autoMonthly =
       monthlyProdSum > 0
         ? monthly.map((m) => (numOrZero(m) / monthlyProdSum) * annualAutoForMonthly)
@@ -1200,7 +1224,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         : uniformMonthly12FromTotal(annualSurplusForMonthly);
   }
 
-  const officialMonthlyConsumption =
+  const hourlyMonthlyConsumption = monthlySumsFrom8760(options.p5_conso_hourly_kw_8760);
+  const referencedMonthlyConsumption =
     normalizeMonthlyConsumptionReference(options.consumption_monthly_reference) ??
     normalizeMonthlyConsumptionReference(conso.monthly_kwh_ref) ??
     normalizeMonthlyConsumptionReference(conso.mensuelle) ??
@@ -1209,6 +1234,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     normalizeMonthlyConsumptionReference(snapshot.meta?.conso_monthly_kwh_ref) ??
     normalizeMonthlyConsumptionReference(snapshot.study_meter?.snapshot?.consumption_monthly) ??
     normalizeMonthlyConsumptionReference(snapshot.study_meter?.snapshot?.consumption_monthly_kwh);
+  const officialMonthlyConsumption = hourlyMonthlyConsumption ?? referencedMonthlyConsumption;
   let p4ConsoMonthlyOverride = null;
   let p4ConsumptionMonthlySource = Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12
     ? "scenario_monthly"
@@ -1216,22 +1242,30 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   if (officialMonthlyConsumption) {
     const officialSum = sumMonthly(officialMonthlyConsumption);
     const currentSum = sumMonthly(consoMonthly);
+    const officialSpread = monthlyShapeSpread(officialMonthlyConsumption);
+    const currentSpread = monthlyShapeSpread(consoMonthly);
+    const officialIsFlatFallback = hourlyMonthlyConsumption == null && officialSpread < 0.02 && currentSpread > 0.08;
     const annualRef =
       num(selectedScenario?.energy?.consumption_kwh ?? selectedScenario?.energy?.conso) ??
       num(energy?.consumption_kwh ?? energy?.conso) ??
       num(consoAnnuelle) ??
       num(consumptionKwh) ??
       officialSum;
-    if (officialSum > 0) {
+    if (officialSum > 0 && !officialIsFlatFallback) {
       p4ConsoMonthlyOverride = officialMonthlyConsumption.slice(0, MONTHS_COUNT);
       consoMonthly = p4ConsoMonthlyOverride.slice(0, MONTHS_COUNT);
-      p4ConsumptionMonthlySource = "official_meter_monthly_override";
+      p4ConsumptionMonthlySource = hourlyMonthlyConsumption
+        ? "enedis_hourly_monthly"
+        : "official_meter_monthly_override";
     }
     console.log("PDF_P4_CONSUMPTION_MONTHLY", {
       source: p4ConsumptionMonthlySource,
+      skipped_flat_reference: officialIsFlatFallback,
       annual_ref_kwh: Math.round(annualRef),
       current_sum_before_override_kwh: Math.round(currentSum),
       official_sum_kwh: Math.round(officialSum),
+      current_spread_pct: Math.round(currentSpread * 100),
+      official_spread_pct: Math.round(officialSpread * 100),
       july_kwh: Math.round(consoMonthly[6] ?? 0),
       august_kwh: Math.round(consoMonthly[7] ?? 0),
       official_july_kwh: Math.round(officialMonthlyConsumption[6] ?? 0),
