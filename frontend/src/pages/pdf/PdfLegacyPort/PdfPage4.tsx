@@ -216,6 +216,13 @@ export default function PdfPage4({
               ) : null
             }
             badge="Production solaire sur une année"
+            badgeStyle={{
+              maxWidth: "124mm",
+              overflow: "visible",
+              textOverflow: "clip",
+              fontSize: "5.2mm",
+              padding: "1mm 3mm",
+            }}
             metaColumn={
               <div
                 className="meta-compact"

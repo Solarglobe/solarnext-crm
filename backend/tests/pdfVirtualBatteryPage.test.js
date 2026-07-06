@@ -200,6 +200,41 @@ function main() {
       vmStaleScenarioMonthly.fullReport?.p4?.consommation_kwh_source === "official_meter_monthly_override",
     "P4 must prefer official meter monthly totals over stale selected scenario monthly data"
   );
+  const halfFaverMonthly = faverMonthly.map((kwh) => kwh / 2);
+  const vmMetaMonthlyReference = mapSelectedScenarioSnapshotToPdfViewModel(
+    {
+      ...snapshot,
+      meta: {
+        ...snapshot.meta,
+        conso_monthly_kwh_ref: halfFaverMonthly,
+      },
+    },
+    {
+      selected_scenario_id: "BATTERY_PHYSICAL",
+      scenarios_v2: [
+        {
+          ...scenariosV2[2],
+          energy: {
+            ...scenariosV2[2].energy,
+            consumption_kwh: 16000,
+            monthly: staleScenarioMonthly.map((conso, i) => ({
+              prod: 450 + i * 20,
+              conso,
+              auto: Math.min(conso, 350),
+              surplus: Math.max(0, 450 + i * 20 - 350),
+              import: Math.max(0, conso - 350),
+              batt: i >= 4 && i <= 8 ? 100 : 0,
+            })),
+          },
+        },
+      ],
+    }
+  );
+  assert(
+    vmMetaMonthlyReference.fullReport?.p4?.consommation_kwh?.[6] === 255 &&
+      vmMetaMonthlyReference.fullReport?.p4?.consommation_kwh_source === "official_meter_monthly_override",
+    "P4 must use the stored meter monthly reference even when scenario annual data is stale"
+  );
 
   const vmLegacyInconsistent = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
     selected_scenario_id: "BATTERY_VIRTUAL",

@@ -207,6 +207,13 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
   }
 
   const dj = row.data_json && typeof row.data_json === "object" ? row.data_json : {};
+  const consumptionMonthlyReference =
+    dj.meta?.conso_monthly_kwh_ref ??
+    dj.conso?.monthly_kwh_ref ??
+    dj.conso?.mensuelle ??
+    dj.form?.conso?.monthly_kwh_ref ??
+    dj.form?.conso?.mensuelle ??
+    null;
   const repairedScenariosV2 = repairScenarioV2DisplayKpis(dj.scenarios_v2 ?? null);
   const p5HourlyOpts = {
     p5_pv_hourly_kw_8760: firstHourlyArray8760(dj, ["pv_hourly_kw"]),
@@ -232,6 +239,7 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
     economic_snapshot_config: economicSnapshotConfig,
     org_economics: orgEconomics,
     flat_roof_mounting: flatRoofMounting,
+    consumption_monthly_reference: consumptionMonthlyReference,
     ...p5HourlyOpts,
   });
 

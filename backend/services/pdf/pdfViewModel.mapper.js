@@ -1193,8 +1193,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     normalizeMonthlyConsumptionReference(conso.mensuelle) ??
     normalizeMonthlyConsumptionReference(form.conso?.mensuelle) ??
     normalizeMonthlyConsumptionReference(form.conso?.monthly_kwh_ref) ??
+    normalizeMonthlyConsumptionReference(snapshot.meta?.conso_monthly_kwh_ref) ??
     normalizeMonthlyConsumptionReference(snapshot.study_meter?.snapshot?.consumption_monthly) ??
     normalizeMonthlyConsumptionReference(snapshot.study_meter?.snapshot?.consumption_monthly_kwh);
+  let p4ConsoMonthlyOverride = null;
   let p4ConsumptionMonthlySource = Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12
     ? "scenario_monthly"
     : "annual_uniform";
@@ -1207,14 +1209,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       num(consoAnnuelle) ??
       num(consumptionKwh) ??
       officialSum;
-    const officialMatchesAnnual =
-      officialSum > 0 && Math.abs(officialSum - annualRef) <= Math.max(2, annualRef * 0.02);
-    const currentDiffersFromOfficial = consoMonthly.some((v, i) =>
-      Math.abs(numOrZero(v) - numOrZero(officialMonthlyConsumption[i])) >
-      Math.max(5, numOrZero(officialMonthlyConsumption[i]) * 0.05)
-    );
-    if (officialMatchesAnnual && currentDiffersFromOfficial) {
-      consoMonthly = officialMonthlyConsumption.slice(0, MONTHS_COUNT);
+    if (officialSum > 0) {
+      p4ConsoMonthlyOverride = officialMonthlyConsumption.slice(0, MONTHS_COUNT);
+      consoMonthly = p4ConsoMonthlyOverride.slice(0, MONTHS_COUNT);
       p4ConsumptionMonthlySource = "official_meter_monthly_override";
     }
     console.log("PDF_P4_CONSUMPTION_MONTHLY", {
@@ -1258,6 +1255,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       consoMonthly = uniformMonthly12FromTotal(officialConsoForP6);
     }
   }
+
+  const p4ConsoMonthly = p4ConsoMonthlyOverride ?? consoMonthly;
 
   const restoredAnnualForMonthly = isVehicleV2hSelected
     ? (
@@ -1593,7 +1592,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       p4: {
         meta: { client: clientName, ref, date: dateDisplay, date_display: dateDisplay },
         production_kwh: monthly,
-        consommation_kwh: consoMonthly,
+        consommation_kwh: p4ConsoMonthly,
         consommation_kwh_source: p4ConsumptionMonthlySource,
         consommation_kwh_reference: officialMonthlyConsumption,
         autoconso_kwh: autoMonthly,

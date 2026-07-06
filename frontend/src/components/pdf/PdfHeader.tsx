@@ -99,9 +99,10 @@ export interface PdfHeaderProps {
    */
   metaWidth?: PdfHeaderMetaWidth;
   headerStyle?: React.CSSProperties;
+  badgeStyle?: React.CSSProperties;
 }
 
-export default function PdfHeader({ logo, badge, metaColumn, metaWidth, headerStyle }: PdfHeaderProps) {
+export default function PdfHeader({ logo, badge, metaColumn, metaWidth, headerStyle, badgeStyle }: PdfHeaderProps) {
   const cssVars: React.CSSProperties = {
     ["--metaW" as string]: resolveMetaWVariable(metaWidth),
   };
@@ -121,7 +122,7 @@ export default function PdfHeader({ logo, badge, metaColumn, metaWidth, headerSt
     >
       <style dangerouslySetInnerHTML={{ __html: META_DESCENDANT_CSS }} />
       {logo}
-      <span className="badge" style={BADGE_STYLE}>
+      <span className="badge" style={{ ...BADGE_STYLE, ...badgeStyle }}>
         {badge}
       </span>
       {metaColumn}
