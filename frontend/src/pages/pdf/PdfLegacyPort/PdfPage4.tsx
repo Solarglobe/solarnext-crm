@@ -51,11 +51,14 @@ export interface P4Data {
   production_kwh?: number[];
   consommation_kwh?: number[];
   autoconso_kwh?: number[];
+  direct_pv_kwh?: number[];
   surplus_kwh?: number[];
   batterie_kwh?: number[];
   production_annuelle?: number;
   consommation_annuelle?: number;
   energie_consommee_directement?: number;
+  energie_solaire_valorisee?: number;
+  reste_reseau_kwh?: number;
   energie_injectee?: number;
   taux_autoconsommation_pct?: number | null;
   couverture_besoins_pct?: number | null;
@@ -105,6 +108,7 @@ export default function PdfPage4({
   const prod = p4.production_kwh ?? [];
   const conso = p4.consommation_kwh ?? [];
   const auto = p4.autoconso_kwh ?? [];
+  const directPv = p4.direct_pv_kwh ?? [];
   const surplus = p4.surplus_kwh ?? [];
   const batt = p4.batterie_kwh ?? [];
 
@@ -118,15 +122,17 @@ export default function PdfPage4({
       production_kwh: prod,
       consommation_kwh: conso,
       autoconso_kwh: auto,
+      direct_pv_kwh: directPv,
       batterie_kwh: batt,
       july_conso: conso[6] ?? null,
       august_conso: conso[7] ?? null,
     });
-  }, [auto, batt, conso, p4.scenario_type, prod, viewModel?.meta, viewModel?.selectedScenario]);
+  }, [auto, batt, conso, directPv, p4.scenario_type, prod, viewModel?.meta, viewModel?.selectedScenario]);
 
   const prodAnnuelle = p4.production_annuelle ?? prod.reduce((a, b) => a + (b ?? 0), 0);
   const consoAnnuelle = p4.consommation_annuelle ?? conso.reduce((a, b) => a + (b ?? 0), 0);
-  const autoAnnuelle = p4.energie_consommee_directement ?? auto.reduce((a, b) => a + (b ?? 0), 0);
+  const solarCoveredAnnuelle = p4.energie_solaire_valorisee ?? auto.reduce((a, b) => a + (b ?? 0), 0);
+  const directPvAnnuelle = p4.energie_consommee_directement ?? directPv.reduce((a, b) => a + (b ?? 0), 0);
   const surplusAnnuelle = p4.energie_injectee ?? surplus.reduce((a, b) => a + (b ?? 0), 0);
   const couverture = p4.couverture_besoins_pct;
   const economieAn1 = p4.economie_annee_1 ?? 0;
@@ -145,7 +151,8 @@ export default function PdfPage4({
   const battTotalKwh = batt.reduce((a, b) => a + (b ?? 0), 0);
   const restitutionKwh = p4.restitution_batterie_kwh ?? (battTotalKwh > 0 ? battTotalKwh : null);
   const restitutionVehicleV2hKwh = p4.restitution_vehicle_v2h_kwh ?? null;
-  const directKwh = Math.max(0, autoAnnuelle - (restitutionKwh ?? 0));
+  const resteReseauKwh = p4.reste_reseau_kwh ?? Math.max(0, consoAnnuelle - solarCoveredAnnuelle);
+  const directKwh = directPvAnnuelle || Math.max(0, solarCoveredAnnuelle - (restitutionKwh ?? 0));
   const surplusBrutKwh = p4.surplus_brut_kwh ?? Math.max(0, prodAnnuelle - directKwh);
   const revenuReventeEur = p4.revenu_revente_eur ?? econVm.annualRevenue ?? null;
   const coutVbEur = p4.cout_batterie_virtuelle_eur ?? null;
@@ -155,10 +162,8 @@ export default function PdfPage4({
   // 2 emplacements de synthèse dépendants du scénario (même nombre d'items → mise en page inchangée)
   const extraItems: { label: string; value: string }[] = isV2h
     ? [
-        { label: "Restitution voiture V2H", value: fmtKwh(restitutionVehicleV2hKwh ?? restitutionKwh) },
-        pertesKwh != null
-          ? { label: "Pertes stockage", value: fmtKwh(pertesKwh) }
-          : { label: "Surplus valorise", value: fmtKwh(surplusAnnuelle) },
+        { label: "Stockage V2H + virtuel", value: fmtKwh(restitutionKwh ?? restitutionVehicleV2hKwh) },
+        { label: "Reste réseau", value: fmtKwh(resteReseauKwh) },
       ]
     : isPhys
     ? [
@@ -332,7 +337,7 @@ export default function PdfPage4({
           <span className="pill pill-gold" />
           <div className="legend-text"><b>Production PV</b><br /><span className="sub">générateur posé</span></div>
           <span className="pill pill-cyan" />
-          <div className="legend-text"><b>Énergie utilisée directement</b><br /><span className="sub">sans passer par le réseau</span></div>
+          <div className="legend-text"><b>Énergie solaire valorisée</b><br /><span className="sub">direct + stockage restitué</span></div>
           {batt.some((b) => (b ?? 0) > 0) && (
             <>
               <span className="pill pill-green" />
@@ -348,7 +353,7 @@ export default function PdfPage4({
           <div className="p4-kpi-line">
             <div className="kpi-item highlight"><span>Production</span><strong>{fmtKwh(prodAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Consommation</span><strong>{fmtKwh(consoAnnuelle)}</strong></div>
-            <div className="kpi-item highlight"><span>Énergie autoconsommée</span><strong>{fmtKwh(autoAnnuelle)}</strong></div>
+            <div className="kpi-item highlight"><span>Énergie solaire valorisée</span><strong>{fmtKwh(solarCoveredAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Part couverte</span><strong>{fmtPct(couverture)}</strong></div>
             {extraItems.map((it, i) => (
               <div className="kpi-item highlight" key={i}><span>{it.label}</span><strong>{it.value}</strong></div>

@@ -1357,6 +1357,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     hasExplicitDirectMonthly
       ? explicitDirectMonthly.map((v) => numOrZero(v))
       : autoMonthly.map((a, i) => Math.max(0, numOrZero(a) - numOrZero(p4BatMonthly[i])));
+  const p4SolarCoveredMonthly = p4DirectMonthly.map((direct, i) =>
+    Math.min(
+      numOrZero(p4ConsoMonthly[i]),
+      Math.max(0, numOrZero(direct) + numOrZero(p4BatMonthly[i]))
+    )
+  );
   let gridMonthly = consoMonthly.map((c, i) => Math.max(0, c - Math.max(0, (autoMonthly[i] ?? 0) - (batMonthly[i] ?? 0)) - batMonthly[i]));
 
   if (isVirtualLikeScenario) {
@@ -1672,13 +1678,16 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         consommation_kwh: p4ConsoMonthly,
         consommation_kwh_source: p4ConsumptionMonthlySource,
         consommation_kwh_reference: officialMonthlyConsumption,
-        autoconso_kwh: p4DirectMonthly,
+        autoconso_kwh: p4SolarCoveredMonthly,
+        direct_pv_kwh: p4DirectMonthly,
         surplus_kwh: surplusMonthly,
         batterie_kwh: p4BatMonthly,
         // Synthèse annuelle (données réelles)
         production_annuelle: prodAnnuelle,
         consommation_annuelle: consoAnnuelleP4,
-        energie_consommee_directement: autoAnnuelle,
+        energie_consommee_directement: _p4DirectKwh,
+        energie_solaire_valorisee: autoAnnuelle,
+        reste_reseau_kwh: importAnnuelle,
         energie_injectee: surplusAnnuelle,
         taux_autoconsommation_pct: tauxAutoPct,
         couverture_besoins_pct: couverturePct,

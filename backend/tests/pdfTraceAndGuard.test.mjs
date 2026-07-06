@@ -120,7 +120,7 @@ test("T7 - PDF Enedis : les 8760h priment sur une reference mensuelle plate", ()
   assert.strictEqual(vm.fullReport?.p4?.consommation_kwh_source, "enedis_hourly_monthly");
 });
 
-test("T8 - PDF P4 : le direct mensuel et le stockage restitue restent les flux reels", () => {
+test("T8 - PDF P4 : le graphe mensuel affiche le solaire valorise et garde le detail direct/stockage", () => {
   const direct = [80, 90, 160, 260, 380, 470, 430, 360, 250, 150, 90, 70];
   const vehicle = [20, 25, 55, 90, 140, 190, 170, 130, 90, 60, 35, 25];
   const virtual = [120, 130, 60, 30, 10, 0, 0, 20, 160, 310, 420, 300];
@@ -161,8 +161,18 @@ test("T8 - PDF P4 : le direct mensuel et le stockage restitue restent les flux r
     },
     opts
   );
-  assert.deepStrictEqual(vm.fullReport?.p4?.autoconso_kwh, direct);
+  assert.deepStrictEqual(vm.fullReport?.p4?.autoconso_kwh, direct.map((v, i) => v + vehicle[i] + virtual[i]));
+  assert.deepStrictEqual(vm.fullReport?.p4?.direct_pv_kwh, direct);
   assert.deepStrictEqual(vm.fullReport?.p4?.batterie_kwh, vehicle.map((v, i) => v + virtual[i]));
+  assert.strictEqual(
+    vm.fullReport?.p4?.energie_solaire_valorisee,
+    direct.reduce((a, b) => a + b, 0) + vehicle.reduce((a, b) => a + b, 0) + virtual.reduce((a, b) => a + b, 0)
+  );
+  assert.strictEqual(vm.fullReport?.p4?.energie_consommee_directement, direct.reduce((a, b) => a + b, 0));
+  assert.strictEqual(
+    vm.fullReport?.p4?.reste_reseau_kwh,
+    10800 - direct.reduce((a, b) => a + b, 0) - vehicle.reduce((a, b) => a + b, 0) - virtual.reduce((a, b) => a + b, 0)
+  );
   assert.strictEqual(vm.fullReport?.p4?.storage_legend_label, "Stockage restitué");
   assert.strictEqual(vm.fullReport?.p4?.storage_legend_sublabel, "V2H + batterie virtuelle");
 });
