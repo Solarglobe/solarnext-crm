@@ -12,6 +12,7 @@ export interface FullReportViewModel {
     p5?: { meta?: Record<string, unknown>; production_kw?: number[]; consommation_kw?: number[]; batterie_kw?: number[] };
     p6?: { p6?: { meta?: Record<string, unknown>; price?: number; dir?: number[]; bat?: number[]; grid?: number[]; tot?: number[] } };
     p7?: { meta?: Record<string, unknown>; pct?: Record<string, number>; c_grid?: number; p_surplus?: number };
+    p7_vehicle_v2h?: Record<string, unknown> | null;
     p8?: { meta?: Record<string, unknown>; year?: string; A?: Record<string, unknown>; B?: Record<string, unknown>; profile?: { pv?: number[]; load?: number[]; charge?: number[]; discharge?: number[] }; hypotheses?: Record<string, unknown>; detailsBatterie?: Record<string, unknown>; kpis?: Record<string, unknown>; texteSousBarres?: Record<string, unknown>; interpretation?: Record<string, unknown> };
     p9?: {
       meta?: Record<string, unknown>;

@@ -136,6 +136,7 @@ export default function PdfPage4({
   const isPhys = scenarioType === "BATTERY_PHYSICAL";
   const isVirt = scenarioType === "BATTERY_VIRTUAL";
   const isHyb = scenarioType === "BATTERY_HYBRID";
+  const isV2h = String(scenarioType).startsWith("VEHICLE_V2H");
   // Valeurs : champ mapper si présent, sinon recalcul à partir des données déjà dans p4 (jamais "—")
   const econVm = (viewModel?.economics ?? {}) as { annualRevenue?: number | null };
   const battTotalKwh = batt.reduce((a, b) => a + (b ?? 0), 0);
@@ -146,7 +147,14 @@ export default function PdfPage4({
   const coutVbEur = p4.cout_batterie_virtuelle_eur ?? null;
   const pertesKwh = p4.pertes_batterie_kwh ?? null;
   // 2 emplacements de synthèse dépendants du scénario (même nombre d'items → mise en page inchangée)
-  const extraItems: { label: string; value: string }[] = isPhys
+  const extraItems: { label: string; value: string }[] = isV2h
+    ? [
+        { label: "Restitution voiture V2H", value: fmtKwh(restitutionKwh) },
+        pertesKwh != null
+          ? { label: "Pertes stockage", value: fmtKwh(pertesKwh) }
+          : { label: "Surplus valorise", value: fmtKwh(surplusAnnuelle) },
+      ]
+    : isPhys
     ? [
         { label: "Restitution batterie", value: fmtKwh(restitutionKwh) },
         pertesKwh != null
@@ -173,7 +181,9 @@ export default function PdfPage4({
           ];
   const baseNote = "Le surplus brut est la production solaire non utilisée en direct.";
   const scenarioNote =
-    isPhys || isHyb
+    isV2h
+      ? `${baseNote} Quand le vehicule est branche, il peut restituer une partie de l'energie disponible a la maison tout en conservant la reserve mobilite.`
+      : isPhys || isHyb
       ? `${baseNote} La batterie la restitue le soir et la nuit ; une faible part (~10 %) est perdue au stockage.`
       : isVirt
         ? `${baseNote} Ce surplus est crédité chez le fournisseur puis repris plus tard ; un coût annuel s'applique au service.`

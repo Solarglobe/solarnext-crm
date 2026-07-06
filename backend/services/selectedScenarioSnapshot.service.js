@@ -247,6 +247,14 @@ export async function buildSelectedScenarioSnapshot({
             ? "virtuelle"
             : scenarioId === "BATTERY_HYBRID"
               ? "hybride"
+              : scenarioId === "VEHICLE_V2H"
+                ? "vehicule_v2h"
+                : scenarioId === "VEHICLE_V2H_PHYSICAL"
+                  ? "vehicule_v2h_physique"
+                  : scenarioId === "VEHICLE_V2H_VIRTUAL"
+                    ? "vehicule_v2h_virtuelle"
+                    : scenarioId === "VEHICLE_V2H_PHYSICAL_VIRTUAL"
+                      ? "vehicule_v2h_hybride"
               : null,
     },
   };

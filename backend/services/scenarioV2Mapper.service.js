@@ -63,6 +63,7 @@ export function mapScenarioToV2(scenario, ctx) {
   const id = scenario.name ?? "BASE";
   const isVirtualLike = id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID" || id === "VEHICLE_V2H_VIRTUAL" || id === "VEHICLE_V2H_PHYSICAL_VIRTUAL";
   const isPhysicalLike = id === "BATTERY_PHYSICAL" || id === "BATTERY_HYBRID" || id === "VEHICLE_V2H_PHYSICAL" || id === "VEHICLE_V2H_PHYSICAL_VIRTUAL";
+  const isVehicleV2hLike = id === "VEHICLE_V2H" || id === "VEHICLE_V2H_PHYSICAL" || id === "VEHICLE_V2H_VIRTUAL" || id === "VEHICLE_V2H_PHYSICAL_VIRTUAL";
   if (scenario.name === "BATTERY_VIRTUAL" && process.env.NODE_ENV !== "production" && process.env.DEBUG_BV_MAPPER === "1") {
     console.log("=== BV MAPPER INPUT ===");
     console.log(JSON.stringify(scenario, null, 2));
@@ -418,6 +419,7 @@ export function mapScenarioToV2(scenario, ctx) {
         scenario.battery !== null &&
         scenario.battery.enabled === true),
     virtual_enabled: isVirtualLike,
+    vehicle_v2h_enabled: isVehicleV2hLike,
     shading_source: shadingSrc.farSource ?? shadingSrc.far_source ?? null,
     elec_growth_pct: scenario.finance_meta?.elec_growth_pct ?? null,
     elec_growth_source: scenario.finance_meta?.elec_growth_source ?? null,
@@ -494,6 +496,25 @@ export function mapScenarioToV2(scenario, ctx) {
             (scenario._skipped === true
               ? { enabled: false, annual_charge_kwh: 0, annual_discharge_kwh: 0 }
               : null))
+        : null,
+    vehicle_v2h:
+      isVehicleV2hLike
+        ? {
+            enabled: true,
+            ev_v2h_discharge_kwh: round2(firstFiniteNum(scenario.ev_v2h_discharge_kwh, scenario.energy?.ev_v2h_discharge_kwh) ?? 0),
+            ev_solar_charge_kwh: round2(firstFiniteNum(scenario.ev_solar_charge_kwh, scenario.energy?.ev_solar_charge_kwh) ?? 0),
+            ev_grid_charge_kwh: round2(firstFiniteNum(scenario.ev_grid_charge_kwh, scenario.energy?.ev_grid_charge_kwh) ?? 0),
+            ev_trip_consumption_kwh: round2(firstFiniteNum(scenario.ev_trip_consumption_kwh, scenario.energy?.ev_trip_consumption_kwh) ?? 0),
+            ev_battery_losses_kwh: round2(firstFiniteNum(scenario.ev_battery_losses_kwh, scenario.energy?.ev_battery_losses_kwh) ?? 0),
+            ev_reserve_kwh: round2(firstFiniteNum(scenario.ev_reserve_kwh, scenario.energy?.ev_reserve_kwh) ?? 0),
+            ev_plugged_hours_year: round2(firstFiniteNum(scenario.ev_plugged_hours_year, scenario.energy?.ev_plugged_hours_year) ?? 0),
+            capacity_kwh: round2(firstFiniteNum(ctx?.vehicle_v2h_input?.capacity_kwh, scenario.vehicle_v2h?.capacity_kwh)),
+            min_reserve_pct: round2(firstFiniteNum(ctx?.vehicle_v2h_input?.min_reserve_pct, scenario.vehicle_v2h?.min_reserve_pct)),
+            max_charge_kw: round2(firstFiniteNum(ctx?.vehicle_v2h_input?.max_charge_kw, scenario.vehicle_v2h?.max_charge_kw)),
+            max_discharge_kw: round2(firstFiniteNum(ctx?.vehicle_v2h_input?.max_discharge_kw, scenario.vehicle_v2h?.max_discharge_kw)),
+            roundtrip_efficiency_pct: round2(firstFiniteNum(ctx?.vehicle_v2h_input?.roundtrip_efficiency_pct, scenario.vehicle_v2h?.roundtrip_efficiency_pct)),
+            daily_drive_kwh: round2(firstFiniteNum(ctx?.vehicle_v2h_input?.daily_drive_kwh, scenario.vehicle_v2h?.daily_drive_kwh)),
+          }
         : null,
     virtual_battery_8760:
       isVirtualLike ? (scenario._virtualBattery8760 ?? null) : null,

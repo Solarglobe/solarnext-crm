@@ -37,6 +37,9 @@ interface P7Data {
   consumption_kwh?: number;
   autoconsumption_kwh?: number;
   production_kwh?: number;
+  is_vehicle_v2h_scenario?: boolean;
+  storage_label?: string;
+  storage_long_label?: string;
 }
 
 const EMPTY = "—";
@@ -115,6 +118,8 @@ export default function PdfPage7({
      le vocabulaire (« converti en crédit » plutôt que « injecté »). */
   const isStorageScenario =
     (p7 as unknown as { is_storage_scenario?: boolean }).is_storage_scenario === true;
+  const storageLabel = String(p7.storage_label || "Batterie");
+  const storageLongLabel = String(p7.storage_long_label || "batterie");
   const surplusValoriseKwh = safeNum(
     (p7 as unknown as { p_surplus_valorise?: number }).p_surplus_valorise
   );
@@ -242,7 +247,7 @@ export default function PdfPage7({
                 {(() => {
                   const segs = [
                     cPv >= 2 && { flex: cPv, label: cPv >= 5 ? `${cPv} % Utilisé` : `${cPv} %`, bg: "linear-gradient(135deg, #F0D060 0%, #E5B83D 50%, #D4A82E 100%)", color: "#1a1508", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.4)" },
-                    cBat >= 2 && { flex: cBat, label: cBat >= 5 ? `${cBat} % Batterie` : `${cBat} %`, bg: "linear-gradient(135deg, #7ED99E 0%, #5BC47A 50%, #3DA85C 100%)", color: "#0d2514", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.3)" },
+                    cBat >= 2 && { flex: cBat, label: cBat >= 5 ? `${cBat} % ${storageLabel}` : `${cBat} %`, bg: "linear-gradient(135deg, #7ED99E 0%, #5BC47A 50%, #3DA85C 100%)", color: "#0d2514", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.3)" },
                     cGrid >= 2 && { flex: cGrid, label: cGrid >= 5 ? `${cGrid} % Réseau` : `${cGrid} %`, bg: "linear-gradient(135deg, #A89BE8 0%, #8B7BD4 50%, #6B5BB8 100%)", color: "#fff", shadow: "0 0.2mm 0.6mm rgba(0,0,0,.25)" },
                   ].filter(Boolean) as { flex: number; label: string; bg: string; color: string; shadow: string }[];
                   const n = segs.length;
@@ -282,7 +287,7 @@ export default function PdfPage7({
                 {(() => {
                   const segs = [
                     pAuto >= 2 && { flex: pAuto, label: pAuto >= 5 ? `${pAuto} % Autoconsommation` : `${pAuto} %`, bg: "linear-gradient(135deg, #7DD4ED 0%, #5BC4E0 50%, #3BA8C8 100%)", color: "#0a2a32", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.4)" },
-                    pBat >= 2 && { flex: pBat, label: pBat >= 5 ? `${pBat} % Batterie` : `${pBat} %`, bg: "linear-gradient(135deg, #7ED99E 0%, #5BC47A 50%, #3DA85C 100%)", color: "#0d2514", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.3)" },
+                    pBat >= 2 && { flex: pBat, label: pBat >= 5 ? `${pBat} % ${storageLabel}` : `${pBat} %`, bg: "linear-gradient(135deg, #7ED99E 0%, #5BC47A 50%, #3DA85C 100%)", color: "#0d2514", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.3)" },
                     pSurplusPct >= 2 && { flex: pSurplusPct, label: pSurplusPct >= 5 ? `${pSurplusPct} % Surplus` : `${pSurplusPct} %`, bg: "linear-gradient(135deg, #5BA8E0 0%, #3D8FCC 50%, #2570B0 100%)", color: "#fff", shadow: "0 0.2mm 0.6mm rgba(0,0,0,.3)" },
                   ].filter(Boolean) as { flex: number; label: string; bg: string; color: string; shadow: string }[];
                   const n = segs.length;
@@ -350,7 +355,7 @@ export default function PdfPage7({
                     </div>
                     <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.6mm", lineHeight: 1.25 }}>
                       {isBatteryScenario
-                        ? `${fmtKwh(shownKwh)} consommés au moment de la production. Le détail complet avec batterie est présenté en page suivante.`
+                        ? `${fmtKwh(shownKwh)} consommés au moment de la production. Le détail complet avec ${storageLongLabel} est présenté en page suivante.`
                         : `Vous utiliserez environ ${fmtKwh(shownKwh)} de votre production solaire`}
                     </div>
                   </>
@@ -439,7 +444,7 @@ export default function PdfPage7({
                     <div>
                       •{" "}
                       {isStorageScenario
-                        ? `${fmtKwh(surplusValoriseKwh)} valorisés via stockage / crédit`
+                        ? `${fmtKwh(surplusValoriseKwh)} valorisés via ${storageLongLabel} / crédit`
                         : `${fmtKwh(pSurplusKwh)} injectés sur le réseau`}
                     </div>
                   </div>
@@ -484,7 +489,7 @@ export default function PdfPage7({
                   <li>le complément est assuré par le réseau selon les périodes</li>
                   <li>
                     {isStorageScenario
-                      ? "le surplus est stocké puis restitué, ou injecté et converti en crédit kWh (batterie virtuelle)"
+                      ? `le surplus est stocké puis restitué via ${storageLongLabel}, ou injecté et converti en crédit kWh`
                       : "le surplus est injecté et valorisé selon les conditions du dossier"}
                   </li>
                 </ol>

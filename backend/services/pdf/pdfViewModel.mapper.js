@@ -26,6 +26,10 @@ const SCENARIO_LABELS = {
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
   BATTERY_HYBRID: "Hybride : physique + virtuelle",
+  VEHICLE_V2H: "Voiture V2H",
+  VEHICLE_V2H_PHYSICAL: "Voiture V2H + batterie physique",
+  VEHICLE_V2H_VIRTUAL: "Voiture V2H + batterie virtuelle",
+  VEHICLE_V2H_PHYSICAL_VIRTUAL: "Voiture V2H + physique + virtuelle",
 };
 
 const MONTHS_COUNT = 12;
@@ -88,6 +92,24 @@ function numOrZero(v) {
   return n != null ? n : 0;
 }
 
+function isVehicleV2hScenarioId(id) {
+  return (
+    id === "VEHICLE_V2H" ||
+    id === "VEHICLE_V2H_PHYSICAL" ||
+    id === "VEHICLE_V2H_VIRTUAL" ||
+    id === "VEHICLE_V2H_PHYSICAL_VIRTUAL"
+  );
+}
+
+function isVirtualLikeScenarioId(id) {
+  return (
+    id === "BATTERY_VIRTUAL" ||
+    id === "BATTERY_HYBRID" ||
+    id === "VEHICLE_V2H_VIRTUAL" ||
+    id === "VEHICLE_V2H_PHYSICAL_VIRTUAL"
+  );
+}
+
 function canonicalGridImportKwh(energy) {
   const e = energy || {};
   return (
@@ -113,6 +135,10 @@ function resolveBatteryRestoredKwhForPdf(scenario, energy) {
     scenario?.battery_virtual && typeof scenario.battery_virtual === "object"
       ? scenario.battery_virtual
       : {};
+  const vehicleV2h =
+    scenario?.vehicle_v2h && typeof scenario.vehicle_v2h === "object"
+      ? scenario.vehicle_v2h
+      : {};
   const inferredFromDirect =
     num(e.total_pv_used_on_site_kwh ?? e.autoconsumption_kwh ?? e.energy_solar_used_kwh ?? e.auto) != null &&
     num(e.direct_self_consumption_kwh) != null
@@ -136,6 +162,7 @@ function resolveBatteryRestoredKwhForPdf(scenario, energy) {
     num(scenario?.used_credit_kwh) ??
     num(virtualBattery.annual_discharge_kwh) ??
     num(virtualBattery.restored_kwh) ??
+    num(vehicleV2h.ev_v2h_discharge_kwh) ??
     0
   );
 }
@@ -185,7 +212,7 @@ function resolveSiteCoverageFromPvPct(energy) {
 /** Détail facture résiduelle BV (TTC) — même logique que selectedScenarioSnapshot. */
 function buildResidualBillVirtualVmFromScenario(scenario) {
   const sid = scenario?.id ?? scenario?.scenario_type;
-  if (sid !== "BATTERY_VIRTUAL" && sid !== "BATTERY_HYBRID") return null;
+  if (!isVirtualLikeScenarioId(sid)) return null;
   const vf = scenario.virtual_battery_finance;
   if (!vf || typeof vf !== "object") return null;
   const e = scenario.energy || {};
@@ -655,13 +682,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   } else if (selectedKey === "BASE") {
     pdfBatteryScenario = null;
     pdfBatteryType = null;
-  } else if (batteryVirtualGlobal) {
-    pdfBatteryScenario = batteryVirtualGlobal;
-    pdfBatteryType = "VIRTUAL";
-  } else if (batteryPhysicalGlobal) {
-    pdfBatteryScenario = batteryPhysicalGlobal;
-    pdfBatteryType = "PHYSICAL";
   }
+  const isVehicleV2hSelected = isVehicleV2hScenarioId(selectedKey);
 
   const canonicalAnnualProductionKwh =
     num(selectedScenario?.production?.annual_kwh) ??
@@ -1605,10 +1627,24 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         const surplusPctP7 = prodP7 > 0 && surplusP7 != null ? Math.min(100, (surplusP7 / prodP7) * 100) : (selfConsP7 != null ? 100 - selfConsP7 : 0);
         const autonomiePct = autonomyP7 != null ? Math.round(autonomyP7) : (partReseauP7 > 0 ? Math.max(0, 100 - partReseauP7) : 0);
 
-        const isBatScen = selectedKey === "BATTERY_PHYSICAL" || selectedKey === "BATTERY_VIRTUAL" || selectedKey === "BATTERY_HYBRID";
+        const isBatScen =
+          selectedKey === "BATTERY_PHYSICAL" ||
+          selectedKey === "BATTERY_VIRTUAL" ||
+          selectedKey === "BATTERY_HYBRID" ||
+          isVehicleV2hSelected;
+        const v2hForP7 =
+          selectedScenario?.vehicle_v2h && typeof selectedScenario.vehicle_v2h === "object"
+            ? selectedScenario.vehicle_v2h
+            : {};
         const restoredP7 =
-          num(energyP7.restored_kwh) ?? num(energyP7.used_credit_kwh) ?? 0;
-        const creditedP7 = num(energyP7.credited_kwh) ?? 0;
+          num(energyP7.restored_kwh) ??
+          num(energyP7.used_credit_kwh) ??
+          (isVehicleV2hSelected ? num(v2hForP7.ev_v2h_discharge_kwh) : null) ??
+          0;
+        const creditedP7 =
+          num(energyP7.credited_kwh) ??
+          (isVehicleV2hSelected ? num(v2hForP7.ev_solar_charge_kwh) : null) ??
+          0;
         const directP7 =
           num(energyP7.direct_self_consumption_kwh) ??
           Math.max(0, autoP7 - restoredP7);
@@ -1676,6 +1712,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           // en scénario stockage le surplus part en batterie/crédit (exported_kwh = 0) ;
           // le frontend affiche alors le surplus VALORISÉ et adapte le vocabulaire.
           is_storage_scenario: isBatScen,
+          is_vehicle_v2h_scenario: isVehicleV2hSelected,
+          storage_label: isVehicleV2hSelected ? "V2H" : "Batterie",
+          storage_long_label: isVehicleV2hSelected ? "voiture V2H" : "batterie",
           p_surplus_valorise: isBatScen
             ? numOrZero(restoredP7) + numOrZero(surplusP7)
             : numOrZero(surplusP7),
@@ -1694,7 +1733,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         // Affichage strictement réservé au scénario sélectionné BATTERY_VIRTUAL.
         // On utilise selectedKey (déjà résolu) plutôt que selectedScenario?.scenario_type / .id
         // qui peuvent être undefined si l'objet scénario n'expose pas ces champs explicitement.
-        if (selectedKey !== "BATTERY_VIRTUAL" && selectedKey !== "BATTERY_HYBRID") return null;
+        if (!isVirtualLikeScenarioId(selectedKey)) return null;
         if (!selectedScenario || typeof selectedScenario !== "object") return null;
 
         const baseScenario = baseFromV2;
@@ -1746,7 +1785,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         // FIX libellé hybride (audit 2026-07-03) — cette page est aussi rendue pour
         // BATTERY_HYBRID : le titre/libellés « batterie virtuelle » seuls sont incomplets
         // (la page suivante détaille physique + virtuelle → incohérence pour le client).
-        const _p7vbIsHybrid = selectedKey === "BATTERY_HYBRID";
+        const _p7vbIsHybrid = selectedKey === "BATTERY_HYBRID" || selectedKey === "VEHICLE_V2H_PHYSICAL_VIRTUAL";
+        const _p7vbIsVehicle = isVehicleV2hScenarioId(selectedKey);
         return {
           meta: {
             client: clientName,
@@ -1754,6 +1794,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             date: dateDisplay,
           },
           is_hybrid: _p7vbIsHybrid,
+          is_vehicle_v2h: _p7vbIsVehicle,
           title: _p7vbIsHybrid
             ? "Impact réel de votre stockage (physique + virtuel)"
             : "Impact réel de votre batterie virtuelle",
@@ -1932,6 +1973,106 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         };
       })(),
       // P8 — source UNIQUE = scenarios_v2, JAMAIS snapshot. Conditionnel : null si pas de batterie.
+      p7_vehicle_v2h: (() => {
+        if (!isVehicleV2hSelected) return null;
+        if (!selectedScenario || typeof selectedScenario !== "object") return null;
+
+        const baseScenario = baseFromV2;
+        const baseEnergy = baseScenario?.energy && typeof baseScenario.energy === "object" ? baseScenario.energy : {};
+        const v2hEnergy = selectedScenario.energy && typeof selectedScenario.energy === "object" ? selectedScenario.energy : {};
+        const v2h = selectedScenario.vehicle_v2h && typeof selectedScenario.vehicle_v2h === "object" ? selectedScenario.vehicle_v2h : {};
+        const consumptionKwh = num(v2hEnergy.consumption_kwh) ?? num(baseEnergy.consumption_kwh);
+        const productionKwh = num(v2hEnergy.production_kwh) ?? num(baseEnergy.production_kwh) ?? annualKwh;
+        const baseImportKwh = canonicalGridImportKwh(baseEnergy);
+        const finalImportKwh = canonicalGridImportKwh(v2hEnergy);
+        const vehicleDischargeKwh = num(v2h.ev_v2h_discharge_kwh) ?? 0;
+        const pluggedHours = num(v2h.ev_plugged_hours_year) ?? 0;
+        const capacityKwh = num(v2h.capacity_kwh);
+        const reservePct = num(v2h.min_reserve_pct);
+        const reserveKwh = num(v2h.ev_reserve_kwh) ?? (capacityKwh != null && reservePct != null ? (capacityKwh * reservePct) / 100 : null);
+        const usableForHomeKwh = capacityKwh != null && reserveKwh != null ? Math.max(0, capacityKwh - reserveKwh) : null;
+        const solarChargeKwh = num(v2h.ev_solar_charge_kwh) ?? 0;
+        const gridChargeKwh = num(v2h.ev_grid_charge_kwh) ?? 0;
+        const tripKwh = num(v2h.ev_trip_consumption_kwh) ?? 0;
+        const lossesKwh = num(v2h.ev_battery_losses_kwh) ?? 0;
+        const physicalKwh =
+          num(selectedScenario.battery_discharge_kwh) ??
+          num(selectedScenario.energy?.physical_battery_discharge_kwh) ??
+          0;
+        const virtualKwh =
+          num(v2hEnergy.used_credit_kwh) ??
+          num(v2hEnergy.virtual_battery_discharge_kwh) ??
+          num(selectedScenario.battery_virtual?.annual_discharge_kwh) ??
+          0;
+        const coveredKwh = coveredFromCanonicalImportKwh(v2hEnergy);
+        const directAutoKwh =
+          coveredKwh != null ? Math.max(0, coveredKwh - vehicleDischargeKwh - physicalKwh - virtualKwh) : null;
+        const gridBoughtLessKwh =
+          baseImportKwh != null && finalImportKwh != null ? baseImportKwh - finalImportKwh : null;
+        const coveragePct =
+          consumptionKwh != null && consumptionKwh > 0 && finalImportKwh != null
+            ? Math.max(0, Math.min(100, ((consumptionKwh - finalImportKwh) / consumptionKwh) * 100))
+            : null;
+        const selectedLabel = SCENARIO_LABELS[selectedKey] || str(selectedKey);
+
+        return {
+          meta: { client: clientName, ref, date: dateDisplay, scenario_label: selectedLabel },
+          title:
+            selectedKey === "VEHICLE_V2H_PHYSICAL_VIRTUAL"
+              ? "Voiture V2H + batteries : stockage en cascade"
+              : selectedKey === "VEHICLE_V2H_PHYSICAL"
+                ? "Voiture V2H + batterie physique"
+                : selectedKey === "VEHICLE_V2H_VIRTUAL"
+                  ? "Voiture V2H + batterie virtuelle"
+                  : "Votre voiture comme batterie domestique",
+          subtitle:
+            "Quand elle est branchee, la batterie du vehicule peut restituer une partie de son energie a la maison. La reserve mobilite reste prioritaire.",
+          kpis: {
+            vehicle_discharge_kwh: vehicleDischargeKwh,
+            grid_bought_less_kwh: gridBoughtLessKwh,
+            final_grid_import_kwh: finalImportKwh,
+            estimated_annual_bill_eur:
+              num(selectedScenario?.finance?.estimated_annual_bill_eur) ??
+              num(selectedScenario?.finance?.residual_bill_eur) ??
+              num(financeActive?.residual_bill_eur),
+            solar_coverage_pct: coveragePct,
+          },
+          vehicle: {
+            capacity_kwh: capacityKwh,
+            reserve_pct: reservePct,
+            reserve_kwh: reserveKwh,
+            usable_for_home_kwh: usableForHomeKwh,
+            max_charge_kw: num(v2h.max_charge_kw),
+            max_discharge_kw: num(v2h.max_discharge_kw),
+            efficiency_pct: num(v2h.roundtrip_efficiency_pct),
+            plugged_hours_year: pluggedHours,
+            plugged_hours_week: pluggedHours > 0 ? pluggedHours / 52 : null,
+          },
+          energy: {
+            production_kwh: productionKwh,
+            consumption_kwh: consumptionKwh,
+            direct_auto_kwh: directAutoKwh,
+            physical_battery_kwh: physicalKwh,
+            vehicle_v2h_kwh: vehicleDischargeKwh,
+            virtual_battery_kwh: virtualKwh,
+            solar_charge_kwh: solarChargeKwh,
+            grid_charge_mobility_kwh: gridChargeKwh,
+            trip_consumption_kwh: tripKwh,
+            losses_kwh: lossesKwh,
+            base_import_kwh: baseImportKwh,
+            final_import_kwh: finalImportKwh,
+          },
+          cascade: {
+            has_physical: selectedKey === "VEHICLE_V2H_PHYSICAL" || selectedKey === "VEHICLE_V2H_PHYSICAL_VIRTUAL",
+            has_virtual: selectedKey === "VEHICLE_V2H_VIRTUAL" || selectedKey === "VEHICLE_V2H_PHYSICAL_VIRTUAL",
+          },
+          notes: [
+            "La recharge reseau necessaire aux trajets est tracee a part : elle ne gonfle pas artificiellement les economies maison.",
+            "Le vehicule ne decharge que lorsqu'il est branche et au-dessus de la reserve mobilite.",
+            "Les gains dependent fortement des heures de presence a domicile.",
+          ],
+        };
+      })(),
       p8: (() => {
         const base = baseFromV2;
         const batteryScenario = pdfBatteryScenario;
@@ -2366,6 +2507,7 @@ function buildEmptyFullReport() {
     p7: { meta: emptyMeta, pct: {}, c_grid: 0, p_surplus: 0 },
     p7_virtual_battery: null,
     p7_hybrid_battery: null,
+    p7_vehicle_v2h: null,
     p8: null,
     p9: {
       meta: emptyMeta,
