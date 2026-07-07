@@ -353,6 +353,10 @@ export async function buildSelectedScenarioSnapshot({
 
   const finance = {
     capex_ttc: scenario.finance?.capex_ttc ?? null,
+    prime_eur:
+      scenario.finance?.prime_eur ??
+      scenario.finance?.finance_meta?.economic_snapshot?.prime_eur ??
+      null,
     economie_year_1: scenario.finance?.economie_year_1 ?? null,
     economie_total: scenario.finance?.economie_total ?? null,
     economie_horizon_years: scenario.finance?.economie_horizon_years ?? null,
@@ -378,6 +382,11 @@ export async function buildSelectedScenarioSnapshot({
     anti_oversell_flags: Array.isArray(scenario.anti_oversell_flags) ? scenario.anti_oversell_flags : [],
     oversell_risk_score: Number.isFinite(Number(scenario.oversell_risk_score)) ? Number(scenario.oversell_risk_score) : 0,
   };
+  const economic_snapshot =
+    scenario.finance?.finance_meta?.economic_snapshot &&
+    typeof scenario.finance.finance_meta.economic_snapshot === "object"
+      ? scenario.finance.finance_meta.economic_snapshot
+      : null;
 
   const production = {
     annual_kwh: scenario.production?.annual_kwh ?? null,
@@ -451,6 +460,7 @@ export async function buildSelectedScenarioSnapshot({
 
     energy,
     finance,
+    economic_snapshot,
     production,
     cashflows: flows,
     assumptions,

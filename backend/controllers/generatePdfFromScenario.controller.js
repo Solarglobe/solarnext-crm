@@ -222,6 +222,13 @@ export async function generatePdfFromScenario(req, res) {
         calculation_confidence: e.calculation_confidence ?? null,
       });
     }
+    if (e.code === "PDF_BLOCKED_ECONOMIC_SNAPSHOT") {
+      return res.status(409).json({
+        error: "PDF_BLOCKED_ECONOMIC_SNAPSHOT",
+        message: "PDF impossible : hypotheses economiques non tracables. Relancez le calcul puis figez a nouveau le scenario.",
+        blocking_warnings: e.blocking_warnings ?? [],
+      });
+    }
     if (e.code === "SCENARIO_SNAPSHOT_REQUIRED") {
       return res.status(400).json({ error: "SCENARIO_SNAPSHOT_REQUIRED" });
     }

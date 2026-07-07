@@ -1101,6 +1101,8 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     finance_input: {
       capex_ttc: capexTotalTtc,
       battery_physical_price_ttc: Number(batteryPhysicalPriceTtc) || 0,
+      economic_snapshot_config:
+        economicSnapshot && typeof economicSnapshot === "object" ? economicSnapshot : null,
     },
     /** Onduleur réel (snapshot calpinage) — moteur finance (remplacement année N). */
     pv_inverter,

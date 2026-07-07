@@ -18,6 +18,31 @@ import { isPdfBlockedByConfidence } from "../services/calculationConfidence.serv
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.userId ?? req.user?.id ?? null;
 
+export function getEconomicSnapshotBlockingWarnings(snapshot) {
+  const economicSnapshot =
+    snapshot && typeof snapshot === "object" && snapshot.economic_snapshot && typeof snapshot.economic_snapshot === "object"
+      ? snapshot.economic_snapshot
+      : null;
+  if (!economicSnapshot) return ["ECONOMIC_SNAPSHOT_MISSING"];
+  const warnings = Array.isArray(economicSnapshot.blocking_warnings)
+    ? economicSnapshot.blocking_warnings.filter((w) => typeof w === "string")
+    : [];
+  const blocking = warnings.filter((w) => /^ECONOMIC_ASSUMPTION_NOT_TRACEABLE:/.test(w));
+  for (const field of [
+    "price_eur_kwh",
+    "elec_growth_pct",
+    "horizon_years",
+    "oa_rate_eur_kwh",
+    "prime_eur",
+    "capex_ttc",
+    "reste_a_charge_eur",
+  ]) {
+    const n = Number(economicSnapshot[field]);
+    if (!Number.isFinite(n)) blocking.push(`ECONOMIC_ASSUMPTION_MISSING:${field}`);
+  }
+  return [...new Set(blocking)];
+}
+
 /**
  * Génère le PDF pour une version (logique interne). Utilisé par generatePdf, selectScenario, generatePdfFromScenario.
  * @param {object} params - { studyId, versionId, organizationId, userId, ephemeralSnapshot?, scenarioIdForPdf?, documentPdfKind? }
@@ -73,6 +98,13 @@ export async function generatePdfForVersion(params, options = {}) {
       e.code = "SCENARIO_SNAPSHOT_REQUIRED";
       throw e;
     }
+    const economicBlockingWarnings = getEconomicSnapshotBlockingWarnings(ephemeralSnapshot);
+    if (economicBlockingWarnings.length > 0) {
+      const e = new Error("PDF_BLOCKED_ECONOMIC_SNAPSHOT");
+      e.code = "PDF_BLOCKED_ECONOMIC_SNAPSHOT";
+      e.blocking_warnings = economicBlockingWarnings;
+      throw e;
+    }
     const previewKey = putEphemeralSnapshot(ephemeralSnapshot, sid);
     renderToken = createPdfRenderToken(studyId, versionId, organizationId, {
       snapshotPreviewKey: previewKey,
@@ -83,6 +115,13 @@ export async function generatePdfForVersion(params, options = {}) {
       logger.warn("generate-pdf: snapshot absent", { studyId, versionId });
       const e = new Error("SCENARIO_SNAPSHOT_REQUIRED");
       e.code = "SCENARIO_SNAPSHOT_REQUIRED";
+      throw e;
+    }
+    const economicBlockingWarnings = getEconomicSnapshotBlockingWarnings(snapshot);
+    if (economicBlockingWarnings.length > 0) {
+      const e = new Error("PDF_BLOCKED_ECONOMIC_SNAPSHOT");
+      e.code = "PDF_BLOCKED_ECONOMIC_SNAPSHOT";
+      e.blocking_warnings = economicBlockingWarnings;
       throw e;
     }
     renderToken = createPdfRenderToken(studyId, versionId, organizationId);
@@ -173,6 +212,13 @@ export async function generatePdf(req, res, nextOrOptions) {
       return res.status(409).json({
         error: "PDF_BLOCKED_CALCULATION_CONFIDENCE",
         calculation_confidence: e.calculation_confidence ?? null,
+      });
+    }
+    if (e.code === "PDF_BLOCKED_ECONOMIC_SNAPSHOT") {
+      return res.status(409).json({
+        error: "PDF_BLOCKED_ECONOMIC_SNAPSHOT",
+        message: "PDF impossible : hypothèses économiques non traçables. Relancez le calcul puis figez à nouveau le scénario.",
+        blocking_warnings: e.blocking_warnings ?? [],
       });
     }
     if (e.code === "SCENARIO_SNAPSHOT_REQUIRED") {

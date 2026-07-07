@@ -6,13 +6,6 @@
 
 import { resolveShadingTotalLossPct } from "../shading/resolveShadingTotalLossPct.js";
 import {
-  mergeOrgEconomicsPartial,
-  overlayFormEconomics,
-  DEFAULT_ECONOMICS_FALLBACK,
-  resolveElectricityGrowthPctFromOrg,
-  resolveOaRateForKwc,
-} from "../economicsResolve.service.js";
-import {
   IMPACT_FACTOR_CO2_AUTO_KG_PER_KWH,
   IMPACT_FACTOR_CO2_SURPLUS_KG_PER_KWH,
   IMPACT_TREE_CO2_KG_PER_YEAR,
@@ -37,29 +30,39 @@ const MONTHS_COUNT = 12;
 /**
  * Même priorité que financeService.pickEconomics pour l’affichage PDF (sans importer le moteur finance).
  */
-function mirrorPickEconomicsForPdf(form, orgEconomics) {
-  const f = form && typeof form === "object" ? form : {};
-  const e = overlayFormEconomics(mergeOrgEconomicsPartial(orgEconomics ?? null), f.economics);
-  const n = (v, fb) => {
-    const x = Number(v);
-    return Number.isFinite(x) ? x : fb;
-  };
+function frozenEconomicsForPdf(snapshotEconomic) {
+  const e = snapshotEconomic && typeof snapshotEconomic === "object" ? snapshotEconomic : {};
   return {
-    price_eur_kwh: n(
-      f.params?.tarif_kwh ?? f.params?.tarif_actuel ?? e.price_eur_kwh,
-      DEFAULT_ECONOMICS_FALLBACK.price_eur_kwh
-    ),
-    elec_growth_pct: resolveElectricityGrowthPctFromOrg(orgEconomics ?? null, {
-      context: "pdfViewModel.mapper",
-      log: false,
-    }).elec_growth_pct,
-    pv_degradation_pct: n(
-      f.panel_input?.degradation_annual_pct ?? f.params?.degradation ?? e.pv_degradation_pct,
-      DEFAULT_ECONOMICS_FALLBACK.pv_degradation_pct
-    ),
-    horizon_years: n(e.horizon_years, DEFAULT_ECONOMICS_FALLBACK.horizon_years),
-    prime_lt9: n(e.prime_lt9, DEFAULT_ECONOMICS_FALLBACK.prime_lt9),
-    prime_gte9: n(e.prime_gte9, DEFAULT_ECONOMICS_FALLBACK.prime_gte9),
+    price_eur_kwh: num(e.price_eur_kwh),
+    elec_growth_pct: num(e.elec_growth_pct),
+    pv_degradation_pct: num(e.pv_degradation_pct),
+    horizon_years: num(e.horizon_years),
+    oa_rate_eur_kwh: num(e.oa_rate_eur_kwh),
+    prime_eur: num(e.prime_eur),
+    prime_rate_eur_kwc: num(e.prime_rate_eur_kwc),
+    capex_ttc: num(e.capex_ttc),
+    reste_a_charge_eur: num(e.reste_a_charge_eur),
+    financing: e.financing && typeof e.financing === "object" ? e.financing : null,
+    hash: typeof e.hash === "string" ? e.hash : null,
+    calculated_at: typeof e.calculated_at === "string" ? e.calculated_at : null,
+    blocking_warnings: Array.isArray(e.blocking_warnings) ? e.blocking_warnings : [],
+  };
+}
+
+function frozenEconomicConfigForP11(snapshotEconomic) {
+  const e = snapshotEconomic && typeof snapshotEconomic === "object" ? snapshotEconomic : null;
+  const f = e?.financing && typeof e.financing === "object" ? e.financing : null;
+  if (!e || !f) return null;
+  return {
+    totals: { ttc: e.capex_ttc ?? null },
+    financing: {
+      amount: f.amount_eur ?? null,
+      duration_months: f.duration_months ?? null,
+      interest_rate_annual: f.interest_rate_annual_pct ?? null,
+      taeg_pct: f.taeg_pct ?? null,
+      insurance_eur: f.insurance_eur ?? null,
+      application_fee_eur: f.application_fee_eur ?? null,
+    },
   };
 }
 
@@ -267,10 +270,11 @@ function buildResidualBillVirtualVmFromScenario(scenario) {
 /**
  * Prime à l'autoconsommation (PDF P2) — même règle que financeService :
  * priorité au montant d'année 1 dans les flux du scénario si présent, sinon
- * kwc × prime_lt9 (moins de 9 kWc) ou × prime_gte9 (9 kWc et plus) depuis org + form.economics.
+ * aucun recalcul depuis les settings organisation au rendu PDF.
  */
-function resolvePdfPrimeAutoconsoEur({ systemPowerKw, scenarioForFinance, snapshot, options }) {
+function resolvePdfPrimeAutoconsoEur({ systemPowerKw, scenarioForFinance, snapshot, economicSnapshotForPdf }) {
   const explicitPrime =
+    num(economicSnapshotForPdf?.prime_eur) ??
     num(scenarioForFinance?.finance?.prime_autoconso_eur) ??
     num(scenarioForFinance?.finance?.prime_eur) ??
     num(scenarioForFinance?.finance?.aide_eur) ??
@@ -289,14 +293,10 @@ function resolvePdfPrimeAutoconsoEur({ systemPowerKw, scenarioForFinance, snapsh
     const p = num(y1?.prime);
     if (p != null && Number.isFinite(p) && p >= 0) return p;
   }
-  const formEco =
-    snapshot?.form && typeof snapshot.form === "object" && snapshot.form.economics != null
-      ? snapshot.form.economics
-      : null;
-  const econ = overlayFormEconomics(mergeOrgEconomicsPartial(options?.org_economics ?? null), formEco);
   const kwc = Number(systemPowerKw);
-  if (!Number.isFinite(kwc) || kwc <= 0) return 0;
-  return kwc < 9 ? kwc * econ.prime_lt9 : kwc * econ.prime_gte9;
+  const rate = num(economicSnapshotForPdf?.prime_rate_eur_kwc);
+  if (Number.isFinite(kwc) && kwc > 0 && rate != null) return kwc * rate;
+  return 0;
 }
 
 /**
@@ -369,6 +369,14 @@ function oneDecimalPercent(v) {
 function formatCurrency0(v) {
   if (v == null || !Number.isFinite(Number(v))) return "";
   return `${Math.round(Number(v)).toLocaleString("fr-FR")} €`;
+}
+function formatEurKwh3(v) {
+  if (v == null || !Number.isFinite(Number(v))) return "\u2014";
+  return `${Number(v).toFixed(3).replace(".", ",")} \u20ac/kWh`;
+}
+function formatPctPerYear1(v) {
+  if (v == null || !Number.isFinite(Number(v))) return "\u2014";
+  return `${Number(v).toFixed(1).replace(".", ",")} %/an`;
 }
 function formatNumber0(v) {
   if (v == null || !Number.isFinite(Number(v))) return "";
@@ -714,11 +722,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const annualKwhFallbackSnapshot =
     num(production.annual_kwh) ?? num(installation.production_annuelle_kwh) ?? 0;
 
-  const pdfEconomicsCtx = {
-    settings: { economics: mergeOrgEconomicsPartial(options.org_economics ?? null) },
-    form,
-  };
-  let econDisplay = mirrorPickEconomicsForPdf(form, options.org_economics);
+  const rootEconomicSnapshot =
+    snapshot.economic_snapshot && typeof snapshot.economic_snapshot === "object"
+      ? snapshot.economic_snapshot
+      : null;
+  let economicSnapshotForPdf = rootEconomicSnapshot;
+  let econDisplay = frozenEconomicsForPdf(economicSnapshotForPdf);
 
   const scenariosArr = options.scenarios_v2 ?? [];
   const selectedKey = options.selected_scenario_id ?? snapshot.scenario_type ?? "BASE";
@@ -777,14 +786,23 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const specificYield = systemPowerKw > 0 && annualKwh > 0 ? annualKwh / systemPowerKw : 0;
 
   const scenarioForFinance = selectedScenario ?? baseFromV2;
-  const financeActive =
+  const scenarioFinance =
     scenarioForFinance && typeof scenarioForFinance.finance === "object" && scenarioForFinance.finance !== null
       ? scenarioForFinance.finance
-      : finance;
+      : null;
+  const financeActive = finance && typeof finance === "object" ? finance : (scenarioFinance ?? {});
   const snapshotElecGrowth =
     num(financeActive?.finance_meta?.elec_growth_pct) ??
+    num(scenarioFinance?.finance_meta?.elec_growth_pct) ??
     num(snapshot.assumptions?.elec_growth_pct);
-  if (snapshotElecGrowth != null) {
+  if (!economicSnapshotForPdf && financeActive?.finance_meta?.economic_snapshot) {
+    economicSnapshotForPdf = financeActive.finance_meta.economic_snapshot;
+    econDisplay = frozenEconomicsForPdf(economicSnapshotForPdf);
+  } else if (!economicSnapshotForPdf && scenarioFinance?.finance_meta?.economic_snapshot) {
+    economicSnapshotForPdf = scenarioFinance.finance_meta.economic_snapshot;
+    econDisplay = frozenEconomicsForPdf(economicSnapshotForPdf);
+  }
+  if (econDisplay.elec_growth_pct == null && snapshotElecGrowth != null) {
     econDisplay = { ...econDisplay, elec_growth_pct: snapshotElecGrowth };
   }
 
@@ -811,7 +829,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const reseauType = str(formParams.reseau_type) || str(site.type_reseau) || "";
   // Conso annuelle : fallback robuste (priorité 1→4), valeur numérique ou null
   const horizonYearsPdf =
-    Number(financeActive.economie_horizon_years ?? financeActive.finance_meta?.horizon_years) || 25;
+    Number(econDisplay.horizon_years ?? financeActive.economie_horizon_years ?? financeActive.finance_meta?.horizon_years) || 25;
   const consoAnnuelle =
     num(conso.annual_kwh) ??
     num(energy.consumption_kwh) ??
@@ -822,8 +840,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     num(financeActive.economie_total) ??
     numOrZero(financeActive.economie_year_1) * horizonYearsPdf;
   const irrPct = num(financeActive.irr_pct);
-  const capexRaw = num(financeActive.capex_ttc);
-  const capex = numOrZero(financeActive.capex_ttc);
+  const capexRaw = num(econDisplay.capex_ttc) ?? num(financeActive.capex_ttc);
+  const capex = numOrZero(capexRaw);
 
   const p1_auto = {
     p1_client: clientName || "—",
@@ -955,9 +973,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     systemPowerKw,
     scenarioForFinance,
     snapshot,
-    options
+    economicSnapshotForPdf,
   });
-  const resteACharge = Math.max(0, Math.round(capex - primeAmount));
+  const resteACharge =
+    econDisplay.reste_a_charge_eur != null
+      ? Math.max(0, Math.round(econDisplay.reste_a_charge_eur))
+      : Math.max(0, Math.round(capex - primeAmount));
 
   const lcoeVal =
     systemPowerKw > 0 && annualKwh > 0 && horizonYearsPdf > 0
@@ -987,10 +1008,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p2_reste_charge_raw_eur: resteACharge,
     p2_investissement_ttc: formatCurrency0(capex),
     p2_investissement_ttc_raw_eur: Math.round(capex),
-    p2_price_kwh: `${econDisplay.price_eur_kwh.toFixed(3).replace(".", ",")} €/kWh`,
-    p2_indexation: `${econDisplay.elec_growth_pct.toFixed(1).replace(".", ",")} %/an`,
+    p2_price_kwh: formatEurKwh3(econDisplay.price_eur_kwh),
+    p2_indexation: formatPctPerYear1(econDisplay.elec_growth_pct),
     p2_horizon: `${horizonYearsPdf} ans`,
-    p2_surplus_rate: `${resolveOaRateForKwc(pdfEconomicsCtx, systemPowerKw).toFixed(3).replace(".", ",")} €/kWh`,
+    p2_surplus_rate: formatEurKwh3(econDisplay.oa_rate_eur_kwh),
     p2_scenario_label: SCENARIO_LABELS[selectedKey] || str(selectedKey),
     // Production page 2 = production du scénario sélectionné (celle des cartes, ~9114 kWh),
     // et non annualKwh qui peut provenir d'un champ "production.annual_kwh" légèrement différent
@@ -1016,7 +1037,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     ? Math.round(shading.monthlyKwhStats.reduce((s, m) => s + (m.productionWithShadingKwh ?? 0), 0))
     : null;
 
-  const _prixKwh = num(formParams.tarif_kwh) ?? num(formParams.tarif_actuel) ?? null;
+  const _prixKwh = econDisplay.price_eur_kwh;
 
   const p_shading = {
     meta: { client: clientName, ref, date: dateDisplay },
@@ -1190,7 +1211,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     financeActive,
     financeSnapshot: finance,
     economieTotal,
-    economicConfigJson: options.economic_snapshot_config ?? null,
+    economicConfigJson: frozenEconomicConfigForP11(economicSnapshotForPdf),
     annualCashflows: annualCashflowsForP11,
     horizonYears: horizonYearsPdf,
   });
@@ -1507,25 +1528,22 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     }
   }
 
-  const offerMateriel = Math.round(capex * 0.7);
-  const offerPose = Math.round(capex * 0.3);
-  const batterieHtPdf = Math.round(numOrZero(pdfBatteryScenario?.finance?.capex_ttc));
   const primeAmountRounded = Math.round(primeAmount);
-  const totalTtcOffer = Math.round(capex * 1.1);
+  const totalTtcOffer = Math.round(capex);
   const offer = {
-    materiel_ht: offerMateriel,
-    batterie_ht: batterieHtPdf,
-    shelly_ht: 0,
-    pose_ht: offerPose,
-    gestion_ht: 0,
-    sous_total_ht: capex,
-    tva_mat: 10,
-    tva_pose: 10,
-    tva_materiel_eur: Math.round(offerMateriel * 0.1),
-    tva_pose_eur: Math.round(offerPose * 0.1),
+    materiel_ht: null,
+    batterie_ht: null,
+    shelly_ht: null,
+    pose_ht: null,
+    gestion_ht: null,
+    sous_total_ht: null,
+    tva_mat: null,
+    tva_pose: null,
+    tva_materiel_eur: null,
+    tva_pose_eur: null,
     total_ttc: totalTtcOffer,
     prime: primeAmountRounded,
-    reste: Math.max(0, totalTtcOffer - primeAmountRounded),
+    reste: resteACharge,
     puissance: systemPowerKw,
     batterie_label: "",
     onduleurs: str(onduleur.modele) || str(onduleur.marque) || "",
@@ -2606,7 +2624,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         hyp: {
           pv_degrad: econDisplay.pv_degradation_pct,
           elec_infl: econDisplay.elec_growth_pct,
-          oa_price: resolveOaRateForKwc(pdfEconomicsCtx, systemPowerKw),
+          oa_price: econDisplay.oa_rate_eur_kwh,
           price_kwh: econDisplay.price_eur_kwh,
           horizon_years: econDisplay.horizon_years,
           prime_autoconso_eur: primeAmount,

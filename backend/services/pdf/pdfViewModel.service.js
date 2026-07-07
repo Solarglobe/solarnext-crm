@@ -162,8 +162,6 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
   const orgRowPdf = orgRowForPdf.rows[0] ?? {};
   const settingsJson =
     orgRowPdf.settings_json && typeof orgRowPdf.settings_json === "object" ? orgRowPdf.settings_json : {};
-  const orgEconomics =
-    settingsJson.economics && typeof settingsJson.economics === "object" ? settingsJson.economics : null;
 
   const selectedScenarioIdForMap =
     previewOptions && previewOptions.scenarioId != null ? previewOptions.scenarioId : row.selected_scenario_id;
@@ -190,22 +188,6 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
   );
 
   /** Devis technique / quote-prep : financing + totals (même source que StudyQuoteBuilder). */
-  let economicSnapshotConfig = null;
-  try {
-    const econRes = await pool.query(
-      `SELECT config_json FROM economic_snapshots
-       WHERE study_version_id = $1 AND organization_id = $2
-       ORDER BY created_at DESC LIMIT 1`,
-      [versionId, organizationId]
-    );
-    if (econRes.rows.length > 0 && econRes.rows[0].config_json != null) {
-      const cj = econRes.rows[0].config_json;
-      economicSnapshotConfig = typeof cj === "object" ? cj : null;
-    }
-  } catch (_) {
-    economicSnapshotConfig = null;
-  }
-
   const dj = row.data_json && typeof row.data_json === "object" ? row.data_json : {};
   const consumptionMonthlyReference =
     dj.meta?.conso_monthly_kwh_ref ??
@@ -236,8 +218,6 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
     scenarios_v2: repairedScenariosV2,
     selected_scenario_id: selectedScenarioIdForMap ?? null,
     calpinage_layout_snapshot: calpinageLayoutSnapshot,
-    economic_snapshot_config: economicSnapshotConfig,
-    org_economics: orgEconomics,
     flat_roof_mounting: flatRoofMounting,
     consumption_monthly_reference: consumptionMonthlyReference,
     ...p5HourlyOpts,

@@ -44,6 +44,59 @@ import {
   resolveElectricityGrowthPctFromOrg,
 } from "./economicsResolve.service.js";
 
+function hasOwn(obj, key) {
+  return obj && typeof obj === "object" && Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function stableStringify(value) {
+  if (value == null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((v) => stableStringify(v)).join(",")}]`;
+  return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(",")}}`;
+}
+
+async function sha256Hex(input) {
+  const { createHash } = await import("node:crypto");
+  return createHash("sha256").update(String(input)).digest("hex");
+}
+
+function resolveEconomicSource({ form, rawOrgEconomics, key, formPaths = [] }) {
+  for (const p of formPaths) {
+    const parts = p.split(".");
+    let cur = form;
+    for (const part of parts) cur = cur && typeof cur === "object" ? cur[part] : undefined;
+    if (cur != null && Number.isFinite(Number(cur))) return `form.${p}`;
+  }
+  if (hasOwn(rawOrgEconomics, key)) return `organizations.settings_json.economics.${key}`;
+  return "DEFAULT_ECONOMICS_FALLBACK";
+}
+
+function normalizeFinancingSnapshot(configJson, capexTtc) {
+  const cfg = configJson && typeof configJson === "object" ? configJson : {};
+  const raw = cfg.financing && typeof cfg.financing === "object" ? cfg.financing : {};
+  const totalsTtc = Number(cfg?.totals?.ttc);
+  const amountRaw = Number(raw.amount);
+  const duration = Number(raw.duration_months);
+  const rate = Number(raw.interest_rate_annual);
+  const fallbackAmount = Number.isFinite(totalsTtc) && totalsTtc > 0 ? totalsTtc : Number(capexTtc);
+  const enabled = Number.isFinite(duration) && duration > 0 && Number.isFinite(rate) && rate > 0;
+  const amount =
+    Number.isFinite(amountRaw) && amountRaw > 0
+      ? amountRaw
+      : enabled && Number.isFinite(fallbackAmount) && fallbackAmount > 0
+        ? fallbackAmount
+        : null;
+  return {
+    enabled,
+    amount_eur: amount,
+    duration_months: Number.isFinite(duration) && duration > 0 ? duration : null,
+    interest_rate_annual_pct: Number.isFinite(rate) && rate > 0 ? rate : null,
+    taeg_pct: raw.taeg_pct != null && Number.isFinite(Number(raw.taeg_pct)) ? Number(raw.taeg_pct) : null,
+    insurance_eur: raw.insurance_eur != null && Number.isFinite(Number(raw.insurance_eur)) ? Number(raw.insurance_eur) : null,
+    application_fee_eur: raw.application_fee_eur != null && Number.isFinite(Number(raw.application_fee_eur)) ? Number(raw.application_fee_eur) : null,
+    source: cfg.financing ? "economic_snapshots.config_json.financing@calculation" : "not_configured",
+  };
+}
+
 // ======================================================================
 // PARAMÈTRES FINANCIERS
 // ======================================================================
@@ -60,7 +113,7 @@ function pickEconomics(ctx) {
     return Number.isFinite(n) ? n : fb;
   };
 
-  return {
+  const out = {
     // Prix kWh : params lead (payload) > form.economics > admin (déjà dans e) > fallback
     price_eur_kwh: num(
       f.params?.tarif_kwh ?? f.params?.tarif_actuel ?? e.price_eur_kwh,
@@ -97,6 +150,34 @@ function pickEconomics(ctx) {
       DEFAULT_ECONOMICS_FALLBACK.battery_degradation_pct
     ),
   };
+
+  out.sources = {
+    price_eur_kwh: resolveEconomicSource({
+      form: f,
+      rawOrgEconomics,
+      key: "price_eur_kwh",
+      formPaths: ["params.tarif_kwh", "params.tarif_actuel", "economics.price_eur_kwh"],
+    }),
+    elec_growth_pct: out.elec_growth_source ?? resolveEconomicSource({ form: f, rawOrgEconomics, key: "elec_growth_pct" }),
+    pv_degradation_pct: resolveEconomicSource({
+      form: f,
+      rawOrgEconomics,
+      key: "pv_degradation_pct",
+      formPaths: ["panel_input.degradation_annual_pct", "params.degradation", "economics.pv_degradation_pct"],
+    }),
+    oa_rate_lt_3: resolveEconomicSource({ form: f, rawOrgEconomics, key: "oa_rate_lt_3", formPaths: ["economics.oa_rate_lt_3"] }),
+    oa_rate_lt_9: resolveEconomicSource({ form: f, rawOrgEconomics, key: "oa_rate_lt_9", formPaths: ["economics.oa_rate_lt_9"] }),
+    oa_rate_gte_9: resolveEconomicSource({ form: f, rawOrgEconomics, key: "oa_rate_gte_9", formPaths: ["economics.oa_rate_gte_9"] }),
+    prime_lt9: resolveEconomicSource({ form: f, rawOrgEconomics, key: "prime_lt9", formPaths: ["economics.prime_lt9"] }),
+    prime_gte9: resolveEconomicSource({ form: f, rawOrgEconomics, key: "prime_gte9", formPaths: ["economics.prime_gte9"] }),
+    horizon_years: resolveEconomicSource({ form: f, rawOrgEconomics, key: "horizon_years", formPaths: ["economics.horizon_years"] }),
+    maintenance_pct: resolveEconomicSource({ form: f, rawOrgEconomics, key: "maintenance_pct", formPaths: ["economics.maintenance_pct"] }),
+    inverter_replacement_year: resolveEconomicSource({ form: f, rawOrgEconomics, key: "onduleur_year", formPaths: ["economics.onduleur_year"] }),
+    inverter_cost_pct: resolveEconomicSource({ form: f, rawOrgEconomics, key: "onduleur_cost_pct", formPaths: ["economics.onduleur_cost_pct"] }),
+    battery_degradation_pct: resolveEconomicSource({ form: f, rawOrgEconomics, key: "battery_degradation_pct", formPaths: ["economics.battery_degradation_pct"] }),
+  };
+
+  return out;
 }
 
 /**
@@ -568,6 +649,7 @@ export async function computeFinance(ctx, scenarios) {
     console.log("[A1] finance_input reçu =", ctx.finance_input);
   }
   const econ = applyInverterReplacementPolicy(ctx, pickEconomics(ctx));
+  const calculationTimestamp = new Date().toISOString();
 
   const out = {
     horizon_years: econ.horizon_years,
@@ -649,6 +731,8 @@ export async function computeFinance(ctx, scenarios) {
             ? (sc.energy?.physical_grid_export_kwh ?? scenarios.BATTERY_PHYSICAL?.surplus_kwh ?? scenarios.BATTERY_PHYSICAL?.energy?.surplus ?? sc.surplus_kwh ?? 0)
           : (sc.surplus_kwh ?? 0);
       const oa_rate = kwc < 9 ? econ.oa_rate_lt_9 : econ.oa_rate_gte_9;
+      const oaRateKey = kwc < 9 ? "oa_rate_lt_9" : "oa_rate_gte_9";
+      const primeKey = kwc < 9 ? "prime_lt9" : "prime_gte9";
 
       const baseImportKwh = baseScenario?.energy?.import ?? baseScenario?.import_kwh ?? 0;
       const virtualSavingsReferenceImportKwh =
@@ -752,6 +836,82 @@ export async function computeFinance(ctx, scenarios) {
       });
 
       const horizonY = Number(econ.horizon_years) || 25;
+      const economicBlockingWarnings = [];
+      const mandatorySources = {
+        price_eur_kwh: econ.sources?.price_eur_kwh,
+        [oaRateKey]: econ.sources?.[oaRateKey],
+        [primeKey]: econ.sources?.[primeKey],
+        elec_growth_pct: econ.sources?.elec_growth_pct,
+        horizon_years: econ.sources?.horizon_years,
+      };
+      for (const [field, source] of Object.entries(mandatorySources)) {
+        if (!source || source === "DEFAULT_ECONOMICS_FALLBACK" || /fallback/i.test(String(source))) {
+          economicBlockingWarnings.push(`ECONOMIC_ASSUMPTION_NOT_TRACEABLE:${field}`);
+        }
+      }
+      const financingSnapshot = normalizeFinancingSnapshot(ctx.finance_input?.economic_snapshot_config, capex_ttc);
+      if (
+        financingSnapshot.enabled &&
+        (financingSnapshot.taeg_pct == null ||
+          financingSnapshot.insurance_eur == null ||
+          financingSnapshot.application_fee_eur == null)
+      ) {
+        economicBlockingWarnings.push("FINANCING_INDICATIVE_ONLY_MISSING_TAEG_INSURANCE_OR_FEES");
+      }
+      const economicSnapshotCore = {
+        schema_version: 1,
+        calculated_at: calculationTimestamp,
+        source: "financeService.computeFinance",
+        source_detail: "values_used_by_cashflow_engine",
+        scenario_id: key,
+        system_kwc: kwc,
+        price_eur_kwh: econ.price_eur_kwh,
+        price_eur_kwh_source: econ.sources?.price_eur_kwh ?? null,
+        elec_growth_pct: econ.elec_growth_pct,
+        elec_growth_source: econ.sources?.elec_growth_pct ?? econ.elec_growth_source ?? null,
+        oa_rate_eur_kwh: oa_rate,
+        oa_rate_key: oaRateKey,
+        oa_rate_source: econ.sources?.[oaRateKey] ?? null,
+        oa_indexation_pct: null,
+        oa_indexation_source: "not_configured",
+        prime_rate_eur_kwc: kwc < 9 ? econ.prime_lt9 : econ.prime_gte9,
+        prime_rate_key: primeKey,
+        prime_rate_source: econ.sources?.[primeKey] ?? null,
+        prime_eur: prime,
+        horizon_years: horizonY,
+        horizon_years_source: econ.sources?.horizon_years ?? null,
+        pv_degradation_pct: econ.pv_degradation_pct,
+        pv_degradation_source: econ.sources?.pv_degradation_pct ?? null,
+        capex_ttc,
+        capex_source: ctx.finance_input?.capex_ttc != null ? "finance_input.capex_ttc@calculation" : null,
+        capex_net_after_prime: capex_net,
+        reste_a_charge_eur: capex_net,
+        maintenance_pct: econ.maintenance_pct,
+        maintenance_source: econ.sources?.maintenance_pct ?? null,
+        inverter_replacement_year: econ.inverter_replacement_year,
+        inverter_replacement_year_source: econ.sources?.inverter_replacement_year ?? null,
+        inverter_cost_pct: econ.inverter_cost_pct,
+        inverter_cost_pct_source: econ.sources?.inverter_cost_pct ?? null,
+        battery_degradation_pct: econ.battery_degradation_pct,
+        battery_degradation_source: econ.sources?.battery_degradation_pct ?? null,
+        virtual_battery:
+          sc.virtual_battery_finance && typeof sc.virtual_battery_finance === "object"
+            ? {
+                enabled: true,
+                finance: sc.virtual_battery_finance,
+                source: "scenario.virtual_battery_finance@calculation",
+              }
+            : {
+                enabled: false,
+                source: null,
+              },
+        financing: financingSnapshot,
+        blocking_warnings: economicBlockingWarnings,
+      };
+      const economicSnapshot = {
+        ...economicSnapshotCore,
+        hash: await sha256Hex(stableStringify(economicSnapshotCore)),
+      };
       const year1NetCashflow = flows[0]?.total_eur ?? null;
       const annualSavings = computeBillSavingsYear1(sc, econ.price_eur_kwh) ?? year1NetCashflow;
       if (process.env.NODE_ENV !== "production") {
@@ -811,9 +971,10 @@ export async function computeFinance(ctx, scenarios) {
           year1_net_cashflow_eur: round(year1NetCashflow, 2),
           prime_disclaimer:
             "Prime et tarifs d'obligation d'achat : sous réserve d'éligibilité du projet et des tarifs en vigueur à la date de mise en service.",
+          economic_snapshot: economicSnapshot,
         },
         flows,
-        finance_warnings
+        finance_warnings: [...finance_warnings, ...economicBlockingWarnings]
       };
       continue;
     }
