@@ -829,7 +829,13 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const reseauType = str(formParams.reseau_type) || str(site.type_reseau) || "";
   // Conso annuelle : fallback robuste (priorité 1→4), valeur numérique ou null
   const horizonYearsPdf =
-    Number(econDisplay.horizon_years ?? financeActive.economie_horizon_years ?? financeActive.finance_meta?.horizon_years) || 25;
+    Number(
+      financeActive.economie_horizon_years ??
+        financeActive.finance_meta?.horizon_years ??
+        scenarioFinance?.economie_horizon_years ??
+        scenarioFinance?.finance_meta?.horizon_years ??
+        econDisplay.horizon_years
+    ) || 25;
   const consoAnnuelle =
     num(conso.annual_kwh) ??
     num(energy.consumption_kwh) ??
