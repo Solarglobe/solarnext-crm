@@ -56,11 +56,22 @@ export function useLegacyPdfEngine(viewModel: { fullReport?: Record<string, unkn
     if (typeof window === "undefined") return;
     if (!viewModel) return;
     const legacyVM = buildLegacyPdfViewModel(viewModel as Record<string, unknown>);
+    const emitLegacyVM = () => {
+      window.emitPdfViewData?.(legacyVM as { fullReport?: Record<string, unknown> });
+    };
     if (window.emitPdfViewData) {
-      window.emitPdfViewData(legacyVM as { fullReport?: Record<string, unknown> });
+      emitLegacyVM();
     }
+    const raf = window.requestAnimationFrame(() => {
+      emitLegacyVM();
+    });
+    const timeout = window.setTimeout(emitLegacyVM, 120);
     if (import.meta.env?.DEV) {
       console.log("PDF FULLREPORT EMITTED", legacyVM.fullReport);
     }
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(timeout);
+    };
   }, [viewModel]);
 }

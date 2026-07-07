@@ -8,7 +8,10 @@
  * Usage: cd backend && node scripts/test-pdf-viewmodel-mapper.js
  */
 
-import { mapSelectedScenarioSnapshotToPdfViewModel } from "../services/pdf/pdfViewModel.mapper.js";
+import {
+  mapSelectedScenarioSnapshotToPdfViewModel,
+  validatePdfViewModelCoherence,
+} from "../services/pdf/pdfViewModel.mapper.js";
 
 const REQUIRED_SECTIONS = [
   "meta",
@@ -195,7 +198,60 @@ try {
   console.log("TEST FAILED — Null snapshot:", e.message);
 }
 
-// ——— TEST 6 — P5 : profil journalier non plat (écart min/max > 0) ———
+// TEST 6 — Cohérence PDF : source unique chiffres annuels + ratios
+try {
+  const snapshot = buildFullSnapshot();
+  const vm = mapSelectedScenarioSnapshotToPdfViewModel(snapshot);
+  const issues = validatePdfViewModelCoherence(vm);
+  if (issues.length === 0) {
+    passed++;
+    console.log("TEST PASSED — PDF annual values and ratios coherent");
+  } else {
+    failed++;
+    console.log("TEST FAILED — PDF annual values and ratios coherent:", issues);
+  }
+} catch (e) {
+  failed++;
+  console.log("TEST FAILED — PDF annual values and ratios coherent:", e.message);
+}
+
+// TEST 7 — Détection d'une production divergente entre pages
+try {
+  const snapshot = buildFullSnapshot();
+  const vm = mapSelectedScenarioSnapshotToPdfViewModel(snapshot);
+  vm.fullReport.p10.best.annual_production_kwh += 40;
+  const issues = validatePdfViewModelCoherence(vm);
+  if (issues.some((i) => i.code === "PDF_PRODUCTION_ANNUAL_MISMATCH")) {
+    passed++;
+    console.log("TEST PASSED — PDF coherence detects annual production mismatch");
+  } else {
+    failed++;
+    console.log("TEST FAILED — PDF coherence detects annual production mismatch:", issues);
+  }
+} catch (e) {
+  failed++;
+  console.log("TEST FAILED — PDF coherence detects annual production mismatch:", e.message);
+}
+
+// TEST 8 — Détection inversion autoconsommation PV / couverture besoins
+try {
+  const snapshot = buildFullSnapshot();
+  const vm = mapSelectedScenarioSnapshotToPdfViewModel(snapshot);
+  vm.fullReport.p4.taux_autoconsommation_pct = vm.fullReport.p4.couverture_besoins_pct;
+  const issues = validatePdfViewModelCoherence(vm);
+  if (issues.some((i) => i.code === "PDF_SELF_CONSUMPTION_RATIO_MISMATCH")) {
+    passed++;
+    console.log("TEST PASSED — PDF coherence detects self-consumption/coverage inversion");
+  } else {
+    failed++;
+    console.log("TEST FAILED — PDF coherence detects self-consumption/coverage inversion:", issues);
+  }
+} catch (e) {
+  failed++;
+  console.log("TEST FAILED — PDF coherence detects self-consumption/coverage inversion:", e.message);
+}
+
+// ——— TEST 9 — P5 : profil journalier non plat (écart min/max > 0) ———
 try {
   const snapshot = buildFullSnapshot();
   const vm = mapSelectedScenarioSnapshotToPdfViewModel(snapshot);

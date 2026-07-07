@@ -306,10 +306,13 @@ console.log("P11 ENGINE LOADED");
       const i = y - 1;
       set(`p11_syn_gain_${y}`, fmtEurSynth(eco[i]));
       const r = Number(reste[i]);
-      const resteTxt = Number.isFinite(r)
-        ? fmtEurSynth(r)
-        : fmtEurSynth((Number(pay[i]) || 0) - (Number(eco[i]) || 0));
-      set(`p11_syn_reste_${y}`, resteTxt);
+      const solde = Number.isFinite(r) ? r : (Number(pay[i]) || 0) - (Number(eco[i]) || 0);
+      const soldeTxt = Number.isFinite(solde)
+        ? solde < 0
+          ? `+${fmtEurSynth(Math.abs(solde))} net`
+          : fmtEurSynth(solde)
+        : "—";
+      set(`p11_syn_reste_${y}`, soldeTxt);
     }
   }
 
@@ -351,7 +354,14 @@ console.log("P11 ENGINE LOADED");
     set("p11_mensu", kpi.mensualite_eur != null ? fmtEur(kpi.mensualite_eur) : fin.monthly_payment_eur != null ? fmtEur(fin.monthly_payment_eur) : "—");
 
     set("p11_kpi1_val", kpi.mensualite_eur != null ? fmtEur(kpi.mensualite_eur) : "—");
-    set("p11_kpi2_val", kpi.total_paid_eur != null ? fmtEur(kpi.total_paid_eur) : "—");
+    set(
+      "p11_kpi2_val",
+      kpi.total_paid_eur != null
+        ? kpi.credit_cost_eur != null && Number(kpi.credit_cost_eur) > 0
+          ? `${fmtEur(kpi.total_paid_eur)} (coût ${fmtEur(kpi.credit_cost_eur)})`
+          : fmtEur(kpi.total_paid_eur)
+        : "—"
+    );
     set("p11_kpi3_val", kpi.roi_years != null && kpi.roi_years > 0 ? `${kpi.roi_years} ans` : "—");
     set("p11_kpi4_val", kpi.reste_moyen_mois_eur != null ? fmtEur(kpi.reste_moyen_mois_eur) : "—");
 

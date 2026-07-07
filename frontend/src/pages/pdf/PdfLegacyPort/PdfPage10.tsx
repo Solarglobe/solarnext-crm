@@ -263,7 +263,7 @@ export default function PdfPage10({
               whiteSpace: "nowrap",
             }}
           >
-            Solution recommandée
+            Scénario recommandé à ce stade
           </div>
         </div>
 
@@ -560,7 +560,7 @@ export default function PdfPage10({
               <div style={{ fontSize: "2.95mm", color: ink, fontWeight: 700, lineHeight: 1.24 }}>
                 <span style={{ color: gold, fontWeight: 900 }}>✔</span> rentable &nbsp;&nbsp;
                 <span style={{ color: gold, fontWeight: 900 }}>✔</span> durable &nbsp;&nbsp;
-                <span style={{ color: gold, fontWeight: 900 }}>✔</span> immédiatement activable
+                  <span style={{ color: gold, fontWeight: 900 }}>✔</span> prêt à valider
               </div>
               <div
                 style={{
@@ -571,7 +571,7 @@ export default function PdfPage10({
                   letterSpacing: "-0.02em",
                 }}
               >
-                Le projet peut être engagé dès validation du dossier
+              Mise en œuvre possible après validation terrain, administrative et technique
               </div>
               <div style={{ fontSize: "2.72mm", color: subInk, marginTop: "0.35mm", fontWeight: 500, lineHeight: 1.22 }}>
                 Gain net cumulé sur 25 ans (estimation) : <strong style={{ color: ink, fontWeight: 800 }}>{fmtEUR(gains25)}</strong> — même base que l&apos;étude financière (page 2).

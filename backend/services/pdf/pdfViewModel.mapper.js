@@ -270,6 +270,17 @@ function buildResidualBillVirtualVmFromScenario(scenario) {
  * kwc × prime_lt9 (moins de 9 kWc) ou × prime_gte9 (9 kWc et plus) depuis org + form.economics.
  */
 function resolvePdfPrimeAutoconsoEur({ systemPowerKw, scenarioForFinance, snapshot, options }) {
+  const explicitPrime =
+    num(scenarioForFinance?.finance?.prime_autoconso_eur) ??
+    num(scenarioForFinance?.finance?.prime_eur) ??
+    num(scenarioForFinance?.finance?.aide_eur) ??
+    num(snapshot?.finance?.prime_autoconso_eur) ??
+    num(snapshot?.finance?.prime_eur) ??
+    num(snapshot?.finance?.aide_eur);
+  if (explicitPrime != null && Number.isFinite(explicitPrime) && explicitPrime >= 0) {
+    return explicitPrime;
+  }
+
   const flows =
     scenarioForFinance?.finance?.annual_cashflows ??
     (Array.isArray(scenarioForFinance?.cashflows) ? scenarioForFinance.cashflows : null);
@@ -531,6 +542,10 @@ function buildP11Section({
         monthly_payment_eur: monthly != null ? Math.round(monthly * 100) / 100 : null,
         annual_payment_eur: monthly != null ? Math.round(monthly * 12 * 100) / 100 : null,
         total_paid_eur: totalPaid,
+        credit_cost_eur:
+          totalPaid != null && fin.amount != null && Number.isFinite(Number(fin.amount))
+            ? Math.max(0, Math.round(totalPaid - fin.amount))
+            : null,
         duration_months: fin.duration_months,
         enabled: fin.enabled,
       },
@@ -542,6 +557,10 @@ function buildP11Section({
       kpi: {
         mensualite_eur: monthly != null ? Math.round(monthly * 100) / 100 : null,
         total_paid_eur: totalPaid,
+        credit_cost_eur:
+          totalPaid != null && fin.amount != null && Number.isFinite(Number(fin.amount))
+            ? Math.max(0, Math.round(totalPaid - fin.amount))
+            : null,
         roi_years: (() => {
           const ry = num(financeActive.roi_years);
           return ry != null && ry > 0 ? ry : null;
@@ -963,7 +982,16 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p2_roi: `${roiYears} ans`,
     p2_lcoe: lcoeVal != null ? `${lcoeVal.toFixed(3).replace(".", ",")} €/kWh` : "—",
     p2_prime: formatCurrency0(primeAmount),
+    p2_prime_raw_eur: Math.round(primeAmount),
     p2_reste_charge: formatCurrency0(resteACharge),
+    p2_reste_charge_raw_eur: resteACharge,
+    p2_investissement_ttc: formatCurrency0(capex),
+    p2_investissement_ttc_raw_eur: Math.round(capex),
+    p2_price_kwh: `${econDisplay.price_eur_kwh.toFixed(3).replace(".", ",")} €/kWh`,
+    p2_indexation: `${econDisplay.elec_growth_pct.toFixed(1).replace(".", ",")} %/an`,
+    p2_horizon: `${horizonYearsPdf} ans`,
+    p2_surplus_rate: `${resolveOaRateForKwc(pdfEconomicsCtx, systemPowerKw).toFixed(3).replace(".", ",")} €/kWh`,
+    p2_scenario_label: SCENARIO_LABELS[selectedKey] || str(selectedKey),
     // Production page 2 = production du scénario sélectionné (celle des cartes, ~9114 kWh),
     // et non annualKwh qui peut provenir d'un champ "production.annual_kwh" légèrement différent
     // (gross/théorique ~9161) → harmonisation : même chiffre partout.
@@ -1669,6 +1697,15 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         offer,
         finance: { mensualite: 0, note: "" },
         tech: {},
+        energy_summary: {
+          production_kwh: prodAnnuelle,
+          consumption_kwh: consoAnnuelleP4,
+          solar_used_kwh: autoAnnuelle,
+          exported_kwh: surplusAnnuelle,
+          grid_import_kwh: importAnnuelle,
+          coverage_pct: couverturePct,
+          pv_self_consumption_pct: tauxAutoPct,
+        },
       },
       p3b: { p3b_auto },
       p_shading,
@@ -2635,6 +2672,67 @@ function buildEmptyViewModel(options) {
     disclaimers: { legalNotice: "", methodologyNote: "", simulationDisclaimer: "" },
     fullReport: buildEmptyFullReport(),
   };
+}
+
+export function validatePdfViewModelCoherence(vm, tolerance = { kwh: 1, eur: 1 }) {
+  const issues = [];
+  const tKwh = tolerance?.kwh ?? 1;
+  const tEur = tolerance?.eur ?? 1;
+  const n = (v) => (v == null || v === "" || Number.isNaN(Number(v)) ? null : Number(v));
+  const diff = (a, b) => Math.abs(Number(a) - Number(b));
+  const push = (code, details = {}) => issues.push({ code, ...details });
+  const fr = vm?.fullReport ?? {};
+  const p4 = fr.p4 ?? {};
+  const p6 = fr.p6?.p6 ?? {};
+  const p7 = fr.p7 ?? {};
+  const p10 = fr.p10?.best ?? {};
+
+  const production = n(p4.production_annuelle);
+  const productionRefs = [
+    ["root.production.annualProductionKwh", n(vm?.production?.annualProductionKwh)],
+    ["p6.totals.production_kwh", n(p6?.totals?.production_kwh)],
+    ["p7.production_kwh", n(p7.production_kwh)],
+    ["p10.best.annual_production_kwh", n(p10.annual_production_kwh)],
+  ];
+  for (const [path, value] of productionRefs) {
+    if (production != null && value != null && diff(production, value) > tKwh) {
+      push("PDF_PRODUCTION_ANNUAL_MISMATCH", { path, expected: production, actual: value });
+    }
+  }
+
+  const autoKwh = n(p4.energie_solaire_valorisee ?? p7.autoconsumption_kwh);
+  const injectedKwh = n(p4.energie_injectee ?? p7.p_surplus);
+  const consoKwh = n(p4.consommation_annuelle ?? p7.consumption_kwh);
+  const importKwh = n(p4.reste_reseau_kwh ?? p7.energy_grid_import_kwh);
+  if (production != null && autoKwh != null && injectedKwh != null && diff(autoKwh + injectedKwh, production) > tKwh) {
+    push("PDF_ENERGY_PRODUCTION_SPLIT_MISMATCH", { production, autoKwh, injectedKwh });
+  }
+  if (consoKwh != null && autoKwh != null && importKwh != null && diff(autoKwh + importKwh, consoKwh) > tKwh) {
+    push("PDF_ENERGY_CONSUMPTION_SPLIT_MISMATCH", { consoKwh, autoKwh, importKwh });
+  }
+
+  const coverage = n(p4.couverture_besoins_pct ?? p7.solar_coverage_pct);
+  const pvSelf = n(p4.taux_autoconsommation_pct ?? p7?.pct?.p_auto_pct);
+  const expectedCoverage = consoKwh > 0 && autoKwh != null ? (autoKwh / consoKwh) * 100 : null;
+  const expectedPvSelf = production > 0 && autoKwh != null ? (autoKwh / production) * 100 : null;
+  if (coverage != null && expectedCoverage != null && Math.abs(Math.round(expectedCoverage) - Math.round(coverage)) > 1) {
+    push("PDF_COVERAGE_RATIO_MISMATCH", { coverage, expected: expectedCoverage });
+  }
+  if (pvSelf != null && expectedPvSelf != null && Math.abs(Math.round(expectedPvSelf) - Math.round(pvSelf)) > 1) {
+    push("PDF_SELF_CONSUMPTION_RATIO_MISMATCH", { pvSelf, expected: expectedPvSelf });
+  }
+  if (coverage != null && pvSelf != null && Math.round(coverage) === Math.round(pvSelf) && production != null && consoKwh != null && diff(production, consoKwh) > tKwh) {
+    push("PDF_COVERAGE_AND_SELF_CONSUMPTION_SAME_VALUE", { coverage, pvSelf, production, consoKwh });
+  }
+
+  const p2 = fr.p2?.p2_auto ?? {};
+  const capex = n(vm?.economics?.capex);
+  const prime = n(p2.p2_prime_raw_eur);
+  const reste = n(p2.p2_reste_charge_raw_eur);
+  if (capex != null && prime != null && reste != null && diff(capex - prime, reste) > tEur) {
+    push("PDF_CAPEX_PRIME_RESTE_MISMATCH", { capex, prime, reste });
+  }
+  return issues;
 }
 
 function buildEmptyFullReport() {

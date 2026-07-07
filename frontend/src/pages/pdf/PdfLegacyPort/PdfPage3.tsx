@@ -48,25 +48,44 @@ export default function PdfPage3({
 
   const fullReport = (viewModel as { fullReport?: Record<string, unknown> })?.fullReport;
   const calpinageImage = (fullReport?.p3b as { p3b_auto?: { layout_snapshot?: string } } | undefined)?.p3b_auto?.layout_snapshot ?? null;
+  const energySummary = (fullReport?.p3 as {
+    energy_summary?: {
+      production_kwh?: number | null;
+      consumption_kwh?: number | null;
+      solar_used_kwh?: number | null;
+      exported_kwh?: number | null;
+      grid_import_kwh?: number | null;
+      coverage_pct?: number | null;
+      pv_self_consumption_pct?: number | null;
+    };
+  } | undefined)?.energy_summary;
 
   const energy = (viewModel as { selected_scenario_snapshot?: { energy?: Record<string, unknown> } })
     ?.selected_scenario_snapshot?.energy;
   const productionKwh =
-    (energy?.production_annual_kwh ?? energy?.production_kwh) != null &&
+    energySummary?.production_kwh != null && Number.isFinite(Number(energySummary.production_kwh))
+      ? Number(energySummary.production_kwh)
+      : (energy?.production_annual_kwh ?? energy?.production_kwh) != null &&
     Number.isFinite(Number(energy?.production_annual_kwh ?? energy?.production_kwh))
       ? Number(energy?.production_annual_kwh ?? energy?.production_kwh)
       : null;
   const selfConsumedKwh =
-    (energy?.self_consumed_kwh ?? energy?.autoconsumption_kwh) != null &&
+    energySummary?.solar_used_kwh != null && Number.isFinite(Number(energySummary.solar_used_kwh))
+      ? Number(energySummary.solar_used_kwh)
+      : (energy?.self_consumed_kwh ?? energy?.autoconsumption_kwh) != null &&
     Number.isFinite(Number(energy?.self_consumed_kwh ?? energy?.autoconsumption_kwh))
       ? Number(energy?.self_consumed_kwh ?? energy?.autoconsumption_kwh)
       : null;
   const autoconsommationPct =
-    productionKwh != null && productionKwh > 0 && selfConsumedKwh != null
+    energySummary?.pv_self_consumption_pct != null && Number.isFinite(Number(energySummary.pv_self_consumption_pct))
+      ? Number(energySummary.pv_self_consumption_pct)
+      : productionKwh != null && productionKwh > 0 && selfConsumedKwh != null
       ? (selfConsumedKwh / productionKwh) * 100
       : null;
   const exportKwh =
-    (energy?.export_kwh ?? energy?.exported_kwh ?? energy?.surplus_kwh) != null &&
+    energySummary?.exported_kwh != null && Number.isFinite(Number(energySummary.exported_kwh))
+      ? Number(energySummary.exported_kwh)
+      : (energy?.export_kwh ?? energy?.exported_kwh ?? energy?.surplus_kwh) != null &&
     Number.isFinite(Number(energy?.export_kwh ?? energy?.exported_kwh ?? energy?.surplus_kwh))
       ? Number(energy?.export_kwh ?? energy?.exported_kwh ?? energy?.surplus_kwh)
       : null;
@@ -307,7 +326,8 @@ export default function PdfPage3({
               Le calepinage valide la faisabilité technique de l&apos;implantation sur le bâtiment support.
               Chaque module est positionné selon la pente, l&apos;orientation, les règles de sécurité et
               la surface réellement exploitable.
-              Le schéma garantit une pose conforme, optimisée et alignée sur la géométrie réelle du site.
+              Le schéma pré-valide l&apos;implantation proposée, sous réserve de validation technique finale
+              sur site.
             </p>
             <h4 style={{ margin: "3mm 0 1mm 0", fontSize: "3.6mm", color: brandHex }}>Points techniques vérifiés :</h4>
             <ul style={{ margin: "0 0 3mm 3mm", padding: 0, fontSize: "3.3mm", color: "#4b5563", lineHeight: 1.4 }}>
@@ -317,8 +337,8 @@ export default function PdfPage3({
               <li>Nombre de panneaux : correspond à la puissance choisie.</li>
             </ul>
             <p style={{ marginTop: "3mm", fontSize: "3.2mm", color: "#64748b", lineHeight: 1.45 }}>
-              Cette validation confirme que le scénario du dossier est ancré sur le site :
-              <strong>il correspond à ce qui est réalisable sur le support étudié.</strong>
+              Cette pré-validation confirme que le scénario du dossier est ancré sur le site :
+              <strong>il correspond à une implantation réalisable à ce stade, sous réserve des contrôles terrain et administratifs.</strong>
             </p>
           </div>
           <div className="card soft" style={{ padding: "4mm 5mm" }}>
@@ -335,7 +355,7 @@ export default function PdfPage3({
                 </span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                <span style={{ fontSize: "2.8mm", color: "#7a7a7a" }}>Autoconsommation</span>
+                <span style={{ fontSize: "2.8mm", color: "#7a7a7a" }}>Autoconsommation PV</span>
                 <span style={{ fontSize: "4mm", fontWeight: 700, color: "#333" }}>
                   {autoconsommationPct != null ? `${Math.round(autoconsommationPct)} %` : "—"}
                 </span>

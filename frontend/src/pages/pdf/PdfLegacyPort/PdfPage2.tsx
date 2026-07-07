@@ -25,8 +25,48 @@ export default function PdfPage2({
   viewModel,
 }: {
   organization?: { id?: string; logo_image_key?: string | null; logo_url?: string | null };
-  viewModel?: { meta?: { studyId?: string; versionId?: string } };
+  viewModel?: {
+    meta?: { studyId?: string; versionId?: string };
+    fullReport?: { p2?: { p2_auto?: Record<string, unknown> } };
+  };
 }) {
+  const p2Auto = viewModel?.fullReport?.p2?.p2_auto ?? {};
+  const p2Text = (key: string, fallback = "—") => {
+    const value = p2Auto[key];
+    return value !== null && value !== undefined && value !== "" ? String(value) : fallback;
+  };
+  const parseEur = (value: unknown) => {
+    if (value === null || value === undefined || value === "" || value === "—") return null;
+    const parsed = Number(String(value).replace(/\s/g, "").replace("€", "").replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const p2Sans25 = parseEur(p2Auto.p2_sans_25 ?? p2Auto.p2_sans_solaire);
+  const p2Avec25 = parseEur(p2Auto.p2_avec_25 ?? p2Auto.p2_avec_solaire);
+  const p2BarPct =
+    p2Sans25 != null && p2Avec25 != null && p2Sans25 > 0
+      ? Math.round(((p2Sans25 - p2Avec25) / p2Sans25) * 100)
+      : null;
+  const p2BarHeight =
+    p2Sans25 != null && p2Avec25 != null && p2Sans25 > 0
+      ? `${Math.max(5, Math.min(100, Math.round((p2Avec25 / p2Sans25) * 100)))}%`
+      : "50%";
+  const formatEur = (value: number | null) =>
+    value != null && Number.isFinite(value) ? `${Math.round(value).toLocaleString("fr-FR")} €` : "—";
+  const p2MilestoneText = (
+    key: "sans" | "avec" | "eco",
+    years: 5 | 10 | 15 | 20 | 25,
+  ) => {
+    const explicit = p2Text(`p2_${key}_${years}`, "");
+    if (explicit) return explicit;
+    const base =
+      key === "sans"
+        ? p2Sans25
+        : key === "avec"
+          ? p2Avec25
+          : parseEur(p2Auto.p2_economie_totale ?? p2Auto.p2_economie_nette);
+    return formatEur(base != null ? base * (years / 25) : null);
+  };
+
   const logoUrl = useMemo(() => {
     const logoDirect = organization?.logo_url;
     if (logoDirect) return logoDirect;
@@ -97,13 +137,13 @@ export default function PdfPage2({
                 }}
               >
                 <div>
-                  <b>Client :</b> <span id="p2_client">—</span>
+                  <b>Client :</b> <span id="p2_client">{p2Text("p2_client")}</span>
                 </div>
                 <div>
-                  <b>Réf. :</b> <span id="p2_ref">—</span>
+                  <b>Réf. :</b> <span id="p2_ref">{p2Text("p2_ref")}</span>
                 </div>
                 <div>
-                  <b>Date :</b> <span id="p2_date">—</span>
+                  <b>Date :</b> <span id="p2_date">{p2Text("p2_date")}</span>
                 </div>
               </div>
             }
@@ -161,14 +201,14 @@ export default function PdfPage2({
             >
               Sur 25 ans, le projet permet d&apos;éviter plus de{" "}
               <strong style={{ color: brandHex }}>
-                <span id="p2_eco_25_hero">—</span>
+                <span id="p2_eco_25_hero">{p2Text("p2_economie_totale")}</span>
               </strong>{" "}
               de dépenses d&apos;électricité.
             </h2>
             <p style={{ margin: "1.15mm 0 0 0", fontSize: "3.2mm", color: "#555" }}>
               Dont{" "}
               <strong style={{ color: "#2d7a3e" }}>
-                <span id="p2_eco_nette_hero">—</span>
+                <span id="p2_eco_nette_hero">{p2Text("p2_economie_nette")}</span>
               </strong>{" "}
               de gain net après investissement.
             </p>
@@ -255,21 +295,21 @@ export default function PdfPage2({
                       align="right"
                       style={{ padding: "1.32mm 2mm", fontWeight: 600 }}
                     >
-                      —
+                      {p2MilestoneText("sans", 5)}
                     </td>
                     <td
                       id="p2_avec_5"
                       align="right"
                       style={{ padding: "1.32mm 2mm", fontWeight: 600, color: brandHex }}
                     >
-                      —
+                      {p2MilestoneText("avec", 5)}
                     </td>
                     <td
                       id="p2_eco_5"
                       align="right"
                       style={{ padding: "1.32mm 0 1.32mm 2mm", fontWeight: 600, color: "#2d7a3e" }}
                     >
-                      —
+                      {p2MilestoneText("eco", 5)}
                     </td>
                   </tr>
                   <tr className="p2-table-body-row" style={{ borderBottom: "0.12mm solid rgba(0,0,0,0.06)" }}>
@@ -279,21 +319,21 @@ export default function PdfPage2({
                       align="right"
                       style={{ padding: "1.32mm 2mm", fontWeight: 600 }}
                     >
-                      —
+                      {p2MilestoneText("sans", 10)}
                     </td>
                     <td
                       id="p2_avec_10"
                       align="right"
                       style={{ padding: "1.32mm 2mm", fontWeight: 600, color: brandHex }}
                     >
-                      —
+                      {p2MilestoneText("avec", 10)}
                     </td>
                     <td
                       id="p2_eco_10"
                       align="right"
                       style={{ padding: "1.32mm 0 1.32mm 2mm", fontWeight: 600, color: "#2d7a3e" }}
                     >
-                      —
+                      {p2MilestoneText("eco", 10)}
                     </td>
                   </tr>
                   <tr className="p2-table-body-row" style={{ borderBottom: "0.12mm solid rgba(0,0,0,0.06)" }}>
@@ -303,21 +343,21 @@ export default function PdfPage2({
                       align="right"
                       style={{ padding: "1.32mm 2mm", fontWeight: 600 }}
                     >
-                      —
+                      {p2MilestoneText("sans", 15)}
                     </td>
                     <td
                       id="p2_avec_15"
                       align="right"
                       style={{ padding: "1.32mm 2mm", fontWeight: 600, color: brandHex }}
                     >
-                      —
+                      {p2MilestoneText("avec", 15)}
                     </td>
                     <td
                       id="p2_eco_15"
                       align="right"
                       style={{ padding: "1.32mm 0 1.32mm 2mm", fontWeight: 600, color: "#2d7a3e" }}
                     >
-                      —
+                      {p2MilestoneText("eco", 15)}
                     </td>
                   </tr>
                   <tr className="p2-table-body-row" style={{ borderBottom: "0.12mm solid rgba(0,0,0,0.06)" }}>
@@ -327,21 +367,21 @@ export default function PdfPage2({
                       align="right"
                       style={{ padding: "1.32mm 2mm", fontWeight: 600 }}
                     >
-                      —
+                      {p2MilestoneText("sans", 20)}
                     </td>
                     <td
                       id="p2_avec_20"
                       align="right"
                       style={{ padding: "1.32mm 2mm", fontWeight: 600, color: brandHex }}
                     >
-                      —
+                      {p2MilestoneText("avec", 20)}
                     </td>
                     <td
                       id="p2_eco_20"
                       align="right"
                       style={{ padding: "1.32mm 0 1.32mm 2mm", fontWeight: 600, color: "#2d7a3e" }}
                     >
-                      —
+                      {p2MilestoneText("eco", 20)}
                     </td>
                   </tr>
                   <tr
@@ -361,14 +401,14 @@ export default function PdfPage2({
                       align="right"
                       style={{ padding: "1.42mm 2mm", fontWeight: 600 }}
                     >
-                      —
+                      {p2MilestoneText("sans", 25)}
                     </td>
                     <td
                       id="p2_avec_25"
                       align="right"
                       style={{ padding: "1.42mm 2mm", fontWeight: 600, color: brandHex }}
                     >
-                      —
+                      {p2MilestoneText("avec", 25)}
                     </td>
                     <td
                       id="p2_eco_25"
@@ -376,7 +416,7 @@ export default function PdfPage2({
                       className="p2-highlight-value"
                       style={{ padding: "1.42mm 0 1.42mm 2mm", fontWeight: 600, color: "#2d7a3e" }}
                     >
-                      —
+                      {p2MilestoneText("eco", 25)}
                     </td>
                   </tr>
                 </tbody>
@@ -418,11 +458,11 @@ export default function PdfPage2({
                 </li>
                 <li style={{ marginBottom: "0.65mm" }}>
                   Amortissement de l&apos;investissement en{" "}
-                  <strong id="p2_summary_roi">—</strong>
+                  <strong id="p2_summary_roi">{p2Text("p2_roi")}</strong>
                 </li>
                 <li style={{ marginBottom: "0.65mm" }}>
                   Économies cumulées supérieures à{" "}
-                  <strong id="p2_summary_eco">—</strong>
+                  <strong id="p2_summary_eco">{p2Text("p2_economie_totale")}</strong>
                 </li>
                 <li>Atténuation de l&apos;exposition aux hausses du prix de l&apos;électricité</li>
               </ul>
@@ -450,7 +490,7 @@ export default function PdfPage2({
                   fontSize: "3.48mm",
                 }}
               >
-                Pourquoi ces résultats sont fiables
+                Comment lire ces résultats
               </h3>
               <ul
                 className="p2-reliability-bullets"
@@ -585,7 +625,7 @@ export default function PdfPage2({
                         {row.title}
                       </div>
                       <div id={row.id} style={{ fontSize: "3.92mm", fontWeight: 700, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
-                        —
+                        {p2Text(row.id)}
                       </div>
                     </div>
                   ))}
@@ -664,7 +704,7 @@ export default function PdfPage2({
                         textShadow: "0 0.15mm 0.4mm rgba(0,0,0,0.35)",
                       }}
                     >
-                      —
+                      {p2Text("p2_bar_sans", p2Text("p2_sans_25", p2Text("p2_sans_solaire")))}
                     </span>
                     <label
                       style={{
@@ -687,7 +727,7 @@ export default function PdfPage2({
                       flex: "1 1 50%",
                       minWidth: "0",
                       maxWidth: "none",
-                      height: "50%",
+                      height: p2BarHeight,
                       borderRadius: "2.5mm",
                       background: `linear-gradient(180deg, color-mix(in srgb, ${brandHex} 78%, #ffffff) 0%, ${brandHex} 45%, color-mix(in srgb, ${brandHex} 55%, #000000) 100%)`,
                       boxShadow: "0 0.6mm 2.2mm rgba(195, 152, 71, 0.35), inset 0 1px 0 rgba(255,255,255,0.35)",
@@ -709,7 +749,7 @@ export default function PdfPage2({
                         textShadow: "0 0.15mm 0.45mm rgba(0,0,0,0.2)",
                       }}
                     >
-                      —
+                      {p2Text("p2_bar_avec", p2Text("p2_avec_25", p2Text("p2_avec_solaire")))}
                     </span>
                     <label
                       style={{
@@ -740,7 +780,7 @@ export default function PdfPage2({
                 >
                   Économie :{" "}
                   <strong id="p2_bar_eco" style={{ fontWeight: 900, color: "#166534" }}>
-                    —
+                    {p2Text("p2_bar_eco", p2Text("p2_economie_totale"))}
                   </strong>
                   <span
                     style={{
@@ -751,7 +791,7 @@ export default function PdfPage2({
                       marginTop: "0.65mm",
                     }}
                   >
-                    ≈ <span id="p2_bar_pct">—</span> % d&apos;économie
+                    ≈ <span id="p2_bar_pct">{p2BarPct ?? "—"}</span> % d&apos;économie
                   </span>
                 </div>
               </div>
@@ -794,6 +834,34 @@ export default function PdfPage2({
               >
                 Investissement
               </span>
+              <span style={{ color: "#666", fontWeight: 500 }}>TTC</span>
+              <span
+                id="p2_investissement_ttc"
+                style={{
+                  marginLeft: "0.85mm",
+                  fontWeight: 800,
+                  fontSize: "3.45mm",
+                  color: "#1a1a1a",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                {p2Text("p2_investissement_ttc")}
+              </span>
+            </div>
+            <div
+              style={{ flex: 1, whiteSpace: "nowrap" as const, overflow: "hidden" }}
+            >
+              <span
+                className="p2-label"
+                style={{
+                  fontSize: "2.75mm",
+                  color: "#777",
+                  marginRight: "0.85mm",
+                  fontWeight: 600,
+                }}
+              >
+                Après aide
+              </span>
               <span style={{ color: "#666", fontWeight: 500 }}>Reste à charge</span>
               <span
                 id="p2_reste_charge"
@@ -805,7 +873,7 @@ export default function PdfPage2({
                   letterSpacing: "-0.02em",
                 }}
               >
-                —
+                {p2Text("p2_reste_charge")}
               </span>
             </div>
             <div
@@ -833,7 +901,7 @@ export default function PdfPage2({
                   letterSpacing: "-0.02em",
                 }}
               >
-                —
+                {p2Text("p2_production")}
               </span>
             </div>
           </div>
@@ -841,15 +909,15 @@ export default function PdfPage2({
           {/* Note de bas de page */}
           <p
             style={{
-              margin: "1.5mm 0 0 0",
+              margin: "1.25mm 0 0 0",
               fontSize: "2.35mm",
               color: "#999",
               lineHeight: 1.3,
               textAlign: "center",
             }}
           >
-            Ces montants s&apos;appuient sur la production solaire estimée pour le projet.
-            Le détail technique est développé dans la suite du dossier.
+            Hypothèses : kWh <span id="p2_price_kwh">{p2Text("p2_price_kwh")}</span> · indexation <span id="p2_indexation">{p2Text("p2_indexation")}</span> · horizon <span id="p2_horizon">{p2Text("p2_horizon")}</span> · surplus <span id="p2_surplus_rate">{p2Text("p2_surplus_rate")}</span> · scénario <span id="p2_scenario_label">{p2Text("p2_scenario_label")}</span>.
+            Estimations indicatives non garanties, selon les hypothèses du dossier.
           </p>
         </div>
       </div>

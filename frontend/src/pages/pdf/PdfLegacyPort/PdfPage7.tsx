@@ -286,7 +286,7 @@ export default function PdfPage7({
               <div style={{ display: "flex", height: "10mm", borderRadius: PILL_RADIUS, overflow: "hidden", boxShadow: "0 0.5mm 2mm rgba(0,0,0,.08) inset, 0 0.3mm 1mm rgba(0,0,0,.04)" }}>
                 {(() => {
                   const segs = [
-                    pAuto >= 2 && { flex: pAuto, label: pAuto >= 5 ? `${pAuto} % Autoconsommation` : `${pAuto} %`, bg: "linear-gradient(135deg, #7DD4ED 0%, #5BC4E0 50%, #3BA8C8 100%)", color: "#0a2a32", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.4)" },
+                    pAuto >= 2 && { flex: pAuto, label: pAuto >= 5 ? `${pAuto} % Autoconsommation PV` : `${pAuto} %`, bg: "linear-gradient(135deg, #7DD4ED 0%, #5BC4E0 50%, #3BA8C8 100%)", color: "#0a2a32", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.4)" },
                     pBat >= 2 && { flex: pBat, label: pBat >= 5 ? `${pBat} % ${storageLabel}` : `${pBat} %`, bg: "linear-gradient(135deg, #7ED99E 0%, #5BC47A 50%, #3DA85C 100%)", color: "#0d2514", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.3)" },
                     pSurplusPct >= 2 && { flex: pSurplusPct, label: pSurplusPct >= 5 ? `${pSurplusPct} % Surplus` : `${pSurplusPct} %`, bg: "linear-gradient(135deg, #5BA8E0 0%, #3D8FCC 50%, #2570B0 100%)", color: "#fff", shadow: "0 0.2mm 0.6mm rgba(0,0,0,.3)" },
                   ].filter(Boolean) as { flex: number; label: string; bg: string; color: string; shadow: string }[];

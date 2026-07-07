@@ -101,7 +101,13 @@
     // BAS DE PAGE
     set("p2_prime", a.p2_prime);
     set("p2_reste_charge", a.p2_reste_charge);
+    set("p2_investissement_ttc", a.p2_investissement_ttc);
     set("p2_production", a.p2_production);
+    set("p2_price_kwh", a.p2_price_kwh);
+    set("p2_indexation", a.p2_indexation);
+    set("p2_horizon", a.p2_horizon);
+    set("p2_surplus_rate", a.p2_surplus_rate);
+    set("p2_scenario_label", a.p2_scenario_label);
 
     if (typeof console !== "undefined" && console.log) {
       console.log("ENGINE_P2_BOUND — P2 hydratée");
