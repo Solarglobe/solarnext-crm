@@ -204,17 +204,17 @@ export default function PdfPage3({
         ),
       }}
     >
-      <div className="grid" style={{ gap: "3.5mm", alignItems: "stretch", flex: 1, minHeight: 0 }}>
-        <div className="col-6" style={{ display: "flex", flexDirection: "column", gap: "3.5mm", minHeight: 0 }}>
+      <div className="grid" style={{ gap: "3mm", alignItems: "stretch", flex: 1, minHeight: 0 }}>
+        <div className="col-6" style={{ display: "flex", flexDirection: "column", gap: "3mm", minHeight: 0 }}>
           <div
             className="card soft"
-            style={{ padding: "4mm 5mm", display: "flex", flexDirection: "column", gap: "3mm" }}
+            style={{ padding: "3.5mm 4.5mm", display: "flex", flexDirection: "column", gap: "2.2mm" }}
           >
-            <h3 style={{ margin: "0 0 2mm 0", color: brandHex, fontWeight: 700 }}>Plan de pose (vue calepinage)</h3>
+            <h3 style={{ margin: "0 0 1.5mm 0", color: brandHex, fontWeight: 700 }}>Plan de pose (vue calepinage)</h3>
             <div
               id="p3b_photo"
               style={{
-                height: "320px",
+                height: "285px",
                 borderRadius: "8px",
                 border: "0.45mm dashed #d1d5db",
                 background: calpinageImage ? "#fff" : "#f3f4f6",
@@ -230,7 +230,7 @@ export default function PdfPage3({
                   alt="Plan de pose photovoltaïque — calepinage"
                   style={{
                     width: "100%",
-                    height: "320px",
+                    height: "285px",
                     objectFit: "cover",
                     borderRadius: "8px",
                   }}
@@ -241,36 +241,36 @@ export default function PdfPage3({
                 </div>
               )}
             </div>
-            <h4 style={{ margin: "3mm 0 2mm 0", fontSize: "3.6mm", color: brandHex, fontWeight: 700 }}>
+            <h4 style={{ margin: "2mm 0 1.5mm 0", fontSize: "3.4mm", color: brandHex, fontWeight: 700 }}>
               Caractéristiques de l&apos;installation
             </h4>
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(5, 1fr)",
-                gap: "3mm 4mm",
+                gap: "2mm 3mm",
                 padding: 0,
               }}
             >
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                <span style={{ fontSize: "2.6mm", color: "#7a7a7a" }}>Inclinaison (support)</span>
-                <span id="p3b_inclinaison" style={{ fontSize: "3.6mm", fontWeight: 600, color: "#333" }}>—</span>
+                <span style={{ fontSize: "2.45mm", color: "#7a7a7a" }}>Inclinaison (support)</span>
+                <span id="p3b_inclinaison" style={{ fontSize: "3.35mm", fontWeight: 600, color: "#333" }}>—</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                <span style={{ fontSize: "2.6mm", color: "#7a7a7a" }}>Orientation (support)</span>
-                <span id="p3b_orientation" style={{ fontSize: "3.6mm", fontWeight: 600, color: "#333" }}>—</span>
+                <span style={{ fontSize: "2.45mm", color: "#7a7a7a" }}>Orientation (support)</span>
+                <span id="p3b_orientation" style={{ fontSize: "3.35mm", fontWeight: 600, color: "#333" }}>—</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                <span style={{ fontSize: "2.6mm", color: "#7a7a7a" }}>Surface utilisée</span>
-                <span style={{ whiteSpace: "nowrap" }}><span id="p3b_surface" style={{ fontSize: "3.6mm", fontWeight: 600, color: "#333" }}>—</span>&nbsp;m²</span>
+                <span style={{ fontSize: "2.45mm", color: "#7a7a7a" }}>Surface utilisée</span>
+                <span style={{ whiteSpace: "nowrap" }}><span id="p3b_surface" style={{ fontSize: "3.35mm", fontWeight: 600, color: "#333" }}>—</span>&nbsp;m²</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                <span style={{ fontSize: "2.6mm", color: "#7a7a7a" }}>Nombre de panneaux</span>
-                <span id="p3b_panneaux" style={{ fontSize: "3.6mm", fontWeight: 600, color: "#333" }}>—</span>
+                <span style={{ fontSize: "2.45mm", color: "#7a7a7a" }}>Nombre de panneaux</span>
+                <span id="p3b_panneaux" style={{ fontSize: "3.35mm", fontWeight: 600, color: "#333" }}>—</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                <span style={{ fontSize: "2.6mm", color: "#7a7a7a" }}>Puissance installation</span>
-                <span id="p3b_puissance" style={{ fontSize: "3.6mm", fontWeight: 600, color: "#333" }}>—</span>
+                <span style={{ fontSize: "2.45mm", color: "#7a7a7a" }}>Puissance installation</span>
+                <span id="p3b_puissance" style={{ fontSize: "3.35mm", fontWeight: 600, color: "#333" }}>—</span>
               </div>
             </div>
             {(posesLines.length > 0 || elecArch) && (
@@ -281,9 +281,9 @@ export default function PdfPage3({
                   borderTop: "0.15mm solid rgba(195,152,71,0.25)",
                   display: "flex",
                   flexDirection: "column",
-                  gap: "1.4mm",
-                  fontSize: "3mm",
-                  lineHeight: 1.4,
+                  gap: "1mm",
+                  fontSize: "2.75mm",
+                  lineHeight: 1.3,
                   color: "#374151",
                 }}
               >
@@ -314,57 +314,57 @@ export default function PdfPage3({
                 )}
               </div>
             )}
-            <p style={{ margin: "2.5mm 0 0 0", fontSize: "3mm", color: "#64748b", lineHeight: 1.4 }}>
+            <p style={{ margin: "1.5mm 0 0 0", fontSize: "2.75mm", color: "#64748b", lineHeight: 1.25 }}>
               Ces éléments définissent le dimensionnement et la performance du générateur retenu.
             </p>
           </div>
         </div>
-        <div className="col-6" style={{ display: "flex", flexDirection: "column", gap: "3.5mm", minHeight: 0 }}>
-          <div className="card soft" style={{ padding: "4mm 5mm" }}>
-            <h3 style={{ margin: "0 0 2mm 0", color: brandHex, fontWeight: 700 }}>Validation technique de l&apos;implantation</h3>
-            <p style={{ margin: 0, fontSize: "3.4mm", lineHeight: 1.45, color: "#374151" }}>
+        <div className="col-6" style={{ display: "flex", flexDirection: "column", gap: "3mm", minHeight: 0 }}>
+          <div className="card soft" style={{ padding: "3.5mm 4.5mm" }}>
+            <h3 style={{ margin: "0 0 1.5mm 0", color: brandHex, fontWeight: 700 }}>Validation technique de l&apos;implantation</h3>
+            <p style={{ margin: 0, fontSize: "3.15mm", lineHeight: 1.35, color: "#374151" }}>
               Le calepinage valide la faisabilité technique de l&apos;implantation sur le bâtiment support.
               Chaque module est positionné selon la pente, l&apos;orientation, les règles de sécurité et
               la surface réellement exploitable.
               Le schéma pré-valide l&apos;implantation proposée, sous réserve de validation technique finale
               sur site.
             </p>
-            <h4 style={{ margin: "3mm 0 1mm 0", fontSize: "3.6mm", color: brandHex }}>Points techniques vérifiés :</h4>
-            <ul style={{ margin: "0 0 3mm 3mm", padding: 0, fontSize: "3.3mm", color: "#4b5563", lineHeight: 1.4 }}>
+            <h4 style={{ margin: "2.3mm 0 1mm 0", fontSize: "3.35mm", color: brandHex }}>Points techniques vérifiés :</h4>
+            <ul style={{ margin: "0 0 2mm 3mm", padding: 0, fontSize: "3.05mm", color: "#4b5563", lineHeight: 1.3 }}>
               <li>Inclinaison réelle : impact direct sur la production.</li>
               <li>Orientation : optimise la captation solaire.</li>
               <li>Surface utile : zone réellement exploitable.</li>
               <li>Nombre de panneaux : correspond à la puissance choisie.</li>
             </ul>
-            <p style={{ marginTop: "3mm", fontSize: "3.2mm", color: "#64748b", lineHeight: 1.45 }}>
+            <p style={{ marginTop: "2mm", fontSize: "3mm", color: "#64748b", lineHeight: 1.35 }}>
               Cette pré-validation confirme que le scénario du dossier est ancré sur le site :
               <strong>il correspond à une implantation réalisable à ce stade, sous réserve des contrôles terrain et administratifs.</strong>
             </p>
           </div>
-          <div className="card soft" style={{ padding: "4mm 5mm" }}>
-            <h3 style={{ margin: "0 0 2mm 0", color: brandHex, fontWeight: 700 }}>Impact du générateur sur la consommation du site</h3>
-            <p style={{ margin: "0 0 3mm 0", fontSize: "3.4mm", lineHeight: 1.45, color: "#374151" }}>
+          <div className="card soft" style={{ padding: "3.5mm 4.5mm" }}>
+            <h3 style={{ margin: "0 0 1.5mm 0", color: brandHex, fontWeight: 700 }}>Impact du générateur sur la consommation du site</h3>
+            <p style={{ margin: "0 0 2mm 0", fontSize: "3.15mm", lineHeight: 1.35, color: "#374151" }}>
               Le dimensionnement vise une part significative de la consommation annuelle du site.
               L&apos;orientation et l&apos;implantation optimisent la production sur le bâtiment support.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "2.5mm", marginBottom: "3mm" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.8mm", marginBottom: "2mm" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                <span style={{ fontSize: "2.8mm", color: "#7a7a7a" }}>Production annuelle</span>
-                <span style={{ fontSize: "4mm", fontWeight: 700, color: "#333" }}>
+                <span style={{ fontSize: "2.65mm", color: "#7a7a7a" }}>Production annuelle</span>
+                <span style={{ fontSize: "3.7mm", fontWeight: 700, color: "#333" }}>
                   {productionKwh != null ? `${Math.round(productionKwh).toLocaleString("fr-FR")} kWh` : "—"}
                 </span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                <span style={{ fontSize: "2.8mm", color: "#7a7a7a" }}>Autoconsommation PV</span>
-                <span style={{ fontSize: "4mm", fontWeight: 700, color: "#333" }}>
+                <span style={{ fontSize: "2.65mm", color: "#7a7a7a" }}>Autoconsommation PV</span>
+                <span style={{ fontSize: "3.7mm", fontWeight: 700, color: "#333" }}>
                   {autoconsommationPct != null ? `${Math.round(autoconsommationPct)} %` : "—"}
                 </span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                <span style={{ fontSize: "2.8mm", color: "#7a7a7a" }}>
+                <span style={{ fontSize: "2.65mm", color: "#7a7a7a" }}>
                   {isStorageScenario ? "Surplus valorisé (batterie / crédit)" : "Énergie injectée"}
                 </span>
-                <span style={{ fontSize: "4mm", fontWeight: 700, color: "#333" }}>
+                <span style={{ fontSize: "3.7mm", fontWeight: 700, color: "#333" }}>
                   {isStorageScenario
                     ? valorizedSurplusKwh != null && valorizedSurplusKwh > 0
                       ? `${Math.round(valorizedSurplusKwh).toLocaleString("fr-FR")} kWh`
@@ -375,7 +375,7 @@ export default function PdfPage3({
                 </span>
               </div>
             </div>
-            <p style={{ margin: 0, fontSize: "3.2mm", lineHeight: 1.45, color: "#4b5563", fontWeight: 500, borderTop: "0.15mm solid rgba(195,152,71,0.2)", paddingTop: "2.5mm" }}>
+            <p style={{ margin: 0, fontSize: "3mm", lineHeight: 1.35, color: "#4b5563", fontWeight: 500, borderTop: "0.15mm solid rgba(195,152,71,0.2)", paddingTop: "2mm" }}>
               Cette production alimente directement les indicateurs économiques de l&apos;étude financière.
             </p>
           </div>
