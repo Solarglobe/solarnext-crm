@@ -35,18 +35,18 @@ import { buildCalculationConfidenceFromCalc } from "../calculationConfidence.ser
  * @returns {{ byPan: Array, annualKwh: number, monthlyKwh: Array } | null}
  */
 export function resolveProductionBlock(ctx) {
+  if (ctx.pv?.monthly && ctx.pv?.total_kwh != null) {
+    return {
+      byPan: Array.isArray(ctx.productionMultiPan?.byPan) ? ctx.productionMultiPan.byPan : [],
+      annualKwh: ctx.pv.total_kwh,
+      monthlyKwh: Array.isArray(ctx.pv.monthly) ? ctx.pv.monthly : [],
+    };
+  }
   if (ctx.productionMultiPan) {
     return {
       byPan: ctx.productionMultiPan.byPan,
       annualKwh: ctx.productionMultiPan.annualKwh,
       monthlyKwh: ctx.productionMultiPan.monthlyKwh,
-    };
-  }
-  if (ctx.pv?.monthly && ctx.pv?.total_kwh != null) {
-    return {
-      byPan: [],
-      annualKwh: ctx.pv.total_kwh,
-      monthlyKwh: Array.isArray(ctx.pv.monthly) ? ctx.pv.monthly : [],
     };
   }
   return null;

@@ -186,6 +186,25 @@ export async function buildSelectedScenarioSnapshot({
     pans: Array.isArray(technical?.pans) ? technical.pans : null,
   };
 
+  const calcPv =
+    snapshotDataJson.calc_result?.pv && typeof snapshotDataJson.calc_result.pv === "object"
+      ? snapshotDataJson.calc_result.pv
+      : null;
+  const production_assumptions =
+    scenario.production_assumptions && typeof scenario.production_assumptions === "object"
+      ? scenario.production_assumptions
+      : scenario.production?.assumptions && typeof scenario.production.assumptions === "object"
+        ? scenario.production.assumptions
+        : calcPv?.loss_breakdown
+          ? {
+              base_source: calcPv.source ?? null,
+              pvgis_loss_pct: calcPv.loss_breakdown?.pvgis_loss_pct ?? 0,
+              loss_breakdown: calcPv.loss_breakdown,
+              panel: null,
+              inverter: null,
+            }
+          : null;
+
   const equipment = {
     panneau:
       technical?.panel && typeof technical.panel === "object"
@@ -197,6 +216,18 @@ export async function buildSelectedScenarioSnapshot({
             puissance_wc: technical.panel.power_wc ?? null,
             largeur_mm: technical.panel.width_mm ?? null,
             hauteur_mm: technical.panel.height_mm ?? null,
+            degradation_first_year_pct:
+              technical.panel.degradation_first_year_pct ??
+              production_assumptions?.panel?.degradation_first_year_pct ??
+              null,
+            degradation_annual_pct:
+              technical.panel.degradation_annual_pct ??
+              production_assumptions?.panel?.degradation_annual_pct ??
+              null,
+            temp_coeff_pct_per_deg:
+              technical.panel.temp_coeff_pct_per_deg ??
+              production_assumptions?.panel?.temp_coeff_pct_per_deg ??
+              null,
           }
         : {
             id: null,
@@ -206,6 +237,9 @@ export async function buildSelectedScenarioSnapshot({
             puissance_wc: null,
             largeur_mm: null,
             hauteur_mm: null,
+            degradation_first_year_pct: production_assumptions?.panel?.degradation_first_year_pct ?? null,
+            degradation_annual_pct: production_assumptions?.panel?.degradation_annual_pct ?? null,
+            temp_coeff_pct_per_deg: production_assumptions?.panel?.temp_coeff_pct_per_deg ?? null,
           },
     onduleur:
       technical?.inverter && typeof technical.inverter === "object"
@@ -462,6 +496,7 @@ export async function buildSelectedScenarioSnapshot({
     finance,
     economic_snapshot,
     production,
+    production_assumptions,
     cashflows: flows,
     assumptions,
     ...(meterSnap

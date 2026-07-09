@@ -427,9 +427,44 @@ export function mapScenarioToV2(scenario, ctx) {
 
   const prodAnnual = ctx?.production?.annualKwh ?? ctx?.production?.annual_kwh ?? scenario.energy?.prod ?? scenario.prod_kwh;
   const prodMonthly = ctx?.production?.monthlyKwh ?? ctx?.production?.monthly_kwh ?? null;
+  const pvLossBreakdown =
+    ctx?.pv?.loss_breakdown && typeof ctx.pv.loss_breakdown === "object"
+      ? ctx.pv.loss_breakdown
+      : null;
+  const productionAssumptions = {
+    base_source: ctx?.pv?.source ?? null,
+    pvgis_loss_pct: pvLossBreakdown?.pvgis_loss_pct ?? 0,
+    loss_breakdown: pvLossBreakdown,
+    panel: ctx?.form?.panel_input
+      ? {
+          id: ctx.form.panel_input.panel_id ?? ctx.form.panel_input.id ?? null,
+          brand: ctx.form.panel_input.brand ?? null,
+          model: ctx.form.panel_input.model ?? ctx.form.panel_input.model_ref ?? null,
+          power_wc: ctx.form.panel_input.power_wc ?? null,
+          degradation_first_year_pct:
+            ctx.form.panel_input.degradation_first_year_pct_energy_applied ??
+            ctx.form.panel_input.degradation_first_year_pct ??
+            null,
+          degradation_first_year_source:
+            ctx?.pv?.panel_first_year_loss_source ?? null,
+          degradation_annual_pct: ctx.form.panel_input.degradation_annual_pct ?? null,
+          temp_coeff_pct_per_deg: ctx.form.panel_input.temp_coeff_pct_per_deg ?? null,
+        }
+      : null,
+    inverter: ctx?.form?.pv_inverter
+      ? {
+          id: ctx.form.pv_inverter.inverter_id ?? ctx.form.pv_inverter.id ?? null,
+          brand: ctx.form.pv_inverter.brand ?? null,
+          model: ctx.form.pv_inverter.model_ref ?? ctx.form.pv_inverter.name ?? null,
+          euro_efficiency_pct: ctx.form.pv_inverter.euro_efficiency_pct ?? null,
+          nominal_power_kw_total: ctx.form.pv_inverter.inverter_nominal_kw_total ?? null,
+        }
+      : null,
+  };
   const production = {
     annual_kwh: prodAnnual ?? null,
     monthly_kwh: prodMonthly ?? null,
+    assumptions: productionAssumptions,
   };
 
   const physicalBatteryObj =
@@ -456,6 +491,7 @@ export function mapScenarioToV2(scenario, ctx) {
     oversell_risk_score: Number.isFinite(Number(scenario.oversell_risk_score)) ? Number(scenario.oversell_risk_score) : 0,
     anti_oversell_flags: Array.isArray(scenario.anti_oversell_flags) ? scenario.anti_oversell_flags : [],
     model_version: "ENGINE_V2",
+    production_assumptions: productionAssumptions,
   };
 
   const batteryPhysicalMetrics =
@@ -495,6 +531,7 @@ export function mapScenarioToV2(scenario, ctx) {
     hardware,
     shading,
     production,
+    production_assumptions: productionAssumptions,
     assumptions,
     scenario_uses_piloted_profile: scenario.scenario_uses_piloted_profile === true,
     // COHERENCE MOTEUR : base temporelle effective ("hourly_8760", "monthly_fallback" ou "skipped").

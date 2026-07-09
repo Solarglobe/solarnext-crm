@@ -766,6 +766,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const energy = snapshot.energy || {};
   const finance = snapshot.finance || {};
   const production = snapshot.production || {};
+  const productionAssumptions =
+    snapshot.production_assumptions && typeof snapshot.production_assumptions === "object"
+      ? snapshot.production_assumptions
+      : production.assumptions && typeof production.assumptions === "object"
+        ? production.assumptions
+        : {};
 
   const panneau = equipment.panneau && typeof equipment.panneau === "object" ? equipment.panneau : {};
   const onduleur = equipment.onduleur && typeof equipment.onduleur === "object" ? equipment.onduleur : {};
@@ -1792,7 +1798,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       annualProductionKwh: annualKwh,
       monthlyProduction: monthly,
       specificYield,
+      assumptions: productionAssumptions,
     },
+    production_assumptions: productionAssumptions,
     economics: {
       capex: numOrZero(financeActive.capex_ttc),
       annualRevenue: numOrZero(financeActive.revenu_surplus ?? finance.revenu_surplus),

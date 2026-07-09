@@ -38,7 +38,7 @@ function makeScenario(id, v2 = true) {
 // resolveProductionBlock
 // ---------------------------------------------------------------------------
 describe("resolveProductionBlock", () => {
-  it("retourne le bloc productionMultiPan si présent", () => {
+  it("retourne la production PV nette et conserve le détail par pan si présent", () => {
     const ctx = makeCtx({
       productionMultiPan: {
         byPan: [{ id: "pan-1" }],
@@ -47,7 +47,7 @@ describe("resolveProductionBlock", () => {
       },
     });
     const result = resolveProductionBlock(ctx);
-    assert.equal(result.annualKwh, 6000);
+    assert.equal(result.annualKwh, 5000);
     assert.equal(result.byPan.length, 1);
     assert.equal(result.monthlyKwh.length, 12);
   });
@@ -150,7 +150,7 @@ describe("buildCalcResponse", () => {
     assert.ok(!ids.includes("LEGACY"), "LEGACY ne doit pas être dans scenarios_v2");
   });
 
-  it("production utilise productionMultiPan si présent dans ctx", () => {
+  it("production utilise le total PV net et conserve productionMultiPan en détail", () => {
     const params = baseParams();
     params.ctx.productionMultiPan = {
       byPan: [{ id: "p1" }, { id: "p2" }],
@@ -158,7 +158,7 @@ describe("buildCalcResponse", () => {
       monthlyKwh: Array(12).fill(667),
     };
     const result = buildCalcResponse(params);
-    assert.equal(result.production.annualKwh, 8000);
+    assert.equal(result.production.annualKwh, 5000);
     assert.equal(result.production.byPan.length, 2);
   });
 

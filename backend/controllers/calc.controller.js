@@ -152,6 +152,13 @@ function attachPostPvgisLossBreakdown(ctx, form, clipping) {
       mismatch_loss_pct: Math.round(L_MISMATCH * 10000) / 100,
       availability_loss_pct: Math.round(L_AVAIL * 10000) / 100,
       clipping_loss_pct: Math.round(clippingPct * 100) / 100,
+      clipping_estimation: {
+        label: "clipping estime",
+        method: clipping?.source === "inverter_nominal_kw_total"
+          ? "hourly_model_capped_by_inverter_nominal_power"
+          : "not_applicable",
+        note: "Estimation heure par heure sur la courbe PV 8760h du moteur SolarNext.",
+      },
       panel_first_year_loss_pct: Math.round(firstYearPct * 100) / 100,
       calepinage_shading_loss_pct: Math.round(shadingLossPct * 100) / 100,
       effective_loss_pct_excluding_calepinage_shading: Math.round((1 - combinedFactor) * 10000) / 100,
