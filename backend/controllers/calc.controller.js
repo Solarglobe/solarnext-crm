@@ -439,6 +439,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
         pans: roofPans,
         moduleWp: resolvedModuleWp,
         pv_inverter: form.pv_inverter,
+        globalShadingLossPct: form.shadingLossPct,
       });
       productionMultiPan = multiResult;
       const pvHourly = solarModelService.buildHourlyPV(multiResult.monthlyKwh, ctx);

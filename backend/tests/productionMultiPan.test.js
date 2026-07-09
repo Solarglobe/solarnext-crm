@@ -100,6 +100,30 @@ const SETTINGS = { pricing: { kit_panel_power_w: 485 } };
   const ratio = s20Pan.annualKwh / s0Pan.annualKwh;
   assert(ratio >= 0.78 && ratio <= 0.82, "pan 20% ≈ 80% du pan 0%");
 
+  // ----- 3b) Ombrage global calepinage : applique le % officiel apres PVGIS, meme si les pans sont a 0% -----
+  console.log("\n--- 3b) Shading global calepinage ---");
+  const pansNoShading = [
+    { id: "g0", azimuth: 180, tilt: 30, panelCount: 10, shadingCombinedPct: 0 },
+  ];
+  const rNoGlobal = await computeProductionMultiPan({
+    site: SITE,
+    settings: SETTINGS,
+    pans: pansNoShading,
+    moduleWp: 485,
+  });
+  const rGlobal = await computeProductionMultiPan({
+    site: SITE,
+    settings: SETTINGS,
+    pans: pansNoShading,
+    moduleWp: 485,
+    globalShadingLossPct: 3.9,
+  });
+  const expectedGlobal = rNoGlobal.annualKwh * 0.961;
+  assert(
+    Math.abs(rGlobal.annualKwh - expectedGlobal) / expectedGlobal < 0.001,
+    "shading global 3.9% deduit la production multi-pan"
+  );
+
   // ----- 4) Robustesse : pas de NaN, monthly 12, >= 0 -----
   console.log("\n--- 4) Robustesse ---");
   const r4 = await computeProductionMultiPan({

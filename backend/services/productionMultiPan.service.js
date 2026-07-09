@@ -18,12 +18,19 @@ const DEV_LOG = process.env.NODE_ENV !== "production";
  * @param {Array<{ id: string, azimuth: number, tilt: number, panelCount: number, shadingCombinedPct?: number }>} opts.pans - roof.pans (structure officielle)
  * @param {number} opts.moduleWp - Puissance module Wc (obligatoire si pans non vides — issu du panneau catalogue / panel_input)
  * @param {object} [opts.pv_inverter] - Même bloc que form.pv_inverter (euro_efficiency_pct pour factorAC / pvgisService)
+ * @param {number|null} [opts.globalShadingLossPct] - Perte d'ombrage globale officielle a appliquer apres PVGIS pan par pan.
  * @returns {Promise<{ byPan: Array<{ panId: string, annualKwh: number, monthlyKwh: number[], annualKwhBeforeShading?: number, monthlyBeforeShading?: number[] }>, annualKwh: number, monthlyKwh: number[] }>}
  */
 export async function computeProductionMultiPan(opts) {
   const { site, settings = {}, pans } = opts;
   const moduleWp = Number(opts.moduleWp);
   const pvInverter = opts.pv_inverter && typeof opts.pv_inverter === "object" ? opts.pv_inverter : null;
+  const globalShadingLossPct =
+    opts.globalShadingLossPct == null || opts.globalShadingLossPct === ""
+      ? null
+      : Math.max(0, Math.min(100, Number(opts.globalShadingLossPct)));
+  const hasGlobalShadingLoss =
+    globalShadingLossPct != null && Number.isFinite(globalShadingLossPct) && globalShadingLossPct > 0;
 
   if (!Array.isArray(pans) || pans.length === 0) {
     const empty12 = Array(12).fill(0);
@@ -54,7 +61,9 @@ export async function computeProductionMultiPan(opts) {
     const azimuth = typeof pan.azimuth === "number" && Number.isFinite(pan.azimuth) ? pan.azimuth : 180;
     const tilt = typeof pan.tilt === "number" && Number.isFinite(pan.tilt) ? pan.tilt : 30;
     const panelCount = Math.max(0, Math.floor(Number(pan.panelCount) || 0));
-    const shadingPct = Math.max(0, Math.min(100, Number(pan.shadingCombinedPct) || 0));
+    const shadingPct = hasGlobalShadingLoss
+      ? globalShadingLossPct
+      : Math.max(0, Math.min(100, Number(pan.shadingCombinedPct) || 0));
     const multiplier = 1 - shadingPct / 100;
 
     const kwpPan = (panelCount * moduleWp) / 1000;
