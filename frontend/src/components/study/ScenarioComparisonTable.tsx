@@ -227,14 +227,6 @@ function firstFiniteNumber(...values: unknown[]): number | null {
 }
 
 function gridImportKwhForDisplay(energy: ScenarioV2Energy): number | null {
-  const explicit = firstFiniteNumber(
-    energy.energy_grid_import_kwh,
-    energy.billable_import_kwh,
-    energy.grid_import_kwh,
-    energy.import_kwh
-  );
-  if (explicit != null) return Math.max(0, explicit);
-
   const conso = finiteNumberOrNull(energy.consumption_kwh);
   const solarUsed = firstFiniteNumber(
     energy.site_solar_or_credit_used_kwh,
@@ -242,9 +234,18 @@ function gridImportKwhForDisplay(energy: ScenarioV2Energy): number | null {
     energy.total_pv_used_on_site_kwh,
     energy.autoconsumption_kwh
   );
-  if (conso != null && solarUsed != null) {
-    return Math.max(0, conso - solarUsed);
-  }
+  const inferred =
+    conso != null && solarUsed != null
+      ? Math.max(0, conso - Math.min(conso, solarUsed))
+      : null;
+  const explicit = firstFiniteNumber(
+    energy.energy_grid_import_kwh,
+    energy.billable_import_kwh,
+    energy.grid_import_kwh,
+    energy.import_kwh
+  );
+  if (explicit != null && !(explicit <= 0 && inferred != null && inferred > 0)) return Math.max(0, explicit);
+  if (inferred != null) return inferred;
 
   return null;
 }

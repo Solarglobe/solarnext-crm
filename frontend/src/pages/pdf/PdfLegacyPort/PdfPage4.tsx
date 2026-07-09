@@ -58,6 +58,7 @@ export interface P4Data {
   consommation_annuelle?: number;
   energie_consommee_directement?: number;
   energie_solaire_valorisee?: number;
+  energie_solaire_utilisee_avec_credit_kwh?: number | null;
   reste_reseau_kwh?: number;
   energie_injectee?: number;
   taux_autoconsommation_pct?: number | null;
@@ -132,6 +133,7 @@ export default function PdfPage4({
   const prodAnnuelle = p4.production_annuelle ?? prod.reduce((a, b) => a + (b ?? 0), 0);
   const consoAnnuelle = p4.consommation_annuelle ?? conso.reduce((a, b) => a + (b ?? 0), 0);
   const solarCoveredAnnuelle = p4.energie_solaire_valorisee ?? auto.reduce((a, b) => a + (b ?? 0), 0);
+  const solarUsedWithCreditAnnuelle = p4.energie_solaire_utilisee_avec_credit_kwh ?? solarCoveredAnnuelle;
   const directPvAnnuelle = p4.energie_consommee_directement ?? directPv.reduce((a, b) => a + (b ?? 0), 0);
   const surplusAnnuelle = p4.energie_injectee ?? surplus.reduce((a, b) => a + (b ?? 0), 0);
   const couverture = p4.couverture_besoins_pct;
@@ -146,6 +148,7 @@ export default function PdfPage4({
   const isVirt = scenarioType === "BATTERY_VIRTUAL";
   const isHyb = scenarioType === "BATTERY_HYBRID";
   const isV2h = String(scenarioType).startsWith("VEHICLE_V2H");
+  const isVirtualLike = isVirt || isHyb || String(scenarioType).includes("VIRTUAL");
   // Valeurs : champ mapper si présent, sinon recalcul à partir des données déjà dans p4 (jamais "—")
   const econVm = (viewModel?.economics ?? {}) as { annualRevenue?: number | null };
   const battTotalKwh = batt.reduce((a, b) => a + (b ?? 0), 0);
@@ -155,7 +158,6 @@ export default function PdfPage4({
   const directKwh = directPvAnnuelle || Math.max(0, solarCoveredAnnuelle - (restitutionKwh ?? 0));
   const surplusBrutKwh = p4.surplus_brut_kwh ?? Math.max(0, prodAnnuelle - directKwh);
   const revenuReventeEur = p4.revenu_revente_eur ?? econVm.annualRevenue ?? null;
-  const coutVbEur = p4.cout_batterie_virtuelle_eur ?? null;
   const pertesKwh = p4.pertes_batterie_kwh ?? null;
   const storageLegendLabel = p4.storage_legend_label || "Énergie stockée";
   const storageLegendSublabel = p4.storage_legend_sublabel || "batterie";
@@ -174,17 +176,13 @@ export default function PdfPage4({
       ]
     : isVirt
       ? [
+          { label: "Solaire utilisé + crédit", value: fmtKwh(solarUsedWithCreditAnnuelle) },
           { label: "Crédit virtuel utilisé", value: fmtKwh(restitutionKwh) },
-          coutVbEur != null
-            ? { label: "Coût batterie virtuelle/an", value: fmtEur(coutVbEur) }
-            : { label: "Surplus injecté", value: fmtKwh(surplusAnnuelle) },
         ]
       : isHyb
         ? [
             { label: "Restitution batterie", value: fmtKwh(restitutionKwh) },
-            coutVbEur != null
-              ? { label: "Coût batterie virtuelle/an", value: fmtEur(coutVbEur) }
-              : { label: "Surplus injecté", value: fmtKwh(surplusAnnuelle) },
+            { label: "Solaire utilisé + crédit", value: fmtKwh(solarUsedWithCreditAnnuelle) },
           ]
         : [
             { label: "Surplus brut", value: fmtKwh(surplusBrutKwh) },
@@ -337,7 +335,7 @@ export default function PdfPage4({
           <span className="pill pill-gold" />
           <div className="legend-text"><b>Production PV</b><br /><span className="sub">générateur posé</span></div>
           <span className="pill pill-cyan" />
-          <div className="legend-text"><b>Énergie solaire valorisée</b><br /><span className="sub">direct + stockage restitué</span></div>
+          <div className="legend-text"><b>{isVirtualLike ? "Autoconsommation directe" : "Énergie solaire valorisée"}</b><br /><span className="sub">{isVirtualLike ? "au moment de la production" : "direct + stockage restitué"}</span></div>
           {batt.some((b) => (b ?? 0) > 0) && (
             <>
               <span className="pill pill-green" />
@@ -353,7 +351,7 @@ export default function PdfPage4({
           <div className="p4-kpi-line">
             <div className="kpi-item highlight"><span>Production</span><strong>{fmtKwh(prodAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Consommation</span><strong>{fmtKwh(consoAnnuelle)}</strong></div>
-            <div className="kpi-item highlight"><span>Énergie solaire valorisée</span><strong>{fmtKwh(solarCoveredAnnuelle)}</strong></div>
+            <div className="kpi-item highlight"><span>{isVirtualLike ? "Autoconsommation directe" : "Énergie solaire valorisée"}</span><strong>{fmtKwh(solarCoveredAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Part couverte</span><strong>{fmtPct(couverture)}</strong></div>
             {extraItems.map((it, i) => (
               <div className="kpi-item highlight" key={i}><span>{it.label}</span><strong>{it.value}</strong></div>

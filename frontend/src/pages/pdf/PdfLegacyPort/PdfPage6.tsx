@@ -192,7 +192,7 @@ export default function PdfPage6({
             <div style={{ width: "9mm", height: "9mm", borderRadius: "999mm", background: "#86D8F1" }} />
             <div>
               <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Part couverte par le solaire</div>
-              <div style={{ fontSize: "3mm", color: "#6b7280" }}>Part couverte sans réseau</div>
+              <div style={{ fontSize: "3mm", color: "#6b7280" }}>Part couverte en bilan annuel</div>
             </div>
           </div>
           <div style={{ fontSize: "6mm", fontWeight: 800, marginTop: "2mm" }} id="p6_autonomie">—</div>
@@ -215,8 +215,8 @@ export default function PdfPage6({
           <div style={{ display: "flex", gap: "3mm", alignItems: "center" }}>
             <div style={{ width: "9mm", height: "9mm", borderRadius: "999mm", background: "#B3F4C4" }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Production valorisée sur place</div>
-              <div style={{ fontSize: "3mm", color: "#6b7280" }}>Part de votre production PV consommée</div>
+              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Production PV valorisée</div>
+              <div style={{ fontSize: "3mm", color: "#6b7280" }}>Part de production utilisée ou créditée</div>
             </div>
           </div>
           <div style={{ fontSize: "5.6mm", fontWeight: 800, marginTop: "2mm" }} id="p6_auto_pct">—</div>

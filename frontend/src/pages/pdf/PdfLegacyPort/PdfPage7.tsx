@@ -136,7 +136,7 @@ export default function PdfPage7({
 
   const autonomie = cPv + cBat;
   const autoconsommation = pAuto + pBat;
-  const gridKwh = p7.c_grid ?? 0;
+  const gridKwh = gridImportKwh;
 
   const hasData = autonomie > 0 || cGrid > 0 || pSurplusPct > 0 || autoconsommation > 0;
 

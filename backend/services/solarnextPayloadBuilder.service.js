@@ -360,12 +360,18 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
         shadingCombinedPct: Math.max(0, Math.min(100, Number(p.shadingCombinedPct ?? p.shading_combined_pct) || 0)),
       }))
     : [];
+  const productionShadingFallbackPct =
+    Number.isFinite(Number(shadingResult.totalLossPct)) && Number(shadingResult.totalLossPct) > 0
+      ? Number(shadingResult.totalLossPct)
+      : (Number.isFinite(Number(storedNearLossPct)) && Number(storedNearLossPct) > 0
+          ? Number(storedNearLossPct)
+          : null);
   const roofPansForKpi = ensureRoofPansCarryProductionShading(
     rawRoofPansForProduction,
-    shadingResult.totalLossPct
+    productionShadingFallbackPct
   );
   const weightedCombinedKpi = computeWeightedShadingCombinedPct(roofPansForKpi);
-  let shadingLossPct = shadingResult.totalLossPct;
+  let shadingLossPct = productionShadingFallbackPct ?? shadingResult.totalLossPct;
   if (weightedCombinedKpi != null) {
     shadingLossPct = weightedCombinedKpi;
     shading = {

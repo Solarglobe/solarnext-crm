@@ -337,7 +337,15 @@ function main() {
   assert(digits(vmNiardLike.fullReport?.p1?.p1_auto?.p1_m_gain) === "41951", "P1: projected gain must use net cashflow cumul_eur");
   assert(vmNiardLike.fullReport?.p3?.energy_summary?.exported_kwh <= 7873, "P3: valued surplus cannot exceed annual production");
   assert(vmNiardLike.fullReport?.p4?.economie_annee_1 === 916, "P4: year-1 saving must subtract virtual battery service costs");
+  assert(Math.round(vmNiardLike.fullReport?.p6?.p6?.totals?.grid_import_kwh) === 550, "P6: virtual battery import must remain 550 kWh, not 0");
+  assert(Math.round(vmNiardLike.fullReport?.p7?.energy_grid_import_kwh) === 550, "P7: virtual battery import must remain 550 kWh, not 0");
+  assert(Math.round(vmNiardLike.fullReport?.p7?.estimated_annual_bill_eur) === 726, "P7: annual bill must include virtual battery service costs");
+  assert(Math.round(vmNiardLike.fullReport?.p7?.p_surplus_valorise) === 5627, "P7: valued surplus must be production minus direct PV, not legacy double counted surplus");
+  assert(Math.round(vmNiardLike.fullReport?.p7?.p_surplus_valorise) <= 7873, "P7: valued surplus cannot exceed annual production");
+  assert(Math.round(vmNiardLike.fullReport?.p7_virtual_battery?.kpis?.energy_grid_import_kwh) === 550, "P7VB: energy to buy must remain 550 kWh, not 0");
+  assert(Math.round(vmNiardLike.fullReport?.p7_virtual_battery?.kpis?.estimated_annual_bill_eur) === 726, "P7VB: bill must include energy purchase plus virtual battery costs");
   assert(vmNiardLike.fullReport?.p9?.scenario?.final_cumul === 41951, "P9: chart final net remains cashflow cumul_eur");
+  assert(vmNiardLike.fullReport?.p9?.scenario?.avg_savings_eur_year != null, "P9: average annual savings must be populated from gain cashflows");
   assert(vmNiardLike.fullReport?.p10?.best?.gains_25_eur === 41951, "P10: gain net must align with P9");
   assert(Math.round(vmNiardLike.fullReport?.p10?.best?.autonomy_pct) === 93, "P10: needs covered must include virtual credit");
 

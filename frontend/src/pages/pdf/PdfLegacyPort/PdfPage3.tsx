@@ -100,13 +100,12 @@ export default function PdfPage3({
     (viewModel as { selected_scenario_snapshot?: { scenario_type?: string } })
       ?.selected_scenario_snapshot?.scenario_type ?? ""
   );
-  const isStorageScenario = scenarioType.startsWith("BATTERY");
+  const isStorageScenario = scenarioType.startsWith("BATTERY") || scenarioType.startsWith("VEHICLE_V2H");
   const nOrZero = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : 0);
-  const valorizedSurplusKwh = isStorageScenario
-    ? nOrZero(energy?.battery_discharge_kwh) +
-      nOrZero(energy?.virtual_battery_discharge_kwh) +
-      nOrZero(exportKwh)
-    : null;
+  const valorizedSurplusKwh =
+    exportKwh != null && productionKwh != null
+      ? Math.max(0, Math.min(nOrZero(productionKwh), nOrZero(exportKwh)))
+      : exportKwh;
 
   /* LOT D bis — système de pose toit plat + architecture électrique (payload p3b_auto). */
   const p3bAuto = (fullReport?.p3b as {
@@ -362,7 +361,7 @@ export default function PdfPage3({
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
                 <span style={{ fontSize: "2.65mm", color: "#7a7a7a" }}>
-                  {isStorageScenario ? "Surplus valorisé (batterie / crédit)" : "Énergie injectée"}
+                  {isStorageScenario ? "Surplus brut créditable" : "Énergie injectée"}
                 </span>
                 <span style={{ fontSize: "3.7mm", fontWeight: 700, color: "#333" }}>
                   {isStorageScenario

@@ -184,7 +184,8 @@ function drawChart(dir, bat, grid, tot) {
     /* Carte 3 : part de la PRODUCTION consommée sur place (l'autonomie, carte 1, est déjà
        rapportée à la consommation — deux ratios distincts, fini les deux cartes au même %). */
     const totProd  = totals ? official(totals.production_kwh) : null;
-    const autoPct  = totProd > 0 ? (solarUsed/totProd) : (totConso ? (solarUsed/totConso) : 0);
+    const rawAutoPct = totProd > 0 ? (solarUsed/totProd) : (totConso ? (solarUsed/totConso) : 0);
+    const autoPct = Math.max(0, Math.min(1, rawAutoPct));
 
     $("#p6_autonomie").textContent =
       String(Math.round(autonomie * 100)) + " %";
