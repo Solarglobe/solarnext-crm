@@ -59,6 +59,27 @@ function minPositiveCap(...vals) {
   return finite.length > 0 ? Math.min(...finite) : Infinity;
 }
 
+function resolvePvUsedOnSiteKwh(scenario, isVirtualLike, isPhysicalLike) {
+  const e = scenario?.energy || {};
+  if (isVirtualLike) {
+    const direct = firstFiniteNum(e.direct_self_consumption_kwh);
+    const physicalAuto = firstFiniteNum(e.physical_auto_kwh);
+    const physicalDischarge = firstFiniteNum(e.physical_battery_discharge_kwh, scenario?.battery_discharge_kwh);
+    const localWithPhysical =
+      physicalAuto ??
+      (direct != null && physicalDischarge != null ? direct + physicalDischarge : null);
+    const localPv = isPhysicalLike ? localWithPhysical ?? direct : direct;
+    if (localPv != null) return localPv;
+  }
+  return firstFiniteNum(
+    e.total_pv_used_on_site_kwh,
+    e.energy_solar_used_kwh,
+    e.autoconsumption_kwh,
+    e.auto,
+    scenario?.auto_kwh
+  );
+}
+
 export function mapScenarioToV2(scenario, ctx) {
   const id = scenario.name ?? "BASE";
   const isVirtualLike = id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID" || id === "VEHICLE_V2H_VIRTUAL" || id === "VEHICLE_V2H_PHYSICAL_VIRTUAL";
@@ -86,11 +107,7 @@ export function mapScenarioToV2(scenario, ctx) {
         scenario.energy?.import ??
         null);
 
-  const pvUsedKwhRaw = firstFiniteNum(
-    scenario.energy?.total_pv_used_on_site_kwh,
-    scenario.energy?.autoconsumption_kwh,
-    autoKwh
-  );
+  const pvUsedKwhRaw = resolvePvUsedOnSiteKwh(scenario, isVirtualLike, isPhysicalLike);
   const pvUsedKwh = clampKwh(pvUsedKwhRaw, 0, minPositiveCap(prodKwh, consoKwh));
   const importForKpi = firstFiniteNum(
     importKwhDisplay,
@@ -98,7 +115,18 @@ export function mapScenarioToV2(scenario, ctx) {
     scenario.energy?.grid_import_kwh,
     scenario.import_kwh
   );
-  const surplusKwhForKpi = firstFiniteNum(
+  const virtualCreditedForKpi = firstFiniteNum(
+    scenario.energy?.credited_kwh,
+    scenario.credited_kwh,
+    bvSrc.annual_charge_kwh
+  );
+  const surplusKwhForKpi = isVirtualLike && virtualCreditedForKpi != null
+    ? Math.max(0, virtualCreditedForKpi + (firstFiniteNum(
+        scenario.energy?.exported_kwh,
+        scenario.energy?.surplus,
+        scenario.surplus_kwh
+      ) ?? 0))
+    : firstFiniteNum(
     scenario.energy?.exported_kwh,
     scenario.energy?.surplus,
     scenario.surplus_kwh
@@ -110,7 +138,7 @@ export function mapScenarioToV2(scenario, ctx) {
 
   const kpiPayload = {
     production_kwh: prodKwh,
-    total_pv_used_on_site_kwh: siteSolarOrCreditUsedForKpi ?? pvUsedKwh,
+    total_pv_used_on_site_kwh: pvUsedKwh,
     consumption_kwh: consoKwh,
     grid_import_kwh: importForKpi,
     surplus_kwh: surplusKwhForKpi,

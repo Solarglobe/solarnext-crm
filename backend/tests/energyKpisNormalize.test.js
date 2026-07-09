@@ -271,8 +271,8 @@ function main() {
     { pv: { kwc: 7, panelsCount: 18 } }
   );
   assert(Math.abs((mappedVirtualCapture.energy.site_autonomy_pct ?? 0) - 89.73) < 0.05, "capture BV scenarios_v2 autonomie stabilisee");
-  assert(Math.abs((mappedVirtualCapture.energy.solar_coverage_pct ?? 0) - 89.73) < 0.05, "capture BV scenarios_v2 couverture stabilisee");
-  assert(Math.abs((mappedVirtualCapture.energy.pv_self_consumption_pct ?? 0) - 100) < 0.05, "capture BV scenarios_v2 autoconsommation PV stabilisee");
+  assert(Math.abs((mappedVirtualCapture.energy.solar_coverage_pct ?? 0) - 63.21) < 0.05, "capture BV scenarios_v2 couverture PV locale stabilisee");
+  assert(Math.abs((mappedVirtualCapture.energy.pv_self_consumption_pct ?? 0) - 70.44) < 0.05, "capture BV scenarios_v2 autoconsommation PV locale stabilisee");
   assert(mappedVirtualCapture.energy.energy_grid_import_kwh === 1048, "capture BV scenarios_v2 import stabilise");
   assert(mappedVirtualCapture.energy.site_solar_or_credit_used_kwh === 9152, "capture BV scenarios_v2 energie site couverte");
 

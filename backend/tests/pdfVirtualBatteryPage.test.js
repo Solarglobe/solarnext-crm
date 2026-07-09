@@ -98,7 +98,7 @@ function main() {
   });
   const page = vmVirtual.fullReport?.p7_virtual_battery;
   assert(page != null, "BATTERY_VIRTUAL: virtual battery page must be present");
-  assert(page.with_virtual_battery?.pv_total_used_kwh === 9234, "total PV used must be consumption - canonical import");
+  assert(page.with_virtual_battery?.pv_total_used_kwh === 5000, "total PV used must stay local PV, not consumption - canonical import");
   assert(page.contribution?.recovered_kwh === 4200, "recovered energy must come from battery_discharge_kwh");
 
   const vmPhysical = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
@@ -263,7 +263,7 @@ function main() {
   const p6Totals = vmLegacyInconsistent.fullReport?.p6?.p6?.totals;
   const p6Series = vmLegacyInconsistent.fullReport?.p6?.p6;
   const p7 = vmLegacyInconsistent.fullReport?.p7;
-  assert(Math.round(p6Totals?.solar_used_kwh) === 9152, "P6: covered kWh = consumption - canonical import");
+  assert(Math.round(p6Totals?.solar_used_kwh) === 4733, "P6: solar used kWh must stay local PV, not consumption - canonical import");
   assert(Math.round(p6Totals?.grid_import_kwh) === 1048, "P6: import = canonical import");
   assert(Math.round(p6Series?.grid?.reduce((a, b) => a + b, 0)) === 1048, "P6 chart grid series must match canonical import");
   assert(
@@ -274,9 +274,9 @@ function main() {
     ) === 10200,
     "P6 chart stacked series must match annual consumption"
   );
-  assert(Math.round(p7?.energy_solar_used_kwh) === 9152, "P7: covered kWh = consumption - canonical import");
+  assert(Math.round(p7?.energy_solar_used_kwh) === 4733, "P7: solar used kWh must stay local PV, not consumption - canonical import");
   assert(Math.round(p7?.energy_grid_import_kwh) === 1048, "P7: import = canonical import");
-  assert(Math.round(p7?.solar_coverage_pct) === 90, "P7: pct must match covered kWh");
+  assert(Math.round(p7?.solar_coverage_pct) === 46, "P7: pct must match local PV used kWh");
 
   console.log("OK - pdfVirtualBatteryPage.test");
 }
