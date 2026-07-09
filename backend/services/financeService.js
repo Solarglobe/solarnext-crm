@@ -130,11 +130,12 @@ function pickEconomics(ctx) {
         e.pv_degradation_pct,
       DEFAULT_ECONOMICS_FALLBACK.pv_degradation_pct
     ),
-    // LID (Light-Induced Degradation) — source : fiche panneau uniquement.
-    // Défaut 0 si absent → comportement conservateur (pas de sur-dégradation an 1 inventée).
-    // Évolution future : si f.panel_input?.technology est connu (PERC/TOPCon → ~2-3%, HJT/BSF → ~0.5%),
-    //   utiliser un fallback technologique plutôt que 0. À implémenter avec le catalogue panneaux.
-    pv_degradation_first_year_pct: num(f.panel_input?.degradation_first_year_pct ?? 0, 0),
+    // LID / LeTID : le moteur energetique applique deja la perte an 1 sur la production.
+    // Ici on garde 0 dans les cashflows pour eviter un double retrait.
+    pv_degradation_first_year_pct:
+      f.panel_input?.degradation_first_year_pct_applied_to_energy === true
+        ? 0
+        : num(f.panel_input?.degradation_first_year_pct ?? 0, 0),
     oa_rate_lt_3: num(e.oa_rate_lt_3, DEFAULT_ECONOMICS_FALLBACK.oa_rate_lt_3),
     oa_rate_lt_9: num(e.oa_rate_lt_9, DEFAULT_ECONOMICS_FALLBACK.oa_rate_lt_9),
     oa_rate_gte_9: num(e.oa_rate_gte_9, DEFAULT_ECONOMICS_FALLBACK.oa_rate_gte_9),

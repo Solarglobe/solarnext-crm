@@ -72,6 +72,13 @@ import { computeBifacialGain } from "../shading/bifacialGain.js";
 import { fetchTMY } from "../weather/fetchTMY.js";
 import { computeCellTemperature } from "../weather/cellTemperature.js";
 import {
+  L_CABLE,
+  L_SOIL,
+  L_MISMATCH,
+  L_AVAIL,
+  DEFAULT_INVERTER_EFFICIENCY,
+} from "../services/core/engineConstants.js";
+import {
   buildCalculationConfidenceFromCalc,
   finalizeCalculationConfidence,
 } from "../services/calculationConfidence.service.js";
@@ -83,6 +90,78 @@ import {
 
 function round(n, d = 2) {
   return Math.round(n * 10 ** d) / 10 ** d;
+}
+
+const DEFAULT_PANEL_FIRST_YEAR_LOSS_PCT = 1;
+
+function resolvePanelFirstYearLossPct(panelInput) {
+  const raw = panelInput?.degradation_first_year_pct;
+  const n = Number(raw);
+  if (raw != null && raw !== "" && Number.isFinite(n) && n >= 0) {
+    return {
+      pct: Math.max(0, Math.min(5, n)),
+      source: "panel_catalog",
+      default_used: false,
+    };
+  }
+  return {
+    pct: DEFAULT_PANEL_FIRST_YEAR_LOSS_PCT,
+    source: "default_prudent_missing_panel_lid_letid",
+    default_used: true,
+  };
+}
+
+function applyScalarPvLoss(ctx, multiplier) {
+  if (!ctx?.pv || !Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 1) return;
+  if (Array.isArray(ctx.pv.hourly)) {
+    ctx.pv.hourly = ctx.pv.hourly.map((h) => (Number(h) || 0) * multiplier);
+  }
+  if (Array.isArray(ctx.pv.monthly)) {
+    ctx.pv.monthly = ctx.pv.monthly.map((v) => (Number(v) || 0) * multiplier);
+  }
+  if (typeof ctx.pv.total_kwh === "number") {
+    ctx.pv.total_kwh = Math.round(ctx.pv.total_kwh * multiplier * 100) / 100;
+  }
+}
+
+function attachPostPvgisLossBreakdown(ctx, form, clipping) {
+  if (!ctx?.pv) return;
+  const rawEuroEff = form?.pv_inverter?.euro_efficiency_pct;
+  const etaInv =
+    rawEuroEff != null && Number.isFinite(Number(rawEuroEff)) && Number(rawEuroEff) > 50
+      ? Number(rawEuroEff) / 100
+      : DEFAULT_INVERTER_EFFICIENCY;
+  const factorAC = etaInv * (1 - L_CABLE) * (1 - L_SOIL) * (1 - L_MISMATCH) * (1 - L_AVAIL);
+  const firstYearPct = Number(ctx.pv.panel_first_year_loss_pct || 0);
+  const clippingPct = Number(clipping?.loss_pct || 0);
+  const shadingPct = Number(form?.shadingLossPct);
+  const shadingLossPct = Number.isFinite(shadingPct) && shadingPct > 0 ? Math.max(0, Math.min(100, shadingPct)) : 0;
+  const combinedFactor =
+    factorAC *
+    (1 - Math.max(0, Math.min(100, firstYearPct)) / 100) *
+    (1 - Math.max(0, Math.min(100, clippingPct)) / 100);
+
+  ctx.pv.loss_breakdown = {
+    ...(ctx.pv.loss_breakdown || {}),
+    pvgis_loss_pct: 0,
+    post_pvgis: {
+      inverter_efficiency_pct: Math.round(etaInv * 10000) / 100,
+      inverter_loss_pct: Math.round((1 - etaInv) * 10000) / 100,
+      cable_loss_pct: Math.round(L_CABLE * 10000) / 100,
+      soiling_loss_pct: Math.round(L_SOIL * 10000) / 100,
+      mismatch_loss_pct: Math.round(L_MISMATCH * 10000) / 100,
+      availability_loss_pct: Math.round(L_AVAIL * 10000) / 100,
+      clipping_loss_pct: Math.round(clippingPct * 100) / 100,
+      panel_first_year_loss_pct: Math.round(firstYearPct * 100) / 100,
+      calepinage_shading_loss_pct: Math.round(shadingLossPct * 100) / 100,
+      effective_loss_pct_excluding_calepinage_shading: Math.round((1 - combinedFactor) * 10000) / 100,
+      notes: [
+        "PVGIS appele avec loss=0",
+        "Temperature/irradiance et IAM restent dans le modele PVGIS",
+        "Pertes post-PVGIS appliquees par SolarNext",
+      ],
+    },
+  };
 }
 
 /**
@@ -527,9 +606,41 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     }
 
     // ------------------------------------------------------------
-    // Clipping onduleur : écrêtage de la production horaire à la puissance nominale AC totale.
-    // Appliqué après les deux branches (multi-pan et mono) sur ctx.pv.hourly.
-    // Sans effet si pv_inverter.inverter_nominal_kw_total est absent ou nul (rétrocompatible).
+    // LID / LeTID panneau annee 1 : perte post-PVGIS liee au module.
+    // Valeur fiche panneau si disponible, sinon defaut prudent 1 %.
+    // Appliquee avant clipping pour ne pas surestimer l'ecretage AC/DC.
+    // ------------------------------------------------------------
+    {
+      const firstYearLoss = resolvePanelFirstYearLossPct(form?.panel_input);
+      if (firstYearLoss.pct > 0 && ctx.pv) {
+        const before = Number(ctx.pv.total_kwh || 0);
+        applyScalarPvLoss(ctx, 1 - firstYearLoss.pct / 100);
+        const after = Number(ctx.pv.total_kwh || 0);
+        ctx.pv.panel_first_year_loss_pct = firstYearLoss.pct;
+        ctx.pv.panel_first_year_loss_kwh =
+          before > 0 && after > 0 ? Math.round((before - after) * 10) / 10 : 0;
+        ctx.pv.panel_first_year_loss_source = firstYearLoss.source;
+        ctx.pv.panel_first_year_loss_default_used = firstYearLoss.default_used;
+      } else if (ctx.pv) {
+        ctx.pv.panel_first_year_loss_pct = 0;
+        ctx.pv.panel_first_year_loss_kwh = 0;
+        ctx.pv.panel_first_year_loss_source = firstYearLoss.source;
+        ctx.pv.panel_first_year_loss_default_used = firstYearLoss.default_used;
+      }
+      if (form?.panel_input && typeof form.panel_input === "object") {
+        form.panel_input.degradation_first_year_pct_applied_to_energy = true;
+        form.panel_input.degradation_first_year_pct_energy_applied = firstYearLoss.pct;
+      }
+    }
+
+    let _clippingSummary = {
+      clipped_kwh: 0,
+      loss_pct: 0,
+      source: "not_applicable",
+    };
+    // ------------------------------------------------------------
+    // Clipping onduleur : ecretage de la production horaire a la puissance nominale AC totale.
+    // Sans effet si pv_inverter.inverter_nominal_kw_total est absent ou nul.
     // ------------------------------------------------------------
     const _inverterNominalKwTotal = form?.pv_inverter?.inverter_nominal_kw_total;
     if (
@@ -540,6 +651,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     ) {
       const _cap = Number(_inverterNominalKwTotal);
       let _clippedKwh = 0;
+      const _beforeClipKwh = ctx.pv.hourly.reduce((a, b) => a + (Number(b) || 0), 0);
       ctx.pv.hourly = ctx.pv.hourly.map((h) => {
         const hh = Number(h) || 0;
         if (hh > _cap) {
@@ -548,14 +660,25 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
         }
         return hh;
       });
+      const _afterClipKwh = ctx.pv.hourly.reduce((a, b) => a + (Number(b) || 0), 0);
+      _clippingSummary = {
+        clipped_kwh: Math.round(_clippedKwh * 10) / 10,
+        loss_pct:
+          _beforeClipKwh > 0
+            ? Math.round((_clippedKwh / _beforeClipKwh) * 10000) / 100
+            : 0,
+        source: "inverter_nominal_kw_total",
+      };
       if (_clippedKwh > 0.1) {
-        ctx.pv.clipped_kwh = Math.round(_clippedKwh * 10) / 10;
+        ctx.pv.clipped_kwh = _clippingSummary.clipped_kwh;
+        ctx.pv.clipping_loss_pct = _clippingSummary.loss_pct;
         if (process.env.NODE_ENV !== "production") {
           console.log(`[INVERTER CLIPPING] nominalKw=${_cap} clipped=${_clippedKwh.toFixed(1)} kWh`);
         }
       }
-      ctx.pv.total_kwh = Math.round(ctx.pv.hourly.reduce((a, b) => a + b, 0) * 100) / 100;
+      ctx.pv.total_kwh = Math.round(_afterClipKwh * 100) / 100;
     }
+    attachPostPvgisLossBreakdown(ctx, form, _clippingSummary);
 
     // ------------------------------------------------------------
     // 3) PRODUCTION PV HORAIRE (déjà rempli ci-dessus)
