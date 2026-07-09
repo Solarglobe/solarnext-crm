@@ -771,7 +771,56 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const baseFromV2 = scenariosByKey.BASE || null;
   const batteryPhysicalGlobal = scenariosByKey.BATTERY_PHYSICAL || null;
   const batteryVirtualGlobal = scenariosByKey.BATTERY_VIRTUAL || null;
-  const selectedScenario = scenariosByKey[selectedKey] ?? null;
+  const selectedScenarioFromV2 = scenariosByKey[selectedKey] ?? null;
+  const snapshotScenarioKey = str(snapshot.scenario_type ?? snapshot.id ?? snapshot.name);
+  const useSnapshotAsSelected = !snapshotScenarioKey || snapshotScenarioKey === selectedKey;
+  const selectedSnapshotEnergy = useSnapshotAsSelected ? energy : {};
+  const selectedSnapshotFinance = useSnapshotAsSelected ? finance : {};
+  const selectedSnapshotProduction = useSnapshotAsSelected ? production : {};
+  const selectedSnapshotHardware = useSnapshotAsSelected ? hardware : {};
+  const selectedScenario = {
+    ...(selectedScenarioFromV2 && typeof selectedScenarioFromV2 === "object" ? selectedScenarioFromV2 : {}),
+    id: selectedKey,
+    name: selectedKey,
+    scenario_type: selectedKey,
+    energy: {
+      ...(selectedScenarioFromV2?.energy && typeof selectedScenarioFromV2.energy === "object"
+        ? selectedScenarioFromV2.energy
+        : {}),
+      ...selectedSnapshotEnergy,
+    },
+    finance: {
+      ...(selectedScenarioFromV2?.finance && typeof selectedScenarioFromV2.finance === "object"
+        ? selectedScenarioFromV2.finance
+        : {}),
+      ...selectedSnapshotFinance,
+      annual_cashflows:
+        useSnapshotAsSelected && Array.isArray(finance.annual_cashflows)
+          ? finance.annual_cashflows
+          : useSnapshotAsSelected && Array.isArray(snapshot.cashflows)
+            ? snapshot.cashflows
+            : Array.isArray(selectedScenarioFromV2?.finance?.annual_cashflows)
+              ? selectedScenarioFromV2.finance.annual_cashflows
+              : [],
+    },
+    production: {
+      ...(selectedScenarioFromV2?.production && typeof selectedScenarioFromV2.production === "object"
+        ? selectedScenarioFromV2.production
+        : {}),
+      ...selectedSnapshotProduction,
+    },
+    hardware: {
+      ...(selectedScenarioFromV2?.hardware && typeof selectedScenarioFromV2.hardware === "object"
+        ? selectedScenarioFromV2.hardware
+        : {}),
+      ...selectedSnapshotHardware,
+    },
+    cashflows: useSnapshotAsSelected && Array.isArray(snapshot.cashflows)
+      ? snapshot.cashflows
+      : Array.isArray(selectedScenarioFromV2?.cashflows)
+        ? selectedScenarioFromV2.cashflows
+        : [],
+  };
 
   const batteryHybridGlobal = scenariosByKey.BATTERY_HYBRID || null;
 
@@ -819,12 +868,15 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   }
   const specificYield = systemPowerKw > 0 && annualKwh > 0 ? annualKwh / systemPowerKw : 0;
 
-  const scenarioForFinance = selectedScenario ?? baseFromV2;
+  const scenarioForFinance = selectedScenario;
   const scenarioFinance =
     scenarioForFinance && typeof scenarioForFinance.finance === "object" && scenarioForFinance.finance !== null
       ? scenarioForFinance.finance
       : null;
-  const financeActive = finance && typeof finance === "object" ? finance : (scenarioFinance ?? {});
+  const financeActive =
+    useSnapshotAsSelected && finance && typeof finance === "object"
+      ? finance
+      : (scenarioFinance ?? {});
   const snapshotElecGrowth =
     num(financeActive?.finance_meta?.elec_growth_pct) ??
     num(scenarioFinance?.finance_meta?.elec_growth_pct) ??
@@ -2531,15 +2583,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         };
       })(),
       /**
-       * P9 — Données strictement issues de data_json.scenarios_v2 (aucune lecture snapshot pour le métier).
-       * Clé : options.selected_scenario_id uniquement (pas de repli snapshot.scenario_type).
-       * Capex : finance.capex_ttc ; ROI : finance.roi_years (amortissement TTC) ;
-       * cumul_25y : cumul_eur = position nette après CAPEX TTC ; cumul_gains_eur = somme des flux.
+       * P9 — scénario final : selected_scenario_snapshot prioritaire.
+       * En preview seulement, si le snapshot ne correspond pas au scénario demandé,
+       * scenarios_v2 peut compléter les champs manquants.
        */
       p9: (() => {
-        const p9Key = options.selected_scenario_id;
-        const scenariosArr = Array.isArray(options.scenarios_v2) ? options.scenarios_v2 : [];
-        const scenariosByKey = Object.fromEntries(scenariosArr.map((s) => [s.id ?? s.name ?? "BASE", s]));
+        const p9Key = selectedKey;
         const p9HorizonMeta = Math.max(1, Math.min(50, Math.floor(Number(horizonYearsPdf)) || 25));
         const meta = { client: clientName, ref, date: dateDisplay, horizon_years_pdf: p9HorizonMeta };
 
@@ -2554,12 +2603,16 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           return notFound;
         }
 
-        const scenario = scenariosByKey[p9Key];
+        const scenario = selectedScenario;
         if (!scenario || typeof scenario !== "object") {
           return notFound;
         }
 
-        const flows = scenario.finance?.annual_cashflows ?? [];
+        const flows = Array.isArray(scenario.finance?.annual_cashflows)
+          ? scenario.finance.annual_cashflows
+          : Array.isArray(scenario.cashflows)
+            ? scenario.cashflows
+            : [];
         const p9Horizon = p9HorizonMeta;
 
         const buildCumul25yP9 = (sc) => {

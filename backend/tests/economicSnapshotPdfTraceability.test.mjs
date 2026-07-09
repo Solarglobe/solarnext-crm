@@ -108,6 +108,14 @@ async function buildTraceabilityVm() {
       irr_pct: computed.irr_pct,
       revenu_surplus: 49,
     },
+    cashflows: Array.isArray(computed.flows)
+      ? computed.flows.map((f) => ({
+          year: f.year,
+          gain: f.total_eur,
+          cumul: f.cumul_eur,
+          cumul_gains: f.cumul_gains_eur,
+        }))
+      : [],
   };
 
   const vm = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
@@ -128,8 +136,8 @@ async function buildTraceabilityVm() {
       {
         id: "BASE",
         name: "BASE",
-        energy: snapshot.energy,
-        production: snapshot.production,
+        energy: { ...snapshot.energy, production_kwh: 999999 },
+        production: { annual_kwh: 999999, monthly_kwh: Array(12).fill(83333) },
         finance: {
           ...snapshot.finance,
           capex_ttc: 99999,
@@ -175,6 +183,12 @@ test("PDF keeps frozen OA, price, indexation, prime, CAPEX and residual charge",
   assert.equal(vm.economics.tri, computed.irr_pct);
   assert.notEqual(vm.economics.tri, 99);
   assert.notEqual(vm.economics.roiYears, 1);
+  assert.equal(vm.fullReport.p1.p1_auto.p1_k_gains, `${Math.round(computed.economie_25a).toLocaleString("fr-FR")} \u20ac`);
+  assert.equal(vm.fullReport.p10.best.gains_25_eur, computed.economie_25a);
+  assert.equal(vm.fullReport.p10.best.annual_production_kwh, 7200);
+  assert.notEqual(vm.fullReport.p10.best.annual_production_kwh, 999999);
+  assert.equal(Math.round(vm.fullReport.p9.scenario.final_cumul), Math.round(computed.economie_25a));
+  assert.notEqual(vm.fullReport.p9.scenario.final_cumul, 999999);
   assert.equal(vm.fullReport.p2.p2_auto.p2_economie_nette, `${Math.round(computed.economie_25a).toLocaleString("fr-FR")} \u20ac`);
 });
 
