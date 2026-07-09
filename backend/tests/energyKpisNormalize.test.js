@@ -328,10 +328,11 @@ function main() {
     },
   });
   assert(Math.abs((repairedLegacyHardy.energy.site_autonomy_pct ?? 0) - 89.7) < 0.1, "API repair Hardy autonomie");
-  assert(Math.abs((repairedLegacyHardy.energy.solar_coverage_pct ?? 0) - 89.7) < 0.1, "API repair Hardy couverture");
-  assert(Math.abs((repairedLegacyHardy.energy.pv_self_consumption_pct ?? 0) - 100) < 0.1, "API repair Hardy autoconsommation PV");
+  assert(Math.abs((repairedLegacyHardy.energy.solar_coverage_pct ?? 0) - 63.2) < 0.1, "API repair Hardy couverture PV locale");
+  assert(Math.abs((repairedLegacyHardy.energy.pv_self_consumption_pct ?? 0) - 70.4) < 0.1, "API repair Hardy autoconsommation PV locale");
   assert(Math.abs((repairedLegacyHardy.energy.energy_grid_import_kwh ?? 0) - 1048) < 0.1, "API repair Hardy import");
-  assert(Math.abs((repairedLegacyHardy.energy.energy_solar_used_kwh ?? 0) - 9152) < 0.1, "API repair Hardy energie utilisee");
+  assert(Math.abs((repairedLegacyHardy.energy.energy_solar_used_kwh ?? 0) - 6447) < 0.1, "API repair Hardy energie PV locale utilisee");
+  assert(Math.abs((repairedLegacyHardy.energy.site_solar_or_credit_used_kwh ?? 0) - 9152) < 0.1, "API repair Hardy energie solaire ou credit");
   assert((repairedLegacyHardy.finance.estimated_annual_bill_eur ?? 9999) < 733, "API repair Hardy facture baisse");
   assert((repairedLegacyHardy.finance.economie_year_1 ?? 0) > 2001, "API repair Hardy economie annuelle augmente");
   assert((repairedLegacyHardy.finance.economie_total ?? 0) > 48078, "API repair Hardy economie 25 ans augmente");
@@ -360,7 +361,8 @@ function main() {
   });
   assert(Math.abs((repairedLegacyPdfSnapshot.energy.site_autonomy_pct ?? 0) - 89.7) < 0.1, "PDF snapshot repair Hardy autonomie");
   assert(Math.abs((repairedLegacyPdfSnapshot.energy.energy_grid_import_kwh ?? 0) - 1048) < 0.1, "PDF snapshot repair Hardy import");
-  assert(Math.abs((repairedLegacyPdfSnapshot.energy.energy_solar_used_kwh ?? 0) - 9152) < 0.1, "PDF snapshot repair Hardy energie utilisee");
+  assert(Math.abs((repairedLegacyPdfSnapshot.energy.energy_solar_used_kwh ?? 0) - 8190) < 0.1, "PDF snapshot repair Hardy energie PV locale utilisee");
+  assert(Math.abs((repairedLegacyPdfSnapshot.energy.site_solar_or_credit_used_kwh ?? 0) - 9152) < 0.1, "PDF snapshot repair Hardy energie solaire ou credit");
 
   console.log("OK — energyKpisNormalize\n");
 }

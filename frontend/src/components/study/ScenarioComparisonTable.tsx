@@ -249,6 +249,20 @@ function gridImportKwhForDisplay(energy: ScenarioV2Energy): number | null {
   return null;
 }
 
+function localPvUsedKwhForDisplay(energy: ScenarioV2Energy): number | null {
+  const direct = finiteNumberOrNull(energy.direct_self_consumption_kwh);
+  const physicalAuto = finiteNumberOrNull((energy as ScenarioV2Energy & { physical_auto_kwh?: number | null }).physical_auto_kwh);
+  const physicalDischarge = finiteNumberOrNull(energy.physical_battery_discharge_kwh);
+  if (physicalAuto != null) return Math.max(0, physicalAuto);
+  if (direct != null && physicalDischarge != null) return Math.max(0, direct + physicalDischarge);
+  if (direct != null) return Math.max(0, direct);
+  return firstFiniteNumber(
+    energy.energy_solar_used_kwh,
+    energy.total_pv_used_on_site_kwh,
+    energy.autoconsumption_kwh
+  );
+}
+
 function stabilizedVirtualReadModel(
   id: ScenarioColumnId,
   scenario: ScenarioV2 | null
@@ -275,12 +289,18 @@ function stabilizedVirtualReadModel(
   if (consumption == null || consumption <= 0 || stabilizedImport == null) return energy;
   if (currentImport != null && stabilizedImport >= currentImport) return energy;
 
-  const covered = clampNumber(consumption - stabilizedImport, 0, consumption);
-  const pvSelfCap = production != null && production > 0 ? production : covered;
+  const coveredBySolarOrCredit = clampNumber(consumption - stabilizedImport, 0, consumption);
+  const localPvUsed = clampNumber(
+    localPvUsedKwhForDisplay(energy) ?? coveredBySolarOrCredit,
+    0,
+    Math.min(consumption, production ?? consumption)
+  );
+  const pvSelfCap = production != null && production > 0 ? production : localPvUsed;
   const pvSelfConsumptionPct = production != null && production > 0
-    ? clampNumber((Math.min(covered, pvSelfCap) / production) * 100, 0, 100)
+    ? clampNumber((Math.min(localPvUsed, pvSelfCap) / production) * 100, 0, 100)
     : energy.pv_self_consumption_pct ?? null;
-  const coveragePct = clampNumber((covered / consumption) * 100, 0, 100);
+  const solarCoveragePct = clampNumber((localPvUsed / consumption) * 100, 0, 100);
+  const siteAutonomyPct = clampNumber((coveredBySolarOrCredit / consumption) * 100, 0, 100);
   const discharged = finiteNumberOrNull(
     stabilized?.used_credit_kwh ??
       stabilized?.restored_kwh ??
@@ -297,17 +317,17 @@ function stabilizedVirtualReadModel(
     billable_import_kwh: stabilizedImport,
     grid_import_kwh: stabilizedImport,
     energy_grid_import_kwh: stabilizedImport,
-    autoconsumption_kwh: covered,
-    total_pv_used_on_site_kwh: covered,
-    energy_solar_used_kwh: id === "BATTERY_VIRTUAL" ? covered : energy.energy_solar_used_kwh,
-    site_solar_or_credit_used_kwh: covered,
+    autoconsumption_kwh: localPvUsed,
+    total_pv_used_on_site_kwh: localPvUsed,
+    energy_solar_used_kwh: localPvUsed,
+    site_solar_or_credit_used_kwh: coveredBySolarOrCredit,
     used_credit_kwh: discharged ?? energy.used_credit_kwh,
     restored_kwh: discharged ?? energy.restored_kwh,
     credited_kwh: charged ?? energy.credited_kwh,
     pv_self_consumption_pct: pvSelfConsumptionPct,
-    solar_coverage_pct: coveragePct,
-    site_autonomy_pct: coveragePct,
-    self_production_pct: coveragePct,
+    solar_coverage_pct: solarCoveragePct,
+    site_autonomy_pct: siteAutonomyPct,
+    self_production_pct: solarCoveragePct,
   };
 }
 

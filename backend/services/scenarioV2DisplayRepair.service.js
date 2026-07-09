@@ -155,17 +155,23 @@ export function repairVirtualScenarioDisplayKpis(sc) {
         : null;
   if (repairedImport == null || repairedImport >= currentImport) return sc;
 
-  const covered = clamp(consumption - repairedImport, 0, Math.min(consumption, production));
-  if (covered == null || covered <= directOrYear1PvUsed) return sc;
+  const coveredBySolarOrCredit = clamp(consumption - repairedImport, 0, Math.min(consumption, production));
+  if (coveredBySolarOrCredit == null || coveredBySolarOrCredit <= directOrYear1PvUsed) return sc;
 
-  const coveragePct = round2((covered / consumption) * 100);
-  const pvSelfPct = round2((covered / production) * 100);
+  const localPvUsed = clamp(
+    directOrYear1PvUsed ?? coveredBySolarOrCredit,
+    0,
+    Math.min(consumption, production)
+  );
+  const solarCoveragePct = round2((localPvUsed / consumption) * 100);
+  const pvSelfPct = round2((localPvUsed / production) * 100);
+  const siteAutonomyPct = round2((coveredBySolarOrCredit / consumption) * 100);
   const fixedEnergy = {
     ...energy,
-    autoconsumption_kwh: round2(covered),
-    total_pv_used_on_site_kwh: round2(covered),
-    energy_solar_used_kwh: round2(covered),
-    site_solar_or_credit_used_kwh: round2(covered),
+    autoconsumption_kwh: round2(localPvUsed),
+    total_pv_used_on_site_kwh: round2(localPvUsed),
+    energy_solar_used_kwh: round2(localPvUsed),
+    site_solar_or_credit_used_kwh: round2(coveredBySolarOrCredit),
     import_kwh: round2(repairedImport),
     billable_import_kwh: round2(repairedImport),
     grid_import_kwh: round2(repairedImport),
@@ -175,9 +181,9 @@ export function repairVirtualScenarioDisplayKpis(sc) {
     used_credit_kwh: round2(inferredCredit ?? 0),
     pv_self_consumption_pct: pvSelfPct,
     self_consumption_pct: pvSelfPct,
-    solar_coverage_pct: coveragePct,
-    self_production_pct: coveragePct,
-    site_autonomy_pct: coveragePct,
+    solar_coverage_pct: solarCoveragePct,
+    self_production_pct: solarCoveragePct,
+    site_autonomy_pct: siteAutonomyPct,
   };
 
   const fixedFinance = repairFinanceFromImport(sc, currentImport, repairedImport);
@@ -187,11 +193,11 @@ export function repairVirtualScenarioDisplayKpis(sc) {
     energy: fixedEnergy,
     finance: fixedFinance,
     residual_bill_eur: fixedFinance.residual_bill_eur ?? sc.residual_bill_eur,
-    auto_kwh: round2(covered),
+    auto_kwh: round2(localPvUsed),
     import_kwh: round2(repairedImport),
     billable_import_kwh: round2(repairedImport),
     self_consumption_pct: pvSelfPct,
-    self_production_pct: coveragePct,
+    self_production_pct: solarCoveragePct,
     _display_repair: {
       ...(sc._display_repair && typeof sc._display_repair === "object" ? sc._display_repair : {}),
       virtual_battery_stabilized_from_legacy_snapshot: true,
