@@ -299,8 +299,8 @@ function stabilizedVirtualReadModel(
   const pvSelfConsumptionPct = production != null && production > 0
     ? clampNumber((Math.min(localPvUsed, pvSelfCap) / production) * 100, 0, 100)
     : energy.pv_self_consumption_pct ?? null;
-  const solarCoveragePct = clampNumber((localPvUsed / consumption) * 100, 0, 100);
-  const siteAutonomyPct = clampNumber((coveredBySolarOrCredit / consumption) * 100, 0, 100);
+  const solarCoveragePct = clampNumber((coveredBySolarOrCredit / consumption) * 100, 0, 100);
+  const siteAutonomyPct = clampNumber((localPvUsed / consumption) * 100, 0, 100);
   const discharged = finiteNumberOrNull(
     stabilized?.used_credit_kwh ??
       stabilized?.restored_kwh ??
@@ -319,7 +319,7 @@ function stabilizedVirtualReadModel(
     energy_grid_import_kwh: stabilizedImport,
     autoconsumption_kwh: localPvUsed,
     total_pv_used_on_site_kwh: localPvUsed,
-    energy_solar_used_kwh: localPvUsed,
+    energy_solar_used_kwh: coveredBySolarOrCredit,
     site_solar_or_credit_used_kwh: coveredBySolarOrCredit,
     used_credit_kwh: discharged ?? energy.used_credit_kwh,
     restored_kwh: discharged ?? energy.restored_kwh,
@@ -395,6 +395,7 @@ function buildKeyIndicatorRows(
   energy: ScenarioV2Energy,
   finance: ScenarioV2Finance,
   solarCoveragePctDerived: number | null,
+  siteAutonomyPctDerived: number | null,
   stars: { auto: boolean; tri: boolean; savings: boolean }
 ): ReadonlyArray<{ label: string; value: string; star: boolean }> {
   const rows: { label: string; value: string; star: boolean }[] = [];
@@ -426,7 +427,9 @@ function buildKeyIndicatorRows(
     rows.push({ label: "Besoins couverts par le solaire", value: formatPercent(cover), star: false });
   }
 
-  const siteAut = finiteNumberOrNull(energy.site_autonomy_pct);
+  const siteAut = isVirtualLikeScenarioId(id)
+    ? siteAutonomyPctDerived
+    : finiteNumberOrNull(energy.site_autonomy_pct);
   if (siteAut != null) rows.push({ label: "Autonomie site", value: formatPercent(siteAut), star: false });
 
   const roi = finiteNumberOrNull(finance.roi_years);
@@ -885,8 +888,6 @@ export default function ScenarioComparisonTable({
               ? (virtualSentKwh ?? 0) + (overflowKwh != null ? Number(overflowKwh) : 0)
               : null
           );
-          const totalSelfConsumptionPct = firstFiniteNumber(energy.pv_self_consumption_pct);
-
           const subscriptionAnnual =
             costs.battery_virtual_annual_cost ??
             finance.virtual_battery_cost_annual ??
@@ -899,8 +900,14 @@ export default function ScenarioComparisonTable({
               scenario?.finance?.note === "MISSING_PROVIDER_TIER_FOR_REQUIRED_CAPACITY");
 
           const residualBillEur = getResidualBillEurForDisplay(finance);
+          const localPvUsedKwh = localPvUsedKwhForDisplay(energy);
           const solarUsedKwh = isVirtualLikeScenarioId(id)
-            ? localPvUsedKwhForDisplay(energy)
+            ? firstFiniteNumber(
+                energy.site_solar_or_credit_used_kwh,
+                energy.energy_solar_used_kwh,
+                energy.autoconsumption_kwh,
+                localPvUsedKwh
+              )
             : energy.energy_solar_used_kwh != null && Number.isFinite(Number(energy.energy_solar_used_kwh))
               ? Number(energy.energy_solar_used_kwh)
               : autoKwh;
@@ -909,8 +916,19 @@ export default function ScenarioComparisonTable({
             solarUsedKwh != null && consoKwh != null && consoKwh > 0
               ? (solarUsedKwh / consoKwh) * 100
               : null;
+          const localSiteAutonomyPct =
+            isVirtualLikeScenarioId(id) && localPvUsedKwh != null && consoKwh != null && consoKwh > 0
+              ? (localPvUsedKwh / consoKwh) * 100
+              : null;
+          const totalSelfConsumptionPct = isVirtualLikeScenarioId(id)
+            ? (
+                solarCoveragePct != null
+                  ? solarCoveragePct
+                  : firstFiniteNumber(energy.solar_coverage_pct, energy.site_autonomy_pct)
+              )
+            : firstFiniteNumber(energy.pv_self_consumption_pct);
 
-          const keyIndicatorRows = buildKeyIndicatorRows(id, energy, finance, solarCoveragePct, {
+          const keyIndicatorRows = buildKeyIndicatorRows(id, energy, finance, solarCoveragePct, localSiteAutonomyPct, {
             auto: commercialIndicatorStars.auto.has(originalIndex),
             tri: commercialIndicatorStars.tri.has(originalIndex),
             savings: commercialIndicatorStars.savings.has(originalIndex),

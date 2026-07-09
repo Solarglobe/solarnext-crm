@@ -327,8 +327,8 @@ function main() {
       residual_bill_eur: 733,
     },
   });
-  assert(Math.abs((repairedLegacyHardy.energy.site_autonomy_pct ?? 0) - 89.7) < 0.1, "API repair Hardy autonomie");
-  assert(Math.abs((repairedLegacyHardy.energy.solar_coverage_pct ?? 0) - 63.2) < 0.1, "API repair Hardy couverture PV locale");
+  assert(Math.abs((repairedLegacyHardy.energy.site_autonomy_pct ?? 0) - 63.2) < 0.1, "API repair Hardy autonomie locale");
+  assert(Math.abs((repairedLegacyHardy.energy.solar_coverage_pct ?? 0) - 89.7) < 0.1, "API repair Hardy couverture solaire avec credit");
   assert(Math.abs((repairedLegacyHardy.energy.pv_self_consumption_pct ?? 0) - 70.4) < 0.1, "API repair Hardy autoconsommation PV locale");
   assert(Math.abs((repairedLegacyHardy.energy.energy_grid_import_kwh ?? 0) - 1048) < 0.1, "API repair Hardy import");
   assert(Math.abs((repairedLegacyHardy.energy.energy_solar_used_kwh ?? 0) - 6447) < 0.1, "API repair Hardy energie PV locale utilisee");
@@ -359,7 +359,8 @@ function main() {
       residual_bill_eur: 733,
     },
   });
-  assert(Math.abs((repairedLegacyPdfSnapshot.energy.site_autonomy_pct ?? 0) - 89.7) < 0.1, "PDF snapshot repair Hardy autonomie");
+  assert(Math.abs((repairedLegacyPdfSnapshot.energy.site_autonomy_pct ?? 0) - 80.3) < 0.1, "PDF snapshot repair Hardy autonomie locale");
+  assert(Math.abs((repairedLegacyPdfSnapshot.energy.solar_coverage_pct ?? 0) - 89.7) < 0.1, "PDF snapshot repair Hardy couverture solaire avec credit");
   assert(Math.abs((repairedLegacyPdfSnapshot.energy.energy_grid_import_kwh ?? 0) - 1048) < 0.1, "PDF snapshot repair Hardy import");
   assert(Math.abs((repairedLegacyPdfSnapshot.energy.energy_solar_used_kwh ?? 0) - 8190) < 0.1, "PDF snapshot repair Hardy energie PV locale utilisee");
   assert(Math.abs((repairedLegacyPdfSnapshot.energy.site_solar_or_credit_used_kwh ?? 0) - 9152) < 0.1, "PDF snapshot repair Hardy energie solaire ou credit");

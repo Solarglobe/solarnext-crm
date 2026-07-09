@@ -163,9 +163,9 @@ export function repairVirtualScenarioDisplayKpis(sc) {
     0,
     Math.min(consumption, production)
   );
-  const solarCoveragePct = round2((localPvUsed / consumption) * 100);
+  const solarCoveragePct = round2((coveredBySolarOrCredit / consumption) * 100);
   const pvSelfPct = round2((localPvUsed / production) * 100);
-  const siteAutonomyPct = round2((coveredBySolarOrCredit / consumption) * 100);
+  const siteAutonomyPct = round2((localPvUsed / consumption) * 100);
   const fixedEnergy = {
     ...energy,
     autoconsumption_kwh: round2(localPvUsed),
