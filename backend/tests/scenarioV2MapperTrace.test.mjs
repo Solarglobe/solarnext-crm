@@ -100,7 +100,7 @@ function readGuard(snapshotEngineVersion, engineCoherent = true) {
 }
 
 test("Snapshot V12 : needs_recompute=true, display_blocked=true, blocked_reason renseigne", () => {
-  const g = readGuard("SmartPitch V-LIGHT V12");
+  const g = readGuard("SmartPitch V-LIGHT V13");
   assert.strictEqual(g.needs_recompute, true);
   assert.strictEqual(g.display_blocked, true);
   assert.strictEqual(g.blocked_reason, "STALE_SNAPSHOT_ENGINE_VERSION");

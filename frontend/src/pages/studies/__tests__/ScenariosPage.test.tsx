@@ -182,8 +182,8 @@ describe("ScenariosPage", () => {
       needs_recompute: true,
       stale_snapshot: true,
       engine_coherent: false,
-      snapshot_engine_version: "SmartPitch V-LIGHT V12",
-      current_engine_version: "SmartPitch V-LIGHT V13",
+      snapshot_engine_version: "SmartPitch V-LIGHT V13",
+      current_engine_version: "SmartPitch V-LIGHT V14",
     };
     const freshBody = {
       ok: true,
@@ -196,8 +196,8 @@ describe("ScenariosPage", () => {
       needs_recompute: false,
       stale_snapshot: false,
       engine_coherent: true,
-      snapshot_engine_version: "SmartPitch V-LIGHT V13",
-      current_engine_version: "SmartPitch V-LIGHT V13",
+      snapshot_engine_version: "SmartPitch V-LIGHT V14",
+      current_engine_version: "SmartPitch V-LIGHT V14",
     };
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
