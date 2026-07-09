@@ -430,7 +430,13 @@ function buildKeyIndicatorRows(
   const siteAut = isVirtualLikeScenarioId(id)
     ? siteAutonomyPctDerived
     : finiteNumberOrNull(energy.site_autonomy_pct);
-  if (siteAut != null) rows.push({ label: "Autonomie site", value: formatPercent(siteAut), star: false });
+  if (siteAut != null) {
+    rows.push({
+      label: isVirtualLikeScenarioId(id) ? "Autonomie locale" : "Autonomie site",
+      value: formatPercent(siteAut),
+      star: false,
+    });
+  }
 
   const roi = finiteNumberOrNull(finance.roi_years);
   if (roi != null) rows.push({ label: "ROI", value: formatYears(roi), star: false });
@@ -901,9 +907,19 @@ export default function ScenarioComparisonTable({
 
           const residualBillEur = getResidualBillEurForDisplay(finance);
           const localPvUsedKwh = localPvUsedKwhForDisplay(energy);
+          const gridToBuyKwh = gridImportKwhForDisplay(energy);
+          const solarOrCreditFromImportKwh =
+            isVirtualLikeScenarioId(id) &&
+            consoKwh != null &&
+            consoKwh > 0 &&
+            gridToBuyKwh != null &&
+            Number.isFinite(Number(gridToBuyKwh))
+              ? Math.max(0, Math.min(consoKwh, consoKwh - Number(gridToBuyKwh)))
+              : null;
           const solarUsedKwh = isVirtualLikeScenarioId(id)
             ? firstFiniteNumber(
                 energy.site_solar_or_credit_used_kwh,
+                solarOrCreditFromImportKwh,
                 energy.energy_solar_used_kwh,
                 energy.autoconsumption_kwh,
                 localPvUsedKwh
@@ -911,7 +927,6 @@ export default function ScenarioComparisonTable({
             : energy.energy_solar_used_kwh != null && Number.isFinite(Number(energy.energy_solar_used_kwh))
               ? Number(energy.energy_solar_used_kwh)
               : autoKwh;
-          const gridToBuyKwh = gridImportKwhForDisplay(energy);
           const solarCoveragePct =
             solarUsedKwh != null && consoKwh != null && consoKwh > 0
               ? (solarUsedKwh / consoKwh) * 100

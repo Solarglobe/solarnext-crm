@@ -1814,7 +1814,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
                 : "batterie",
         kpi_labels: {
           pv_self_consumption: "Autoconsommation PV",
-          site_autonomy: "Autonomie site",
+          site_autonomy: isVirtualLikeScenario ? "Autonomie locale" : "Autonomie site",
           grid_import: "Import réseau",
           battery_restored: "Énergie restituée batterie",
         },
