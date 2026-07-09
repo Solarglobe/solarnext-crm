@@ -415,7 +415,9 @@ function buildKeyIndicatorRows(
       star: isVirtualLikeScenarioId(id) ? false : stars.auto,
     });
 
-  const coverPref = finiteNumberOrNull(energy.solar_coverage_pct ?? energy.self_production_pct);
+  const coverPref = isVirtualLikeScenarioId(id)
+    ? null
+    : finiteNumberOrNull(energy.solar_coverage_pct ?? energy.self_production_pct);
   let cover: number | null = coverPref;
   if (cover == null && solarCoveragePctDerived != null && Number.isFinite(solarCoveragePctDerived)) {
     cover = solarCoveragePctDerived;
@@ -897,12 +899,9 @@ export default function ScenarioComparisonTable({
               scenario?.finance?.note === "MISSING_PROVIDER_TIER_FOR_REQUIRED_CAPACITY");
 
           const residualBillEur = getResidualBillEurForDisplay(finance);
-          const solarUsedKwh =
-            isVirtualLikeScenarioId(id) &&
-            energy.site_solar_or_credit_used_kwh != null &&
-            Number.isFinite(Number(energy.site_solar_or_credit_used_kwh))
-              ? Number(energy.site_solar_or_credit_used_kwh)
-              : energy.energy_solar_used_kwh != null && Number.isFinite(Number(energy.energy_solar_used_kwh))
+          const solarUsedKwh = isVirtualLikeScenarioId(id)
+            ? localPvUsedKwhForDisplay(energy)
+            : energy.energy_solar_used_kwh != null && Number.isFinite(Number(energy.energy_solar_used_kwh))
               ? Number(energy.energy_solar_used_kwh)
               : autoKwh;
           const gridToBuyKwh = gridImportKwhForDisplay(energy);
