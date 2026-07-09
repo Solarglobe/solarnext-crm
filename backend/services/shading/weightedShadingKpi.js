@@ -25,3 +25,31 @@ export function computeWeightedShadingCombinedPct(roofPans) {
   if (sumW <= 0) return null;
   return Math.round((sumPct / sumW) * 1000) / 1000;
 }
+
+/**
+ * Le moteur de production multi-pan applique uniquement `pans[].shadingCombinedPct`.
+ * Si le calpinage a calculé une perte globale mais que les pans arrivent sans perte
+ * exploitable, on propage cette perte globale à chaque pan pour qu'elle impacte
+ * toujours la productibilité finale.
+ *
+ * @param {Array<object>} roofPans
+ * @param {number|null|undefined} globalLossPct
+ * @returns {Array<object>}
+ */
+export function ensureRoofPansCarryProductionShading(roofPans, globalLossPct) {
+  if (!Array.isArray(roofPans) || roofPans.length === 0) return [];
+  const global = Number(globalLossPct);
+  const fallbackLoss =
+    Number.isFinite(global) && global > 0
+      ? Math.max(0, Math.min(100, global))
+      : null;
+  if (fallbackLoss == null) return roofPans;
+
+  const weighted = computeWeightedShadingCombinedPct(roofPans);
+  if (weighted != null && weighted > 0) return roofPans;
+
+  return roofPans.map((p) => ({
+    ...p,
+    shadingCombinedPct: fallbackLoss,
+  }));
+}

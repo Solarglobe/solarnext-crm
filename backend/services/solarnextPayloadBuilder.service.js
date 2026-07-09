@@ -27,7 +27,10 @@ import {
   slimOfficialForParityDebug,
   slimUiForParityDebug,
 } from "./calpinage/shadingParity.service.js";
-import { computeWeightedShadingCombinedPct } from "./shading/weightedShadingKpi.js";
+import {
+  computeWeightedShadingCombinedPct,
+  ensureRoofPansCarryProductionShading,
+} from "./shading/weightedShadingKpi.js";
 import { auditMultiPanShadingMismatch } from "./shading/shadingCommercialAudit.service.js";
 import { resolveConsumptionCsv } from "./consumptionCsvResolver.service.js";
 import { extractPvInverterFromCalpinagePayload } from "./pv/inverterFinanceContext.js";
@@ -348,7 +351,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
    *
    * @see docs/shading-kpi-contract.md §2.4 (KPI pondéré multi-pans vs combined moteur).
    */
-  const roofPansForKpi = Array.isArray(pans)
+  const rawRoofPansForProduction = Array.isArray(pans)
     ? pans.map((p) => ({
         id: p.id,
         azimuth: typeof p.azimuth === "number" ? p.azimuth : (p.orientationDeg ?? 180),
@@ -357,6 +360,10 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
         shadingCombinedPct: Math.max(0, Math.min(100, Number(p.shadingCombinedPct ?? p.shading_combined_pct) || 0)),
       }))
     : [];
+  const roofPansForKpi = ensureRoofPansCarryProductionShading(
+    rawRoofPansForProduction,
+    shadingResult.totalLossPct
+  );
   const weightedCombinedKpi = computeWeightedShadingCombinedPct(roofPansForKpi);
   let shadingLossPct = shadingResult.totalLossPct;
   if (weightedCombinedKpi != null) {
