@@ -351,6 +351,19 @@ function getFinanceBaselineBillBeforeSolarEuro(finance: ScenarioV2Finance): numb
   );
 }
 
+function getScenarioFinalNetSavingsEuro(finance: ScenarioV2Finance): number | null {
+  const flows = Array.isArray(finance.annual_cashflows)
+    ? (finance.annual_cashflows as Array<Record<string, unknown>>)
+    : [];
+  if (flows.length > 0) {
+    const y25 = flows.find((flow) => finiteNumberOrNull(flow.year) === 25);
+    const last = y25 ?? flows[flows.length - 1];
+    const cumul = finiteNumberOrNull(last?.cumul_eur ?? last?.cumul);
+    if (cumul != null) return cumul;
+  }
+  return finiteNumberOrNull(finance.economie_total ?? finance.total_savings_25y);
+}
+
 /** Indices des colonnes au maximum sur une métrique (lecture seule, pour repères visuels ⭐). */
 function columnIndicesAtNumericMax(values: readonly (number | null)[]): Set<number> {
   let max = -Infinity;
@@ -379,9 +392,7 @@ function computeCommercialIndicatorStars(scenarios: readonly (ScenarioV2 | null)
   const triVals = scenarios.map((s) =>
     s ? finiteNumberOrNull(s.finance?.irr_pct ?? s.finance?.tri) : null
   );
-  const savingsVals = scenarios.map((s) =>
-    s ? finiteNumberOrNull(s.finance?.economie_total ?? s.finance?.total_savings_25y) : null
-  );
+  const savingsVals = scenarios.map((s) => (s ? getScenarioFinalNetSavingsEuro(s.finance ?? {}) : null));
   return {
     auto: columnIndicesAtNumericMax(autoVals),
     tri: columnIndicesAtNumericMax(triVals),
@@ -453,7 +464,7 @@ function buildKeyIndicatorRows(
     );
   const horizonYears = horizonEco != null && horizonEco > 0 ? Math.floor(horizonEco) : 25;
 
-  const sav25 = finiteNumberOrNull(finance.economie_total ?? finance.total_savings_25y);
+  const sav25 = getScenarioFinalNetSavingsEuro(finance);
   if (sav25 != null)
     rows.push({
       label: `Économies (${horizonYears} ans)`,
@@ -778,9 +789,7 @@ export default function ScenarioComparisonTable({
 
   const commercialIndicatorStars = computeCommercialIndicatorStars(scenarios);
   const bestGainNetIndices = columnIndicesAtNumericMax(
-    scenarios.map((s) =>
-      s ? finiteNumberOrNull(s.finance?.economie_total ?? s.finance?.total_savings_25y) : null
-    )
+    scenarios.map((s) => (s ? getScenarioFinalNetSavingsEuro(s.finance ?? {}) : null))
   );
 
   const visibleColumns = computeVisibleColumns(scenarios);
@@ -952,7 +961,7 @@ export default function ScenarioComparisonTable({
           const capexTtc = finiteNumberOrNull(finance.capex_ttc);
           const roiYearsFinance = finiteNumberOrNull(finance.roi_years);
           const triPctFinance = finiteNumberOrNull(finance.irr_pct ?? finance.tri);
-          const totalSavingsFinance = finiteNumberOrNull(finance.economie_total ?? finance.total_savings_25y);
+          const totalSavingsFinance = getScenarioFinalNetSavingsEuro(finance);
           const beforeBillSolar = getFinanceBaselineBillBeforeSolarEuro(finance);
 
           const isSelectedLocked =

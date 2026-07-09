@@ -908,6 +908,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     num(energyForKpis.energy_independence_pct) ??
     num(energyForKpis.independence_pct) ??
     resolveSiteAutonomyPct(energyForKpis);
+  const solarCoveragePctForSummary =
+    resolveSiteCoverageFromPvPct(energyForKpis) ??
+    autonomyPct;
   const pvSelfConsumptionPct = resolvePvSelfConsumptionPct(energyForKpis);
   const selfConsumptionPct = pvSelfConsumptionPct;
 
@@ -929,6 +932,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     num(meta.annual_consumption_kwh) ??
     null;
   const economieTotal =
+    cumulEurEndFromScenario(scenarioForFinance) ??
+    num(financeActive.gain_25a) ??
+    num(financeActive.economie_25a) ??
     num(financeActive.economie_total) ??
     numOrZero(financeActive.economie_year_1) * horizonYearsPdf;
   const irrPct = num(financeActive.irr_pct);
@@ -941,10 +947,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p1_date: dateDisplay || "—",
     p1_why: "Étude photovoltaïque personnalisée",
     p1_m_kwc: formatKwC(systemPowerKw) || systemPowerKw,
-    p1_m_auto: autonomyPct != null ? roundPercent(autonomyPct) : null,
+    p1_m_auto: solarCoveragePctForSummary != null ? roundPercent(solarCoveragePctForSummary) : null,
     p1_m_gain: formatCurrency0(economieTotal) || formatCurrency0(numOrZero(financeActive.economie_year_1) * horizonYearsPdf),
     p1_k_puissance: formatKwC(num(hardware.kwc) ?? systemPowerKw),
-    p1_k_autonomie: roundPercent(autonomyPct ?? num(energy.energy_independence_pct)),
+    p1_k_autonomie: roundPercent(solarCoveragePctForSummary ?? num(energy.energy_independence_pct)),
     p1_k_tri: oneDecimalPercent(irrPct),
     p1_k_gains: formatCurrency0(economieTotal),
     p1_k_gains_label: `Gains (${horizonYearsPdf} ans)`,
@@ -1012,7 +1018,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     return num(row.cumul_gains_eur ?? row.cumul_gains);
   };
   const _p2EcoAn1 = num(financeActive.economie_an1) ?? num(financeActive.economie_year_1);
-  const _p2PriceEffConso = num(scenarioForFinance?.pricing?.p_eff_conso);
+  const _p2PriceEffConso =
+    num(scenarioForFinance?.pricing?.p_eff_conso) ??
+    num(econDisplay.price_eur_kwh);
   // Priorité : conso × prix effectif (source unique, strictement commune aux variantes) ;
   // sinon reconstruction par la définition moteur de l'économie an 1.
   const _p2BillBeforeY1 =
@@ -1278,7 +1286,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
 
   const consumptionKwh = num(energy.consumption_kwh) ?? consoAnnuelle ?? 0;
   const economieAn1 = numOrZero(financeActive.economie_year_1);
-  const annualSavings = Math.max(0, economieAn1);
+  const annualSavingsNetFromBills =
+    _p2BillBeforeY1 != null && Number.isFinite(_p2BillBeforeY1)
+      ? Math.max(0, Math.round(_p2BillBeforeY1 - annualBillWithSolar))
+      : null;
+  const annualSavings =
+    isVirtualLikeScenarioId(selectedKey) && annualSavingsNetFromBills != null
+      ? annualSavingsNetFromBills
+      : Math.max(0, economieAn1);
 
   const batteryKwhP11 =
     num(equipment.batterie?.capacite_kwh) ??
@@ -1313,9 +1328,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       ? scenarioForFinance.energy
       : energy;
   const autonomyPctP10 =
-    num(energyP10.site_autonomy_pct) ??
-    num(energyP10.energy_independence_pct) ??
-    num(energyP10.independence_pct) ??
+    resolveSiteCoverageFromPvPct(energyP10) ??
+    num(energyP10.solar_coverage_pct) ??
+    num(energyP10.self_production_pct) ??
     resolveSiteAutonomyPct(energyP10);
   const selfConsumptionPctP10 = resolvePvSelfConsumptionPct(energyP10);
 
@@ -1813,7 +1828,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           production_kwh: prodAnnuelle,
           consumption_kwh: consoAnnuelleP4,
           solar_used_kwh: autoAnnuelle,
-          exported_kwh: surplusAnnuelle,
+          exported_kwh: isVirtualLikeScenario ? _p4SurplusBrutKwh : surplusAnnuelle,
           grid_import_kwh: importAnnuelle,
           coverage_pct: couverturePct,
           pv_self_consumption_pct: tauxAutoPct,
@@ -1837,11 +1852,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         energie_consommee_directement: _p4DirectKwh,
         energie_solaire_valorisee: autoAnnuelle,
         reste_reseau_kwh: importAnnuelle,
-        energie_injectee: surplusAnnuelle,
+        energie_injectee: isVirtualLikeScenario ? _p4SurplusBrutKwh : surplusAnnuelle,
         taux_autoconsommation_pct: tauxAutoPct,
         couverture_besoins_pct: couverturePct,
         autonomie_pct: autonomyPct,
-        economie_annee_1: economieAn1,
+        economie_annee_1: annualSavings,
         scenario_type: str(selectedKey),
         surplus_brut_kwh: Math.round(_p4SurplusBrutKwh),
         revenu_revente_eur: Math.round(_p4RevenuReventeEur),

@@ -9,6 +9,10 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
+function digits(v) {
+  return String(v ?? "").replace(/\D/g, "");
+}
+
 function buildSnapshot() {
   return {
     scenario_type: "BASE",
@@ -277,6 +281,65 @@ function main() {
   assert(Math.round(p7?.energy_solar_used_kwh) === 9152, "P7: solar used kWh includes virtual battery credit");
   assert(Math.round(p7?.energy_grid_import_kwh) === 1048, "P7: import = canonical import");
   assert(Math.round(p7?.solar_coverage_pct) === 90, "P7: pct must match solar plus virtual credit");
+
+  const niardLikeSnapshot = {
+    ...snapshot,
+    scenario_type: "BATTERY_VIRTUAL",
+    installation: { puissance_kwc: 7, panneaux_nombre: 14, production_annuelle_kwh: 7873 },
+    energy: {
+      production_kwh: 7873,
+      consumption_kwh: 8421,
+      direct_self_consumption_kwh: 2246,
+      total_pv_used_on_site_kwh: 2246,
+      autoconsumption_kwh: 2246,
+      site_solar_or_credit_used_kwh: 7871,
+      virtual_battery_discharge_kwh: 5624,
+      used_credit_kwh: 5624,
+      restored_kwh: 5624,
+      import_kwh: 550,
+      billable_import_kwh: 550,
+      energy_grid_import_kwh: 550,
+      surplus_kwh: 11249,
+      pv_self_consumption_pct: 28.6,
+      solar_coverage_pct: 93.5,
+      site_autonomy_pct: 26.7,
+    },
+    finance: {
+      capex_ttc: 12120,
+      economie_year_1: 1644,
+      economie_total: 60088,
+      roi_years: 10,
+      irr_pct: 12,
+      facture_restante: 107,
+      virtual_battery_cost_annual: 619,
+      annual_cashflows: Array.from({ length: 25 }, (_, i) => ({
+        year: i + 1,
+        total_eur: i === 0 ? 918 : 1709,
+        cumul_gains_eur: i === 24 ? 54071 : 918 + i * 1709,
+        cumul_eur: i === 24 ? 41951 : -12120 + 918 + i * 1709,
+      })),
+    },
+    production: { annual_kwh: 7873, monthly_kwh: Array(12).fill(656) },
+    economic_snapshot: { price_eur_kwh: 0.195, elec_growth_pct: 5, horizon_years: 25, oa_rate_eur_kwh: 0.011, capex_ttc: 12120 },
+    conso: { annual_kwh: 8421 },
+    cashflows: Array.from({ length: 25 }, (_, i) => ({
+      year: i + 1,
+      gain: i === 0 ? 918 : 1709,
+      cumul_gains: i === 24 ? 54071 : 918 + i * 1709,
+      cumul: i === 24 ? 41951 : -12120 + 918 + i * 1709,
+    })),
+  };
+  const vmNiardLike = mapSelectedScenarioSnapshotToPdfViewModel(niardLikeSnapshot, {
+    selected_scenario_id: "BATTERY_VIRTUAL",
+    scenarios_v2: [],
+  });
+  assert(vmNiardLike.fullReport?.p1?.p1_auto?.p1_m_auto === "93 %", "P1: needs covered must include virtual credit");
+  assert(digits(vmNiardLike.fullReport?.p1?.p1_auto?.p1_m_gain) === "41951", "P1: projected gain must use net cashflow cumul_eur");
+  assert(vmNiardLike.fullReport?.p3?.energy_summary?.exported_kwh <= 7873, "P3: valued surplus cannot exceed annual production");
+  assert(vmNiardLike.fullReport?.p4?.economie_annee_1 === 916, "P4: year-1 saving must subtract virtual battery service costs");
+  assert(vmNiardLike.fullReport?.p9?.scenario?.final_cumul === 41951, "P9: chart final net remains cashflow cumul_eur");
+  assert(vmNiardLike.fullReport?.p10?.best?.gains_25_eur === 41951, "P10: gain net must align with P9");
+  assert(Math.round(vmNiardLike.fullReport?.p10?.best?.autonomy_pct) === 93, "P10: needs covered must include virtual credit");
 
   console.log("OK - pdfVirtualBatteryPage.test");
 }
