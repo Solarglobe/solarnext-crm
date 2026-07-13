@@ -212,7 +212,7 @@
           try { URL.revokeObjectURL(previewObjectUrl); } catch (_) {}
         }
         previewObjectUrl = URL.createObjectURL(blob);
-        els.previewFrame.src = previewObjectUrl;
+        els.previewFrame.src = previewObjectUrl + "#zoom=page-width&toolbar=0&navpanes=0";
         els.previewFrame.style.display = "block";
         els.previewStatus.style.display = "none";
       })

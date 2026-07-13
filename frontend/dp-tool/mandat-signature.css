@@ -11,7 +11,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 18px;
   box-sizing: border-box;
 }
 
@@ -25,8 +25,9 @@
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 640px;
-  max-height: min(92vh, 900px);
+  max-width: min(1180px, calc(100vw - 36px));
+  height: min(94vh, 980px);
+  max-height: min(94vh, 980px);
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -68,10 +69,51 @@
 }
 
 .mandat-sign-modal__body {
-  padding: 14px 18px;
+  padding: 18px 22px 22px;
   overflow: auto;
   flex: 1;
   min-height: 0;
+  scroll-behavior: smooth;
+}
+
+.mandat-sign-step {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.mandat-sign-step + .mandat-sign-step {
+  margin-top: 18px;
+  border-top: 1px solid #eef1f5;
+  padding-top: 16px;
+}
+
+.mandat-sign-step-title {
+  margin: 0 0 10px;
+  color: #111827;
+}
+
+.mandat-preview-wrap {
+  width: 100%;
+  min-height: min(78vh, 780px);
+  border: 1px solid #cbd2dc;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.mandat-preview-frame {
+  display: block;
+  width: 100%;
+  height: min(78vh, 780px);
+  min-height: 620px;
+  border: 0;
+  background: #f8fafc;
+}
+
+.mandat-preview-status {
+  padding: 18px;
+  font-size: 13px;
+  color: #6b7280;
 }
 
 .mandat-sign-name-row {
@@ -108,8 +150,8 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  max-width: 720px;
-  margin: 12px auto 0;
+  max-width: 980px;
+  margin: 14px auto 0;
   padding: 10px 12px;
   font-size: 13px;
   line-height: 1.35;
@@ -156,6 +198,7 @@
   padding: 12px 18px;
   border-top: 1px solid #e5e7eb;
   background: #fafafa;
+  flex-shrink: 0;
 }
 
 .mandat-sign-modal__footer button {
@@ -188,6 +231,29 @@
 }
 
 @media (max-width: 520px) {
+  .mandat-sign-modal {
+    padding: 8px;
+  }
+
+  .mandat-sign-modal__panel {
+    max-width: calc(100vw - 16px);
+    height: 96vh;
+    max-height: 96vh;
+  }
+
+  .mandat-sign-modal__body {
+    padding: 14px 12px 18px;
+  }
+
+  .mandat-preview-wrap {
+    min-height: 70vh;
+  }
+
+  .mandat-preview-frame {
+    height: 70vh;
+    min-height: 520px;
+  }
+
   .mandat-sign-name-row {
     grid-template-columns: 1fr;
   }
