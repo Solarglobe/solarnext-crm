@@ -438,6 +438,9 @@
         });
         closeSignatureModal();
         if (typeof global.refreshMandatActionButtons === "function") global.refreshMandatActionButtons();
+        if (typeof global.generateMandatPDF === "function") {
+          setTimeout(function () { global.generateMandatPDF(); }, 0);
+        }
       })
       .catch(function (err) {
         global.alert((err && err.message) || "La signature n’a pas pu être enregistrée.");
