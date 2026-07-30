@@ -23,6 +23,7 @@ import { pool } from "./config/db.js";
 import { getRateLimitStore } from "./middleware/security/rateLimitStore.factory.js";
 import { buildHttpApp } from "./httpApp.js";
 import { startMailOutboxProcessor } from "./workers/mailOutbox.worker.js";
+import { startMailSyncScheduler } from "./workers/mailSyncScheduler.worker.js";
 import { captureBackendException, flushBackendSentry } from "./services/sentry.service.js";
 
 process.on("uncaughtException", (error) => {
@@ -103,4 +104,5 @@ app.listen(PORT, () => {
   // Démarre le scheduler de recalcul quotidien de l'inactivité des leads
   startInactivityScheduler();
   startMailOutboxProcessor();
+  startMailSyncScheduler();
 });
