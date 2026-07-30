@@ -296,6 +296,29 @@ button.mail-inbox-sn-tab:focus-visible {
 .mail-inbox__toolbar-meta {
   font-size: 12px;
   color: var(--sg-text-muted, var(--text-muted));
+  min-width: 0;
+}
+
+.mail-inbox__refresh-btn {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: var(--sg-radius-sm, 8px);
+  border: 1px solid var(--sg-border, var(--border));
+  background: var(--bg-card);
+  color: var(--sg-text, var(--text-primary));
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mail-inbox__refresh-btn:hover:not(:disabled) {
+  border-color: var(--sg-brand, var(--brand-gold));
+  background: var(--brand-gold-soft);
+}
+
+.mail-inbox__refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .mail-inbox__list-wrap {

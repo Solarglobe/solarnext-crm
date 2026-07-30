@@ -80,6 +80,7 @@ export default function MailInboxPage() {
   const [threads, setThreads] = useState<InboxThreadItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -316,7 +317,7 @@ export default function MailInboxPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, inboxQueryBase, debouncedSearch]);
+  }, [page, inboxQueryBase, debouncedSearch, reloadKey]);
 
   const onFiltersChange = useCallback((next: MailFiltersValue) => {
     setFilters(next);
@@ -329,6 +330,9 @@ export default function MailInboxPage() {
       await runMailSync({ mailAccountId: null });
       setSyncMsg("Synchronisation lancée.");
       await reloadAccounts();
+      setPage(0);
+      setThreads([]);
+      setReloadKey((k) => k + 1);
       void refreshUnreadSummary();
     } catch (e) {
       setSyncMsg(e instanceof Error ? e.message : String(e));
@@ -641,6 +645,16 @@ export default function MailInboxPage() {
               {debouncedSearch.length >= 2 ? " · recherche" : ""}
               {loading && !initialLoading ? " · chargement…" : ""}
             </span>
+            {canManageMail ? (
+              <button
+                type="button"
+                className="mail-inbox__refresh-btn"
+                disabled={syncBusy}
+                onClick={() => void handleManualSync()}
+              >
+                {syncBusy ? "Mise a jour..." : "Mettre a jour"}
+              </button>
+            ) : null}
           </div>
           {listError && <div className="mail-inbox__error">{listError}</div>}
           <div className="mail-inbox__list-wrap">
