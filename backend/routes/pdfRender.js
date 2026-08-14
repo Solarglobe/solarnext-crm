@@ -14,6 +14,7 @@ import { buildDsmCombinedHtml } from "../pdf/dsmCombinedHtmlBuilder.js";
 import { buildShadingReportHtml } from "../pdf/shadingReportHtmlBuilder.js";
 import { buildHorizonMaskSinglePageHtml } from "../pdf/horizonMaskHtmlBuilder.js";
 import { respondWithDpPdfOrJson } from "../services/dpPdfPersistResponse.service.js";
+import { assembleLeadDpCompletePdf } from "../services/dpCompletePackage.service.js";
 import { publicHeavyRateLimiter } from "../middleware/security/rateLimit.presets.js";
 import { pdfConcurrencyLimiter } from "../middleware/rateLimit.middleware.js";
 import { verifyJWT } from "../middleware/auth.middleware.js";
@@ -321,6 +322,37 @@ async function renderDP7PDF(req, res) {
 
 router.post("/pdf/render/dp7/pdf", verifyJWT, requireEmailVerified, renderDP7PDF);
 router.post("/pdf/render/dp8/pdf", verifyJWT, requireEmailVerified, renderDP7PDF);
+
+/**
+ * POST /pdf/render/dp-complet/pdf
+ * Assemble le dossier mairie depuis les PDF DP déjà enregistrés sur le lead.
+ */
+router.post("/pdf/render/dp-complet/pdf", verifyJWT, requireEmailVerified, async (req, res) => {
+  try {
+    const leadId = req.body?.leadId ?? req.body?.lead_id;
+    if (!leadId || !String(leadId).trim()) {
+      return res.status(400).json({ error: "leadId requis pour assembler le dossier DP complet" });
+    }
+    return await respondWithDpPdfOrJson(req, res, {
+      piece: "dp_complet",
+      displayName: "Dossier DP complet mairie",
+      generate: () =>
+        assembleLeadDpCompletePdf({
+          organizationId: req.user?.organizationId ?? req.user?.organization_id,
+          leadId: String(leadId || "").trim(),
+        }),
+    });
+  } catch (err) {
+    logger.error("PDF_DP_COMPLETE_GENERATION_ERROR", { error: err });
+    const code = err.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : 500;
+    return res.status(code).json({
+      error: err.message || "Erreur assemblage dossier DP complet",
+      code: err.code,
+      missingPieces: err.missingPieces,
+      source: err.source,
+    });
+  }
+});
 
 /**
  * CP-DSM-PDF-004 — GET /internal/pdf/dsm-analysis/:studyId

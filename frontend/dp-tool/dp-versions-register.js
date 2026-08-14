@@ -421,7 +421,7 @@
         renderDocVersionFace(kind, root, menu, label, trigger, handlers);
       });
 
-      menu.addEventListener("click", function (e) {
+      menu.addEventListener("click", async function (e) {
         var t = e.target;
         if (!t || !t.closest) return;
         var item = t.closest("[data-vid]");
@@ -430,7 +430,7 @@
           var vid = item.getAttribute("data-vid");
           setOpen(false);
           try {
-            handlers.onSelectVersion(vid);
+            await handlers.onSelectVersion(vid);
           } catch (err) {
             console.warn("[doc-version] select", kind, err);
           }
@@ -443,10 +443,10 @@
         var action = act.getAttribute("data-action");
         setOpen(false);
         try {
-          if (action === "new") handlers.onNew();
-          else if (action === "del") handlers.onDel();
-          else if (action === "dup") handlers.onDup();
-          else if (action === "clear-all" && typeof handlers.onClearAll === "function") handlers.onClearAll();
+          if (action === "new") await handlers.onNew();
+          else if (action === "del") await handlers.onDel();
+          else if (action === "dup") await handlers.onDup();
+          else if (action === "clear-all" && typeof handlers.onClearAll === "function") await handlers.onClearAll();
         } catch (err2) {
           console.warn("[doc-version]", kind, err2);
         }
@@ -499,16 +499,16 @@
           onDup: function () {
             if (typeof global.dp2DuplicateActiveVersion === "function") global.dp2DuplicateActiveVersion();
           },
-          onDel: function () {
-            if (typeof global.dp2OnEntryDeleteVersion === "function") {
-              global.dp2OnEntryDeleteVersion({ preventDefault: function () {} });
-            }
-          },
-          onClearAll: function () {
-            if (typeof global.dp2DeleteAllVersions === "function") {
-              global.dp2DeleteAllVersions({ preventDefault: function () {} });
-            }
-          },
+        onDel: function () {
+          if (typeof global.dp2OnEntryDeleteVersion === "function") {
+            return global.dp2OnEntryDeleteVersion({ preventDefault: function () {} });
+          }
+        },
+        onClearAll: function () {
+          if (typeof global.dp2DeleteAllVersions === "function") {
+            return global.dp2DeleteAllVersions({ preventDefault: function () {} });
+          }
+        },
         },
         cfg
       );
@@ -550,7 +550,7 @@
           var st = global[o.stateGlobal];
           if (!st) return;
           var idDel = st[o.activeKey];
-          if (idDel) V.deleteVersion(st, idDel, o);
+          if (idDel) return V.deleteVersion(st, idDel, o);
         },
       },
       cfg

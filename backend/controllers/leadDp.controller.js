@@ -11,6 +11,7 @@ import {
   upsertLeadDpDraft,
   isDpAccessEligible,
   resolveDraftFromLeadDpRow,
+  hydrateDpDraftAssetRefs,
 } from "../services/leadDp.service.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
@@ -89,7 +90,7 @@ export async function getLeadDp(req, res) {
 
     const context = buildDpContextFromLeadRow(row);
     const dp = await getLeadDpDraftRow(pool, id, org);
-    const draft = resolveDraftFromLeadDpRow(dp);
+    const draft = await hydrateDpDraftAssetRefs(resolveDraftFromLeadDpRow(dp));
 
     return res.json({
       leadId: row.id,
@@ -113,10 +114,17 @@ export async function putLeadDp(req, res) {
     const uid = userId(req);
 
     const draft = req.body?.draft;
+    const expectedUpdatedAt = req.body?.expectedUpdatedAt;
     if (draft === undefined || typeof draft !== "object" || draft === null || Array.isArray(draft)) {
       return res.status(400).json({
         error: "Corps invalide : « draft » doit être un objet JSON.",
         code: "DP_DRAFT_INVALID",
+      });
+    }
+    if (!Object.prototype.hasOwnProperty.call(req.body || {}, "expectedUpdatedAt")) {
+      return res.status(400).json({
+        error: "Corps invalide : « expectedUpdatedAt » est requis (date ISO ou null).",
+        code: "DP_DRAFT_EXPECTED_UPDATED_AT_REQUIRED",
       });
     }
 
@@ -175,7 +183,7 @@ export async function putLeadDp(req, res) {
       return res.status(403).json(DP_FORBIDDEN_BODY);
     }
 
-    const saved = await upsertLeadDpDraft(pool, id, org, draft);
+    const saved = await upsertLeadDpDraft(pool, id, org, draft, { expectedUpdatedAt });
 
     traceDpPut("put_ok", {
       leadId: id,
@@ -189,10 +197,15 @@ export async function putLeadDp(req, res) {
       leadId: row.id,
       clientId: row.client_id,
       context,
-      draft: resolveDraftFromLeadDpRow(saved),
+      draft: await hydrateDpDraftAssetRefs(resolveDraftFromLeadDpRow(saved)),
       updatedAt: new Date(saved.updated_at).toISOString(),
     });
   } catch (e) {
-    return res.status(500).json({ error: e.message || "Erreur serveur" });
+    const status = e.statusCode === 400 ? 400 : e.statusCode === 409 ? 409 : 500;
+    return res.status(status).json({
+      error: e.message || "Erreur serveur",
+      code: e.code || (status === 409 ? "DP_DRAFT_CONFLICT" : undefined),
+      currentUpdatedAt: e.currentUpdatedAt || undefined,
+    });
   }
 }

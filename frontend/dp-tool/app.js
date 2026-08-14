@@ -6,6 +6,24 @@ const backgroundImage = document.getElementById("backgroundImage");
 const drawCanvas = document.getElementById("drawCanvas");
 
 const STORAGE_KEY = "uploadedImage";
+
+function showDpToolMessage(message) {
+  let stack = document.getElementById("dp-tool-toast-stack");
+  if (!stack) {
+    stack = document.createElement("div");
+    stack.id = "dp-tool-toast-stack";
+    stack.style.cssText =
+      "position:fixed;right:18px;bottom:18px;z-index:99999;display:flex;flex-direction:column;gap:10px;max-width:min(380px,calc(100vw - 24px));";
+    document.body.appendChild(stack);
+  }
+  const toast = document.createElement("div");
+  toast.setAttribute("role", "alert");
+  toast.style.cssText =
+    "background:#fff;border:1px solid #d1d5db;border-left:4px solid #dc2626;border-radius:8px;box-shadow:0 18px 45px rgba(15,23,42,.16);padding:12px 14px;color:#111827;font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;white-space:pre-wrap;";
+  toast.textContent = message;
+  stack.appendChild(toast);
+  setTimeout(() => toast.remove(), 6500);
+}
 /* =========================
    ETAPE 8 — STYLE GRAPHIQUE GLOBAL
 ========================= */
@@ -58,13 +76,13 @@ removeImageBtn.addEventListener("click", function () {
 ========================= */
 exportImageBtn.addEventListener("click", function () {
   if (!backgroundImage.src) {
-    alert("Aucune image à exporter");
+    showDpToolMessage("Aucune image à exporter");
     return;
   }
 
   // sécurité : image bien chargée
   if (!backgroundImage.complete || backgroundImage.naturalWidth === 0) {
-    alert("Image en cours de chargement, réessaie dans 1 seconde.");
+    showDpToolMessage("Image en cours de chargement, réessaie dans 1 seconde.");
     return;
   }
 
@@ -73,7 +91,7 @@ exportImageBtn.addEventListener("click", function () {
   const h = drawCanvas.height;
 
   if (!w || !h) {
-    alert("Canvas non prêt (charge une image d'abord).");
+    showDpToolMessage("Canvas non prêt (charge une image d'abord).");
     return;
   }
 
@@ -122,14 +140,14 @@ const exportJpgBtn = document.getElementById("exportJpgBtn");
 
 exportJpgBtn.addEventListener("click", function () {
   if (!backgroundImage.src) {
-    alert("Aucune image à exporter");
+    showDpToolMessage("Aucune image à exporter");
     return;
   }
 
   const w = drawCanvas.width;
   const h = drawCanvas.height;
   if (!w || !h) {
-    alert("Canvas non prêt");
+    showDpToolMessage("Canvas non prêt");
     return;
   }
 

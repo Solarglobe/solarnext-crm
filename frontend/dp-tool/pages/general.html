@@ -9,15 +9,42 @@
 
   <section id="dp-completion-assistant" class="dp-item open" style="margin:18px 0;">
     <div class="dp-item-header">
-      <h3>Assistant de complétude DP</h3>
+      <h3>Dossier prêt à déposer</h3>
       <div class="dp-item-meta">
-        <span id="dp-completion-count" class="dp-badge">À vérifier</span>
+        <span id="dp-completion-count" class="dp-badge">Contrôle en cours</span>
       </div>
     </div>
     <div class="dp-item-content">
-      <ul id="dp-completion-list" style="margin:0; padding-left:18px;">
-        <li>Chargement des contrôles...</li>
-      </ul>
+      <div id="dp-readiness-summary" style="margin:0 0 12px;color:#4b5563;">
+        Vérification des pièces obligatoires du dossier.
+      </div>
+      <div id="dp-completion-list" class="dp-readiness-list" style="display:grid;gap:8px;">
+        <div>Chargement des contrôles...</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+        <button id="dp-readiness-refresh" type="button" class="dp-secondary-btn">Actualiser</button>
+        <button id="dp-complete-assemble" type="button" class="dp-primary-btn">Assembler dossier DP complet</button>
+        <span id="dp-readiness-updated-at" style="font-size:12px;color:#6b7280;"></span>
+      </div>
+    </div>
+  </section>
+
+  <section id="dp-mairie-panel" class="dp-item open" style="margin:18px 0;">
+    <div class="dp-item-header">
+      <h3>Mairie liée & portail DP</h3>
+      <div class="dp-item-meta">
+        <span id="dp-mairie-status" class="dp-badge">À vérifier</span>
+      </div>
+    </div>
+    <div class="dp-item-content">
+      <div id="dp-mairie-summary" style="margin:0 0 12px;color:#4b5563;">
+        Chargement des informations mairie...
+      </div>
+      <div id="dp-mairie-details" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
+      <div style="margin-top:12px;">
+        <div style="font-weight:700;color:#111827;margin-bottom:8px;">Documents attendus mairie</div>
+        <div id="dp-mairie-documents" style="display:grid;gap:6px;"></div>
+      </div>
     </div>
   </section>
 

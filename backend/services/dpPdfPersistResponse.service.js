@@ -11,11 +11,11 @@ import {
   SUPER_ADMIN_IMPERSONATION_ROLE_CODE,
 } from "../lib/superAdminUserGuards.js";
 import {
-  assertLeadBelongsToOrganization,
   deleteDocument,
   findExistingLeadDpDocumentByPiece,
   saveLeadDpGeneratedPdfDocument,
 } from "./documents.service.js";
+import { assertLeadDpAccessEligible } from "./leadDp.service.js";
 import logger from "../app/core/logger.js";
 import { getDpPdfFileName, normalizeDpPieceKey } from "../constants/dpPdfFileNames.js";
 
@@ -45,7 +45,13 @@ export async function respondWithDpPdfOrJson(req, res, meta) {
       pdfBuffer = await meta.generate();
     } catch (e) {
       logger.error("DP_PDF_GENERATE_ERROR", { error: e, piece: pieceKey });
-      return res.status(500).json({ error: e.message || "Erreur génération PDF" });
+      const code = e.statusCode && Number.isInteger(e.statusCode) ? e.statusCode : 500;
+      return res.status(code).json({
+        error: e.message || "Erreur génération PDF",
+        code: e.code,
+        missingPieces: e.missingPieces,
+        source: e.source,
+      });
     }
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
@@ -74,7 +80,7 @@ export async function respondWithDpPdfOrJson(req, res, meta) {
   }
 
   try {
-    await assertLeadBelongsToOrganization(leadId, user.organizationId);
+    await assertLeadDpAccessEligible(pool, leadId, user.organizationId);
   } catch (e) {
     const code = e.statusCode && Number.isInteger(e.statusCode) ? e.statusCode : 403;
     return res.status(code).json({ error: e.message || "Accès refusé" });
@@ -105,7 +111,13 @@ export async function respondWithDpPdfOrJson(req, res, meta) {
     pdfBuffer = await meta.generate();
   } catch (e) {
     logger.error("DP_PDF_GENERATE_ERROR", { error: e, piece: pieceKey, leadId });
-    return res.status(500).json({ error: e.message || "Erreur génération PDF" });
+    const code = e.statusCode && Number.isInteger(e.statusCode) ? e.statusCode : 500;
+    return res.status(code).json({
+      error: e.message || "Erreur génération PDF",
+      code: e.code,
+      missingPieces: e.missingPieces,
+      source: e.source,
+    });
   }
 
   const uid = user.userId ?? user.id ?? null;
@@ -113,6 +125,7 @@ export async function respondWithDpPdfOrJson(req, res, meta) {
   try {
     const doc = await saveLeadDpGeneratedPdfDocument(pdfBuffer, user.organizationId, leadId, uid, {
       dpPiece: pieceKey,
+      displayName: meta.displayName,
     });
     return res.json({
       downloadUrl: `/api/documents/${doc.id}/download`,

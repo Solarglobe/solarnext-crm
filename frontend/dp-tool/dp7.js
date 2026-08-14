@@ -675,7 +675,7 @@
 
       async function dp7UseCurrentStreetViewAsImage() {
         if (!dp7Panorama || !window.google?.maps) {
-          alert("Street View n’est pas prêt. Patientez quelques secondes puis réessayez.");
+          window.__snDpAlert("Street View n’est pas prêt. Patientez quelques secondes puis réessayez.");
           return;
         }
         const pano = dp7Panorama;
@@ -684,7 +684,7 @@
         const panoId = pano.getPano && pano.getPano();
         const zoom = pano.getZoom && pano.getZoom();
         if (!pos || !pov) {
-          alert("Impossible de lire la vue Street View actuelle.");
+          window.__snDpAlert("Impossible de lire la vue Street View actuelle.");
           return;
         }
         const lat = typeof pos.lat === "function" ? pos.lat() : pos.lat;
@@ -724,7 +724,7 @@
           dp7DisplayImportedImage(String(dataUrl));
         } catch (e) {
           console.error("[DP7] Street View Static", e);
-          alert(
+          window.__snDpAlert(
             "Impossible de récupérer l’image Street View (couverture, quota ou clé API). Réessayez ou importez une photo."
           );
         } finally {

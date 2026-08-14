@@ -1,9 +1,11 @@
 /**
- * Charge le moteur legacy DP (dp-app.js) dans un conteneur sans iframe.
+ * Charge le moteur legacy DP découpé en scripts classiques dans un conteneur sans iframe.
  * Contrat window : Lot 2 + __SOLARNEXT_DP_ASSET_BASE__, __SOLARNEXT_DP_EMBED_LOADER__ (interne).
  */
 
 /** Lead fictif : `dp-draft-store.js` simule le PUT (pas de fetch). — garder la même valeur des deux côtés. */
+import { ensureDpVendorGlobals } from "./dpVendorGlobals";
+
 export const SN_DP_DEV_TEST_LEAD_ID = "DEV-TEST-DP2";
 
 export type DpToolHostContext = {
@@ -80,14 +82,6 @@ function getDefaultDpAssetBase(): string {
   }
   return new URL("../../../dp-tool/", /* @vite-ignore */ import.meta.url).href;
 }
-
-const CDN = {
-  olCss: "https://cdn.jsdelivr.net/npm/ol@10.7.0/ol.css",
-  olJs: "https://cdn.jsdelivr.net/npm/ol@10.7.0/dist/ol.js",
-  olMapboxStyleJs: "https://cdn.jsdelivr.net/npm/ol-mapbox-style@13.4.1/dist/olms.js",
-  html2canvas: "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
-  pdfLib: "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js",
-} as const;
 
 let loadGeneration = 0;
 
@@ -301,17 +295,13 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
 
   const ac = new AbortController();
 
-  linkStylesheetOnce(CDN.olCss, "dp-tool-embed-ol-css");
   linkStylesheetOnce(resolveFromAssetBase(assetBase, "style.css"), "dp-tool-embed-main-css");
   linkStylesheetOnce(resolveFromAssetBase(assetBase, "mandat-signature.css"), "dp-tool-embed-mandat-sign-css");
 
   w.__SOLARNEXT_DP_EMBED_LOADER__ = true;
 
   try {
-    await loadScriptSequential(CDN.olJs, ac.signal);
-    await loadScriptSequential(CDN.olMapboxStyleJs, ac.signal);
-    await loadScriptSequential(CDN.html2canvas, ac.signal);
-    await loadScriptSequential(CDN.pdfLib, ac.signal);
+    await ensureDpVendorGlobals();
     await loadScriptSequential(resolveFromAssetBase(assetBase, "../../shared/panel-dimensions.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "../config/vite-public-runtime.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "../config/featureFlags.js"), ac.signal);
@@ -319,7 +309,15 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-super-admin-headers.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp1-image-persist.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-draft-store.js"), ac.signal);
+    await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-core.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-app.js"), ac.signal);
+    await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-cerfa.js"), ac.signal);
+    await loadScriptSequential(resolveFromAssetBase(assetBase, "dp1.js"), ac.signal);
+    await loadScriptSequential(resolveFromAssetBase(assetBase, "dp2.js"), ac.signal);
+    await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-map.js"), ac.signal);
+    await loadScriptSequential(resolveFromAssetBase(assetBase, "dp3.js"), ac.signal);
+    await loadScriptSequential(resolveFromAssetBase(assetBase, "dp4.js"), ac.signal);
+    await loadScriptSequential(resolveFromAssetBase(assetBase, "dp6.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-versions-register.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "mandat-signature.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp7.js"), ac.signal);

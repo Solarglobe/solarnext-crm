@@ -18,6 +18,7 @@
   var DEBOUNCE_MS = 1000;
   var INPUT_DEBOUNCE_MS = 350;
   var saveState = "idle";
+  var serverUpdatedAt = null;
 
   var isSaving = false;
   var pendingSave = false;
@@ -206,6 +207,49 @@
     return new Date().toISOString();
   }
 
+  function syncServerUpdatedAtFromContext() {
+    try {
+      var ctx = global.__SOLARNEXT_DP_CONTEXT__ || {};
+      serverUpdatedAt = ctx.updatedAt || null;
+    } catch (_) {
+      serverUpdatedAt = null;
+    }
+  }
+
+  function setServerUpdatedAt(value) {
+    serverUpdatedAt = value || null;
+    try {
+      if (global.__SOLARNEXT_DP_CONTEXT__) {
+        global.__SOLARNEXT_DP_CONTEXT__.updatedAt = serverUpdatedAt;
+      }
+    } catch (_) {}
+  }
+
+  function getExpectedUpdatedAtForPut() {
+    try {
+      var ctx = global.__SOLARNEXT_DP_CONTEXT__ || {};
+      return serverUpdatedAt || ctx.updatedAt || null;
+    } catch (_) {
+      return serverUpdatedAt || null;
+    }
+  }
+
+  function handleDraftConflict(err) {
+    var current = err && err.currentUpdatedAt ? String(err.currentUpdatedAt) : "";
+    var msg =
+      "Ce brouillon DP a ete modifie dans un autre onglet ou par une autre session. Rechargez le dossier avant de continuer pour eviter d'ecraser une version plus recente.";
+    disablePersistence(msg, "DP_DRAFT_CONFLICT");
+    setSaveUi("blocked", "Conflit de brouillon - rechargez la page avant de continuer.");
+    if (typeof global.__snDpAlert === "function") {
+      global.__snDpAlert(msg, {
+        title: "Conflit de brouillon",
+        type: "warning",
+        persistent: true,
+        details: current ? "Version serveur actuelle : " + current : undefined,
+      });
+    }
+  }
+
   /** Retire les clés préfixées _ (états éphémères) pour sérialisation JSON. */
   function cloneStateForDraft(obj) {
     if (obj == null || typeof obj !== "object") return obj;
@@ -222,6 +266,27 @@
     } catch (e) {
       return null;
     }
+  }
+
+  function getPersistableDp2RuntimeState() {
+    try {
+      if (
+        global.__SN_DP4_EDITOR_ACTIVE === true &&
+        global.__dp2RealPlanBackup &&
+        typeof global.__dp2RealPlanBackup === "object" &&
+        global.__dp2RealPlanBackup.editorProfile !== "DP4_ROOF"
+      ) {
+        return global.__dp2RealPlanBackup;
+      }
+    } catch (_) {}
+    if (
+      global.DP2_STATE &&
+      typeof global.DP2_STATE === "object" &&
+      global.DP2_STATE.editorProfile !== "DP4_ROOF"
+    ) {
+      return global.DP2_STATE;
+    }
+    return null;
   }
 
   function isPlainObjectForMerge(x) {
@@ -660,15 +725,16 @@
     }
 
     try {
-      if (typeof global.dp2SyncActiveVersionBeforeDraft === "function") {
+      if (global.__SN_DP4_EDITOR_ACTIVE !== true && typeof global.dp2SyncActiveVersionBeforeDraft === "function") {
         try {
           global.dp2SyncActiveVersionBeforeDraft();
         } catch (e2) {
           devWarn("[dp-draft] dp2SyncActiveVersionBeforeDraft", e2);
         }
       }
-      if (global.DP2_STATE && global.DP2_STATE.editorProfile !== "DP4_ROOF") {
-        DP_DRAFT.dp2 = cloneStateForDraft(global.DP2_STATE);
+      var persistableDp2 = getPersistableDp2RuntimeState();
+      if (persistableDp2) {
+        DP_DRAFT.dp2 = cloneStateForDraft(persistableDp2);
       }
     } catch (e) {
       devWarn("[dp-draft] snapshot dp2", e);
@@ -826,6 +892,7 @@
 
   function initDraftFromServer(serverDraft) {
     if (isDraftStoreFrozen()) return;
+    syncServerUpdatedAtFromContext();
     global.__SN_DP_SERVER_DRAFT_ACTIVE =
       serverDraft != null && typeof serverDraft === "object" && !Array.isArray(serverDraft);
     var base = createMinimalDraft();
@@ -980,24 +1047,24 @@
     if (data && data.updatedAt && DP_DRAFT && DP_DRAFT.meta) {
       DP_DRAFT.meta.updatedAt = data.updatedAt;
     }
+    setServerUpdatedAt(data && data.updatedAt ? data.updatedAt : null);
     /**
      * Après PUT, le JSON renvoyé doit refléter la sauvegarde ; en cas d'écart ou merge client/serveur,
      * on réaligne dp2 depuis le runtime pour éviter que d'anciennes lignes dp2Versions ne « reviennent » dans DP_DRAFT.
      */
     try {
-      if (global.DP2_STATE && typeof global.DP2_STATE === "object" && global.DP2_STATE.editorProfile !== "DP4_ROOF") {
-        if (typeof global.dp2SyncActiveVersionBeforeDraft === "function") {
+      var persistableDp2 = getPersistableDp2RuntimeState();
+      if (persistableDp2) {
+        if (global.__SN_DP4_EDITOR_ACTIVE !== true && typeof global.dp2SyncActiveVersionBeforeDraft === "function") {
           global.dp2SyncActiveVersionBeforeDraft();
         }
-        DP_DRAFT.dp2 = cloneStateForDraft(global.DP2_STATE);
+        persistableDp2 = getPersistableDp2RuntimeState();
+        if (persistableDp2) DP_DRAFT.dp2 = cloneStateForDraft(persistableDp2);
       }
     } catch (e) {
       devWarn("[dp-draft] resync dp2 depuis DP2_STATE après réponse serveur", e);
     }
     syncContextWindowDraft();
-    if (global.__SOLARNEXT_DP_CONTEXT__) {
-      global.__SOLARNEXT_DP_CONTEXT__.updatedAt = data.updatedAt || null;
-    }
     writeDraftMirrorLocal();
     saveState = "saved";
     setSaveUi("saved");
@@ -1070,7 +1137,8 @@
           console.warn("[DP2 PUT PAYLOAD] log error", e2);
         }
       }
-      var body = JSON.stringify({ draft: safeDraft });
+      var expectedUpdatedAt = getExpectedUpdatedAtForPut();
+      var body = JSON.stringify({ draft: safeDraft, expectedUpdatedAt: expectedUpdatedAt });
       var ctx = global.__SOLARNEXT_DP_CONTEXT__ || {};
       if (devMockPut) {
         console.log("[DP DEV PUT — no fetch] simulated URL", "PUT /api/leads/" + SN_DP_DEV_TEST_LEAD_ID + "/dp");
@@ -1080,6 +1148,7 @@
           leadId: ctx.leadId || null,
           url: "DEV_MOCK_PUT",
           bodyBytes: body.length,
+          expectedUpdatedAt: expectedUpdatedAt,
           draftSummary: summarizeDraftForTrace(safeDraft),
           persistenceDisabledBefore: !!global.__SN_DP_PERSISTENCE_DISABLED,
         });
@@ -1098,6 +1167,7 @@
         leadId: ctx.leadId || null,
         url: url,
         bodyBytes: body.length,
+        expectedUpdatedAt: expectedUpdatedAt,
         draftSummary: summarizeDraftForTrace(safeDraft),
         persistenceDisabledBefore: !!global.__SN_DP_PERSISTENCE_DISABLED,
       });
@@ -1138,6 +1208,7 @@
               var err = new Error((j && j.error) || "PUT " + res.status);
               err.status = res.status;
               err.code = j && j.code;
+              err.currentUpdatedAt = j && j.currentUpdatedAt;
               throw err;
             });
           }
@@ -1194,6 +1265,12 @@
         var code = err && err.code;
         if (st === 403 || code === "DP_LEAD_NOT_CLIENT") {
           disablePersistence(err && err.message, code || "HTTP_403");
+          isSaving = false;
+          pendingSave = false;
+          return Promise.resolve(null);
+        }
+        if (st === 409 || code === "DP_DRAFT_CONFLICT") {
+          handleDraftConflict(err);
           isSaving = false;
           pendingSave = false;
           return Promise.resolve(null);
@@ -1293,7 +1370,10 @@
         devWarn("[DP SAVE unload skipped]", sanu.error);
         return;
       }
-      body = JSON.stringify({ draft: sanu.draft });
+      body = JSON.stringify({
+        draft: sanu.draft,
+        expectedUpdatedAt: getExpectedUpdatedAtForPut(),
+      });
     } catch (prep) {
       devWarn("[DP SAVE unload prep failed]", prep);
       return;

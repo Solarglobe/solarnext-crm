@@ -144,8 +144,14 @@
     applyStateJson(state, empty, opts.versionsKey, opts.activeKey, versions, id);
   }
 
-  function deleteVersion(state, vid, opts) {
-    if (!global.confirm("Supprimer cette version ?")) return;
+  async function deleteVersion(state, vid, opts) {
+    if (
+      !(await global.__snDpConfirm("Supprimer cette version ?", {
+        title: "Supprimer la version",
+        confirmLabel: "Supprimer",
+        cancelLabel: "Annuler",
+      }))
+    ) return;
     syncActiveBeforeDraft(state, opts);
     var versions = ensureVersionsArray(state, opts.versionsKey);
     var idx = findVersionIndex(versions, vid);

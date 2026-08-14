@@ -377,31 +377,31 @@
     var prenom = (els.prenom && els.prenom.value && els.prenom.value.trim()) || "";
     var nom = (els.nom && els.nom.value && els.nom.value.trim()) || "";
     if (!readAccepted()) {
-      global.alert("Veuillez confirmer la lecture du mandat.");
+      global.__snDpAlert("Veuillez confirmer la lecture du mandat.");
       return;
     }
     if (!otpVerified) {
-      global.alert("Veuillez d’abord vérifier le code envoyé au client.");
+      global.__snDpAlert("Veuillez d’abord vérifier le code envoyé au client.");
       return;
     }
     if (!prenom || !nom) {
-      global.alert("Veuillez renseigner le prénom et le nom du signataire.");
+      global.__snDpAlert("Veuillez renseigner le prénom et le nom du signataire.");
       return;
     }
     if (!hasInk || !canvas) {
-      global.alert("Veuillez signer dans le cadre.");
+      global.__snDpAlert("Veuillez signer dans le cadre.");
       return;
     }
     var leadId = getLeadId();
     if (!leadId) {
-      global.alert("Lead introuvable : impossible de signer.");
+      global.__snDpAlert("Lead introuvable : impossible de signer.");
       return;
     }
     var dataUrl;
     try {
       dataUrl = canvas.toDataURL("image/png");
     } catch (e) {
-      global.alert("Impossible d’enregistrer la signature.");
+      global.__snDpAlert("Impossible d’enregistrer la signature.");
       return;
     }
     var fullName = (prenom + " " + nom).trim();
@@ -443,7 +443,7 @@
         }
       })
       .catch(function (err) {
-        global.alert((err && err.message) || "La signature n’a pas pu être enregistrée.");
+        global.__snDpAlert((err && err.message) || "La signature n’a pas pu être enregistrée.");
         syncMandatConfirmButton();
       });
   }
