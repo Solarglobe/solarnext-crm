@@ -145,6 +145,46 @@
           </div>
         </section>
 
+        <section class="card dp2-settings-card" aria-labelledby="dp6-heading-zones">
+          <h3 class="dp2-card-heading" id="dp6-heading-zones">Zones de panneaux</h3>
+          <div class="dp2-field dp-page-actions" style="display:flex; flex-direction:column; gap:10px">
+            <button id="dp6-add-panel-zone" class="dp-btn dp-btn-primary" type="button">
+              Ajouter zone de panneaux
+            </button>
+          </div>
+          <div class="dp2-panel-readonly" style="margin-top:10px">
+            <div><strong>Zones :</strong> <span id="dp6-zone-count">0</span></div>
+            <div><strong>Panneaux posés :</strong> <span id="dp6-total-panel-count">0</span></div>
+          </div>
+          <div id="dp6-zone-editor" style="display:grid;gap:10px;margin-top:12px">
+            <div class="dp2-field">
+              <label class="dp2-label" for="dp6-zone-rows">Nombre de lignes</label>
+              <input id="dp6-zone-rows" class="dp2-input" type="number" min="1" max="20" step="1" value="2" />
+            </div>
+            <div class="dp2-field">
+              <label class="dp2-label" for="dp6-zone-cols">Nombre de colonnes</label>
+              <input id="dp6-zone-cols" class="dp2-input" type="number" min="1" max="20" step="1" value="2" />
+            </div>
+            <div class="dp2-field">
+              <label class="dp2-label" for="dp6-zone-gap">Espacement entre panneaux (%)</label>
+              <input id="dp6-zone-gap" class="dp2-input" type="number" min="0" max="20" step="1" value="4" />
+            </div>
+            <div class="dp2-field">
+              <label class="dp2-label" for="dp6-zone-orientation">Orientation de cette zone</label>
+              <select id="dp6-zone-orientation" class="dp2-select">
+                <option value="PORTRAIT">Portrait</option>
+                <option value="PAYSAGE">Paysage</option>
+              </select>
+            </div>
+            <button id="dp6-zone-delete" class="dp-btn dp-btn-outline dp6-btn-delete" type="button">
+              Supprimer la zone
+            </button>
+          </div>
+          <div id="dp6-zone-editor-empty" class="dp-map-note" style="margin-top:12px;margin-bottom:0">
+            Ajoutez ou cliquez une zone pour régler lignes, colonnes et espacement.
+          </div>
+        </section>
+
         <section class="card dp2-settings-card" aria-labelledby="dp6-heading-source">
           <h3 class="dp2-card-heading" id="dp6-heading-source">Source de la photo</h3>
           <p class="dp2-scale-line" style="margin-top:0">

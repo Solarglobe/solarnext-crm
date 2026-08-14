@@ -794,6 +794,16 @@ function initDP6() {
   const orientationPortrait = document.getElementById("dp6-orientation-portrait");
   const orientationPaysage = document.getElementById("dp6-orientation-paysage");
   const categoryLabelEl = document.getElementById("dp6-photo-category-label");
+  const addPanelZoneBtn = document.getElementById("dp6-add-panel-zone");
+  const zoneCountEl = document.getElementById("dp6-zone-count");
+  const totalPanelCountEl = document.getElementById("dp6-total-panel-count");
+  const zoneEditorEl = document.getElementById("dp6-zone-editor");
+  const zoneEditorEmptyEl = document.getElementById("dp6-zone-editor-empty");
+  const zoneRowsInput = document.getElementById("dp6-zone-rows");
+  const zoneColsInput = document.getElementById("dp6-zone-cols");
+  const zoneGapInput = document.getElementById("dp6-zone-gap");
+  const zoneOrientationSelect = document.getElementById("dp6-zone-orientation");
+  const zoneDeleteBtn = document.getElementById("dp6-zone-delete");
 
   if (!modal || (!btnBefore && !btnAfter)) return;
 
@@ -932,6 +942,9 @@ function initDP6() {
   // ==============================
   const DP6_SELECTION_UI_MODE_DRAW = "DRAW";
   const DP6_SELECTION_UI_MODE_EDIT = "EDIT_SELECTION";
+  const DP6_PANEL_ZONE_DEFAULT_ROWS = 2;
+  const DP6_PANEL_ZONE_DEFAULT_COLS = 2;
+  const DP6_PANEL_ZONE_DEFAULT_GAP = 4;
 
   function dp6GetSelectionUIMode() {
     const m = String(window.DP6_STATE?.selectionUIMode || DP6_SELECTION_UI_MODE_DRAW);
@@ -1118,6 +1131,19 @@ function initDP6() {
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
   }
 
+  function dp6BilinearPoint(q, u, v) {
+    const p00 = q[0];
+    const p10 = q[1];
+    const p11 = q[2];
+    const p01 = q[3];
+    const u0 = 1 - u;
+    const v0 = 1 - v;
+    return {
+      x: p00.x * u0 * v0 + p10.x * u * v0 + p11.x * u * v + p01.x * u0 * v,
+      y: p00.y * u0 * v0 + p10.y * u * v0 + p11.y * u * v + p01.y * u0 * v,
+    };
+  }
+
   function dp6NormalizeQuadPoints(points) {
     if (!Array.isArray(points) || points.length !== 4) return null;
     const ps = points.map((p) => ({ x: Number(p?.x), y: Number(p?.y) }));
@@ -1183,6 +1209,7 @@ function initDP6() {
     try {
       window.DP6_STATE = window.DP6_STATE || {};
       if (!Array.isArray(window.DP6_STATE.patches)) window.DP6_STATE.patches = [];
+      window.DP6_STATE.patches = window.DP6_STATE.patches.map((patch) => dp6NormalizePatch(patch));
       return window.DP6_STATE.patches;
     } catch (_) {
       return [];
@@ -1257,6 +1284,85 @@ function initDP6() {
   }
 
   // Point d’entrée rendu (central)
+  function dp6PanelCellQuad(q, row, col, rows, cols, gapPct) {
+    const u0 = col / cols;
+    const u1 = (col + 1) / cols;
+    const v0 = row / rows;
+    const v1 = (row + 1) / rows;
+    const gap = Math.max(0, Math.min(20, Number(gapPct) || 0)) / 100;
+    const du = ((u1 - u0) * gap) / 2;
+    const dv = ((v1 - v0) * gap) / 2;
+    return [
+      dp6BilinearPoint(q, u0 + du, v0 + dv),
+      dp6BilinearPoint(q, u1 - du, v0 + dv),
+      dp6BilinearPoint(q, u1 - du, v1 - dv),
+      dp6BilinearPoint(q, u0 + du, v1 - dv),
+    ];
+  }
+
+  function dp6DrawSolarPanelGrid(ctx, q, patch) {
+    const normalized = dp6NormalizePatch(patch);
+    const rows = normalized.layout.rows;
+    const cols = normalized.layout.cols;
+    const gap = normalized.layout.gap;
+    const orientation = normalized.layout.orientation;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.30)";
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+    dp6PathQuad(ctx, q);
+    ctx.fill();
+    ctx.restore();
+
+    const noiseCanvas = dp6EnsureNoiseCanvas();
+    const pattern = noiseCanvas ? ctx.createPattern(noiseCanvas, "repeat") : null;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = dp6PanelCellQuad(q, r, c, rows, cols, gap);
+        ctx.save();
+        ctx.globalCompositeOperation = "source-over";
+        ctx.shadowColor = "transparent";
+        ctx.fillStyle = "rgba(9, 14, 18, 0.94)";
+        dp6PathQuad(ctx, cell);
+        ctx.fill();
+
+        if (pattern) {
+          dp6PathQuad(ctx, cell);
+          ctx.clip();
+          ctx.globalCompositeOperation = "overlay";
+          ctx.globalAlpha = 0.11;
+          ctx.fillStyle = pattern;
+          const tr = typeof ctx.getTransform === "function" ? ctx.getTransform() : null;
+          const w = tr && tr.a ? ctx.canvas.width / tr.a : ctx.canvas.width;
+          const h = tr && tr.d ? ctx.canvas.height / tr.d : ctx.canvas.height;
+          ctx.fillRect(0, 0, w, h);
+        }
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalCompositeOperation = "source-over";
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(255,255,255,0.14)";
+        dp6PathQuad(ctx, cell);
+        ctx.stroke();
+
+        const a = orientation === "PAYSAGE" ? dp6LerpPoint(cell[0], cell[3], 0.5) : dp6LerpPoint(cell[0], cell[1], 0.5);
+        const b = orientation === "PAYSAGE" ? dp6LerpPoint(cell[1], cell[2], 0.5) : dp6LerpPoint(cell[3], cell[2], 0.5);
+        ctx.strokeStyle = "rgba(255,255,255,0.07)";
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
   async function renderDP6Canvas() {
     const canvas = dp6EnsureWorkspaceCanvas();
     if (!canvas) return;
@@ -1307,7 +1413,7 @@ function initDP6() {
       if (!q) continue;
       // UX DP6 : rendu "photomontage" uniquement (aucun contour).
       // La sélection active (or + poignées) est rendue UNIQUEMENT via l'overlay SVG.
-      dp6DrawSolarPatch(ctx, q, { alpha: 0.945, shadow: true, textureAlpha: 0.10 });
+      dp6DrawSolarPanelGrid(ctx, q, p);
     }
 
     // 3) IMPORTANT : ne jamais dessiner la sélection sur le canvas
@@ -1417,6 +1523,9 @@ function initDP6() {
     try {
       dp6SyncActionButtons();
     } catch (_) {}
+    try {
+      dp6SyncZoneEditorUI();
+    } catch (_) {}
   }
 
   function dp6SyncActionButtons() {
@@ -1480,7 +1589,7 @@ function initDP6() {
     try {
       window.DP6_STATE = window.DP6_STATE || {};
       window.DP6_STATE.patches = Array.isArray(window.DP6_STATE.patches) ? window.DP6_STATE.patches : [];
-      window.DP6_STATE.patches.push({ points: copy });
+      window.DP6_STATE.patches.push(dp6CreatePatch(copy));
     } catch (_) {
       return false;
     }
@@ -1492,6 +1601,79 @@ function initDP6() {
     try { renderDP6Canvas(); } catch (_) {}
     try { dp6SyncValidateButtonUI(); } catch (_) {}
     return true;
+  }
+
+  function dp6ClampInt(v, min, max, fallback) {
+    const n = Math.round(Number(v));
+    const f = Math.round(Number(fallback));
+    const base = Number.isFinite(n) ? n : (Number.isFinite(f) ? f : min);
+    return Math.max(min, Math.min(max, base));
+  }
+
+  function dp6ClampNumber(v, min, max, fallback) {
+    const n = Number(v);
+    const f = Number(fallback);
+    const base = Number.isFinite(n) ? n : (Number.isFinite(f) ? f : min);
+    return Math.max(min, Math.min(max, base));
+  }
+
+  function dp6DefaultPatchLayout() {
+    return {
+      rows: DP6_PANEL_ZONE_DEFAULT_ROWS,
+      cols: DP6_PANEL_ZONE_DEFAULT_COLS,
+      gap: DP6_PANEL_ZONE_DEFAULT_GAP,
+      orientation: dp6CoerceOrientation(window.DP6_STATE?.layout?.orientation),
+    };
+  }
+
+  function dp6NormalizePatch(patch) {
+    const p = patch && typeof patch === "object" ? patch : {};
+    const layout = p.layout && typeof p.layout === "object" ? p.layout : {};
+    const defaults = dp6DefaultPatchLayout();
+    return {
+      ...p,
+      points: Array.isArray(p.points) ? p.points : [],
+      layout: {
+        rows: dp6ClampInt(layout.rows, 1, 20, defaults.rows),
+        cols: dp6ClampInt(layout.cols, 1, 20, defaults.cols),
+        gap: dp6ClampNumber(layout.gap, 0, 20, defaults.gap),
+        orientation: dp6CoerceOrientation(layout.orientation || defaults.orientation),
+      },
+    };
+  }
+
+  function dp6CreatePatch(points, patch) {
+    const copy = (points || []).slice(0, 4).map((p) => ({
+      x: +Number(p?.x || 0).toFixed(2),
+      y: +Number(p?.y || 0).toFixed(2),
+    }));
+    return dp6NormalizePatch({ ...(patch || {}), points: copy });
+  }
+
+  function dp6GetActivePatch() {
+    const idx = dp6GetActivePatchIndex();
+    const patches = Array.isArray(window.DP6_STATE?.patches) ? window.DP6_STATE.patches : [];
+    if (idx == null || idx < 0 || idx >= patches.length) return null;
+    return patches[idx] || null;
+  }
+
+  function dp6PatchPanelCount(patch) {
+    const normalized = dp6NormalizePatch(patch);
+    return normalized.layout.rows * normalized.layout.cols;
+  }
+
+  function dp6TotalPanelCount() {
+    const patches = dp6EnsurePatchState();
+    return patches.reduce((sum, patch) => sum + dp6PatchPanelCount(patch), 0);
+  }
+
+  function dp6UpdatePanelCountState() {
+    try {
+      window.DP6_STATE = window.DP6_STATE || {};
+      const patches = dp6EnsurePatchState();
+      window.DP6_STATE.panelZonesCount = patches.length;
+      window.DP6_STATE.panelCountTotal = dp6TotalPanelCount();
+    } catch (_) {}
   }
 
   function dp6CreateActivePatchFromSelection() {
@@ -1508,7 +1690,7 @@ function initDP6() {
     try {
       window.DP6_STATE = window.DP6_STATE || {};
       window.DP6_STATE.patches = Array.isArray(window.DP6_STATE.patches) ? window.DP6_STATE.patches : [];
-      window.DP6_STATE.patches.push({ points: copy });
+      window.DP6_STATE.patches.push(dp6CreatePatch(copy));
       dp6SetActivePatchIndex(window.DP6_STATE.patches.length - 1);
       dp6CropSetSelection(copy);
     } catch (_) {
@@ -1552,7 +1734,7 @@ function initDP6() {
 
     // Mise à jour in-place (sans supprimer, sans reorder)
     const prev = patches[idx] && typeof patches[idx] === "object" ? patches[idx] : {};
-    patches[idx] = { ...prev, points: nextPoints };
+    patches[idx] = dp6CreatePatch(nextPoints, prev);
 
     try { renderDP6Canvas(); } catch (_) {}
     try { dp6SyncValidateButtonUI(); } catch (_) {}
@@ -1635,6 +1817,153 @@ function initDP6() {
     }
   }
 
+  function dp6SyncZoneEditorUI() {
+    const patches = dp6EnsurePatchState();
+    dp6UpdatePanelCountState();
+
+    if (zoneCountEl) zoneCountEl.textContent = String(patches.length);
+    if (totalPanelCountEl) totalPanelCountEl.textContent = String(dp6TotalPanelCount());
+
+    const activePatch = dp6GetActivePatch();
+    const hasActivePatch = !!activePatch;
+    if (zoneEditorEl) zoneEditorEl.style.display = hasActivePatch ? "grid" : "none";
+    if (zoneEditorEmptyEl) zoneEditorEmptyEl.style.display = hasActivePatch ? "none" : "block";
+
+    const canAddZone = dp6HasSourceImage() && window.DP6_STATE?.category !== "BEFORE";
+    if (addPanelZoneBtn) addPanelZoneBtn.disabled = !canAddZone;
+    if (zoneDeleteBtn) zoneDeleteBtn.disabled = !hasActivePatch;
+
+    if (!hasActivePatch) return;
+
+    const normalized = dp6NormalizePatch(activePatch);
+    if (zoneRowsInput && document.activeElement !== zoneRowsInput) zoneRowsInput.value = String(normalized.layout.rows);
+    if (zoneColsInput && document.activeElement !== zoneColsInput) zoneColsInput.value = String(normalized.layout.cols);
+    if (zoneGapInput && document.activeElement !== zoneGapInput) zoneGapInput.value = String(normalized.layout.gap);
+    if (zoneOrientationSelect && document.activeElement !== zoneOrientationSelect) {
+      zoneOrientationSelect.value = normalized.layout.orientation;
+    }
+  }
+
+  function dp6GetWorkspaceLogicalBounds() {
+    const struct = dp6CropEnsureWorkspaceStructure();
+    const target = struct?.layer || workspace;
+    const br = target ? target.getBoundingClientRect() : null;
+    const s = dp6View && typeof dp6View.scale === "number" ? dp6View.scale : 1;
+    const w = Math.max(1, ((br && br.width) || 0) / s);
+    const h = Math.max(1, ((br && br.height) || 0) / s);
+    return { w, h };
+  }
+
+  function dp6DefaultPanelZonePoints() {
+    const bounds = dp6GetWorkspaceLogicalBounds();
+    const w = bounds.w >= 160 ? bounds.w : 800;
+    const h = bounds.h >= 120 ? bounds.h : 500;
+    const zoneW = Math.max(120, Math.min(w * 0.36, Math.max(120, w - 32)));
+    const zoneH = Math.max(90, Math.min(h * 0.24, Math.max(90, h - 32)));
+    const cx = w / 2;
+    const cy = h * 0.48;
+    const x0 = Math.max(16, cx - zoneW / 2);
+    const y0 = Math.max(16, cy - zoneH / 2);
+    const x1 = Math.min(w - 16, cx + zoneW / 2);
+    const y1 = Math.min(h - 16, cy + zoneH / 2);
+    return [
+      { x: +x0.toFixed(2), y: +y0.toFixed(2) },
+      { x: +x1.toFixed(2), y: +y0.toFixed(2) },
+      { x: +x1.toFixed(2), y: +y1.toFixed(2) },
+      { x: +x0.toFixed(2), y: +y1.toFixed(2) },
+    ];
+  }
+
+  function dp6AddPanelZone() {
+    if (!dp6HasSourceImage()) {
+      window.__snDpAlert("DP6 : chargez une photo avant d'ajouter une zone de panneaux.");
+      return false;
+    }
+    if (window.DP6_STATE?.category === "BEFORE") {
+      window.__snDpAlert("DP6 : les zones de panneaux se placent sur la vue APRÈS travaux.");
+      return false;
+    }
+
+    const points = dp6DefaultPanelZonePoints();
+    dp6PushUndoState();
+    try {
+      window.DP6_STATE = window.DP6_STATE || {};
+      window.DP6_STATE.patches = dp6EnsurePatchState();
+      window.DP6_STATE.patches.push(dp6CreatePatch(points));
+      dp6SetSelectionUIMode(DP6_SELECTION_UI_MODE_EDIT);
+      dp6SetActivePatchIndex(window.DP6_STATE.patches.length - 1);
+      dp6CropSetSelection(points);
+    } catch (_) {
+      return false;
+    }
+
+    try { dp6EnsureSelectionEditor(); } catch (_) {}
+    try { renderDP6Canvas(); } catch (_) {}
+    try { dp6SyncValidateButtonUI(); } catch (_) {}
+    return true;
+  }
+
+  function dp6UpdateActivePatchLayout(partial) {
+    const idx = dp6GetActivePatchIndex();
+    const patches = dp6EnsurePatchState();
+    if (idx == null || idx < 0 || idx >= patches.length) return false;
+    const current = dp6NormalizePatch(patches[idx]);
+    patches[idx] = dp6NormalizePatch({
+      ...current,
+      layout: {
+        ...current.layout,
+        ...(partial || {}),
+      },
+    });
+    dp6UpdatePanelCountState();
+    try { renderDP6Canvas(); } catch (_) {}
+    try { dp6SyncValidateButtonUI(); } catch (_) {}
+    return true;
+  }
+
+  function dp6BindZoneEditor() {
+    if (addPanelZoneBtn && addPanelZoneBtn.dataset.dp6Bound !== "1") {
+      addPanelZoneBtn.dataset.dp6Bound = "1";
+      addPanelZoneBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        dp6AddPanelZone();
+      });
+    }
+
+    const bindNumberInput = (input, key, min, max, fallback) => {
+      if (!input || input.dataset.dp6Bound === "1") return;
+      input.dataset.dp6Bound = "1";
+      const apply = () => {
+        const value = key === "gap"
+          ? dp6ClampNumber(input.value, min, max, fallback)
+          : dp6ClampInt(input.value, min, max, fallback);
+        input.value = String(value);
+        dp6UpdateActivePatchLayout({ [key]: value });
+      };
+      input.addEventListener("change", apply);
+      input.addEventListener("blur", apply);
+    };
+
+    bindNumberInput(zoneRowsInput, "rows", 1, 20, DP6_PANEL_ZONE_DEFAULT_ROWS);
+    bindNumberInput(zoneColsInput, "cols", 1, 20, DP6_PANEL_ZONE_DEFAULT_COLS);
+    bindNumberInput(zoneGapInput, "gap", 0, 20, DP6_PANEL_ZONE_DEFAULT_GAP);
+
+    if (zoneOrientationSelect && zoneOrientationSelect.dataset.dp6Bound !== "1") {
+      zoneOrientationSelect.dataset.dp6Bound = "1";
+      zoneOrientationSelect.addEventListener("change", () => {
+        dp6UpdateActivePatchLayout({ orientation: dp6CoerceOrientation(zoneOrientationSelect.value) });
+      });
+    }
+
+    if (zoneDeleteBtn && zoneDeleteBtn.dataset.dp6Bound !== "1") {
+      zoneDeleteBtn.dataset.dp6Bound = "1";
+      zoneDeleteBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        dp6DeleteActivePatch();
+      });
+    }
+  }
+
   try {
     window.DP6_STATE = window.DP6_STATE || {};
     window.DP6_STATE.layout = window.DP6_STATE.layout || { orientation: "PORTRAIT" };
@@ -1706,6 +2035,7 @@ function initDP6() {
 
   // Sync état -> UI / UI -> état (implantation)
   dp6SyncLayoutInputsUI();
+  dp6BindZoneEditor();
   dp6SyncValidateButtonUI();
 
   // Orientation (Portrait / Paysage) — valeur stockée dans DP6_STATE.layout.orientation
@@ -1739,7 +2069,11 @@ function initDP6() {
     const pts = window.DP6_STATE?.selection?.points;
     const ptsKey = dp6GetPatchKey(pts);
     const patches = Array.isArray(window.DP6_STATE?.patches) ? window.DP6_STATE.patches : [];
-    const patchesKey = patches.map((p) => dp6GetPatchKey(p?.points)).join("|");
+    const patchesKey = patches.map((p) => {
+      const normalized = dp6NormalizePatch(p);
+      const layout = normalized.layout;
+      return `${dp6GetPatchKey(normalized.points)}:${layout.rows}:${layout.cols}:${layout.gap}:${layout.orientation}`;
+    }).join("|");
     return `${src}|patches:${patchesKey}|sel:${ptsKey}`;
   }
 
@@ -2063,7 +2397,7 @@ function initDP6() {
         y: +Number(p?.y || 0).toFixed(2),
       }));
       const prev = patches[idx] && typeof patches[idx] === "object" ? patches[idx] : {};
-      patches[idx] = { ...prev, points: next };
+      patches[idx] = dp6CreatePatch(next, prev);
       return true;
     }
 
@@ -2979,6 +3313,7 @@ function initDP6() {
 
       try {
         window.DP6_STATE = window.DP6_STATE || {};
+        dp6UpdatePanelCountState();
         if (isBefore) {
           window.DP6_STATE.beforeImage = out;
         } else {
@@ -3066,6 +3401,7 @@ window.bindDP6ExportPdfButton = window.bindDP6ExportPdfButton || function bindDP
   async function generateDP6PDF(dp6State) {
     // Enrichir le payload DP6 avec les contextes DP1 + SmartPitch (nécessaires au renderer PDF DP6)
     const st = window.DP6_STATE || {};
+    try { dp6UpdatePanelCountState(); } catch (_) {}
     const dp1 = window.DP1_CONTEXT || null;
     const sp = window.SMARTPITCH_CTX || null;
     const cad = window.DP1_STATE?.selectedParcel || null;

@@ -204,3 +204,27 @@ test("DP complete package route and front button use the persisted PDF assembly 
   assert.match(page, /dp-complete-assemble/);
   assert.match(page, /Assembler dossier DP complet/);
 });
+
+test("DP6 panel zones expose grid controls and PDF panel count", () => {
+  const dp6 = readRepoFile("frontend", "dp-tool", "dp6.js");
+  const page = readRepoFile("frontend", "dp-tool", "pages", "dp6.html");
+  const pdfScript = readRepoFile("backend", "pdf", "render", "dp6.js");
+  const pdfTemplate = readRepoFile("backend", "pdf", "render", "dp6.html");
+
+  assert.match(page, /dp6-add-panel-zone/);
+  assert.match(page, /dp6-zone-rows/);
+  assert.match(page, /dp6-zone-cols/);
+  assert.match(page, /dp6-zone-gap/);
+  assert.match(page, /dp6-zone-orientation/);
+  assert.match(page, /dp6-total-panel-count/);
+
+  assert.match(dp6, /function dp6DrawSolarPanelGrid\(/);
+  assert.match(dp6, /function dp6AddPanelZone\(/);
+  assert.match(dp6, /function dp6TotalPanelCount\(/);
+  assert.match(dp6, /DP6_PANEL_ZONE_DEFAULT_ROWS = 2/);
+  assert.match(dp6, /DP6_PANEL_ZONE_DEFAULT_COLS = 2/);
+
+  assert.match(pdfTemplate, /data-field="dp6\.panel\.count"/);
+  assert.match(pdfScript, /function countPanelsFromState\(/);
+  assert.match(pdfScript, /setText\("dp6\.panel\.count"/);
+});

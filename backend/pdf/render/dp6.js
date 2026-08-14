@@ -87,6 +87,37 @@
     return "—";
   }
 
+  function normalizePatchLayout(patch) {
+    const layout = patch && typeof patch === "object" && patch.layout && typeof patch.layout === "object"
+      ? patch.layout
+      : {};
+    const rows = Math.max(1, Math.min(20, Math.round(Number(layout.rows) || 2)));
+    const cols = Math.max(1, Math.min(20, Math.round(Number(layout.cols) || 2)));
+    const orientation = orientationLabel(layout.orientation);
+    return { rows, cols, orientation };
+  }
+
+  function countPanelsFromState(state) {
+    const direct = Number(state?.panelCountTotal);
+    if (Number.isFinite(direct) && direct > 0) return Math.round(direct);
+    const patches = Array.isArray(state?.patches) ? state.patches : [];
+    return patches.reduce((sum, patch) => {
+      const layout = normalizePatchLayout(patch);
+      return sum + layout.rows * layout.cols;
+    }, 0);
+  }
+
+  function orientationSummaryFromState(state) {
+    const patches = Array.isArray(state?.patches) ? state.patches : [];
+    const labels = patches
+      .map((patch) => normalizePatchLayout(patch).orientation)
+      .filter((label) => label && label !== "—");
+    const unique = Array.from(new Set(labels));
+    if (unique.length === 1) return unique[0];
+    if (unique.length > 1) return "Mixte";
+    return orientationLabel(state?.layout?.orientation);
+  }
+
   function formatSolarGlobePanelDimensionsMeters() {
     const dims = PANEL_DIMENSIONS;
     const wmm = typeof dims?.width_mm === "number" && Number.isFinite(dims.width_mm) ? dims.width_mm : null;
@@ -151,7 +182,8 @@
   setText("dp6.module.fabricant", mod?.fabricant ?? "—");
   setText("dp6.module.reference", mod?.reference ?? "—");
   setText("dp6.module.dimensions", formatModuleDimensions(mod));
-  setText("dp6.layout.orientation", orientationLabel(DP6_STATE?.layout?.orientation));
+  setText("dp6.layout.orientation", orientationSummaryFromState(DP6_STATE));
+  setText("dp6.panel.count", countPanelsFromState(DP6_STATE) || "—");
 
   // ======================================================
   // META
