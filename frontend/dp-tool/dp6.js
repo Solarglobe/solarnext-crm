@@ -1284,14 +1284,59 @@ function initDP6() {
   }
 
   // Point d’entrée rendu (central)
-  function dp6PanelCellQuad(q, row, col, rows, cols, gapPct) {
+  function dp6AverageEdgeLength(a, b) {
+    return dp6Dist(a, b);
+  }
+
+  function dp6GetPanelPortraitAspectRatio() {
+    const mod = window.DP6_STATE?.module || null;
+    const wmm = Number(mod?.width_mm || 0);
+    const hmm = Number(mod?.height_mm || 0);
+    if (Number.isFinite(wmm) && Number.isFinite(hmm) && wmm > 0 && hmm > 0) {
+      const shortSide = Math.min(wmm, hmm);
+      const longSide = Math.max(wmm, hmm);
+      return shortSide / longSide;
+    }
+    return 1134 / 1722;
+  }
+
+  function dp6GetPanelAspectRatioForOrientation(orientation) {
+    const portraitRatio = dp6GetPanelPortraitAspectRatio();
+    return orientation === "PAYSAGE" ? 1 / portraitRatio : portraitRatio;
+  }
+
+  function dp6PanelCellQuad(q, row, col, rows, cols, gapPct, desiredAspectRatio) {
     const u0 = col / cols;
     const u1 = (col + 1) / cols;
     const v0 = row / rows;
     const v1 = (row + 1) / rows;
     const gap = Math.max(0, Math.min(20, Number(gapPct) || 0)) / 100;
-    const du = ((u1 - u0) * gap) / 2;
-    const dv = ((v1 - v0) * gap) / 2;
+    let du = ((u1 - u0) * gap) / 2;
+    let dv = ((v1 - v0) * gap) / 2;
+
+    const zoneW = (
+      dp6AverageEdgeLength(q[0], q[1]) +
+      dp6AverageEdgeLength(q[3], q[2])
+    ) / 2;
+    const zoneH = (
+      dp6AverageEdgeLength(q[0], q[3]) +
+      dp6AverageEdgeLength(q[1], q[2])
+    ) / 2;
+    const cellU = Math.max(0.0001, (u1 - u0) - du * 2);
+    const cellV = Math.max(0.0001, (v1 - v0) - dv * 2);
+    const currentAspect = (zoneW * cellU) / Math.max(1, zoneH * cellV);
+    const targetAspect = Number(desiredAspectRatio);
+
+    if (Number.isFinite(targetAspect) && targetAspect > 0.05 && zoneW > 1 && zoneH > 1) {
+      if (currentAspect > targetAspect) {
+        const nextCellU = cellV * zoneH * targetAspect / zoneW;
+        du += Math.max(0, (cellU - nextCellU) / 2);
+      } else {
+        const nextCellV = cellU * zoneW / (targetAspect * zoneH);
+        dv += Math.max(0, (cellV - nextCellV) / 2);
+      }
+    }
+
     return [
       dp6BilinearPoint(q, u0 + du, v0 + dv),
       dp6BilinearPoint(q, u1 - du, v0 + dv),
@@ -1306,6 +1351,7 @@ function initDP6() {
     const cols = normalized.layout.cols;
     const gap = normalized.layout.gap;
     const orientation = normalized.layout.orientation;
+    const panelAspectRatio = dp6GetPanelAspectRatioForOrientation(orientation);
 
     ctx.save();
     ctx.globalCompositeOperation = "source-over";
@@ -1323,7 +1369,7 @@ function initDP6() {
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        const cell = dp6PanelCellQuad(q, r, c, rows, cols, gap);
+        const cell = dp6PanelCellQuad(q, r, c, rows, cols, gap, panelAspectRatio);
         ctx.save();
         ctx.globalCompositeOperation = "source-over";
         ctx.shadowColor = "transparent";
