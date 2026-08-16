@@ -91,6 +91,31 @@ describe("mapPvEnginePanelsToPanelInputs", () => {
     expect(out[0].polygonPx?.length).toBe(4);
     expect(out[0].moduleWidthM).toBeGreaterThan(0);
   });
+
+  it("priorise les dimensions module stockees sur l'inference depuis un quad degenere", () => {
+    const raw = [
+      {
+        id: "blk_0",
+        panId: "pan-a",
+        center: { x: 50, y: 50 },
+        polygonPx: [
+          { x: 50, y: 10 },
+          { x: 50.2, y: 50 },
+          { x: 50.4, y: 90 },
+          { x: 50.2, y: 50 },
+        ],
+        moduleWidthM: 1.12,
+        moduleHeightM: 1.76,
+        enabled: true,
+      },
+    ];
+
+    const out = mapPvEnginePanelsToPanelInputs(raw, null, 0.05);
+
+    expect(out).toHaveLength(1);
+    expect(out[0].moduleWidthM).toBeCloseTo(1.12, 6);
+    expect(out[0].moduleHeightM).toBeCloseTo(1.76, 6);
+  });
 });
 
 describe("buildCanonicalPlacedPanelsFromRuntime", () => {

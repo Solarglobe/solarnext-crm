@@ -215,9 +215,15 @@ export function mapPvEnginePanelsToPanelInputs(
         ? { x: (p.center as { x: number }).x, y: (p.center as { y: number }).y }
         : undefined;
 
+    const moduleWidthM = typeof p.moduleWidthM === "number" && p.moduleWidthM > 0 ? p.moduleWidthM : null;
+    const moduleHeightM = typeof p.moduleHeightM === "number" && p.moduleHeightM > 0 ? p.moduleHeightM : null;
+    const hasStoredModuleDims = moduleWidthM !== null && moduleHeightM !== null;
+
     // Résoudre le patch correspondant au panId pour corriger le double cos(tilt)
     const patch = panId !== null ? (patchByPanId?.get(panId) ?? null) : null;
-    const inferred = inferModuleDimsFromProjectionQuadPx(poly, metersPerPixel, northAngleDeg, patch);
+    const inferred = hasStoredModuleDims
+      ? { widthM: moduleWidthM, heightM: moduleHeightM }
+      : inferModuleDimsFromProjectionQuadPx(poly, metersPerPixel, northAngleDeg, patch);
 
     out.push({
       id,

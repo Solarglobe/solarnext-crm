@@ -51,6 +51,46 @@
     return {};
   }
 
+  function normalizePanelOrientation(v) {
+    var u = (v != null ? String(v) : "PORTRAIT").toUpperCase();
+    if (u === "LANDSCAPE" || u === "PAYSAGE") return "PAYSAGE";
+    return "PORTRAIT";
+  }
+
+  function readPanelModuleFromContext(ctx, orientationFallback) {
+    var pp = ctx && ctx.panelParams;
+    if (!pp) return null;
+    var w = Number(pp.panelWidthMm);
+    var h = Number(pp.panelHeightMm);
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+    return {
+      panelWidthMm: w,
+      panelHeightMm: h,
+      panelOrientation: normalizePanelOrientation(pp.panelOrientation || orientationFallback),
+    };
+  }
+
+  function readPanelModuleFromPanel(panel, ctx, orientationFallback) {
+    var w = panel && Number(panel.panelWidthMm);
+    var h = panel && Number(panel.panelHeightMm);
+    if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+      return {
+        panelWidthMm: w,
+        panelHeightMm: h,
+        panelOrientation: normalizePanelOrientation((panel && panel.panelOrientation) || orientationFallback),
+      };
+    }
+    return readPanelModuleFromContext(ctx, orientationFallback);
+  }
+
+  function assignPanelModuleFields(target, moduleInfo) {
+    if (!target || !moduleInfo) return target;
+    target.panelWidthMm = moduleInfo.panelWidthMm;
+    target.panelHeightMm = moduleInfo.panelHeightMm;
+    target.panelOrientation = moduleInfo.panelOrientation;
+    return target;
+  }
+
   /**
    * Crée un identifiant unique pour un bloc.
    */
@@ -319,6 +359,7 @@
       blockOrientation = orientationFromCtx === "PAYSAGE" ? "PAYSAGE" : "PORTRAIT";
     }
     blockOrientation = blockOrientation === "PAYSAGE" ? "PAYSAGE" : "PORTRAIT";
+    var moduleInfoCreate = readPanelModuleFromContext(ctx, blockOrientation);
     projectOpts.panelOrientation = blockOrientation;
     projectOpts.localRotationDeg = 0;
     var rotationBaseDeg = 0;
@@ -337,7 +378,7 @@
       id: nextBlockId(),
       panId: panId,
       panels: [
-        { id: nextPanelId(), center: { x: center.x, y: center.y }, projection: masterProjection, state: "valid", enabled: true, localRotationDeg: 0 },
+        assignPanelModuleFields({ id: nextPanelId(), center: { x: center.x, y: center.y }, projection: masterProjection, state: "valid", enabled: true, localRotationDeg: 0 }, moduleInfoCreate),
       ],
       rotation: 0,
       isActive: true,
@@ -369,10 +410,11 @@
     var computeProjectedPanelRect = getComputeProjectedPanelRect();
     if (typeof computeProjectedPanelRect !== "function") return { success: false, reason: "Projection indisponible." };
     var blockOrient = (activeBlock.orientation === "PAYSAGE" || activeBlock.orientation === "landscape") ? "PAYSAGE" : "PORTRAIT";
+    var moduleInfoAdd = readPanelModuleFromContext(ctx, blockOrient);
     var projectOpts = {
       center: { x: center.x, y: center.y },
-      panelWidthMm: ctx.panelParams.panelWidthMm,
-      panelHeightMm: ctx.panelParams.panelHeightMm,
+      panelWidthMm: moduleInfoAdd ? moduleInfoAdd.panelWidthMm : ctx.panelParams.panelWidthMm,
+      panelHeightMm: moduleInfoAdd ? moduleInfoAdd.panelHeightMm : ctx.panelParams.panelHeightMm,
       panelOrientation: blockOrient,
       roofSlopeDeg: ctx.roofParams.roofSlopeDeg,
       roofOrientationDeg: ctx.roofParams.roofOrientationDeg != null ? ctx.roofParams.roofOrientationDeg : 0,
@@ -396,14 +438,14 @@
     var rotation = (activeBlock.rotation || 0) % 360;
     if (rotation < 0) rotation += 360;
     if (rotation) proj = rotateProjectionAroundCenter(proj, center, rotation);
-    activeBlock.panels.push({
+    activeBlock.panels.push(assignPanelModuleFields({
       id: nextPanelId(),
       center: { x: center.x, y: center.y },
       projection: proj,
       state: "valid",
       enabled: true,
       localRotationDeg: 0,
-    });
+    }, moduleInfoAdd));
     return { success: true };
   }
 
@@ -471,6 +513,7 @@
     if (typeof computeProjectedPanelRect !== "function") return { success: false, reason: "Projection indisponible.", added: 0 };
 
     var blockOrient = (activeBlock.orientation === "PAYSAGE" || activeBlock.orientation === "landscape") ? "PAYSAGE" : "PORTRAIT";
+    var moduleInfoBatch = readPanelModuleFromContext(ctx, blockOrient);
     var rotation = (activeBlock.rotation || 0) % 360;
     if (rotation < 0) rotation += 360;
 
@@ -479,8 +522,8 @@
       var center = prep.list[di];
       var projectOpts = {
         center: { x: center.x, y: center.y },
-        panelWidthMm: ctx.panelParams.panelWidthMm,
-        panelHeightMm: ctx.panelParams.panelHeightMm,
+        panelWidthMm: moduleInfoBatch ? moduleInfoBatch.panelWidthMm : ctx.panelParams.panelWidthMm,
+        panelHeightMm: moduleInfoBatch ? moduleInfoBatch.panelHeightMm : ctx.panelParams.panelHeightMm,
         panelOrientation: blockOrient,
         roofSlopeDeg: ctx.roofParams.roofSlopeDeg,
         roofOrientationDeg: ctx.roofParams.roofOrientationDeg != null ? ctx.roofParams.roofOrientationDeg : 0,
@@ -511,14 +554,14 @@
     try {
       for (var pi = 0; pi < dry.length; pi++) {
         var item = dry[pi];
-        activeBlock.panels.push({
+        activeBlock.panels.push(assignPanelModuleFields({
           id: nextPanelId(),
           center: { x: item.center.x, y: item.center.y },
           projection: item.projection,
           state: "valid",
           enabled: true,
           localRotationDeg: 0,
-        });
+        }, moduleInfoBatch));
       }
     } catch (e) {
       activeBlock.panels.length = startLen;
@@ -881,11 +924,13 @@
       ensurePanelId(panel);
       var center = panel.center;
       if (!center || typeof center.x !== "number" || typeof center.y !== "number") continue;
+      var blockOrient = (block.orientation === "PAYSAGE" || block.orientation === "landscape") ? "PAYSAGE" : "PORTRAIT";
+      var panelModule = readPanelModuleFromPanel(panel, ctx, blockOrient);
       var projectOpts = {
         center: { x: center.x, y: center.y },
-        panelWidthMm: ctx.panelParams.panelWidthMm,
-        panelHeightMm: ctx.panelParams.panelHeightMm,
-        panelOrientation: (function () {
+        panelWidthMm: panelModule ? panelModule.panelWidthMm : ctx.panelParams.panelWidthMm,
+        panelHeightMm: panelModule ? panelModule.panelHeightMm : ctx.panelParams.panelHeightMm,
+        panelOrientation: panelModule ? panelModule.panelOrientation : (function () {
           var po = ctx.panelParams.panelOrientation;
           var u = po != null ? String(po).toUpperCase() : "";
           if (u === "PAYSAGE" || u === "LANDSCAPE") return "PAYSAGE";
@@ -912,6 +957,7 @@
         if (proj && proj.points && proj.points.length >= 4) {
           if (rotation) proj = rotateProjectionAroundCenter(proj, center, rotation);
           block.panels[i].projection = proj;
+          assignPanelModuleFields(block.panels[i], panelModule);
         }
       } catch (e) {}
     }
@@ -952,6 +998,9 @@
             state: p.state === "invalid" ? "invalid" : "valid",
             enabled: p.enabled !== false,
             localRotationDeg: typeof p.localRotationDeg === "number" ? p.localRotationDeg : 0,
+            panelWidthMm: Number.isFinite(Number(p.panelWidthMm)) && Number(p.panelWidthMm) > 0 ? Number(p.panelWidthMm) : undefined,
+            panelHeightMm: Number.isFinite(Number(p.panelHeightMm)) && Number(p.panelHeightMm) > 0 ? Number(p.panelHeightMm) : undefined,
+            panelOrientation: normalizePanelOrientation(p.panelOrientation || b.orientation),
           });
         }
       }

@@ -42,6 +42,14 @@ export interface PlacedPanel {
   center: { x: number; y: number } | null;
   /** Polygone projeté en coordonnées image (4 sommets, px). */
   polygonPx: { x: number; y: number }[] | null;
+  /** Largeur effective du module posé en mètres (après orientation du bloc). */
+  moduleWidthM?: number;
+  /** Hauteur effective du module posé en mètres (après orientation du bloc). */
+  moduleHeightM?: number;
+  /** Largeur catalogue du module en millimètres (avant orientation). */
+  panelWidthMm?: number;
+  /** Hauteur catalogue du module en millimètres (avant orientation). */
+  panelHeightMm?: number;
   /** État de validation : "valid" | "invalid". Null si non calculé. */
   state: "valid" | "invalid" | null;
   /** false si le panneau a été désactivé manuellement par l'utilisateur. */
@@ -62,6 +70,12 @@ export interface PlacementPanelData {
   enabled?: boolean;
   /** Rotation locale du panneau en degrés (indépendante de la rotation du bloc). */
   localRotationDeg?: number;
+  /** Largeur catalogue du module en millimètres (avant orientation). */
+  panelWidthMm?: number;
+  /** Hauteur catalogue du module en millimètres (avant orientation). */
+  panelHeightMm?: number;
+  /** Orientation module utilisée pour la projection du panneau. */
+  panelOrientation?: string;
   /** Coordonnées dans la grille du bloc (row, col). */
   grid?: { row: number; col: number };
 }
