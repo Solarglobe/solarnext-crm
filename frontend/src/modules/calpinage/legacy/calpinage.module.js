@@ -12301,7 +12301,17 @@ export function initCalpinage(container, options = {}) {
                   return {
                     id: bl.id,
                     panId: bl.panId,
-                    panels: (bl.panels || []).map(function (p) { return { center: p.center, projection: p.projection, state: p.state, enabled: p.enabled !== false, localRotationDeg: typeof p.localRotationDeg === "number" ? p.localRotationDeg : 0 }; }),
+                    panels: (bl.panels || []).map(function (p) { return {
+                      id: p.id,
+                      center: p.center,
+                      projection: p.projection,
+                      state: p.state,
+                      enabled: p.enabled !== false,
+                      localRotationDeg: typeof p.localRotationDeg === "number" ? p.localRotationDeg : 0,
+                      panelWidthMm: Number.isFinite(Number(p.panelWidthMm)) && Number(p.panelWidthMm) > 0 ? Number(p.panelWidthMm) : undefined,
+                      panelHeightMm: Number.isFinite(Number(p.panelHeightMm)) && Number(p.panelHeightMm) > 0 ? Number(p.panelHeightMm) : undefined,
+                      panelOrientation: p.panelOrientation || orientSaved,
+                    }; }),
                     rotation: bl.rotation,
                     orientation: orientSaved,
                     useScreenAxes: bl.useScreenAxes === true,
@@ -12863,9 +12873,40 @@ export function initCalpinage(container, options = {}) {
         return ratio !== null && ratio >= 0.8;
       };
 
+      function stabilizePvLayoutBeforeValidationExport() {
+        var eng = window.pvPlacementEngine;
+        if (!eng) return;
+        var changed = false;
+        try {
+          if (typeof eng.commitManipulation === "function") eng.commitManipulation();
+          var active = typeof eng.getActiveBlock === "function" ? eng.getActiveBlock() : null;
+          if (active && Array.isArray(active.panels) && active.panels.length > 0) {
+            if (typeof eng.endBlock === "function") {
+              eng.endBlock();
+              changed = true;
+            }
+          }
+          if (typeof syncPlacedPanelsFromBlocks === "function") syncPlacedPanelsFromBlocks();
+        } catch (e) {
+          if (typeof console !== "undefined" && console.warn) {
+            console.warn("[CALPINAGE] stabilisation PV avant validation ignorée", e);
+          }
+        }
+        if (changed) {
+          if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+          if (typeof window.emitOfficialRuntimeStructuralChange === "function") {
+            window.emitOfficialRuntimeStructuralChange({
+              reason: "PV_PLACEMENT_SYNC",
+              changedDomains: ["pv"]
+            });
+          }
+        }
+      }
+
       /** Retourne geometry_json et calpinage_data pour callback onValidate (legacy mode). */
       function getCalpinageExportData() {
         try {
+          stabilizePvLayoutBeforeValidationExport();
           if (typeof saveCalpinageState === "function") saveCalpinageState();
           var sid = (typeof window !== "undefined" && window.CALPINAGE_STUDY_ID) || null;
           var vid = (typeof window !== "undefined" && window.CALPINAGE_VERSION_ID) || null;
@@ -12878,6 +12919,7 @@ export function initCalpinage(container, options = {}) {
       /** Chemin CRM (onValidate) : construit export sans saveCalpinageState, fetch, solarnext_token, smartpitch_last_result. */
       function getCalpinageExportDataForCRM() {
         try {
+          stabilizePvLayoutBeforeValidationExport();
           var geometryJson = buildGeometryForExport();
           var out = { geometry_json: geometryJson, calpinage_data: geometryJson };
           if (typeof window.buildFinalCalpinageJSON === "function") {

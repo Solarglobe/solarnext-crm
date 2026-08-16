@@ -31,6 +31,18 @@
     return "PORTRAIT";
   }
 
+  function effectiveModuleDimsM(panel, block) {
+    if (!panel) return null;
+    var wMm = Number(panel.panelWidthMm);
+    var hMm = Number(panel.panelHeightMm);
+    if (!Number.isFinite(wMm) || !Number.isFinite(hMm) || wMm <= 0 || hMm <= 0) return null;
+    var o = normalizePanelOrientationStr((panel.panelOrientation != null ? panel.panelOrientation : null) || (block && block.orientation));
+    if (o === "PAYSAGE") {
+      return { moduleWidthM: hMm / 1000, moduleHeightM: wMm / 1000 };
+    }
+    return { moduleWidthM: wMm / 1000, moduleHeightM: hMm / 1000 };
+  }
+
   // ---------------------------------------------------------------------------
   // buildProjectionContext — PURE, sans dépendance globale
   // ---------------------------------------------------------------------------
@@ -2014,6 +2026,7 @@
       if (proj && Array.isArray(proj.points) && proj.points.length >= 3) {
         polygonPx = proj.points.map(function (pt) { return { x: pt.x, y: pt.y }; });
       }
+      var moduleDims = effectiveModuleDimsM(p, block);
       panels.push({
         id: block.id + "_" + idx,
         panId: block.panId || null,
@@ -2021,6 +2034,10 @@
         rotationDeg: block.rotation || 0,
         center: p.center ? { x: p.center.x, y: p.center.y } : null,
         polygonPx: polygonPx,
+        moduleWidthM: moduleDims ? moduleDims.moduleWidthM : undefined,
+        moduleHeightM: moduleDims ? moduleDims.moduleHeightM : undefined,
+        panelWidthMm: Number.isFinite(Number(p.panelWidthMm)) && Number(p.panelWidthMm) > 0 ? Number(p.panelWidthMm) : undefined,
+        panelHeightMm: Number.isFinite(Number(p.panelHeightMm)) && Number(p.panelHeightMm) > 0 ? Number(p.panelHeightMm) : undefined,
         state: p.state != null ? p.state : null,
         enabled: p.enabled != null ? p.enabled : true
       });
