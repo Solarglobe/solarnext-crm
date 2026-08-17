@@ -33,12 +33,13 @@ function result(overrides: Partial<InstallerCostResult> = {}): InstallerCostResu
 }
 
 describe("InstallerCostSummary", () => {
-  it("affiche la puissance projet, le palier backend et le total HT", () => {
+  it("affiche la puissance projet, le palier backend et les totaux HT/TTC", () => {
     render(<InstallerCostSummary result={result()} />);
 
     expect(screen.getByText("5,82 kWc")).toBeInTheDocument();
     expect(screen.getByText("6 kWc")).toBeInTheDocument();
-    expect(screen.getByText("2 000,00 € HT")).toBeInTheDocument();
+    expect(screen.getByText(/2\s*000,00 € TTC/)).toBeInTheDocument();
+    expect(screen.getByText(/HT\s*2\s*000,00 €/)).toBeInTheDocument();
   });
 
   it("affiche le palier 7 kWc retourné par le backend pour 6,3 kWc", () => {
@@ -46,7 +47,8 @@ describe("InstallerCostSummary", () => {
 
     expect(screen.getByText("6,3 kWc")).toBeInTheDocument();
     expect(screen.getByText("7 kWc")).toBeInTheDocument();
-    expect(screen.getByText("2 200,00 € HT")).toBeInTheDocument();
+    expect(screen.getByText(/2\s*200,00 € TTC/)).toBeInTheDocument();
+    expect(screen.getByText(/HT\s*2\s*200,00 €/)).toBeInTheDocument();
   });
 
   it("affiche les options, l'override manuel et le coût catalogue", () => {

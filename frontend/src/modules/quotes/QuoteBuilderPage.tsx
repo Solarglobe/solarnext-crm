@@ -1244,6 +1244,7 @@ export default function QuoteBuilderPage() {
               onPersisted={upsertInstallerLineFromCost}
               saveToQuotePrep={false}
               allowManualPower
+              autoCompute={false}
               embedded
               showTitle={false}
             />

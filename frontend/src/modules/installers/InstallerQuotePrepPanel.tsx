@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { computeInstallerInstallationCost, listInstallers } from "../../services/installers.service";
@@ -134,6 +134,7 @@ export default function InstallerQuotePrepPanel({
   onPersisted,
   saveToQuotePrep = true,
   allowManualPower = false,
+  autoCompute = true,
   embedded = false,
   showTitle = true,
 }: {
@@ -145,6 +146,7 @@ export default function InstallerQuotePrepPanel({
   onPersisted: (result: InstallerCostResult | null) => void;
   saveToQuotePrep?: boolean;
   allowManualPower?: boolean;
+  autoCompute?: boolean;
   embedded?: boolean;
   showTitle?: boolean;
 }) {
@@ -217,7 +219,7 @@ export default function InstallerQuotePrepPanel({
         ? Math.round((Number(String(manualPowerKwc).replace(",", ".")) || 0) * 1000)
         : null;
 
-  useEffect(() => {
+  const computeAndPersist = useCallback(async () => {
     if (locked || !installerId || !effectiveProjectPowerWc || effectiveProjectPowerWc <= 0) return;
     if (manualOverrideEnabled && !manualReason.trim()) {
       setError("Le motif est obligatoire pour une modification manuelle globale.");
@@ -241,44 +243,32 @@ export default function InstallerQuotePrepPanel({
     const signature = buildInstallerComputeSignature(payload);
     if (lastSuccessfulSignatureRef.current === signature || inFlightSignatureRef.current === signature) return;
 
-    let cancelled = false;
     inFlightSignatureRef.current = signature;
-    const timer = window.setTimeout(async () => {
-      setComputing(true);
-      setError(null);
-      try {
-        const next = await computeInstallerInstallationCost(installerId, payload);
-        if (cancelled) return;
-        lastSuccessfulSignatureRef.current = signature;
-        setResult(next);
-        onPersistedRef.current(next);
-      } catch (e) {
-        if (cancelled) return;
-        const code = extractBackendCode(e);
-        lastSuccessfulSignatureRef.current = null;
-        setResult(null);
-        onPersistedRef.current(null);
-        setError(
-          code === "NO_TARIFF_FOR_POWER"
-            ? "Aucun tarif installateur disponible pour cette puissance."
-            : e instanceof Error
-              ? e.message
-              : "Calcul installateur impossible"
-        );
-      } finally {
-        if (inFlightSignatureRef.current === signature) {
-          inFlightSignatureRef.current = null;
-        }
-        if (!cancelled) setComputing(false);
-      }
-    }, 350);
-    return () => {
-      cancelled = true;
+    setComputing(true);
+    setError(null);
+    try {
+      const next = await computeInstallerInstallationCost(installerId, payload);
+      lastSuccessfulSignatureRef.current = signature;
+      setResult(next);
+      onPersistedRef.current(next);
+    } catch (e) {
+      const code = extractBackendCode(e);
+      lastSuccessfulSignatureRef.current = null;
+      setResult(null);
+      onPersistedRef.current(null);
+      setError(
+        code === "NO_TARIFF_FOR_POWER"
+          ? "Aucun tarif installateur disponible pour cette puissance."
+          : e instanceof Error
+            ? e.message
+            : "Calcul installateur impossible"
+      );
+    } finally {
       if (inFlightSignatureRef.current === signature) {
         inFlightSignatureRef.current = null;
       }
-      window.clearTimeout(timer);
-    };
+      setComputing(false);
+    }
   }, [
     locked,
     installerId,
@@ -293,6 +283,14 @@ export default function InstallerQuotePrepPanel({
     versionId,
     saveToQuotePrep,
   ]);
+
+  useEffect(() => {
+    if (!autoCompute) return;
+    const timer = window.setTimeout(() => {
+      void computeAndPersist();
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [autoCompute, computeAndPersist]);
 
   const toggleOption = (code: string, checked: boolean) => {
     let next = selectedOptions.filter((c) => c !== code);
@@ -432,6 +430,11 @@ export default function InstallerQuotePrepPanel({
         </div>
       </div>
 
+      {!autoCompute && !locked ? (
+        <Button type="button" disabled={computing || !installerId || !effectiveProjectPowerWc || effectiveProjectPowerWc <= 0} onClick={() => void computeAndPersist()}>
+          {result ? "Mettre à jour l’installation RGE" : "Calculer l’installation RGE"}
+        </Button>
+      ) : null}
       {computing ? <p className="installers-muted">Calcul installateur...</p> : null}
       {error ? <div className="installer-quote-error">{error}</div> : null}
       {result ? <InstallerCostSummary result={result} /> : null}
