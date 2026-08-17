@@ -3,7 +3,32 @@ import {
   normalizeQuotePrepConditions,
   mapQuotePrepToQuoteDraftMetadata,
   buildQuoteCreatePayloadFromQuotePrep,
+  quotePrepItemsToQuoteLines,
 } from "../quotePrepImport";
+
+const installerCost = {
+  installer: { id: "installer-1", name: "OHELEC" },
+  tariff_version: {
+    id: "tariff-1",
+    installer_id: "installer-1",
+    version_label: "OHELEC HT V1",
+    status: "ACTIVE" as const,
+  },
+  requested_power_wc: 6300,
+  matched_power_wc: 7000,
+  installation_type: "ROOF_SUPERIMPOSED" as const,
+  electrical_type: "TRI" as const,
+  base_amount_ht_cents: 155000,
+  electrical_adjustments: [{ code: "TRI_SURCHARGE", label: "Supplément TRI", rule_type: "FIXED_SURCHARGE", amount_ht_cents: 25000 }],
+  options: [],
+  catalog_total_ht_cents: 180000,
+  option_overrides: [],
+  manual_override: null,
+  final_total_ht_cents: 180000,
+  warnings: [],
+  calculated_at: "2026-08-17T10:00:00.000Z",
+  calculation_version: "installer-pricing-v1",
+};
 
 describe("normalizeQuotePrepConditions", () => {
   it("remise % + montant, bornes", () => {
@@ -60,5 +85,26 @@ describe("mapQuotePrepToQuoteDraftMetadata + buildQuoteCreatePayloadFromQuotePre
     expect(items[0].line_source).toBe("study_prep");
     expect(metadata.global_discount_percent).toBe(0);
     expect(metadata.study_import.study_version_id).toBe("vid-1");
+  });
+  it("ajoute une seule ligne consolidée INSTALLER_RGE et le snapshot metadata", () => {
+    const { items, metadata } = buildQuoteCreatePayloadFromQuotePrep("vid-1", {
+      items: [
+        { label: "Module", quantity: 1, unit_price: 1000, vat_rate: 20, catalog_item_id: null },
+      ],
+      installer_cost: installerCost,
+      conditions: { discount_percent: 0, discount_amount_ht: 0 },
+      snapshot_version: 3,
+    });
+    const installerLines = items.filter((item) => item.billing_party === "INSTALLER_RGE");
+    expect(installerLines).toHaveLength(1);
+    expect(installerLines[0].label).toBe("Installation RGE OHELEC");
+    expect(installerLines[0].unit_price_ht).toBe(1800);
+    expect(installerLines[0].reference).toBe("INSTALLER_RGE_CONSOLIDATED");
+    expect(metadata.installer_cost?.matched_power_wc).toBe(7000);
+  });
+  it("quotePrepItemsToQuoteLines ne duplique pas la ligne installateur au refresh", () => {
+    const lines = quotePrepItemsToQuoteLines([], installerCost);
+    expect(lines.filter((line) => line.billing_party === "INSTALLER_RGE")).toHaveLength(1);
+    expect(lines[0].line_source).toBe("study_prep");
   });
 });

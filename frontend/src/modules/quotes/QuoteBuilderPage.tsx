@@ -29,6 +29,8 @@ import {
   fetchQuotePrepEconomicItems,
   quotePrepItemsToQuoteLines,
 } from "./quotePrepImport";
+import { InstallerCostSummary } from "../installers/InstallerQuotePrepPanel";
+import type { InstallerCostResult } from "../installers/installers.types";
 import { QuoteToolbar } from "./QuoteToolbar";
 import QuoteWorkflowPanel from "./QuoteWorkflowPanel";
 import {
@@ -128,6 +130,7 @@ export default function QuoteBuilderPage() {
   const [docBlobBusyId, setDocBlobBusyId] = useState<string | null>(null);
   const [signedSavedBanner, setSignedSavedBanner] = useState(false);
   const [clientAutoCreatedBanner, setClientAutoCreatedBanner] = useState(false);
+  const [installerCostSnapshot, setInstallerCostSnapshot] = useState<InstallerCostResult | null>(null);
 
   const canEdit = state.header ? quoteIsContentEditableStatus(state.header.status) : false;
   const isReadOnly = useSuperAdminReadOnly();
@@ -279,12 +282,14 @@ export default function QuoteBuilderPage() {
         quote?: Record<string, unknown>;
         items?: unknown[];
         documents?: QuoteDocumentListRow[];
+        installer_cost_snapshot?: InstallerCostResult | null;
       };
       const q = json.quote as Record<string, unknown> | undefined;
       if (!q) {
         throw new Error("Réponse invalide");
       }
       setLinkedDocuments(Array.isArray(json.documents) ? json.documents : []);
+      setInstallerCostSnapshot(json.installer_cost_snapshot ?? null);
       setHasOfficialSnapshot(quoteHasOfficialDocumentSnapshot(q));
       const updatedRaw = (q?.updated_at ?? q?.created_at) as string | undefined;
       if (updatedRaw) {
@@ -596,8 +601,8 @@ export default function QuoteBuilderPage() {
     setError(null);
     try {
       const prep = await fetchQuotePrepEconomicItems(sid, vid);
-      if (!prep.items.length) {
-        window.alert("Aucune ligne matériel dans le devis technique (quote-prep).");
+      if (!prep.items.length && !prep.installer_cost) {
+        window.alert("Aucune ligne matériel ni coût installateur dans le devis technique (quote-prep).");
         return;
       }
       const enriched = await enrichPrepItemsWithCatalogDescriptions(prep.items);
@@ -608,7 +613,7 @@ export default function QuoteBuilderPage() {
         );
         if (!ok) return;
       }
-      const studyLines = quotePrepItemsToQuoteLines(enriched);
+      const studyLines = quotePrepItemsToQuoteLines(enriched, prep.installer_cost ?? null);
       const merged = [...manual, ...studyLines];
       const dep = state.meta.deposit;
       const body: Record<string, unknown> = {
@@ -1201,6 +1206,15 @@ export default function QuoteBuilderPage() {
             balanceHref={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=solde`}
             standardFullHref={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=STANDARD`}
           />
+        </section>
+      ) : null}
+
+      {installerCostSnapshot ? (
+        <section className="sn-card qb-billing-block" aria-labelledby="qb-installer-snapshot-title">
+          <h2 id="qb-installer-snapshot-title" className="qb-billing-block__title">
+            Installateur RGE
+          </h2>
+          <InstallerCostSummary result={installerCostSnapshot} frozen />
         </section>
       ) : null}
 

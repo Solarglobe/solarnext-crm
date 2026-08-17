@@ -19,7 +19,9 @@ import VirtualBatteryConfigurator from "../../components/study/VirtualBatteryCon
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import StudyMeterSelector from "../../modules/studies/components/StudyMeterSelector";
 import LocaleNumberInput from "../../modules/quotes/LocaleNumberInput";
-import "./study-quote-builder.css";
+import InstallerQuotePrepPanel from "../../modules/installers/InstallerQuotePrepPanel";
+import type { InstallerCostResult } from "../../modules/installers/installers.types";
+import "./study-quote-builder.css";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 import { computeMaterialMarginFromLines, round2 } from "../../modules/quotes/quoteCalc";
 
@@ -269,7 +271,10 @@ interface EconomicData {
   vehicleV2h?: VehicleV2hConfig | null;
   totals?: { ht: number; tva: number; ttc: number; net: number };
   /** Financement optionnel — persistant dans economic_state.data.financing */
-  financing?: FinancingConfig | null;
+  financing?: FinancingConfig | null;
+
+  /** Calcul installateur RGE sauvegardé dans economic_snapshots.config_json.installer_cost. */
+  installer_cost?: InstallerCostResult | null;
 }
 
 interface QuotePrepResponse {
@@ -1423,7 +1428,17 @@ export default function StudyQuoteBuilder() {
   const materialWarnTauxPct =
     batteryMaterialEligible && internalWithBatteryReady && materialAvecBattery.margeHt < 0
       ? materialAvecBattery.tauxMargeSurAchatPct
-      : materialSansBattery.tauxMargeSurAchatPct;
+      : materialSansBattery.tauxMargeSurAchatPct;
+
+  const installerProjectPowerWc =
+    activeSnapshotPayload?.totals?.total_power_kwc != null &&
+    Number.isFinite(Number(activeSnapshotPayload.totals.total_power_kwc))
+      ? Math.round(Number(activeSnapshotPayload.totals.total_power_kwc) * 1000)
+      : null;
+
+  const handleInstallerCostPersisted = useCallback((installerCost: InstallerCostResult | null) => {
+    setEconomic((prev) => ({ ...prev, installer_cost: installerCost }));
+  }, []);
 
   if (loading) {
     return (
@@ -1495,7 +1510,21 @@ export default function StudyQuoteBuilder() {
 
         <div className="sqb-divider" role="presentation" />
 
-        <section className="sqb-section sqb-section--material">
+        {studyId && versionId ? (
+          <>
+            <InstallerQuotePrepPanel
+              studyId={studyId}
+              versionId={versionId}
+              projectPowerWc={installerProjectPowerWc}
+              locked={locked}
+              value={economic.installer_cost ?? null}
+              onPersisted={handleInstallerCostPersisted}
+            />
+            <div className="sqb-divider" role="presentation" />
+          </>
+        ) : null}
+
+        <section className="sqb-section sqb-section--material">
           <div className="sqb-section-head">
             <h2 className="sqb-h2 sqb-h2--inline">Matériel principal</h2>
             {leadCustomerType === "PRO" ? (

@@ -6,6 +6,7 @@ import { adminGetQuoteCatalog } from "../../services/admin.api";
 import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "../../services/api";
 import type { QuoteLine } from "./quote.types";
+import type { InstallerCostResult } from "../installers/installers.types";
 
 const API_BASE = getCrmApiBase();
 
@@ -46,6 +47,7 @@ export type QuotePrepConditionsNormalized = {
  */
 export type QuotePrepImportData = {
   items: EconomicPrepItem[];
+  installer_cost?: InstallerCostResult | null;
   conditions: QuotePrepConditionsNormalized;
   /** `economic_state.snapshot_version` (économic_snapshots.version_number) si présent. */
   snapshot_version: number | null;
@@ -66,7 +68,8 @@ export function normalizeQuotePrepConditions(
 export function mapQuotePrepToQuoteDraftMetadata(
   studyVersionId: string,
   conditions: QuotePrepConditionsNormalized,
-  quotePrepSnapshotVersion: number | null = null
+  quotePrepSnapshotVersion: number | null = null,
+  installerCost: InstallerCostResult | null = null
 ): {
   study_import: {
     last_at: string;
@@ -75,6 +78,7 @@ export function mapQuotePrepToQuoteDraftMetadata(
   };
   global_discount_percent: number;
   global_discount_amount_ht: number;
+  installer_cost?: InstallerCostResult;
 } {
   return {
     study_import: {
@@ -86,6 +90,7 @@ export function mapQuotePrepToQuoteDraftMetadata(
     },
     global_discount_percent: conditions.discount_percent,
     global_discount_amount_ht: conditions.discount_amount_ht,
+    ...(installerCost ? { installer_cost: installerCost } : {}),
   };
 }
 
@@ -100,10 +105,18 @@ export function buildQuoteCreatePayloadFromQuotePrep(
   items: ReturnType<typeof mapEconomicItemsToStudyQuoteItems>;
   metadata: ReturnType<typeof mapQuotePrepToQuoteDraftMetadata>;
 } {
-  const items = data.items.length ? mapEconomicItemsToStudyQuoteItems(data.items) : [];
+  const items = [
+    ...(data.items.length ? mapEconomicItemsToStudyQuoteItems(data.items) : []),
+    ...installerCostToQuoteCreateItems(data.installer_cost ?? null),
+  ];
   return {
     items,
-    metadata: mapQuotePrepToQuoteDraftMetadata(studyVersionId, data.conditions, data.snapshot_version),
+    metadata: mapQuotePrepToQuoteDraftMetadata(
+      studyVersionId,
+      data.conditions,
+      data.snapshot_version,
+      data.installer_cost ?? null
+    ),
   };
 }
 
@@ -164,6 +177,8 @@ export type QuoteCreateItemFromStudy = {
   discount_ht: number;
   line_source: "study_prep";
   catalog_item_id?: string | null;
+  billing_party?: "SOLARGLOBE" | "INSTALLER_RGE";
+  reference?: string;
 };
 
 export function mapEconomicItemsToStudyQuoteItems(items: EconomicPrepItem[]): QuoteCreateItemFromStudy[] {
@@ -178,13 +193,33 @@ export function mapEconomicItemsToStudyQuoteItems(items: EconomicPrepItem[]): Qu
       discount_ht: 0,
       line_source: "study_prep",
       catalog_item_id: it.catalog_item_id ?? null,
+      billing_party: "SOLARGLOBE",
     };
   });
 }
 
+export function installerCostToQuoteCreateItems(installerCost: InstallerCostResult | null): QuoteCreateItemFromStudy[] {
+  if (!installerCost?.final_total_ht_cents || installerCost.final_total_ht_cents <= 0) return [];
+  const installerName = installerCost.installer?.name || "installateur";
+  return [
+    {
+      label: `Installation RGE ${installerName}`,
+      description: `Ligne consolidée installateur RGE. Détail figé dans le snapshot installateur du devis.`,
+      quantity: 1,
+      unit_price_ht: Math.round(installerCost.final_total_ht_cents) / 100,
+      tva_rate: 0,
+      discount_ht: 0,
+      line_source: "study_prep",
+      catalog_item_id: null,
+      billing_party: "INSTALLER_RGE",
+      reference: "INSTALLER_RGE_CONSOLIDATED",
+    },
+  ];
+}
+
 /** Lignes prêtes pour le state builder (remplace uniquement les lignes `study_prep` lors d’un refresh). */
-export function quotePrepItemsToQuoteLines(items: EconomicPrepItem[]): QuoteLine[] {
-  const mapped = mapEconomicItemsToStudyQuoteItems(items);
+export function quotePrepItemsToQuoteLines(items: EconomicPrepItem[], installerCost?: InstallerCostResult | null): QuoteLine[] {
+  const mapped = [...mapEconomicItemsToStudyQuoteItems(items), ...installerCostToQuoteCreateItems(installerCost ?? null)];
   return mapped.map((it, i) => {
     const prep = items[i];
     const pc = prep?.purchase_price_ht_cents;
@@ -197,7 +232,8 @@ export function quotePrepItemsToQuoteLines(items: EconomicPrepItem[]): QuoteLine
       line_source: "study_prep",
       label: it.label,
       description: it.description,
-      reference: "",
+      reference: it.reference ?? "",
+      billing_party: it.billing_party === "INSTALLER_RGE" ? "INSTALLER_RGE" : "SOLARGLOBE",
       quantity: it.quantity,
       unit_price_ht: it.unit_price_ht,
       tva_percent: it.tva_rate,
@@ -228,6 +264,7 @@ export async function fetchQuotePrepEconomicItems(
       snapshot_version?: number;
       data?: {
         items?: EconomicPrepItem[];
+        installer_cost?: InstallerCostResult | null;
         conditions?: { discount_percent?: number; discount_amount?: number };
       };
     } | null;
@@ -236,8 +273,9 @@ export async function fetchQuotePrepEconomicItems(
   const rawItems = dataBlock?.items;
   const items = Array.isArray(rawItems) ? rawItems : [];
   const conditions = normalizeQuotePrepConditions(dataBlock?.conditions ?? undefined);
+  const installer_cost = dataBlock?.installer_cost ?? null;
   const snap = j?.economic_state?.snapshot_version;
   const snapshot_version = snap != null && Number.isFinite(Number(snap)) ? Number(snap) : null;
 
-  return { items, conditions, snapshot_version };
+  return { items, installer_cost, conditions, snapshot_version };
 }

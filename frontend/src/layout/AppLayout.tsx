@@ -468,7 +468,7 @@ const installationModules: NavItem[] = [
     end: true,
     requiredPermissions: DOCUMENT_READ_PERMISSIONS,
   },
-  { path: "/installation/installateur", label: "Installateurs", icon: InstallerIcon, end: true },
+  { path: "/installers", label: "Installateurs", icon: InstallerIcon, end: true, requiredPermissions: ["installer.read", "installer.pricing.read"] },
 ];
 
 function hasMenuAccess(item: NavItem, permissions: string[], superAdmin: boolean): boolean {
@@ -520,7 +520,7 @@ function pathMatchesSection(pathname: string, id: SidebarSectionId): boolean {
     return pathname.startsWith("/mail");
   }
   if (id === "installation") {
-    return pathname.startsWith("/mairies") || pathname.startsWith("/installation");
+    return pathname.startsWith("/mairies") || pathname.startsWith("/installation") || pathname.startsWith("/installers");
   }
   if (id === "settings") {
     return (

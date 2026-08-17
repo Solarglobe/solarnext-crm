@@ -1,0 +1,315 @@
+.installers-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px;
+}
+
+.installers-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.installers-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 180px 160px auto;
+  gap: 12px;
+  align-items: end;
+  padding: 16px;
+}
+
+.installers-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+
+.installers-input,
+.installers-select {
+  min-height: 38px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--bg-input, var(--bg-card));
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.installers-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+
+.installers-badge--active {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+}
+
+.installers-badge--draft {
+  background: rgba(245, 158, 11, 0.14);
+  color: #92400e;
+}
+
+.installers-badge--archived {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+}
+
+.installers-muted {
+  color: var(--text-muted);
+}
+
+.installers-link-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent, #2563eb);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.installers-detail-grid {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.installers-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+}
+
+.installers-tab {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.installers-tab--active {
+  background: var(--accent, #2563eb);
+  border-color: var(--accent, #2563eb);
+  color: #fff;
+}
+
+.installers-panel {
+  padding: 18px;
+}
+
+.installers-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.installers-form-grid .installers-field--full {
+  grid-column: 1 / -1;
+}
+
+.installers-textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.installers-zone-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.installers-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--bg-subtle);
+}
+
+.installers-chip button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.installers-tariff-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.installers-version-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.installers-version-button {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: left;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.installers-version-button--active {
+  border-color: var(--accent, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.installers-table-wrap {
+  overflow-x: auto;
+}
+
+.installers-price-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.installers-price-table th,
+.installers-price-table td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 10px;
+  text-align: left;
+}
+
+.installers-price-table th {
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.installers-price-input {
+  width: 120px;
+  min-height: 34px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 6px 8px;
+  text-align: right;
+}
+
+.installers-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.installers-summary-item {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--bg-subtle);
+}
+
+.installers-summary-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.installers-summary-value {
+  font-weight: 800;
+}
+
+.installer-quote-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.installer-quote-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.installer-quote-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.installer-quote-option {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.installer-quote-result {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--bg-subtle);
+}
+
+.installer-quote-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 18px;
+  font-weight: 850;
+}
+
+.installer-quote-error {
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  background: rgba(220, 38, 38, 0.08);
+  color: #991b1b;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.installer-snapshot-freeze {
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-radius: 8px;
+  background: rgba(37, 99, 235, 0.08);
+  padding: 12px;
+}
+
+@media (max-width: 980px) {
+  .installers-toolbar,
+  .installers-detail-grid,
+  .installers-tariff-layout,
+  .installer-quote-form,
+  .installers-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .installers-form-grid,
+  .installer-quote-options {
+    grid-template-columns: 1fr;
+  }
+}

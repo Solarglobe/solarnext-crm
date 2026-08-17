@@ -16,7 +16,7 @@ Cette matrice documente les entrees de navigation visibles dans SolarNext CRM. L
 | Mail | Boite d'envoi | `/mail/outbox` | Compte mail accessible cote API |
 | Installation | Portails mairie | `/mairies` | `mairie.read` |
 | Installation | Fiches techniques | `/installation/fiche-technique` | `client.read.all` ou `lead.read.all` ou `study.manage` ou `quote.manage` ou `org.settings.manage` |
-| Installation | Installateurs | `/installation/installateur` | Utilisateur connecte |
+| Installation | Installateurs | `/installers` | `installer.read` ou `installer.pricing.read` |
 | Parametres | Tous les parametres | `/settings` | Utilisateur connecte, cartes internes filtrees par permission |
 | Parametres | Organisation | `/organization/structure` | `org.settings.manage` ou `structure.manage` ou `rbac.manage` |
 | Parametres | Utilisateurs | `/organization/users` | `user.manage` |

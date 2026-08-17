@@ -100,7 +100,8 @@ import FinancialHubPage from "./pages/FinancialHubPage";
 import DocumentsList from "./pages/DocumentsList";
 import MairiesPage from "./pages/MairiesPage";
 import InstallationFicheTechniquePage from "./pages/installation/InstallationFicheTechniquePage";
-import InstallationInstallateurPage from "./pages/installation/InstallationInstallateurPage";
+import InstallersPage from "./pages/installers/InstallersPage";
+import InstallerDetailPage from "./pages/installers/InstallerDetailPage";
 import PvSettingsPage from "./pages/PvSettingsPage";
 import AdminSmartpitchSettings from "./pages/AdminSmartpitchSettings";
 import StudySnapshotPdfPage from "./pages/pdf/StudySnapshotPdfPage";
@@ -225,7 +226,9 @@ const router = createBrowserRouter(
         { path: "mairies/:id", element: <AdminRoute anyOf={["mairie.read"]}><MairiesPage /></AdminRoute> },
         { path: "mairies", element: <AdminRoute anyOf={["mairie.read"]}><MairiesPage /></AdminRoute> },
         { path: "installation/fiche-technique", element: <AdminRoute anyOf={["client.read.all", "lead.read.all", "study.manage", "quote.manage", "org.settings.manage"]}><InstallationFicheTechniquePage /></AdminRoute> },
-        { path: "installation/installateur", element: <InstallationInstallateurPage /> },
+        { path: "installation/installateur", element: <Navigate to="/installers" replace /> },
+        { path: "installers", element: <AdminRoute anyOf={["installer.read", "installer.pricing.read"]}><InstallersPage /></AdminRoute> },
+        { path: "installers/:id", element: <AdminRoute anyOf={["installer.read", "installer.pricing.read"]}><InstallerDetailPage /></AdminRoute> },
         { path: "mail", element: <MailInboxPage /> },
         { path: "mail/accounts", element: <Navigate to="/settings/mail?tab=accounts" replace /> },
         { path: "mail/signatures", element: <Navigate to="/settings/mail?tab=signatures" replace /> },

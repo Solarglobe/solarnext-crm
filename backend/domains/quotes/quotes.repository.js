@@ -32,6 +32,10 @@ import {
   buildScenarioQuoteCoherenceError,
   validateScenarioQuoteCoherence,
 } from "../studies/financial/scenarioQuoteCoherence.js";
+import {
+  getLatestEconomicInstallerCost,
+  persistQuoteInstallerCostSnapshot,
+} from "../installers/installers.repository.js";
 
 import { computeFinancialLineDbFields } from "../../services/finance/financialLine.js";
 import { normalizeBillingParty, BILLING_PARTY_SOLARGLOBE } from "../../services/finance/quoteBillingParty.js";
@@ -859,7 +863,7 @@ function assertLockedScenarioQuoteCoherence(lockedContext, quoteRow) {
  * @param {{ req?: import("express").Request; userId?: string | null }} [auditContext]
  */
 export async function createQuote(organizationId, body, auditContext = null) {
-  const { client_id, lead_id, study_id, study_version_id, items = [], metadata } = body;
+  const { client_id, lead_id, study_id, study_version_id, items = [], metadata, installer_cost } = body;
 
   const hasClient = client_id != null && String(client_id).trim() !== "";
   const hasLead = lead_id != null && String(lead_id).trim() !== "";
@@ -1000,6 +1004,26 @@ export async function createQuote(organizationId, body, auditContext = null) {
 
     await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId, client });
 
+    const installerCostForSnapshot =
+      installer_cost ||
+      metadataJson.installer_cost ||
+      (await getLatestEconomicInstallerCost({
+        client,
+        organizationId,
+        studyVersionId: studyVersionVal,
+      }));
+    if (installerCostForSnapshot) {
+      await persistQuoteInstallerCostSnapshot({
+        client,
+        organizationId,
+        quoteId,
+        studyId: studyIdVal,
+        studyVersionId: studyVersionVal,
+        installerCost: installerCostForSnapshot,
+        context: auditContext,
+      });
+    }
+
     const [quoteRow] = (
       await client.query(
         "SELECT * FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)",
@@ -1073,9 +1097,19 @@ export async function getQuoteById(quoteId, organizationId) {
     [quoteId, organizationId]
   );
 
+  const installerSnapshotRes = await pool.query(
+    `SELECT calculation_json
+       FROM quote_installer_cost_snapshots
+      WHERE quote_id = $1 AND organization_id = $2
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [quoteId, organizationId]
+  );
+
   return {
     quote,
     items: itemsRes.rows,
+    installer_cost_snapshot: installerSnapshotRes.rows[0]?.calculation_json || null,
     margin_kpi: buildQuoteMarginKpi(itemsRes.rows),
   };
 }

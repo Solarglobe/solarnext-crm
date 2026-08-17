@@ -47,6 +47,7 @@ import clientsRouter from "./routes/clients.routes.js";
 import contactsRouter from "./routes/contacts.routes.js";
 import missionsRouter from "./routes/missions.routes.js";
 import tasksRouter from "./routes/tasks.routes.js";
+import installersRouter from "./routes/installers.routes.js";
 import quotesRouter from "./routes/quotes.routes.js";
 import studiesRouter from "./routes/studies.routes.js";
 import invoicesRouter from "./routes/invoices.routes.js";
@@ -460,6 +461,7 @@ export function buildHttpApp() {
   app.use("/api/contacts", contactsRouter);
   app.use("/api/missions", missionsRouter);
   app.use("/api/tasks", tasksRouter);
+  app.use("/api/installers", installersRouter);
   app.use("/api/quotes", quotesRouter);
   app.use("/api/studies", studiesRouter);
   app.use("/api/invoices", invoicesRouter);

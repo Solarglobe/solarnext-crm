@@ -29,6 +29,8 @@ describe("CRM route permission matrix", () => {
       "/documents",
       "/mairies",
       "/installation/fiche-technique",
+      "/installers",
+      "/installers/:id",
       "/mail",
       "/mail/outbox",
       "/settings",
@@ -104,6 +106,8 @@ describe("CRM route permission matrix", () => {
       "QUOTE_CATALOG:WRITE",
       "mail.accounts.manage",
       "mairie.read",
+      "installer.read",
+      "installer.pricing.read",
       "SuperAdminRoute",
     ];
     const redirects = [

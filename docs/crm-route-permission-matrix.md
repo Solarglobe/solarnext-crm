@@ -28,7 +28,7 @@ Source officielle pour eviter les menus incoherents. Basee sur `frontend/src/mai
 | Mail | Boite d'envoi | `/mail/outbox` | Menu visible sans RBAC local; API exige acces mail strict | `GET /api/mail/outbox` / outbox mail |
 | Installation | Portails mairie | `/mairies` | `mairie.read` | `GET /api/mairies` |
 | Installation | Fiches techniques | `/installation/fiche-technique` | `client.read.all` ou `lead.read.all` ou `study.manage` ou `quote.manage` ou `org.settings.manage` | Documents, etudes, devis, clients selon contexte |
-| Installation | Installateurs | `/installation/installateur` | Menu visible sans RBAC local | Page statique/module installation |
+| Installation | Installateurs | `/installers` | `installer.read` ou `installer.pricing.read` | `GET /api/installers`, `GET/PATCH /api/installers/:id`, tarification |
 | Parametres | Tous les parametres | `/settings` | Menu visible sans RBAC local | Hub frontend, liens vers endpoints settings |
 | Parametres | Organisation | `/organization/structure` | `org.settings.manage` ou `structure.manage` ou `rbac.manage` | `GET/PUT /api/admin/org`, agences, equipes |
 | Parametres | Utilisateurs | `/organization/users` | `user.manage` | `GET/POST/PUT/DELETE /api/admin/users` |
@@ -71,7 +71,9 @@ Source officielle pour eviter les menus incoherents. Basee sur `frontend/src/mai
 | `/mairies/:id` | Detail/edition mairie | Installation > Portails mairie | `mairie.read` | `GET/PATCH /api/mairies/:id` | Meme page, route detail. |
 | `/mairies/new` | Ancienne creation mairie | Installation > Portails mairie | N/A | N/A | Redirect vers `/mairies`. |
 | `/installation/fiche-technique` | Fiches techniques | Installation > Fiches techniques | `client.read.all` ou `lead.read.all` ou `study.manage` ou `quote.manage` ou `org.settings.manage` | Documents / etudes / clients | Menu. |
-| `/installation/installateur` | Installateurs | Installation > Installateurs | Aucun garde local dedie | Module installation | Menu. |
+| `/installation/installateur` | Ancien lien installateurs | Cachee | N/A | N/A | Redirect vers `/installers`. |
+| `/installers` | Liste installateurs | Installation > Installateurs | `installer.read` ou `installer.pricing.read` | `GET/POST /api/installers` | Menu. |
+| `/installers/:id` | Fiche installateur | Installation > Installateurs | `installer.read` ou `installer.pricing.read` | `GET/PATCH /api/installers/:id`, zones, versions, catalogue | Menu detail. |
 | `/mail` | Inbox mail | Mail > Boite mail | Aucun `AdminRoute`; API exige `requireMailUseStrict()` | `GET /api/mail/inbox`, `POST /api/mail/send` | Menu. |
 | `/mail/outbox` | Boite d'envoi | Mail > Boite d'envoi | Aucun `AdminRoute`; API exige acces mail strict | Outbox mail | Menu. |
 | `/mail/accounts` | Ancienne config comptes mail | Cachee | N/A | N/A | Redirect vers `/settings/mail?tab=accounts`. |
@@ -129,10 +131,11 @@ Source officielle pour eviter les menus incoherents. Basee sur `frontend/src/mai
 | `/settings/mail-signatures`, `/settings/mail-templates`, `/settings/mail-permissions` | `/settings/mail?tab=...` | Compatibilite anciens liens settings. |
 | `/organization/org-settings` | `/organization/structure` | Parametres entreprise integres dans Organisation. |
 | `/admin`, `/admin/organization` | `LegacyAdminRedirect` | Conservation URLs historiques sans casser les favoris. |
+| `/installation/installateur` | `/installers` | Remplacement de l'ancienne page statique par le module installateurs RBAC. |
 | `/studies/:id` et `/studies/:studyId/versions/:versionId` | Detail etude | Compatibilite anciens liens et liens versionnes. |
 
 ## Points a surveiller
 
-- Les routes `mail`, `settings`, `settings/security`, `installation/installateur`, et certaines routes `studies/*` reposent surtout sur les permissions API. Si elles deviennent des entrees critiques, ajouter un `AdminRoute` explicite.
+- Les routes `mail`, `settings`, `settings/security`, et certaines routes `studies/*` reposent surtout sur les permissions API. Si elles deviennent des entrees critiques, ajouter un `AdminRoute` explicite.
 - Les routes DP/calpinage sont listees uniquement pour coherence, doublons et chemins obsoletes. Elles ne sont pas re-auditees ici.
 - Toute nouvelle entree de menu doit ajouter une ligne dans la section "Menus CRM" et une ligne dans "Routes protegees" si elle est routee.
