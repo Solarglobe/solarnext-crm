@@ -29,6 +29,7 @@ import { convertLead, convertLeadToClient } from "./sub/convert.js";
 import { revertLeadToLead } from "./sub/revertToLead.js";
 import { leadActivitiesRouter } from "../../modules/activities/activity.routes.js";
 import leadsMissionsRouter from "../../routes/leads.missions.routes.js";
+import { leadTasksRouter } from "../tasks/tasks.router.js";
 import * as leadMetersController from "../../controllers/leadMeters.controller.js";
 import {
   postCreateClientPortalToken,
@@ -155,6 +156,7 @@ router.delete(
 );
 router.use("/:id/activities", leadActivitiesRouter);
 router.use("/:id/missions", leadsMissionsRouter);
+router.use("/:id/tasks", leadTasksRouter);
 router.patch(
   "/:id/archive",
   verifyJWT,

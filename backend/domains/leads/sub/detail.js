@@ -15,7 +15,8 @@ import { requireAnyPermission } from "../../../rbac/rbac.middleware.js";
 import { pool } from "../../../config/db.js";
 import { getUserPermissions } from "../../../rbac/rbac.service.js";
 import { recalculateLeadScore } from "../../../services/leadScoring.service.js";
-import { createAutoActivity } from "../../../modules/activities/activity.service.js";
+import { createAutoActivity } from "../../../modules/activities/activity.service.js";
+import { createFollowUpStageTask } from "../../tasks/tasks.automation.service.js";
 import { pickLeadEquipmentApiFields } from "../../../services/leadEquipmentMerge.service.js";
 import {
   ensureDefaultLeadMeter,
@@ -68,7 +69,18 @@ async function getDetail(req, res) {
        ma.portal_type AS mairie_portal_type,
        ma.account_status AS mairie_account_status,
        ma.account_email AS mairie_account_email,
-       ma.bitwarden_ref AS mairie_bitwarden_ref
+       ma.bitwarden_ref AS mairie_bitwarden_ref,
+
+       (SELECT MIN(t.due_at) FROM crm_tasks t
+        WHERE t.organization_id = l.organization_id
+          AND t.lead_id = l.id
+          AND t.status IN ('OPEN', 'SNOOZED')) AS next_task_due_at,
+
+       (SELECT COUNT(*)::int FROM crm_tasks t
+        WHERE t.organization_id = l.organization_id
+          AND t.lead_id = l.id
+          AND t.status IN ('OPEN', 'SNOOZED')
+          AND t.due_at < now()) AS overdue_task_count
        FROM leads l
        LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
        LEFT JOIN lead_sources ls ON ls.id = l.source_id
@@ -151,8 +163,10 @@ async function getDetail(req, res) {
       roof_type: leadRow.roof_type,
       frame_type: leadRow.frame_type,
       estimated_budget_eur: leadRow.estimated_budget_eur,
-      project_status: leadRow.project_status,
-      financing_mode: leadRow.financing_mode,
+      project_status: leadRow.project_status,
+      next_task_due_at: leadRow.next_task_due_at ?? null,
+      overdue_task_count: Number(leadRow.overdue_task_count ?? 0),
+      financing_mode: leadRow.financing_mode,
       project_timing: leadRow.project_timing,
       is_primary_residence: leadRow.is_primary_residence,
       house_over_2_years: leadRow.house_over_2_years,
@@ -272,7 +286,12 @@ async function patchStage(req, res) {
     const org = orgId(req);
     const uid = userId(req);
     const { id } = req.params;
-    const { stageId } = req.body;
+    const { stageId } = req.body;
+    const nextFollowUpAt =
+      req.body?.next_follow_up_at ||
+      req.body?.follow_up_due_at ||
+      req.body?.due_at ||
+      null;
 
     if (!stageId) {
       return res.status(400).json({ error: "stageId requis" });
@@ -327,7 +346,17 @@ async function patchStage(req, res) {
       });
     }
 
-    const stageCode = stageCheck.rows[0].code;
+    const stageCode = stageCheck.rows[0].code;
+
+    if (stageCode === "FOLLOW_UP") {
+      if (!nextFollowUpAt || Number.isNaN(new Date(nextFollowUpAt).getTime())) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "Une date de prochaine relance est obligatoire pour passer en FOLLOW_UP",
+          code: "FOLLOW_UP_DUE_AT_REQUIRED",
+        });
+      }
+    }
 
     // CP-AUTO-CONVERT-ARCHIVE-08 : archivage auto si stage LOST
     const isLostStage = stageCode === "LOST";
@@ -379,7 +408,16 @@ async function patchStage(req, res) {
           archived_reason: "LOST"
         });
       }
-    } catch (_) {}
+      if (stageCode === "FOLLOW_UP") {
+        await createFollowUpStageTask({
+          organizationId: org,
+          leadId: id,
+          dueAt: new Date(nextFollowUpAt).toISOString(),
+          userId: uid,
+        });
+      }
+
+    } catch (_) {}
 
     await recalculateLeadScore(id, org);
 

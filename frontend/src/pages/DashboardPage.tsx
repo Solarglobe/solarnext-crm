@@ -968,6 +968,15 @@ export default function DashboardPage() {
       )}
 
       <nav className="sn-dashboard-actions" aria-label="Raccourcis">
+        <Link className="sn-dashboard-action-link" to="/tasks?bucket=today">
+          Relances aujourd'hui ({data?.tasks_summary?.today_count ?? 0})
+        </Link>
+        <Link className="sn-dashboard-action-link" to="/tasks?bucket=overdue">
+          En retard ({data?.tasks_summary?.overdue_count ?? 0})
+        </Link>
+        <Link className="sn-dashboard-action-link" to="/tasks?bucket=all&priority=URGENT">
+          Urgentes ({data?.tasks_summary?.urgent_count ?? 0})
+        </Link>
         <Link className="sn-dashboard-action-link" to="/leads">
           Pipeline leads
         </Link>

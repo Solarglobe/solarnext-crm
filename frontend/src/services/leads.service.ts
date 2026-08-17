@@ -75,6 +75,8 @@ export interface Lead {
   quote_signed_at?: string | null;
   /** Si exposé par l’API — sinon fallback quote_signed_at / updated_at côté UI */
   signed_at?: string | null;
+  next_task_due_at?: string | null;
+  overdue_task_count?: number;
   created_at: string;
   updated_at?: string;
   last_activity_at?: string;
@@ -270,10 +272,14 @@ export async function unarchiveLead(id: string): Promise<Lead> {
   return res.json();
 }
 
-export async function updateLeadStage(leadId: string, stageId: string): Promise<{ stage: { id: string; name: string } }> {
+export async function updateLeadStage(
+  leadId: string,
+  stageId: string,
+  options: { next_follow_up_at?: string } = {}
+): Promise<{ stage: { id: string; name: string } }> {
   const res = await apiFetch(`${API_BASE}/api/leads/${leadId}/stage`, {
     method: "PATCH",
-    body: JSON.stringify({ stageId }),
+    body: JSON.stringify({ stageId, ...options }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

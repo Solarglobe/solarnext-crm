@@ -112,6 +112,17 @@ function CalendarIcon() {
   );
 }
 
+function TasksNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 11l2 2 4-4" />
+      <path d="M9 17l2 2 4-4" />
+      <path d="M5 4h14" />
+      <path d="M6 4v16h12V4" />
+    </svg>
+  );
+}
+
 /** Études — document technique PV */
 function StudyNavIcon() {
   return (
@@ -351,6 +362,7 @@ type NavItem = {
 
 const LEAD_READ_PERMISSIONS = ["lead.read.all", "lead.read.self"];
 const CLIENT_READ_PERMISSIONS = ["client.read.all", "client.read.self"];
+const TASK_READ_PERMISSIONS = ["crm_task.read.all", "crm_task.read.self", "crm_task.create", "crm_task.update.self", "crm_task.update.all"];
 const DOCUMENT_READ_PERMISSIONS = ["client.read.all", "lead.read.all", "study.manage", "quote.manage", "org.settings.manage"];
 
 const principalModules: NavItem[] = [
@@ -361,6 +373,7 @@ const principalModules: NavItem[] = [
     end: true,
     requiredPermissions: ["lead.read.all", "lead.read.self", "quote.manage", "invoice.manage"],
   },
+  { path: "/tasks", label: "Relances", icon: TasksNavIcon, end: true, requiredPermissions: TASK_READ_PERMISSIONS },
   { path: "/leads", label: "Leads", icon: LeadIcon, requiredPermissions: LEAD_READ_PERMISSIONS },
   { path: "/clients", label: "Clients", icon: ClientIcon, requiredPermissions: CLIENT_READ_PERMISSIONS },
   {

@@ -7,6 +7,7 @@
 import { pool } from "../config/db.js";
 import { recalculateLeadScore } from "./leadScoring.service.js";
 import logger from "../app/core/logger.js";
+import { runDailyCrmTaskAutomations } from "../domains/tasks/tasks.automation.service.js";
 
 const JOB_HOUR = 2; // 2h du matin
 
@@ -71,6 +72,7 @@ async function runDailyInactivityRecalculation() {
 
   const durationMs = Date.now() - startedAt;
   logger.info("INACTIVITY_JOB_DONE", { processed, errors, durationMs });
+  await runDailyCrmTaskAutomations();
 }
 
 /**

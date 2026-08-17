@@ -86,6 +86,7 @@ import StudyQuoteBuilder from "./pages/studies/StudyQuoteBuilder";
 import StudyCalpinagePage from "./pages/studies/StudyCalpinagePage";
 import ScenariosPage from "./pages/studies/ScenariosPage";
 import DashboardPage from "./pages/DashboardPage";
+import TasksPage from "./pages/TasksPage";
 import Onboarding from "./pages/Onboarding";
 import LeadsPage from "./pages/LeadsPage";
 import LeadDpPage from "./pages/leads/LeadDpPage";
@@ -200,6 +201,7 @@ const router = createBrowserRouter(
         { index: true, element: <Navigate to="/dashboard" replace /> },
         { path: "crm", element: <Navigate to="/dashboard" replace /> },
         { path: "dashboard", element: <AdminRoute anyOf={["lead.read.all", "lead.read.self", "quote.manage", "invoice.manage"]}><DashboardPage /></AdminRoute> },
+        { path: "tasks", element: <AdminRoute anyOf={["crm_task.read.all", "crm_task.read.self", "crm_task.create", "crm_task.update.self", "crm_task.update.all"]}><TasksPage /></AdminRoute> },
         { path: "leads", element: <AdminRoute anyOf={["lead.read.all", "lead.read.self"]}><LeadsPage /></AdminRoute> },
         { path: "leads/:id", element: <AdminRoute anyOf={["lead.read.all", "lead.read.self"]}><LeadDetail /></AdminRoute> },
         { path: "leads/:id/dp", element: <LeadDpPage /> },

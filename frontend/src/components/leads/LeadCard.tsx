@@ -51,6 +51,7 @@ export function LeadCard({
   const score = lead.score ?? 0;
   const inact =
     lead.inactivity_level && lead.inactivity_level !== "none";
+  const overdueTasks = Number(lead.overdue_task_count || 0);
 
   const showMenu = Boolean(onArchive);
 
@@ -72,6 +73,11 @@ export function LeadCard({
               stageName={lead.stage_name}
               stageCode={pipelineCode}
             />
+            {overdueTasks > 0 ? (
+              <span className="sn-badge sn-badge-danger" title="Relance en retard">
+                {overdueTasks} retard
+              </span>
+            ) : null}
           </div>
           <div className="sn-leads-card-v3__head-right">
             {showMenu ? (

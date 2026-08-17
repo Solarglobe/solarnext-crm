@@ -402,6 +402,8 @@ export function LeadsKanbanView({
     stageName: string;
     leadName: string;
     stageCode: string | null;
+    sourceStageCode: string | null;
+    sourceNextFollowUpAt?: string | null;
   }>(null);
 
   const { scheduleUndo, activeToast } = useUndoAction();
@@ -587,6 +589,7 @@ export function LeadsKanbanView({
 
       setItemsByStage(cloneItemsByStage(snap));
       const tgtMeta = orderedStages.find((s) => s.id === target.stageId);
+      const sourceMeta = orderedStages.find((s) => s.id === sourceStage);
       setPendingKanbanMove({
         leadId: activeIdStr,
         targetStageId: target.stageId,
@@ -596,6 +599,8 @@ export function LeadsKanbanView({
         stageName: tgtMeta?.name ?? "Colonne",
         leadName: getLeadName(lead),
         stageCode: tgtMeta ? inferStageCode(tgtMeta) : null,
+        sourceStageCode: sourceMeta ? inferStageCode(sourceMeta) : null,
+        sourceNextFollowUpAt: lead.next_task_due_at ?? null,
       });
     },
     [readOnly, leads, orderedStages]
@@ -604,8 +609,28 @@ export function LeadsKanbanView({
   const confirmKanbanMove = useCallback(async () => {
     if (readOnly) return;
     if (!pendingKanbanMove) return;
-    const { leadId, targetStageId, sourceStageId, snap, next, stageCode } = pendingKanbanMove;
+    const {
+      leadId,
+      targetStageId,
+      sourceStageId,
+      snap,
+      next,
+      stageCode,
+      sourceStageCode,
+      sourceNextFollowUpAt,
+    } = pendingKanbanMove;
     const isConversion = stageCode === "SIGNED";
+    let nextFollowUpAt: string | undefined;
+    if (stageCode === "FOLLOW_UP") {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      d.setHours(9, 0, 0, 0);
+      const value = window.prompt("Date de prochaine relance (format AAAA-MM-JJ HH:mm)", d.toISOString().slice(0, 16).replace("T", " "));
+      if (!value) return;
+      const parsed = new Date(value.replace(" ", "T"));
+      if (Number.isNaN(parsed.getTime())) return;
+      nextFollowUpAt = parsed.toISOString();
+    }
     setPendingKanbanMove(null);
     setItemsByStage(next);
     setOptimistic((o) => ({ ...o, [leadId]: targetStageId }));
@@ -613,11 +638,15 @@ export function LeadsKanbanView({
       await scheduleUndo({
         previousState: snap,
         execute: async () => {
-          await updateLeadStage(leadId, targetStageId);
+          await updateLeadStage(leadId, targetStageId, { next_follow_up_at: nextFollowUpAt });
           await Promise.resolve(onLeadMoved(leadId, targetStageId));
         },
         rollback: async () => {
-          await updateLeadStage(leadId, sourceStageId);
+          const rollbackOptions =
+            sourceStageCode === "FOLLOW_UP" && sourceNextFollowUpAt
+              ? { next_follow_up_at: sourceNextFollowUpAt }
+              : undefined;
+          await updateLeadStage(leadId, sourceStageId, rollbackOptions);
           setOptimistic((o) => {
             const n = { ...o };
             delete n[leadId];

@@ -45,6 +45,11 @@ export interface DashboardOverview {
     avg_quote_cycle_days: number | null;
     avg_sent_to_sign_days: number | null;
   };
+  tasks_summary?: {
+    today_count: number;
+    overdue_count: number;
+    urgent_count: number;
+  };
   pipeline: {
     leads_by_stage: {
       stage_id: string;

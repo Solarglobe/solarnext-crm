@@ -56,7 +56,7 @@ export async function listActivities(leadId, organizationId, options = {}) {
 
   let query = `
     SELECT a.id, a.type, a.title, a.content, a.payload, a.occurred_at, a.created_at,
-           a.is_pinned, a.created_by_user_id,
+           a.is_pinned, a.created_by_user_id, a.mission_id,
            u.email as created_by_email,
            COALESCE(u.email, '') as created_by_name
     FROM lead_activities a
@@ -96,7 +96,8 @@ export async function listActivities(leadId, organizationId, options = {}) {
     type: r.type,
     title: r.title,
     content: r.content,
-    payload: r.payload,
+      payload: r.payload,
+      mission_id: r.mission_id ?? null,
     occurred_at: r.occurred_at,
     created_at: r.created_at,
     created_by: {
@@ -114,7 +115,7 @@ export async function listActivities(leadId, organizationId, options = {}) {
  * Créer une activité (NOTE, CALL, MEETING, EMAIL)
  */
 export async function createActivity(leadId, organizationId, userId, body) {
-  const { type, title, content, occurred_at, payload } = body;
+  const { type, title, content, occurred_at, payload, mission_id } = body;
 
   if (!USER_TYPES.includes(type)) {
     throw new Error(`type doit être parmi: ${USER_TYPES.join(", ")}`);
@@ -125,12 +126,23 @@ export async function createActivity(leadId, organizationId, userId, body) {
 
   const occurredAt = occurred_at ? new Date(occurred_at) : new Date();
   const payloadJson = payload != null ? JSON.stringify(payload) : null;
+  const missionId = mission_id || null;
+  if (missionId) {
+    const missionRes = await pool.query(
+      `SELECT id FROM missions
+       WHERE id = $1 AND organization_id = $2 AND lead_id = $3`,
+      [missionId, organizationId, leadId]
+    );
+    if (missionRes.rows.length === 0) {
+      throw new Error("mission_id invalide pour ce lead");
+    }
+  }
 
   const result = await pool.query(
     `INSERT INTO lead_activities (
-      organization_id, lead_id, type, title, content, payload, occurred_at, created_by_user_id
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    RETURNING id, type, title, content, payload, occurred_at, created_at, is_pinned, created_by_user_id`,
+      organization_id, lead_id, type, title, content, payload, occurred_at, created_by_user_id, mission_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    RETURNING id, type, title, content, payload, occurred_at, created_at, is_pinned, created_by_user_id, mission_id`,
     [
       organizationId,
       leadId,
@@ -139,7 +151,8 @@ export async function createActivity(leadId, organizationId, userId, body) {
       content || null,
       payloadJson,
       occurredAt,
-      userId
+      userId,
+      missionId
     ]
   );
 
@@ -165,6 +178,7 @@ export async function createActivity(leadId, organizationId, userId, body) {
     title: row.title,
     content: row.content,
     payload: row.payload,
+    mission_id: row.mission_id ?? null,
     occurred_at: row.occurred_at,
     created_at: row.created_at,
     created_by: {
@@ -302,6 +316,7 @@ async function formatActivity(row) {
     title: row.title,
     content: row.content,
     payload: row.payload,
+    mission_id: row.mission_id ?? null,
     occurred_at: row.occurred_at,
     created_at: row.created_at,
     created_by: {

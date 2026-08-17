@@ -16,6 +16,7 @@ Source officielle pour eviter les menus incoherents. Basee sur `frontend/src/mai
 | Menu | Entree | Route | Permission menu | API principale |
 | --- | --- | --- | --- | --- |
 | Operations | Tableau de bord | `/dashboard` | `lead.read.all` ou `lead.read.self` ou `quote.manage` ou `invoice.manage` | `GET /api/dashboard` |
+| Operations | Relances | `/tasks` | `crm_task.read.all` ou `crm_task.read.self` ou `crm_task.create` ou `crm_task.update.self` ou `crm_task.update.all` | `GET/POST/PATCH /api/tasks` |
 | Operations | Leads | `/leads` | `lead.read.all` ou `lead.read.self` | `GET /api/leads`, `GET /api/leads/kanban` |
 | Operations | Clients | `/clients` | `client.read.all` ou `client.read.self` | `GET /api/clients` |
 | Operations | Planning | `/planning` | `mission.read.self` ou `mission.read.all` ou `mission.create` ou `mission.update.self` ou `mission.update.all` | `GET /api/missions` |
@@ -46,6 +47,7 @@ Source officielle pour eviter les menus incoherents. Basee sur `frontend/src/mai
 | `/` | Redirect racine | Aucun | `ProtectedRoute` | N/A | Redirect vers `/dashboard`. |
 | `/crm` | Redirect legacy CRM | Aucun | `ProtectedRoute` | N/A | Redirect vers `/dashboard`. |
 | `/dashboard` | Tableau de bord | Operations > Tableau de bord | `lead.read.all` ou `lead.read.self` ou `quote.manage` ou `invoice.manage` | `GET /api/dashboard` | Menu. |
+| `/tasks` | Relances CRM | Operations > Relances | `crm_task.read.all` ou `crm_task.read.self` ou `crm_task.create` ou `crm_task.update.self` ou `crm_task.update.all` | `GET/POST/PATCH /api/tasks` | Menu. |
 | `/leads` | Liste leads | Operations > Leads | `lead.read.all` ou `lead.read.self` | `GET /api/leads`, `GET /api/leads/meta` | Menu. |
 | `/leads/:id` | Fiche lead/client unifiee | Cachee, ouverte depuis leads/clients/recherche | `lead.read.all` ou `lead.read.self` | `GET /api/leads/:id`, sous-ressources lead | Cachee. |
 | `/leads/:id/dp` | Declaration prealable lead | Cachee depuis fiche lead | Non garde local dedie; depend du lead et des API DP | APIs DP/PDF | Cachee; pas auditee ici. |

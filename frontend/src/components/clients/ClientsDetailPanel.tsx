@@ -46,6 +46,7 @@ import { fetchQuotesList } from "../../services/financial.api";
 import { fetchMissionsByClientId } from "../../services/missions.service";
 import { getInbox } from "../../services/mailApi";
 import { Button } from "../ui/Button";
+import EntityTasksPanel from "../../modules/tasks/EntityTasksPanel";
 
 const CRM_API_BASE = getCrmApiBase();
 
@@ -460,6 +461,16 @@ function ClientsDetailPanelBody({
         >
           Créer une facture
         </Button>
+      </div>
+
+      <div className="clients-detail__section" style={{ paddingTop: 0 }}>
+        <EntityTasksPanel
+          leadId={lead.id}
+          clientId={lead.client_id}
+          assignedUserId={lead.assigned_user_id}
+          readOnly={isReadOnly}
+          compact
+        />
       </div>
 
       <div className="clients-detail__section clients-detail__section--identity">

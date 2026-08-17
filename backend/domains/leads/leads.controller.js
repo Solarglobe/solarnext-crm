@@ -16,7 +16,11 @@ import { pool } from "../../config/db.js";
 import { getUserPermissions } from "../../rbac/rbac.service.js";
 import { recalculateLeadScore } from "../../services/leadScoring.service.js";
 import { validateAddressForLead } from "../../modules/address/address.service.js";
-import { createAutoActivity } from "../../modules/activities/activity.service.js";
+import { createAutoActivity } from "../../modules/activities/activity.service.js";
+import {
+  createPvFollowUpTasksForTransition,
+  recordProjectStatusTransition,
+} from "../tasks/tasks.automation.service.js";
 import { buildStoredEnergyProfile } from "../../services/energy/energyProfileStorage.js";
 import {
   insertDefaultMeterForNewLead,
@@ -235,7 +239,18 @@ export async function getAll(req, res) {
          SELECT 1 FROM quotes q
          WHERE q.lead_id = l.id AND q.status = 'ACCEPTED' AND (q.archived_at IS NULL)
        ) as has_signed_quote,
-       (SELECT MAX(q.updated_at) FROM quotes q
+       (SELECT MIN(t.due_at) FROM crm_tasks t
+        WHERE t.organization_id = l.organization_id
+          AND t.lead_id = l.id
+          AND t.status IN ('OPEN', 'SNOOZED')) AS next_task_due_at,
+
+       (SELECT COUNT(*)::int FROM crm_tasks t
+        WHERE t.organization_id = l.organization_id
+          AND t.lead_id = l.id
+          AND t.status IN ('OPEN', 'SNOOZED')
+          AND t.due_at < now()) AS overdue_task_count,
+
+       (SELECT MAX(q.updated_at) FROM quotes q
         WHERE q.lead_id = l.id AND q.status = 'ACCEPTED' AND (q.archived_at IS NULL)) as quote_signed_at
      FROM leads l
      LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
@@ -1054,7 +1069,17 @@ export async function update(req, res) {
           from: oldProjectStatus,
           to: project_status
         });
-        if (["MISE_EN_SERVICE", "FACTURATION_TERMINEE"].includes(project_status)) {
+        const transition = await recordProjectStatusTransition({
+          organizationId: org,
+          leadId: id,
+          fromProjectStatus: oldProjectStatus,
+          toProjectStatus: project_status,
+          userId: uid,
+        });
+
+        await createPvFollowUpTasksForTransition(transition);
+
+        if (["MISE_EN_SERVICE", "FACTURATION_TERMINEE"].includes(project_status)) {
           await createAutoActivity(org, id, uid, "INSTALLATION_TERMINEE", "Installation terminée", {
             project_status: project_status
           });
@@ -1149,7 +1174,18 @@ export async function getKanban(req, res) {
          m.account_status AS mairie_account_status,
          ls.name as source_name,
          ls.slug as source_slug,
-         l.created_at, l.updated_at, ps.name as stage_name,
+         l.created_at, l.updated_at, ps.name as stage_name,
+
+         (SELECT MIN(t.due_at) FROM crm_tasks t
+          WHERE t.organization_id = l.organization_id
+            AND t.lead_id = l.id
+            AND t.status IN ('OPEN', 'SNOOZED')) AS next_task_due_at,
+
+         (SELECT COUNT(*)::int FROM crm_tasks t
+          WHERE t.organization_id = l.organization_id
+            AND t.lead_id = l.id
+            AND t.status IN ('OPEN', 'SNOOZED')
+            AND t.due_at < now()) AS overdue_task_count,
          u.email as assigned_to_email,
          sa.formatted_address as site_formatted_address,
          sa.address_line1 as site_address_line1,

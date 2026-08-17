@@ -17,6 +17,7 @@
 
 import { pool } from "../../config/db.js";
 import { createAutoActivity } from "../../modules/activities/activity.service.js";
+import { createQuoteSentFollowUpTasks } from "../tasks/tasks.automation.service.js";
 import { withTx } from "../../db/tx.js";
 import { assertOrgEntity, assertStatus } from "../../services/guards.service.js";
 import { getQuoteCatalogItemById } from "../../services/quoteCatalog.service.js";
@@ -1471,6 +1472,9 @@ export async function patchQuoteStatus(quoteId, organizationId, newStatus, userI
 
     return { quoteId, normalized, organizationId, userId };
   }).then(async ({ quoteId: qid, normalized: norm, organizationId: org, userId: uid }) => {
+    if (norm === "SENT") {
+      await createQuoteSentFollowUpTasks({ organizationId: org, quoteId: qid, userId: uid }).catch(() => {});
+    }
     if (norm === "ACCEPTED") {
       const quote = (
         await pool.query("SELECT * FROM quotes WHERE id = $1", [qid])

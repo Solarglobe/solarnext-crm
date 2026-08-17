@@ -1273,13 +1273,28 @@ export function useLeadDetail() {
   const handleStageChange = useCallback(async (stageId: string) => {
     if (isReadOnly) return;
     if (!id || !data || data.lead.stage_id === stageId) return;
+    const target = data.stages.find((s) => s.id === stageId);
+    let next_follow_up_at: string | undefined;
+    if (target?.code === "FOLLOW_UP") {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      d.setHours(9, 0, 0, 0);
+      const value = window.prompt("Date de prochaine relance (format AAAA-MM-JJ HH:mm)", d.toISOString().slice(0, 16).replace("T", " "));
+      if (!value) return;
+      const parsed = new Date(value.replace(" ", "T"));
+      if (Number.isNaN(parsed.getTime())) {
+        setError("Date de relance invalide.");
+        return;
+      }
+      next_follow_up_at = parsed.toISOString();
+    }
     const flushed = await flushOverviewSave();
     if (!flushed) return;
     setStageChanging(true);
     try {
       const res = await apiFetch(`${API_BASE}/api/leads/${id}/stage`, {
         method: "PATCH",
-        body: JSON.stringify({ stageId }),
+        body: JSON.stringify({ stageId, next_follow_up_at }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));

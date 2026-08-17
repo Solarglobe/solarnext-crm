@@ -13,6 +13,7 @@ export type PermissionDomainKey =
   | "billing"
   | "planning"
   | "missions"
+  | "tasks"
   | "admin"
   | "org"
   | "other";
@@ -25,6 +26,7 @@ export const DOMAIN_ORDER: PermissionDomainKey[] = [
   "billing",
   "planning",
   "missions",
+  "tasks",
   "admin",
   "org",
   "other",
@@ -38,6 +40,7 @@ export const DOMAIN_TITLES: Record<PermissionDomainKey, string> = {
   billing: "Facturation",
   planning: "Planning & calendrier",
   missions: "Missions terrain",
+  tasks: "Tâches & relances",
   admin: "Administration & accès",
   org: "Entreprise",
   other: "Autres",
@@ -172,6 +175,31 @@ export const PERMISSION_UI: Record<string, Entry> = {
     description: "Planifier de nouvelles interventions ou visites.",
     domain: "missions",
   },
+  "crm_task.read.self": {
+    label: "Voir ses relances",
+    description: "Consulter les tâches CRM qui lui sont assignées.",
+    domain: "tasks",
+  },
+  "crm_task.read.all": {
+    label: "Voir toutes les relances",
+    description: "Consulter les tâches CRM de toute l’organisation.",
+    domain: "tasks",
+  },
+  "crm_task.create": {
+    label: "Créer des relances",
+    description: "Ajouter des tâches CRM manuelles sur un lead ou un client.",
+    domain: "tasks",
+  },
+  "crm_task.update.self": {
+    label: "Modifier ses relances",
+    description: "Terminer, reporter ou modifier ses tâches CRM.",
+    domain: "tasks",
+  },
+  "crm_task.update.all": {
+    label: "Modifier toutes les relances",
+    description: "Gérer les tâches CRM de toute l’organisation.",
+    domain: "tasks",
+  },
 };
 
 function humanizeCode(code: string): string {
@@ -191,6 +219,7 @@ function inferDomain(p: AdminPermission): PermissionDomainKey {
   if (c.startsWith("invoice") || m === "invoice") return "billing";
   if (c.startsWith("calendar.")) return "planning";
   if (c.startsWith("mission.")) return "missions";
+  if (c.startsWith("crm_task.")) return "tasks";
   if (c === "rbac.manage" || c === "user.manage" || c === "structure.manage" || m === "rbac") return "admin";
   if (c.startsWith("org.") || m === "org") return "org";
   return "other";

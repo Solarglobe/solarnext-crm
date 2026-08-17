@@ -9,6 +9,7 @@ import { requirePermission, requireAnyPermission } from "../rbac/rbac.middleware
 import * as controller from "../controllers/clients.controller.js";
 import * as billingContacts from "../controllers/billingContacts.controller.js";
 import clientsMissionsRouter from "./clients.missions.routes.js";
+import { clientTasksRouter } from "../domains/tasks/tasks.router.js";
 import { exportClientsCsv } from "../controllers/crmExport.controller.js";
 
 const router = express.Router();
@@ -27,6 +28,7 @@ router.get(
   controller.getSelf
 );
 router.use("/:id/missions", clientsMissionsRouter);
+router.use("/:id/tasks", clientTasksRouter);
 router.get("/:id", verifyJWT, requireAnyPermission(["client.read.all", "client.read.self"]), controller.getById);
 router.patch(
   "/:id/archive",

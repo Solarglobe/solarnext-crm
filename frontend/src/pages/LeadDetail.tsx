@@ -34,6 +34,7 @@ import LeadClientAssociationCard from "../modules/leads/LeadDetail/LeadClientAss
 import LeadMetersBar from "../modules/leads/LeadDetail/LeadMetersBar";
 import LeadMeterModal from "../modules/leads/LeadDetail/LeadMeterModal";
 import LeadPipelineBar from "../modules/leads/LeadDetail/LeadPipelineBar";
+import EntityTasksPanel from "../modules/tasks/EntityTasksPanel";
 import { formatEuroAmount, formatProductionKwh } from "../modules/leads/LeadDetail/leadEnergyFormat";
 import "../modules/leads/LeadDetail/lead-detail.css";
 import { useLeadDetail } from "../hooks/lead/useLeadDetail";
@@ -344,6 +345,13 @@ export default function LeadDetail() {
             </Button>
           ) : null}
         </div>
+
+        <EntityTasksPanel
+          leadId={ld.data.lead.id}
+          clientId={ld.data.lead.client_id}
+          assignedUserId={ld.data.lead.assigned_user_id}
+          readOnly={ld.isReadOnly || ld.isArchived}
+        />
 
         {ld.isLead && ld.data.stages.length ? (
           <section className="crm-lead-foundation-pipeline" aria-label="Pipeline commercial">

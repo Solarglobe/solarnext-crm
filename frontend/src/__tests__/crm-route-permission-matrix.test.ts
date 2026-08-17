@@ -14,6 +14,7 @@ describe("CRM route permission matrix", () => {
   it("documents protected CRM routes from the router", () => {
     const routes = [
       "/dashboard",
+      "/tasks",
       "/leads",
       "/leads/:id",
       "/clients",
@@ -50,6 +51,7 @@ describe("CRM route permission matrix", () => {
   it("documents every visible sidebar menu target", () => {
     const menuTargets = [
       "Tableau de bord",
+      "Relances",
       "Leads",
       "Clients",
       "Planning",
@@ -87,6 +89,11 @@ describe("CRM route permission matrix", () => {
       "client.read.self",
       "quote.manage",
       "invoice.manage",
+      "crm_task.read.self",
+      "crm_task.read.all",
+      "crm_task.create",
+      "crm_task.update.self",
+      "crm_task.update.all",
       "mission.read.self",
       "mission.read.all",
       "org.settings.manage",

@@ -773,6 +773,30 @@ ${INVOICE_LEAD_JOINS}
 
   const date_mode = p.range === "custom" ? "custom_range" : "rolling_window";
 
+  const tasksRow = (
+    await pool.query(
+      `SELECT
+         COUNT(*) FILTER (
+           WHERE t.status IN ('OPEN', 'SNOOZED')
+             AND t.due_at >= date_trunc('day', now())
+             AND t.due_at < date_trunc('day', now()) + interval '1 day'
+         )::int AS today_count,
+         COUNT(*) FILTER (
+           WHERE t.status IN ('OPEN', 'SNOOZED')
+             AND t.due_at < now()
+         )::int AS overdue_count,
+         COUNT(*) FILTER (
+           WHERE t.status IN ('OPEN', 'SNOOZED')
+             AND t.priority = 'URGENT'
+         )::int AS urgent_count
+       FROM crm_tasks t
+       LEFT JOIN leads lt ON lt.id = t.lead_id AND lt.organization_id = t.organization_id
+       WHERE t.organization_id = $1
+         AND ($2::uuid IS NULL OR t.assigned_user_id = $2 OR lt.assigned_user_id = $2)`,
+      [org, assignId]
+    )
+  ).rows[0] || { today_count: 0, overdue_count: 0, urgent_count: 0 };
+
   const formulas = {
     sign_rate_main:
       "Taux affiché en principal : devis créés dans la période avec statut ACCEPTED ÷ devis créés dans la période (cohorte création).",
@@ -826,6 +850,11 @@ ${INVOICE_LEAD_JOINS}
       remaining_to_collect_ttc,
       avg_quote_cycle_days,
       avg_sent_to_sign_days,
+    },
+    tasks_summary: {
+      today_count: tasksRow.today_count ?? 0,
+      overdue_count: tasksRow.overdue_count ?? 0,
+      urgent_count: tasksRow.urgent_count ?? 0,
     },
     pipeline: {
       leads_by_stage,
