@@ -6,43 +6,86 @@ function ohelecCatalog(overrides = {}) {
   const installer = { id: "installer-ohelec", name: "OHELEC" };
   const tariffVersion = { id: "tariff-v1", version_label: "OHELEC HT V1", status: "ACTIVE" };
   const roofGrid = { id: "grid-roof", code: "OHELEC_ROOF_SUPERIMPOSED_GRID", label: "Toiture" };
-  const flatGroundGrid = { id: "grid-flat-ground", code: "OHELEC_FLAT_GROUND_GRID", label: "Toit plat / sol" };
+  const flatGrid = { id: "grid-flat", code: "OHELEC_FLAT_ROOF_GRID", label: "Toit plat" };
+  const groundGrid = { id: "grid-ground", code: "OHELEC_GROUND_GRID", label: "Installation au sol" };
   const mkRow = (pricing_grid_id, power_wc, panel_count_hint, amount_ht_cents) => ({
     pricing_grid_id,
     power_wc,
     panel_count_hint,
     amount_ht_cents,
   });
+  const roofPrices = [
+    [2000, 140000],
+    [2500, 150000],
+    [3000, 155000],
+    [3500, 160000],
+    [4000, 170000],
+    [4500, 175000],
+    [5000, 180000],
+    [5500, 190000],
+    [6000, 200000],
+    [6500, 210000],
+    [7000, 220000],
+    [7500, 230000],
+    [8000, 240000],
+    [8500, 250000],
+    [9000, 260000],
+    [9500, 270000],
+    [10000, 280000],
+    [10500, 290000],
+    [11000, 300000],
+    [11500, 310000],
+    [12000, 320000],
+    [12500, 330000],
+    [13000, 340000],
+    [13500, 350000],
+    [14000, 360000],
+    [14500, 370000],
+    [15000, 380000],
+  ];
+  const flatGroundPrices = [
+    [2000, 160000],
+    [2500, 170000],
+    [3000, 180000],
+    [3500, 190000],
+    [4000, 200000],
+    [4500, 205000],
+    [5000, 210000],
+    [5500, 220000],
+    [6000, 230000],
+    [6500, 235000],
+    [7000, 240000],
+    [7500, 250000],
+    [8000, 260000],
+    [8500, 265000],
+    [9000, 270000],
+    [9500, 280000],
+    [10000, 290000],
+    [10500, 300000],
+    [11000, 310000],
+    [11500, 320000],
+    [12000, 330000],
+    [12500, 340000],
+    [13000, 350000],
+    [13500, 360000],
+    [14000, 370000],
+    [14500, 380000],
+    [15000, 390000],
+  ];
 
   return {
     installer,
     tariff_version: tariffVersion,
-    grids: [roofGrid, flatGroundGrid],
+    grids: [roofGrid, flatGrid, groundGrid],
     installation_type_mappings: [
       { installation_type: "ROOF_SUPERIMPOSED", pricing_grid_id: roofGrid.id },
-      { installation_type: "FLAT_ROOF", pricing_grid_id: flatGroundGrid.id },
-      { installation_type: "GROUND", pricing_grid_id: flatGroundGrid.id },
+      { installation_type: "FLAT_ROOF", pricing_grid_id: flatGrid.id },
+      { installation_type: "GROUND", pricing_grid_id: groundGrid.id },
     ],
     tariff_rows: [
-      mkRow(roofGrid.id, 2000, null, 140000),
-      mkRow(roofGrid.id, 2500, null, 150000),
-      mkRow(roofGrid.id, 3500, null, 160000),
-      mkRow(roofGrid.id, 4000, null, 170000),
-      mkRow(roofGrid.id, 5000, null, 180000),
-      mkRow(roofGrid.id, 5500, null, 190000),
-      mkRow(roofGrid.id, 6000, null, 200000),
-      mkRow(roofGrid.id, 7000, null, 220000),
-      mkRow(roofGrid.id, 8000, null, 240000),
-      mkRow(roofGrid.id, 9000, null, 260000),
-      mkRow(flatGroundGrid.id, 2000, null, 160000),
-      mkRow(flatGroundGrid.id, 3000, null, 180000),
-      mkRow(flatGroundGrid.id, 3500, null, 190000),
-      mkRow(flatGroundGrid.id, 4000, null, 200000),
-      mkRow(flatGroundGrid.id, 5000, null, 210000),
-      mkRow(flatGroundGrid.id, 6000, null, 230000),
-      mkRow(flatGroundGrid.id, 7000, null, 240000),
-      mkRow(flatGroundGrid.id, 8000, null, 260000),
-      mkRow(flatGroundGrid.id, 9000, null, 270000),
+      ...roofPrices.map(([power, amount]) => mkRow(roofGrid.id, power, null, amount)),
+      ...flatGroundPrices.map(([power, amount]) => mkRow(flatGrid.id, power, null, amount)),
+      ...flatGroundPrices.map(([power, amount]) => mkRow(groundGrid.id, power, null, amount)),
     ],
     electrical_rules: [
       { electrical_type: "MONO", rule_type: "NONE", amount_ht_cents: 0 },
@@ -156,14 +199,50 @@ test("OHELEC toiture 5820 Wc matche le palier 6000 Wc", () => {
   assert.equal(result.base_amount_ht_cents, 200000);
 });
 
-test("la puissance 6300 Wc matche le palier immédiatement supérieur 7000 Wc", () => {
+test("la puissance 6300 Wc matche le demi-palier immédiatement supérieur 6500 Wc", () => {
   const result = compute({
     requested_power_wc: 6300,
     installation_type: "ROOF_SUPERIMPOSED",
     electrical_type: "MONO",
   });
-  assert.equal(result.matched_power_wc, 7000);
-  assert.equal(result.base_amount_ht_cents, 220000);
+  assert.equal(result.matched_power_wc, 6500);
+  assert.equal(result.base_amount_ht_cents, 210000);
+});
+
+test("OHELEC toiture couvre les nouveaux paliers jusqu'a 15 kWc", () => {
+  const cases = [
+    [6500, 6500, 210000],
+    [9500, 9500, 270000],
+    [10000, 10000, 280000],
+    [12500, 12500, 330000],
+    [15000, 15000, 380000],
+  ];
+  for (const [requested, matched, amount] of cases) {
+    const result = compute({
+      requested_power_wc: requested,
+      installation_type: "ROOF_SUPERIMPOSED",
+      electrical_type: "MONO",
+    });
+    assert.equal(result.matched_power_wc, matched);
+    assert.equal(result.base_amount_ht_cents, amount);
+  }
+});
+
+test("OHELEC toiture prend le premier demi-palier supérieur", () => {
+  const cases = [
+    [8730, 9000, 260000],
+    [10200, 10500, 290000],
+    [14600, 15000, 380000],
+  ];
+  for (const [requested, matched, amount] of cases) {
+    const result = compute({
+      requested_power_wc: requested,
+      installation_type: "ROOF_SUPERIMPOSED",
+      electrical_type: "MONO",
+    });
+    assert.equal(result.matched_power_wc, matched);
+    assert.equal(result.base_amount_ht_cents, amount);
+  }
 });
 
 test("OHELEC toit plat et sol 6 kW mono retournent 2300 euros HT avec types distincts", () => {
@@ -183,19 +262,21 @@ test("OHELEC toit plat et sol 6 kW mono retournent 2300 euros HT avec types dist
   assert.equal(ground.base_amount_ht_cents, 230000);
   assert.equal(flat.installation_type, "FLAT_ROOF");
   assert.equal(ground.installation_type, "GROUND");
+  assert.notEqual(flat.pricing_grid.id, ground.pricing_grid.id);
 });
 
 test("le dernier palier exact est autorisé, au-delà le moteur refuse sans fallback", () => {
   const exact = compute({
-    requested_power_wc: 9000,
+    requested_power_wc: 15000,
     installation_type: "ROOF_SUPERIMPOSED",
     electrical_type: "MONO",
   });
-  assert.equal(exact.matched_power_wc, 9000);
+  assert.equal(exact.matched_power_wc, 15000);
+  assert.equal(exact.base_amount_ht_cents, 380000);
   assertDomainCode(
     () =>
       compute({
-        requested_power_wc: 9001,
+        requested_power_wc: 15001,
         installation_type: "ROOF_SUPERIMPOSED",
         electrical_type: "MONO",
       }),
@@ -219,7 +300,26 @@ test("le TRI ajoute le supplément HT lu dans la règle tarifaire", () => {
     catalog
   );
   assert.equal(result.electrical_adjustments[0].amount_ht_cents, 33333);
-  assert.equal(result.final_total_ht_cents, 193333);
+  assert.equal(result.final_total_ht_cents, 188333);
+});
+
+test("OHELEC toit plat et sol couvrent les demi-paliers jusqu'a 15 kWc", () => {
+  const cases = [
+    ["FLAT_ROOF", 6500, 6500, 235000],
+    ["FLAT_ROOF", 15000, 15000, 390000],
+    ["GROUND", 6500, 6500, 235000],
+    ["GROUND", 15000, 15000, 390000],
+  ];
+  for (const [type, requested, matched, amount] of cases) {
+    const result = compute({
+      requested_power_wc: requested,
+      installation_type: type,
+      electrical_type: "MONO",
+    });
+    assert.equal(result.matched_power_wc, matched);
+    assert.equal(result.base_amount_ht_cents, amount);
+    assert.equal(result.installation_type, type);
+  }
 });
 
 test("OHELEC 6 kW toiture TRI retourne 2250 euros HT", () => {
@@ -256,8 +356,8 @@ test("options, câble overridable et visite technique sont calculés en HT", () 
       { code: "EV_CHARGER" },
     ],
   });
-  assert.equal(result.catalog_total_ht_cents, 160000 + 15000 + 16667 + 35000);
-  assert.equal(result.final_total_ht_cents, 160000 + 22000 + 16667 + 35000);
+  assert.equal(result.catalog_total_ht_cents, 155000 + 15000 + 16667 + 35000);
+  assert.equal(result.final_total_ht_cents, 155000 + 22000 + 16667 + 35000);
   assert.deepEqual(result.option_overrides, [
     {
       code: "CABLE_AND_CONNECTION",
@@ -280,7 +380,7 @@ test("les options batterie sont mutuellement exclusives", () => {
   );
 });
 
-test("toit plat et sol partagent la même grille mais conservent le type demandé", () => {
+test("toit plat et sol ont des grilles distinctes et conservent le type demandé", () => {
   const flat = compute({
     requested_power_wc: 3000,
     installation_type: "FLAT_ROOF",
@@ -295,7 +395,7 @@ test("toit plat et sol partagent la même grille mais conservent le type demand�
   assert.equal(ground.base_amount_ht_cents, 180000);
   assert.equal(flat.installation_type, "FLAT_ROOF");
   assert.equal(ground.installation_type, "GROUND");
-  assert.equal(flat.pricing_grid.id, ground.pricing_grid.id);
+  assert.notEqual(flat.pricing_grid.id, ground.pricing_grid.id);
 });
 
 test("override global impose le total final et exige une raison", () => {
@@ -316,7 +416,7 @@ test("override global impose le total final et exige une raison", () => {
     manual_override_ht_cents: 199999,
     manual_override_reason: "Accord direction",
   });
-  assert.equal(result.catalog_total_ht_cents, 160000);
+  assert.equal(result.catalog_total_ht_cents, 155000);
   assert.equal(result.final_total_ht_cents, 199999);
   assert.equal(result.manual_override.reason, "Accord direction");
 });
@@ -342,7 +442,7 @@ test("historisation: modifier le catalogue après calcul ne change pas le snapsh
   });
   const changedCatalog = ohelecCatalog({
     tariff_rows: ohelecCatalog().tariff_rows.map((row) =>
-      row.pricing_grid_id === "grid-roof" && row.power_wc === 3500
+      row.pricing_grid_id === "grid-roof" && row.power_wc === 3000
         ? { ...row, amount_ht_cents: 999999 }
         : row
     ),
@@ -356,6 +456,6 @@ test("historisation: modifier le catalogue après calcul ne change pas le snapsh
     changedCatalog
   );
   const quoteSnapshot = structuredClone(before);
-  assert.equal(quoteSnapshot.final_total_ht_cents, 160000);
+  assert.equal(quoteSnapshot.final_total_ht_cents, 155000);
   assert.equal(after.final_total_ht_cents, 999999);
 });

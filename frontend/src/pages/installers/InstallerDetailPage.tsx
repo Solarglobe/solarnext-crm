@@ -41,6 +41,7 @@ import "./installers-page.css";
 type TabId = "info" | "zones" | "tarifs" | "options" | "versions";
 
 const INSTALLATION_TYPES: InstallationType[] = ["ROOF_SUPERIMPOSED", "FLAT_ROOF", "GROUND"];
+const OHELEC_DEFAULT_POWERS_WC = Array.from({ length: 27 }, (_, index) => 2000 + index * 500);
 
 function statusBadge(version: InstallerTariffVersion) {
   const cls =
@@ -52,7 +53,13 @@ function statusBadge(version: InstallerTariffVersion) {
   return <span className={`installers-badge${cls}`}>{version.status}</span>;
 }
 
-function gridCodeForType(type: InstallationType): string {
+function defaultGridCodeForType(type: InstallationType, installerName?: string | null): string {
+  const isOhelec = String(installerName ?? "").trim().toUpperCase() === "OHELEC";
+  if (isOhelec) {
+    if (type === "ROOF_SUPERIMPOSED") return "OHELEC_ROOF_SUPERIMPOSED_GRID";
+    if (type === "FLAT_ROOF") return "OHELEC_FLAT_ROOF_GRID";
+    return "OHELEC_GROUND_GRID";
+  }
   return type === "ROOF_SUPERIMPOSED" ? "ROOF_SUPERIMPOSED_GRID" : `${type}_GRID`;
 }
 
@@ -517,6 +524,19 @@ function TariffMatrix({
     () => new Map(catalog.installation_type_mappings.map((m) => [m.installation_type, m.pricing_grid_id])),
     [catalog.installation_type_mappings]
   );
+  const gridsById = useMemo(
+    () => new Map(catalog.grids.map((grid) => [grid.id, grid])),
+    [catalog.grids]
+  );
+  const gridCodeByType = useMemo(() => {
+    const map = new Map<InstallationType, string>();
+    for (const type of INSTALLATION_TYPES) {
+      const gridId = mappingsByType.get(type);
+      const existingCode = gridId ? gridsById.get(gridId)?.code : null;
+      map.set(type, existingCode || defaultGridCodeForType(type, catalog.installer.name));
+    }
+    return map;
+  }, [catalog.installer.name, gridsById, mappingsByType]);
   const rowsByGridPower = useMemo(() => {
     const map = new Map<string, InstallerTariffRow>();
     for (const row of catalog.tariff_rows) map.set(`${row.pricing_grid_id}:${row.power_wc}`, row);
@@ -524,8 +544,11 @@ function TariffMatrix({
   }, [catalog.tariff_rows]);
   const catalogPowers = useMemo(() => {
     const values = new Set(catalog.tariff_rows.map((r) => Number(r.power_wc)).filter((n) => Number.isFinite(n)));
+    if (String(catalog.installer.name ?? "").trim().toUpperCase() === "OHELEC") {
+      for (const power of OHELEC_DEFAULT_POWERS_WC) values.add(power);
+    }
     return Array.from(values).sort((a, b) => a - b);
-  }, [catalog.tariff_rows]);
+  }, [catalog.installer.name, catalog.tariff_rows]);
 
   useEffect(() => {
     setDraftPowers(catalogPowers);
@@ -557,12 +580,12 @@ function TariffMatrix({
       }
     }
     const grids = INSTALLATION_TYPES.map((type) => ({
-      code: gridCodeForType(type),
+      code: gridCodeByType.get(type) || defaultGridCodeForType(type, catalog.installer.name),
       label: INSTALLATION_TYPE_LABELS[type],
     }));
     const tariff_rows = INSTALLATION_TYPES.flatMap((type) =>
       powers.map((power, index) => ({
-        grid_code: gridCodeForType(type),
+        grid_code: gridCodeByType.get(type) || defaultGridCodeForType(type, catalog.installer.name),
         power_wc: power,
         panel_count_hint: rowsByGridPower.get(`${mappingsByType.get(type)}:${power}`)?.panel_count_hint ?? null,
         amount_ht_cents: eurosToCents(amounts[`${type}:${power}`]),
@@ -573,7 +596,7 @@ function TariffMatrix({
       grids,
       installation_type_mappings: INSTALLATION_TYPES.map((type) => ({
         installation_type: type,
-        grid_code: gridCodeForType(type),
+        grid_code: gridCodeByType.get(type) || defaultGridCodeForType(type, catalog.installer.name),
       })),
       tariff_rows,
     });
