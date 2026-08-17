@@ -33,7 +33,27 @@ function normalizeApiOrigin(raw: string): string {
  * @returns origine normalisée, ou `""` pour URLs relatives (dev avec proxy, ou build sans `VITE_API_URL`).
  */
 export function getCrmApiBase(): string {
-  return normalizeApiOrigin(String(import.meta.env.VITE_API_URL ?? ""));
+  const buildTime = normalizeApiOrigin(String(import.meta.env.VITE_API_URL ?? ""));
+  if (buildTime) {
+    return buildTime;
+  }
+
+  const runtime =
+    typeof window !== "undefined"
+      ? normalizeApiOrigin(String(window.__VITE_API_URL__ ?? ""))
+      : "";
+  if (runtime) {
+    return runtime;
+  }
+
+  if (import.meta.env.PROD && typeof window !== "undefined") {
+    const host = window.location?.hostname ?? "";
+    if (host === "solarnext-crm.fr" || host.endsWith(".vercel.app")) {
+      return "https://api.solarnext-crm.fr";
+    }
+  }
+
+  return "";
 }
 
 /**
