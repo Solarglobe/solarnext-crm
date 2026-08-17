@@ -24,7 +24,11 @@ const installerCost = {
   catalog_total_ht_cents: 180000,
   option_overrides: [],
   manual_override: null,
+  vat_rate_percent: 20,
+  vat_rate_bps: 2000,
   final_total_ht_cents: 180000,
+  final_total_vat_cents: 36000,
+  final_total_ttc_cents: 216000,
   warnings: [],
   calculated_at: "2026-08-17T10:00:00.000Z",
   calculation_version: "installer-pricing-v1",
@@ -97,8 +101,9 @@ describe("mapQuotePrepToQuoteDraftMetadata + buildQuoteCreatePayloadFromQuotePre
     });
     const installerLines = items.filter((item) => item.billing_party === "INSTALLER_RGE");
     expect(installerLines).toHaveLength(1);
-    expect(installerLines[0].label).toBe("Installation RGE OHELEC");
+    expect(installerLines[0].label).toBe("Installation photovoltaïque RGE — OHELEC");
     expect(installerLines[0].unit_price_ht).toBe(1800);
+    expect(installerLines[0].tva_rate).toBe(20);
     expect(installerLines[0].reference).toBe("INSTALLER_RGE_CONSOLIDATED");
     expect(metadata.installer_cost?.matched_power_wc).toBe(7000);
   });
@@ -106,5 +111,6 @@ describe("mapQuotePrepToQuoteDraftMetadata + buildQuoteCreatePayloadFromQuotePre
     const lines = quotePrepItemsToQuoteLines([], installerCost);
     expect(lines.filter((line) => line.billing_party === "INSTALLER_RGE")).toHaveLength(1);
     expect(lines[0].line_source).toBe("study_prep");
+    expect(lines[0].tva_percent).toBe(20);
   });
 });

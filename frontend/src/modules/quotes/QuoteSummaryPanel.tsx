@@ -143,11 +143,11 @@ export default function QuoteSummaryPanel({
               color: "#555",
             }}
           >
-            <span>Coût global indicatif du projet</span>
+            <span>Coût total du projet</span>
             <strong>{eur(projectIndicativeTtc)} TTC</strong>
           </div>
           <p style={{ fontSize: 11, color: "#777", margin: "6px 0 0", fontStyle: "italic" }}>
-            Le coût global est indicatif et ne constitue pas le montant facturé par SolarGlobe.
+            Le coût total du projet est présenté pour information et ne constitue pas le montant facturé par SolarGlobe.
           </p>
         </div>
       ) : null}

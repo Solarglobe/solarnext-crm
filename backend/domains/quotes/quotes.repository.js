@@ -1151,6 +1151,7 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
       study_import,
       pdf_show_line_pricing,
       legal_documents,
+      installer_cost,
     } = body;
 
     if (validity_days !== undefined && body.valid_until === undefined) {
@@ -1359,6 +1360,21 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
     }
 
     await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId, client });
+    if (installer_cost) {
+      const quoteLinkRes = await client.query(
+        `SELECT study_id, study_version_id FROM quotes WHERE id = $1 AND organization_id = $2`,
+        [quoteId, organizationId]
+      );
+      await persistQuoteInstallerCostSnapshot({
+        client,
+        organizationId,
+        quoteId,
+        studyId: quoteLinkRes.rows[0]?.study_id || null,
+        studyVersionId: quoteLinkRes.rows[0]?.study_version_id || null,
+        installerCost: installer_cost,
+        context: auditContext,
+      });
+    }
   });
   return getQuoteById(quoteId, organizationId).then((detail) => {
     if (auditContext && detail?.quote) {

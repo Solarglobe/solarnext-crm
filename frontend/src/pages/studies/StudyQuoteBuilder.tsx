@@ -23,7 +23,8 @@ import InstallerQuotePrepPanel from "../../modules/installers/InstallerQuotePrep
 import type { InstallerCostResult } from "../../modules/installers/installers.types";
 import "./study-quote-builder.css";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
-import { computeMaterialMarginFromLines, round2 } from "../../modules/quotes/quoteCalc";
+import { computeMaterialMarginFromLines, round2 } from "../../modules/quotes/quoteCalc";
+import { computeProjectEconomicTotals } from "../../modules/quotes/projectEconomicTotals";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
 
@@ -381,7 +382,7 @@ function calculateTotalTVA(lines: QuotePrepItem[]): number {
 }
 
 // Budget matériel uniquement (economic.items). Batteries exclues des totaux (options scénario).
-function computeTotals(data: EconomicData): { ht: number; tva: number; ttc: number; net: number } {
+function computeTotals(data: EconomicData): { ht: number; tva: number; ttc: number; net: number } {
   const itemsHt = calculateTotalHT(data.items);
   const itemsTva = calculateTotalTVA(data.items);
   const totalHtGross = Math.round(itemsHt * 100) / 100;
@@ -396,7 +397,44 @@ function computeTotals(data: EconomicData): { ht: number; tva: number; ttc: numb
     : 0;
   const ttc = Math.round((ht + tva) * 100) / 100;
   return { ht, tva, ttc, net: ttc };
-}
+}
+
+function ProjectEconomicSummary({
+  economic,
+  totals,
+}: {
+  economic: EconomicData;
+  totals: { ht: number; tva: number; ttc: number };
+}) {
+  const projectTotals = computeProjectEconomicTotals(
+    { ht: totals.ht, tva: totals.tva, ttc: totals.ttc },
+    economic.installer_cost ?? null
+  );
+  const installerName = economic.installer_cost?.installer?.name ?? "installateur";
+
+  return (
+    <section className="sqb-section sqb-section--project-economics" aria-labelledby="sqb-project-economics-title">
+      <h2 id="sqb-project-economics-title" className="sqb-h2">Synthèse économique du projet</h2>
+      <div className="sqb-project-totals">
+        <div className="sqb-project-total-card">
+          <span className="sqb-project-total-label">SolarGlobe</span>
+          <strong>{fmtEur2(projectTotals.solarglobe.ttc)} TTC</strong>
+          <span>HT {fmtEur2(projectTotals.solarglobe.ht)} · TVA {fmtEur2(projectTotals.solarglobe.tva)}</span>
+        </div>
+        <div className="sqb-project-total-card">
+          <span className="sqb-project-total-label">Installation RGE — {installerName}</span>
+          <strong>{fmtEur2(projectTotals.installer.ttc)} TTC</strong>
+          <span>HT {fmtEur2(projectTotals.installer.ht)} · TVA {fmtEur2(projectTotals.installer.tva)}</span>
+        </div>
+        <div className="sqb-project-total-card sqb-project-total-card--main">
+          <span className="sqb-project-total-label">Coût total du projet</span>
+          <strong>{fmtEur2(projectTotals.project.ttc)} TTC</strong>
+          <span>HT {fmtEur2(projectTotals.project.ht)} · TVA {fmtEur2(projectTotals.project.tva)}</span>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 /** Remise document (HT) appliquee a tout SAUF la pose (categorie INSTALL, Main d'oeuvre). */
 function discountValueExclPose(data: EconomicData): number {
@@ -1694,7 +1732,11 @@ export default function StudyQuoteBuilder() {
 
         <div className="sqb-divider" role="presentation" />
 
-        <section className="sqb-section sqb-scenarios-section">
+        <ProjectEconomicSummary economic={economic} totals={totals} />
+
+        <div className="sqb-divider" role="presentation" />
+
+        <section className="sqb-section sqb-scenarios-section">
           <div className="sqb-section-heading">
             <h2 className="sqb-h2">Options scénario</h2>
             <p className="sqb-helper sqb-scenario-hint">

@@ -520,10 +520,10 @@ export function QuoteDocumentView({
                   </p>
                 </section>
 
-                {/* C — Coût global indicatif du projet (SolarGlobe + estimation pose). */}
-                <section className="fq-project-indicative-block" aria-label="Coût global indicatif du projet">
+                {/* C — Coût total du projet (SolarGlobe + estimation pose). */}
+                <section className="fq-project-indicative-block" aria-label="Coût total du projet">
                   <h2 className="fq-erp-offer-title fq-installer-title">
-                    C — Coût global indicatif du projet
+                    C — Coût total du projet
                   </h2>
                   <div className="fq-totals">
                     <div className="fq-totals-inner">
@@ -536,13 +536,13 @@ export function QuoteDocumentView({
                         <span>{formatEurLeading(installerTotals.total_ttc)}</span>
                       </div>
                       <div className="fq-totals-row fq-totals-row--sep fq-totals-row--emph">
-                        <span>= Coût global indicatif TTC ({currency})</span>
+                        <span>= Coût total du projet TTC ({currency})</span>
                         <span>{formatEurLeading(projectIndicativeTotals.total_ttc)}</span>
                       </div>
                     </div>
                   </div>
                   <p className="fq-installer-mention" role="note">
-                    Ce coût global est donné à titre indicatif pour présenter le budget complet du projet. Il ne
+                    Ce coût total est donné à titre indicatif pour présenter le budget complet du projet. Il ne
                     constitue pas le montant facturé par SolarGlobe. Il ne vaut ni commande de travaux, ni
                     engagement de SolarGlobe sur la réalisation, la facturation ou les obligations propres de
                     l’installateur RGE indépendant.
@@ -644,7 +644,7 @@ export function QuoteDocumentView({
                       exclusivement d’une relation contractuelle et financière directe entre le Client et
                       l’installateur RGE indépendant. La prestation de pose est facturée directement par
                       l’installateur RGE indépendant et n’est ni facturée ni encaissée par SolarGlobe. Le coût
-                      global indiqué en section C est purement indicatif et ne constitue pas le montant facturé par
+                      total indiqué en section C est purement indicatif et ne constitue pas le montant facturé par
                       SolarGlobe.
                     </p>
                   ) : null}

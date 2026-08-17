@@ -499,6 +499,49 @@
   gap: 24px;
 }
 
+.sqb-project-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sqb-project-total-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface-elevated);
+  display: grid;
+  gap: 6px;
+}
+
+.sqb-project-total-card strong {
+  font-size: 1.25rem;
+  color: var(--text-primary);
+}
+
+.sqb-project-total-card span:last-child {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.sqb-project-total-card--main {
+  border-color: rgba(212, 175, 55, 0.5);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.sqb-project-total-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+@media (max-width: 900px) {
+  .sqb-project-totals {
+    grid-template-columns: 1fr;
+  }
+}
+
 .sqb-scenarios-section .sqb-section-heading {
   margin-bottom: 0;
 }

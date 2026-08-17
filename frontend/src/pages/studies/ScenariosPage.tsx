@@ -59,6 +59,10 @@ function parseSelectedScenarioId(raw: unknown): ScenarioId | null {
   return null;
 }
 
+function fmtEur0(value: number): string {
+  return value.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €";
+}
+
 export default function ScenariosPage() {
   const { studyId, versionId } = useParams<{ studyId: string; versionId: string }>();
   const navigate = useNavigate();
@@ -85,6 +89,13 @@ export default function ScenariosPage() {
   const isReadOnly = useSuperAdminReadOnly();
 
   const orderedScenarios = useMemo(() => normalizeOrderedScenarios(scenarios), [scenarios]);
+  const projectInvestmentTtc = useMemo(() => {
+    const base = scenarios.find((s) => String(s.id ?? s.type ?? "") === "BASE") ?? scenarios[0];
+    const baseAny = base as (ScenarioV2Type & { capex_ttc?: unknown; capex?: { total_ttc?: unknown } }) | undefined;
+    const raw = baseAny?.finance?.capex_ttc ?? baseAny?.capex_ttc ?? baseAny?.capex?.total_ttc;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }, [scenarios]);
   const availableCount = orderedScenarios.filter(Boolean).length;
 
   const study = studyPack?.study;
@@ -710,6 +721,11 @@ export default function ScenariosPage() {
           <p className="sg-helper" style={{ margin: 0 }}>
             {availableCount === 1 ? "1 scénario disponible" : `${availableCount} scénarios disponibles`}
           </p>
+          {projectInvestmentTtc != null ? (
+            <p className="sg-helper" style={{ margin: "8px 0 0", fontWeight: 700 }}>
+              Investissement total du projet utilisé pour ROI/TRI : {fmtEur0(projectInvestmentTtc)} TTC
+            </p>
+          ) : null}
         </header>
 
         {recomputeBanner}

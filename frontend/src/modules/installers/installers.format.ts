@@ -28,6 +28,13 @@ export function formatEuroHtFromCents(cents: number | null | undefined): string 
   })} € HT`;
 }
 
+export function formatEuroFromCents(cents: number | null | undefined, suffix = "€"): string {
+  return `${centsToEuros(cents).toLocaleString("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ${suffix}`.trim();
+}
+
 export function formatKwcFromWc(wc: number | null | undefined): string {
   const n = Number(wc);
   if (!Number.isFinite(n)) return "—";

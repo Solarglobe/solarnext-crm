@@ -151,7 +151,11 @@ export interface InstallerCostResult {
     override_amount_ht_cents: number;
   }>;
   manual_override?: { amount_ht_cents: number; reason: string } | null;
+  vat_rate_percent?: number;
+  vat_rate_bps?: number;
   final_total_ht_cents: number;
+  final_total_vat_cents?: number;
+  final_total_ttc_cents?: number;
   warnings: string[];
   calculated_at: string;
   calculation_version: string;

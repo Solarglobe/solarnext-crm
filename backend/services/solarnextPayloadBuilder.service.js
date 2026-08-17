@@ -6,6 +6,7 @@
  */
 
 import { pool } from "../config/db.js";
+import { computeProjectEconomicTotalsFromConfig } from "./projectEconomicTotals.service.js";
 import { resolveVirtualBatteryActivationFeeTtcFromOrgDb } from "./virtualBatteryQuoteCalculator.service.js";
 import * as studiesService from "../routes/studies/service.js";
 import { computeCalpinageShading } from "./shading/calpinageShading.service.js";
@@ -530,10 +531,11 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     [version.id, orgId]
   );
   const economicSnapshot = economicSnapshotRes.rows[0]?.config_json ?? null;
+  const projectEconomicTotals = computeProjectEconomicTotalsFromConfig(economicSnapshot || {});
   const capexTotalTtc =
-    economicSnapshot?.capex_total_ttc ??
-    economicSnapshot?.totals?.ttc ??
-    null;
+    projectEconomicTotals.project.ttc > 0
+      ? projectEconomicTotals.project.ttc
+      : (economicSnapshot?.capex_total_ttc ?? economicSnapshot?.totals?.ttc ?? null);
 
   const energyProfileEarly =
     energyLead.energy_profile && typeof energyLead.energy_profile === "object"
@@ -1113,6 +1115,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     },
     finance_input: {
       capex_ttc: capexTotalTtc,
+      project_totals: projectEconomicTotals,
       battery_physical_price_ttc: Number(batteryPhysicalPriceTtc) || 0,
       economic_snapshot_config:
         economicSnapshot && typeof economicSnapshot === "object" ? economicSnapshot : null,
@@ -1193,6 +1196,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     console.log("[C1] CAPEX injection =", {
       capex_total_ttc: economicSnapshot?.capex_total_ttc,
       totals_ttc: economicSnapshot?.totals?.ttc,
+      project_totals_ttc: projectEconomicTotals.project.ttc,
       injected_capex_ttc: capexTotalTtc,
     });
   }

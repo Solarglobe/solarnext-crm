@@ -201,13 +201,16 @@ export function mapEconomicItemsToStudyQuoteItems(items: EconomicPrepItem[]): Qu
 export function installerCostToQuoteCreateItems(installerCost: InstallerCostResult | null): QuoteCreateItemFromStudy[] {
   if (!installerCost?.final_total_ht_cents || installerCost.final_total_ht_cents <= 0) return [];
   const installerName = installerCost.installer?.name || "installateur";
+  const vatRate = Number.isFinite(Number(installerCost.vat_rate_percent))
+    ? Math.max(0, Math.min(100, Number(installerCost.vat_rate_percent)))
+    : 0;
   return [
     {
-      label: `Installation RGE ${installerName}`,
+      label: `Installation photovoltaïque RGE — ${installerName}`,
       description: `Ligne consolidée installateur RGE. Détail figé dans le snapshot installateur du devis.`,
       quantity: 1,
       unit_price_ht: Math.round(installerCost.final_total_ht_cents) / 100,
-      tva_rate: 0,
+      tva_rate: vatRate,
       discount_ht: 0,
       line_source: "study_prep",
       catalog_item_id: null,

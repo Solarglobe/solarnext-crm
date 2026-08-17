@@ -29,7 +29,7 @@ import {
   fetchQuotePrepEconomicItems,
   quotePrepItemsToQuoteLines,
 } from "./quotePrepImport";
-import { InstallerCostSummary } from "../installers/InstallerQuotePrepPanel";
+import InstallerQuotePrepPanel, { InstallerCostSummary } from "../installers/InstallerQuotePrepPanel";
 import type { InstallerCostResult } from "../installers/installers.types";
 import { QuoteToolbar } from "./QuoteToolbar";
 import QuoteWorkflowPanel from "./QuoteWorkflowPanel";
@@ -372,6 +372,7 @@ export default function QuoteBuilderPage() {
       };
       if (state.header.study_id) body.study_id = state.header.study_id;
       if (state.header.study_version_id) body.study_version_id = state.header.study_version_id;
+      if (installerCostSnapshot) body.installer_cost = installerCostSnapshot;
       if (state.meta.study_import != null) {
         body.study_import = state.meta.study_import;
       }
@@ -393,7 +394,7 @@ export default function QuoteBuilderPage() {
     } finally {
       setSaving(false);
     }
-  }, [id, state, canEdit, isReadOnly, load]);
+  }, [id, state, canEdit, isReadOnly, load, installerCostSnapshot]);
 
   const changeQuoteStatus = useCallback(
     async (next: string, confirmMsg?: string) => {
@@ -546,6 +547,25 @@ export default function QuoteBuilderPage() {
     });
   };
 
+  const upsertInstallerLineFromCost = useCallback((installerCost: InstallerCostResult | null) => {
+    setInstallerCostSnapshot(installerCost);
+    if (!installerCost || !canEditMutations) return;
+    const [mappedLine] = quotePrepItemsToQuoteLines([], installerCost);
+    if (!mappedLine) return;
+    const nextLine: QuoteLine = {
+      ...mappedLine,
+      id: crypto.randomUUID(),
+      line_source: "manual",
+      position: state.lines.length + 1,
+    };
+    const isInstallerConsolidated = (line: QuoteLine) =>
+      line.billing_party === "INSTALLER_RGE" &&
+      String(line.reference ?? "").trim().toUpperCase() === "INSTALLER_RGE_CONSOLIDATED";
+    const withoutInstaller = state.lines.filter((line) => !isInstallerConsolidated(line));
+    dispatch({ type: "SET_LINES", lines: [...withoutInstaller, nextLine] });
+    showCrmInlineToast("Ligne installation RGE mise à jour dans le devis.", "success");
+  }, [canEditMutations, state.lines]);
+
   const addDiscountLine = () => {
     if (!canEditMutations) return;
     const raw = window.prompt("Montant de la remise HT (en euros, valeur positive) :", "100");
@@ -639,6 +659,7 @@ export default function QuoteBuilderPage() {
       };
       if (state.header.study_id) body.study_id = state.header.study_id;
       if (state.header.study_version_id) body.study_version_id = state.header.study_version_id;
+      if (prep.installer_cost) body.installer_cost = prep.installer_cost;
 
       const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(id)}`, {
         method: "PATCH",
@@ -1209,12 +1230,24 @@ export default function QuoteBuilderPage() {
         </section>
       ) : null}
 
-      {installerCostSnapshot ? (
+      {(installerCostSnapshot || canEditMutations) ? (
         <section className="sn-card qb-billing-block" aria-labelledby="qb-installer-snapshot-title">
           <h2 id="qb-installer-snapshot-title" className="qb-billing-block__title">
             Installateur RGE
           </h2>
-          <InstallerCostSummary result={installerCostSnapshot} frozen />
+          {installerCostSnapshot ? <InstallerCostSummary result={installerCostSnapshot} frozen={!canEditMutations} /> : null}
+          {canEditMutations ? (
+            <InstallerQuotePrepPanel
+              projectPowerWc={installerCostSnapshot?.requested_power_wc ?? null}
+              locked={!canEditMutations}
+              value={installerCostSnapshot}
+              onPersisted={upsertInstallerLineFromCost}
+              saveToQuotePrep={false}
+              allowManualPower
+              embedded
+              showTitle={false}
+            />
+          ) : null}
         </section>
       ) : null}
 

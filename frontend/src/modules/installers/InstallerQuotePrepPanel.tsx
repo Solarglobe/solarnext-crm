@@ -4,6 +4,7 @@ import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { computeInstallerInstallationCost, listInstallers } from "../../services/installers.service";
 import {
   ELECTRICAL_TYPE_LABELS,
+  formatEuroFromCents,
   formatEuroHtFromCents,
   formatKwcFromWc,
   formatDateFr,
@@ -70,6 +71,8 @@ function buildInstallerComputeSignature(payload: InstallerComputePayload): strin
 }
 
 export function InstallerCostSummary({ result, frozen = false }: { result: InstallerCostResult; frozen?: boolean }) {
+  const totalVatCents = Number(result.final_total_vat_cents ?? 0) || 0;
+  const totalTtcCents = Number(result.final_total_ttc_cents ?? 0) || result.final_total_ht_cents + totalVatCents;
   return (
     <div className={frozen ? "installer-snapshot-freeze" : "installer-quote-result"}>
       {frozen ? <strong>Tarif figé au moment du devis</strong> : <strong>Coût installation {result.installer?.name}</strong>}
@@ -109,8 +112,12 @@ export function InstallerCostSummary({ result, frozen = false }: { result: Insta
       ) : null}
       <div className="installer-quote-total">
         <span>{result.manual_override ? "Coût retenu" : "Total installateur"}</span>
-        <span>{formatEuroHtFromCents(result.final_total_ht_cents)}</span>
+        <span>{formatEuroFromCents(totalTtcCents, "€ TTC")}</span>
       </div>
+      <p className="installers-muted">
+        HT {formatEuroFromCents(result.final_total_ht_cents)}
+        {result.vat_rate_percent != null ? ` · TVA ${Number(result.vat_rate_percent).toLocaleString("fr-FR")} % : ${formatEuroFromCents(totalVatCents)}` : ""}
+      </p>
       {result.manual_override ? (
         <p className="installers-muted">Coût calculé catalogue : {formatEuroHtFromCents(result.catalog_total_ht_cents)}</p>
       ) : null}
@@ -125,13 +132,21 @@ export default function InstallerQuotePrepPanel({
   locked,
   value,
   onPersisted,
+  saveToQuotePrep = true,
+  allowManualPower = false,
+  embedded = false,
+  showTitle = true,
 }: {
-  studyId: string;
-  versionId: string;
+  studyId?: string;
+  versionId?: string;
   projectPowerWc: number | null;
   locked: boolean;
   value?: InstallerCostResult | null;
   onPersisted: (result: InstallerCostResult | null) => void;
+  saveToQuotePrep?: boolean;
+  allowManualPower?: boolean;
+  embedded?: boolean;
+  showTitle?: boolean;
 }) {
   const [installers, setInstallers] = useState<InstallerListRow[]>([]);
   const [installerId, setInstallerId] = useState(value?.installer?.id ?? "");
@@ -148,6 +163,9 @@ export default function InstallerQuotePrepPanel({
   const [manualOverride, setManualOverride] = useState(String(centsToEuros(value?.manual_override?.amount_ht_cents ?? 0)));
   const [manualReason, setManualReason] = useState(value?.manual_override?.reason ?? "");
   const [result, setResult] = useState<InstallerCostResult | null>(value ?? null);
+  const [manualPowerKwc, setManualPowerKwc] = useState(
+    projectPowerWc != null && projectPowerWc > 0 ? String(Math.round(projectPowerWc) / 1000) : ""
+  );
   const [error, setError] = useState<string | null>(null);
   const [installersLoadError, setInstallersLoadError] = useState<string | null>(null);
   const [computing, setComputing] = useState(false);
@@ -192,21 +210,27 @@ export default function InstallerQuotePrepPanel({
   }, [selectedOptions, cableOverrideEnabled, cableOverride]);
 
   const cableCatalogAmount = result?.options?.find((item) => item.code === "CABLE_AND_CONNECTION")?.catalog_amount_ht_cents;
+  const effectiveProjectPowerWc =
+    projectPowerWc != null && projectPowerWc > 0
+      ? projectPowerWc
+      : allowManualPower
+        ? Math.round((Number(String(manualPowerKwc).replace(",", ".")) || 0) * 1000)
+        : null;
 
   useEffect(() => {
-    if (locked || !installerId || !projectPowerWc || projectPowerWc <= 0) return;
+    if (locked || !installerId || !effectiveProjectPowerWc || effectiveProjectPowerWc <= 0) return;
     if (manualOverrideEnabled && !manualReason.trim()) {
       setError("Le motif est obligatoire pour une modification manuelle globale.");
       return;
     }
     const payload: InstallerComputePayload = {
-      requested_power_wc: Math.round(projectPowerWc),
+      requested_power_wc: Math.round(effectiveProjectPowerWc),
       installation_type: installationType,
       electrical_type: electricalType,
       options: optionInputs,
-      study_id: studyId,
-      study_version_id: versionId,
-      save_to_quote_prep: true,
+      ...(studyId ? { study_id: studyId } : {}),
+      ...(versionId ? { study_version_id: versionId } : {}),
+      save_to_quote_prep: saveToQuotePrep && Boolean(studyId && versionId),
       ...(manualOverrideEnabled
         ? {
             manual_override_ht_cents: eurosToCents(manualOverride),
@@ -258,7 +282,7 @@ export default function InstallerQuotePrepPanel({
   }, [
     locked,
     installerId,
-    projectPowerWc,
+    effectiveProjectPowerWc,
     installationType,
     electricalType,
     optionInputs,
@@ -267,6 +291,7 @@ export default function InstallerQuotePrepPanel({
     manualReason,
     studyId,
     versionId,
+    saveToQuotePrep,
   ]);
 
   const toggleOption = (code: string, checked: boolean) => {
@@ -280,12 +305,33 @@ export default function InstallerQuotePrepPanel({
   };
 
   return (
-    <section className="sn-card installers-panel installer-quote-panel" aria-labelledby="installer-rge-title">
-      <div>
-        <h2 id="installer-rge-title" className="sqb-h2">Installateur RGE</h2>
+    <section
+      className={`${embedded ? "" : "sn-card "}installers-panel installer-quote-panel${embedded ? " installer-quote-panel--embedded" : ""}`}
+      aria-labelledby={showTitle ? "installer-rge-title" : undefined}
+    >
+      {showTitle ? (
+        <div>
+          <h2 id="installer-rge-title" className="sqb-h2">Installateur RGE</h2>
+          <p className="installers-muted">Calcul HT via le moteur backend installateur. La puissance projet est envoyée telle quelle.</p>
+        </div>
+      ) : (
         <p className="installers-muted">Calcul HT via le moteur backend installateur. La puissance projet est envoyée telle quelle.</p>
-      </div>
+      )}
       <div className="installer-quote-form">
+        {allowManualPower && (!projectPowerWc || projectPowerWc <= 0) ? (
+          <label className="installers-field">
+            Puissance projet (kWc)
+            <input
+              className="installers-input"
+              type="number"
+              min="0"
+              step="0.001"
+              value={manualPowerKwc}
+              disabled={locked}
+              onChange={(e) => setManualPowerKwc(e.target.value)}
+            />
+          </label>
+        ) : null}
         <label className="installers-field">
           Installateur
           <select className="installers-select" value={installerId} disabled={locked} onChange={(e) => setInstallerId(e.target.value)}>
@@ -315,7 +361,7 @@ export default function InstallerQuotePrepPanel({
       <div className="installers-summary-grid">
         <div className="installers-summary-item">
           <span className="installers-summary-label">Puissance projet</span>
-          <span className="installers-summary-value">{formatKwcFromWc(projectPowerWc)}</span>
+          <span className="installers-summary-value">{formatKwcFromWc(effectiveProjectPowerWc)}</span>
         </div>
         <div className="installers-summary-item">
           <span className="installers-summary-label">Version active</span>

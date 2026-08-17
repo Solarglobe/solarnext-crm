@@ -2,6 +2,8 @@ import { pool } from "../../config/db.js";
 import { withTx } from "../../db/tx.js";
 import { computeInstallationCostFromCatalog } from "./installers.pricing.js";
 import { installerError } from "./installers.errors.js";
+import { getOrgDefaultVatRate } from "../../services/orgQuoteFinanceDefaults.service.js";
+import { enrichInstallerCostWithVat } from "../../services/projectEconomicTotals.service.js";
 
 function compactObject(payload = {}, allowedKeys = []) {
   const out = {};
@@ -504,7 +506,9 @@ export async function replaceTariffCatalog({ organizationId, installerId, tariff
 export async function computeInstallationCost({ organizationId, installerId, payload, context }) {
   const result = await withTx(pool, async (client) => {
     const catalog = await loadTariffVersionCatalog(client, organizationId, installerId, payload?.tariff_version_id || null);
-    return computeInstallationCostFromCatalog(catalog, payload);
+    const calculated = computeInstallationCostFromCatalog(catalog, payload);
+    const defaultVatRate = await getOrgDefaultVatRate(client, organizationId);
+    return enrichInstallerCostWithVat(calculated, defaultVatRate);
   });
 
   if (payload?.save_to_quote_prep === true && payload?.study_id && payload?.study_version_id) {
