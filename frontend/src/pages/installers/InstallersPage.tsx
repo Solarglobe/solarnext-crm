@@ -18,6 +18,7 @@ export default function InstallersPage() {
   const [active, setActive] = useState<"" | "true" | "false">("true");
   const [department, setDepartment] = useState("");
   const [canWrite, setCanWrite] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState({
     name: "",
     legal_name: "",
@@ -44,8 +45,11 @@ export default function InstallersPage() {
         active: active === "" ? "" : active === "true",
         department,
       });
+      setLoadError(null);
       setRows(data);
     } catch (e) {
+      setRows([]);
+      setLoadError(e instanceof Error ? e.message : "Impossible de charger les installateurs");
       showCrmInlineToast(e instanceof Error ? e.message : "Erreur installateurs", "error");
     } finally {
       setLoading(false);
@@ -199,6 +203,7 @@ export default function InstallersPage() {
             Actualiser
           </Button>
         </div>
+        {loadError ? <div className="installer-quote-error">Impossible de charger les installateurs.</div> : null}
 
         <DataTable
           rows={rows}

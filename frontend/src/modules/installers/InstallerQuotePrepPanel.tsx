@@ -130,15 +130,20 @@ export default function InstallerQuotePrepPanel({
   const [manualReason, setManualReason] = useState(value?.manual_override?.reason ?? "");
   const [result, setResult] = useState<InstallerCostResult | null>(value ?? null);
   const [error, setError] = useState<string | null>(null);
+  const [installersLoadError, setInstallersLoadError] = useState<string | null>(null);
   const [computing, setComputing] = useState(false);
 
   useEffect(() => {
     listInstallers({ active: true })
       .then((data) => {
+        setInstallersLoadError(null);
         setInstallers(data);
         if (!installerId && data[0]?.id) setInstallerId(data[0].id);
       })
-      .catch(() => setInstallers([]));
+      .catch((e) => {
+        setInstallers([]);
+        setInstallersLoadError(e instanceof Error ? e.message : "Impossible de charger les installateurs");
+      });
   }, []);
 
   useEffect(() => {
@@ -266,6 +271,9 @@ export default function InstallerQuotePrepPanel({
           </select>
         </label>
       </div>
+      {installersLoadError ? (
+        <div className="installer-quote-error">Impossible de charger les installateurs.</div>
+      ) : null}
 
       <div className="installers-summary-grid">
         <div className="installers-summary-item">
