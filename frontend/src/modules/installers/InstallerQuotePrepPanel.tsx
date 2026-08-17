@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { computeInstallerInstallationCost, listInstallers } from "../../services/installers.service";
@@ -13,6 +13,7 @@ import {
 } from "./installers.format";
 import type {
   ElectricalType,
+  InstallerComputePayload,
   InstallationType,
   InstallerCostOptionInput,
   InstallerCostResult,
@@ -48,6 +49,24 @@ function optionLabel(code: string): string {
 function extractBackendCode(e: unknown): string | null {
   if (e && typeof e === "object" && "code" in e) return String((e as { code?: unknown }).code ?? "");
   return null;
+}
+
+function buildInstallerComputeSignature(payload: InstallerComputePayload): string {
+  return JSON.stringify({
+    requested_power_wc: payload.requested_power_wc,
+    installation_type: payload.installation_type,
+    electrical_type: payload.electrical_type,
+    options: [...(payload.options ?? [])]
+      .map((option) => ({
+        code: option.code,
+        amount_ht_cents_override: option.amount_ht_cents_override ?? null,
+      }))
+      .sort((a, b) => a.code.localeCompare(b.code)),
+    manual_override_ht_cents: payload.manual_override_ht_cents ?? null,
+    manual_override_reason: payload.manual_override_reason ?? null,
+    study_id: payload.study_id ?? null,
+    study_version_id: payload.study_version_id ?? null,
+  });
 }
 
 export function InstallerCostSummary({ result, frozen = false }: { result: InstallerCostResult; frozen?: boolean }) {
@@ -132,6 +151,13 @@ export default function InstallerQuotePrepPanel({
   const [error, setError] = useState<string | null>(null);
   const [installersLoadError, setInstallersLoadError] = useState<string | null>(null);
   const [computing, setComputing] = useState(false);
+  const lastSuccessfulSignatureRef = useRef<string | null>(null);
+  const inFlightSignatureRef = useRef<string | null>(null);
+  const onPersistedRef = useRef(onPersisted);
+
+  useEffect(() => {
+    onPersistedRef.current = onPersisted;
+  }, [onPersisted]);
 
   useEffect(() => {
     listInstallers({ active: true })
@@ -173,35 +199,41 @@ export default function InstallerQuotePrepPanel({
       setError("Le motif est obligatoire pour une modification manuelle globale.");
       return;
     }
+    const payload: InstallerComputePayload = {
+      requested_power_wc: Math.round(projectPowerWc),
+      installation_type: installationType,
+      electrical_type: electricalType,
+      options: optionInputs,
+      study_id: studyId,
+      study_version_id: versionId,
+      save_to_quote_prep: true,
+      ...(manualOverrideEnabled
+        ? {
+            manual_override_ht_cents: eurosToCents(manualOverride),
+            manual_override_reason: manualReason.trim(),
+          }
+        : {}),
+    };
+    const signature = buildInstallerComputeSignature(payload);
+    if (lastSuccessfulSignatureRef.current === signature || inFlightSignatureRef.current === signature) return;
+
     let cancelled = false;
+    inFlightSignatureRef.current = signature;
     const timer = window.setTimeout(async () => {
       setComputing(true);
       setError(null);
       try {
-        const payload = {
-          requested_power_wc: Math.round(projectPowerWc),
-          installation_type: installationType,
-          electrical_type: electricalType,
-          options: optionInputs,
-          study_id: studyId,
-          study_version_id: versionId,
-          save_to_quote_prep: true,
-          ...(manualOverrideEnabled
-            ? {
-                manual_override_ht_cents: eurosToCents(manualOverride),
-                manual_override_reason: manualReason.trim(),
-              }
-            : {}),
-        };
         const next = await computeInstallerInstallationCost(installerId, payload);
         if (cancelled) return;
+        lastSuccessfulSignatureRef.current = signature;
         setResult(next);
-        onPersisted(next);
+        onPersistedRef.current(next);
       } catch (e) {
         if (cancelled) return;
         const code = extractBackendCode(e);
+        lastSuccessfulSignatureRef.current = null;
         setResult(null);
-        onPersisted(null);
+        onPersistedRef.current(null);
         setError(
           code === "NO_TARIFF_FOR_POWER"
             ? "Aucun tarif installateur disponible pour cette puissance."
@@ -210,11 +242,17 @@ export default function InstallerQuotePrepPanel({
               : "Calcul installateur impossible"
         );
       } finally {
+        if (inFlightSignatureRef.current === signature) {
+          inFlightSignatureRef.current = null;
+        }
         if (!cancelled) setComputing(false);
       }
     }, 350);
     return () => {
       cancelled = true;
+      if (inFlightSignatureRef.current === signature) {
+        inFlightSignatureRef.current = null;
+      }
       window.clearTimeout(timer);
     };
   }, [
@@ -229,7 +267,6 @@ export default function InstallerQuotePrepPanel({
     manualReason,
     studyId,
     versionId,
-    onPersisted,
   ]);
 
   const toggleOption = (code: string, checked: boolean) => {
