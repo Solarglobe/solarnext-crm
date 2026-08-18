@@ -1,0 +1,8 @@
+node_modules
+dist-crm
+.vercel/output
+test-results
+coverage
+vite-dev.*.log
+vite.config.ts.timestamp-*.mjs
+*.tsbuildinfo

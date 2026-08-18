@@ -1,0 +1,14 @@
+node_modules
+backend/node_modules
+frontend/node_modules
+frontend/dist-crm
+frontend/.vercel/output
+frontend/test-results
+frontend/coverage
+frontend/vite-dev.*.log
+frontend/vite.config.ts.timestamp-*.mjs
+.deploy-backup-*
+.deploy-backup-untracked-*
+storage
+*.log
+*.tsbuildinfo
