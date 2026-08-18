@@ -2441,6 +2441,11 @@ export function SolarScene3DViewer({
     [premiumAssemblyOverride, scene, premiumMode, geometryValidationReport],
   );
 
+  const effectiveFrameloop =
+    pvLayout3DInteractionMode || cameraViewMode === "SCENE_3D"
+      ? "always"
+      : qualityProfile.frameloop;
+
   const geometryBox = useMemo(() => computeSolarSceneBoundingBox(scene), [scene]);
   const effectiveReliabilityState = useMemo(
     () =>
@@ -3798,6 +3803,11 @@ export function SolarScene3DViewer({
       data-geometry-truth-status={effectiveReliabilityState.geometryTruthStatus}
       data-quality-mode={qualityMode}
       data-quality-tier={effectiveQualityTier}
+      data-render-frameloop={effectiveFrameloop}
+      data-roof-patch-count={scene.roofModel.roofPlanePatches.length}
+      data-pv-panel-count={scene.pvPanels.length}
+      data-obstacle-volume-count={scene.obstacleVolumes.length}
+      data-extension-volume-count={scene.extensionVolumes.length}
     >
       <ViewerReliabilityOverlay reliability={effectiveReliabilityState} />
       {pvLayout3DInteractionMode ? (
@@ -4057,7 +4067,7 @@ export function SolarScene3DViewer({
         orthographic={cameraViewMode === "PLAN_2D"}
         shadows={qualityProfile.shadows}
         dpr={[qualityProfile.dprMin, qualityProfile.dprMax]}
-        frameloop={qualityProfile.frameloop}
+        frameloop={effectiveFrameloop}
         gl={{
           antialias: qualityProfile.nativeAntialias,
           powerPreference: "high-performance",
@@ -4145,7 +4155,7 @@ export function SolarScene3DViewer({
           sceneKey={sceneStableKey}
           cameraViewMode={cameraViewMode}
           qualityTier={effectiveQualityTier}
-          frameloop={qualityProfile.frameloop}
+          frameloop={effectiveFrameloop}
           reliability={effectiveReliabilityState}
           patchCount={scene.roofModel.roofPlanePatches.length}
           pvPanelCount={scene.pvPanels.length}

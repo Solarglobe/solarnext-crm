@@ -181,6 +181,26 @@ describe("SolarScene3DViewer — cameraViewMode (Prompt 34)", () => {
     cleanup();
   });
 
+  it("LOW + vue 3D : garde une boucle de rendu active pour éviter un canvas figé sur le fond", () => {
+    const scene = minimalScene();
+    render(
+      <SolarScene3DViewer
+        scene={scene}
+        height={140}
+        qualityMode="LOW"
+        showSun={false}
+        showShadingLegend={false}
+      />,
+    );
+
+    const root = screen.getByTestId("solar-scene-3d-viewer-root");
+    expect(root.getAttribute("data-quality-tier")).toBe("LOW");
+    expect(root.getAttribute("data-camera-view-mode")).toBe("SCENE_3D");
+    expect(root.getAttribute("data-render-frameloop")).toBe("always");
+    expect(root.getAttribute("data-roof-patch-count")).toBe("1");
+    cleanup();
+  });
+
   it.each(["AUTO", "HIGH", "MEDIUM", "LOW"] as const)(
     "mode qualité %s : le viewer monte sans changer la scène canonique",
     (qualityMode) => {

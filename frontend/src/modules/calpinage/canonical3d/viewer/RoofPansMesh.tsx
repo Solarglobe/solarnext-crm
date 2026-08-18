@@ -32,6 +32,10 @@ import {
   r3fGl,
 } from "./viewerHelpers";
 
+function threeHexToCss(value: number): string {
+  return `#${value.toString(16).padStart(6, "0")}`;
+}
+
 // ── Types locaux ──────────────────────────────────────────────────────────────
 
 type RoofModelingPointerUi =
@@ -251,14 +255,14 @@ export function RoofPansMesh({
       {visRoofEdges && edgeGeo && (
         <RoofContourLine2
           sourceGeo={edgeGeo}
-          color={String(mEdge.color)}
+          color={threeHexToCss(mEdge.color)}
           opacity={mEdge.opacity}
         />
       )}
       {visRidges && ridgeGeo && (
         <RoofContourLine2
           sourceGeo={ridgeGeo}
-          color={String(mRidge.color)}
+          color={threeHexToCss(mRidge.color)}
           opacity={mRidge.opacity}
           onPointerDown={
             enableStructuralRidgeHeightEdit && onStructuralRidgeLinePointerDown
