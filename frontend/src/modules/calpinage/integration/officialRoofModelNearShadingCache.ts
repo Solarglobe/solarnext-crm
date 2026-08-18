@@ -12,6 +12,8 @@
 
 import type { BuildRoofModel3DResult } from "../canonical3d/builder/buildRoofModel3DFromLegacyGeometry";
 import { computeRuntimeSceneStructuralSignatures } from "../canonical3d/scene/sceneRuntimeStructuralSignature";
+import { getCanonicalNearShadingFlagResolution } from "./canonicalNearShadingFlags";
+import { CANONICAL_NEAR_SHADING_PIPELINE_VERSION } from "./canonicalNearShadingTypes";
 
 const roofTruthBySceneRuntimeSignature = new Map<string, BuildRoofModel3DResult>();
 
@@ -19,7 +21,14 @@ function resolveSceneRuntimeSignature(
   runtime: unknown,
   getAllPanels?: () => unknown[] | null | undefined,
 ): string {
-  return computeRuntimeSceneStructuralSignatures(runtime, { getAllPanels }).sceneRuntimeSignature;
+  const sceneRuntimeSignature = computeRuntimeSceneStructuralSignatures(runtime, { getAllPanels }).sceneRuntimeSignature;
+  const flag = getCanonicalNearShadingFlagResolution();
+  return [
+    sceneRuntimeSignature,
+    `nearPipeline=${CANONICAL_NEAR_SHADING_PIPELINE_VERSION}`,
+    `nearFlag=${flag.state}`,
+    `nearFlagRaw=${flag.raw ?? ""}`,
+  ].join("|");
 }
 
 /**

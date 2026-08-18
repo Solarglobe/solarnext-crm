@@ -10,6 +10,7 @@ import * as studiesService from "../routes/studies/service.js";
 import { V2_SCHEMA_VERSION } from "../services/calpinage/calpinageShadingNormalizer.js";
 import { adaptLegacyShadingToV2, getNormalizedShadingFromGeometry } from "../services/calpinage/calpinageShadingLegacyAdapter.js";
 import { mergeLayoutSnapshotForUpsert } from "../services/calpinage/mergeGeometryLayoutSnapshot.js";
+import { sanitizeCalpinageGeometryForPersistence } from "../services/calpinage/calpinageCommercialIntegrity.js";
 import { computeCalpinageGeometryHash } from "../services/calpinage/calpinageGeometryHash.js";
 import { lockCalpinageVersion } from "../services/calpinage/calpinageDataConcurrency.js";
 import { withPgRetryOnce } from "../utils/pgRetry.js";
@@ -201,7 +202,7 @@ export async function upsertCalpinage(req, res) {
       return res.status(400).json({ error: "geometry_json requis (objet JSON)" });
     }
 
-    let toSave = { ...geometryJson };
+    let toSave = sanitizeCalpinageGeometryForPersistence(geometryJson);
     if (!toSave.schemaVersion) toSave.schemaVersion = V2_SCHEMA_VERSION;
     if (toSave.shading && typeof toSave.shading === "object") {
       toSave.shading = adaptLegacyShadingToV2(toSave.shading, toSave.schemaVersion);
@@ -385,6 +386,9 @@ export async function upsertCalpinage(req, res) {
     });
   } catch (e) {
     console.error("[calpinage.controller] upsertCalpinage:", e);
+    if (e?.code === "CALPINAGE_INVALID_JSON") {
+      return res.status(400).json({ error: e.message, code: e.code, path: e.path });
+    }
     res.status(500).json({ error: e.message });
   }
 }

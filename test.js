@@ -234,7 +234,7 @@ async function loadDP1LeadContext() {
       `https://solarnext-crm.fr/api/method/solarnext.api.get_lead_data?lead_id=${encodeURIComponent(leadId)}`,
       {
         headers: {
-          "Authorization": "token 03a306b161bb4f4:f313b736c475c00",
+          "Authorization": process.env.LEGACY_API_AUTHORIZATION || "token <PLACEHOLDER>",
           "Accept": "application/json"
         }
       }

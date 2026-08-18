@@ -33,8 +33,8 @@
  * (voir `roofExtensions/VIEWER_VALIDATION_P3.md`).
  */
 
-import { Canvas, type ThreeEvent, useThree } from "@react-three/fiber";
-import { Grid, Outlines } from "@react-three/drei";
+import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
+import { Grid, Outlines, StatsGl } from "@react-three/drei";
 import {
   useCallback,
   useEffect,
@@ -201,6 +201,14 @@ import {
   computeInstalledPvPower,
   resolveSelectedPvModulePower,
 } from "../../power/installedPvPower";
+import {
+  boundsLifecycleSnapshot,
+  cameraLifecycleSnapshot,
+  readViewerLifecycleDiagnostics,
+  resetViewerLifecycleDiagnostics,
+  updateViewerLifecycleDiagnostics,
+  type ViewerLifecycleDiagnostics,
+} from "./viewerLifecycleDiagnostics";
 
 // ─── HorizonMaskRing3D ────────────────────────────────────────────────────────
 // Visualise le masque d'horizon lointain comme une couronne LineLoop 3D.
@@ -276,6 +284,82 @@ function HorizonMaskRing3D({ mask, center }: HorizonMaskRing3DProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+function ViewerLifecycleFrameProbe({
+  sceneAttached,
+  onDiagnostics,
+}: {
+  readonly sceneAttached: boolean;
+  readonly onDiagnostics: (diagnostics: ViewerLifecycleDiagnostics) => void;
+}) {
+  const camera = useThree((s) => s.camera);
+  const gl = useThree((s) => s.gl);
+
+  useEffect(() => {
+    const next = updateViewerLifecycleDiagnostics({
+      canvasMounted: true,
+      sceneAttached,
+      cameraInitialized: true,
+      webglInitialized: true,
+      camera: cameraLifecycleSnapshot(camera),
+      canvasWidth: gl.domElement.width,
+      canvasHeight: gl.domElement.height,
+    });
+    onDiagnostics(next);
+  }, [camera, gl, onDiagnostics, sceneAttached]);
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const onLost = (event: Event) => {
+      event.preventDefault();
+      const next = updateViewerLifecycleDiagnostics({
+        webglContextLost: true,
+        webglContextRestored: false,
+        firstFrameRendered: false,
+      });
+      onDiagnostics(next);
+    };
+    const onRestored = () => {
+      const next = updateViewerLifecycleDiagnostics({
+        webglContextLost: false,
+        webglContextRestored: true,
+        firstFrameRendered: false,
+      });
+      onDiagnostics(next);
+    };
+    canvas.addEventListener("webglcontextlost", onLost);
+    canvas.addEventListener("webglcontextrestored", onRestored);
+    return () => {
+      canvas.removeEventListener("webglcontextlost", onLost);
+      canvas.removeEventListener("webglcontextrestored", onRestored);
+    };
+  }, [gl, onDiagnostics]);
+
+  useFrame(() => {
+    const prev = readViewerLifecycleDiagnostics();
+    const next = updateViewerLifecycleDiagnostics({
+      canvasMounted: true,
+      sceneAttached,
+      firstFrameRendered: true,
+      frameCount: prev.frameCount + 1,
+      cameraInitialized: true,
+      webglInitialized: true,
+      canvasWidth: gl.domElement.width,
+      canvasHeight: gl.domElement.height,
+      camera: cameraLifecycleSnapshot(camera),
+    });
+    if (
+      prev.firstFrameRendered !== next.firstFrameRendered ||
+      prev.viewerReady !== next.viewerReady ||
+      prev.lastBlockReason !== next.lastBlockReason ||
+      next.frameCount <= 2
+    ) {
+      onDiagnostics(next);
+    }
+  }, 10);
+
+  return null;
+}
 
 import { PREMIUM_HOUSE_3D_VIEW_MODES } from "./premium/premiumHouse3DViewModes";
 import type { CanonicalHouse3DValidationReport } from "../validation/canonicalHouse3DValidationModel";
@@ -449,6 +533,8 @@ export interface SolarScene3DViewerProps {
    * Désactiver si le GPU cible ne supporte pas les FBO multiples. Défaut : true.
    */
   readonly enablePostProcessing?: boolean;
+  /** Overlay StatsGl réel, opt-in debug/test uniquement. */
+  readonly showStatsGl?: boolean;
   /** Phase 5 — qualité graphique adaptative. Défaut AUTO, pilotable en dev via window.__CALPINAGE_3D_PERF__. */
   readonly qualityMode?: ViewerQualityMode;
   readonly onQualityModeChange?: (mode: ViewerQualityMode) => void;
@@ -1326,6 +1412,89 @@ function LineRaycastThreshold({ maxDim, enabled }: { readonly maxDim: number; re
       raycaster.params.Line = prev;
     };
   }, [enabled, maxDim, raycaster]);
+  return null;
+}
+
+type ViewerRenderabilitySnapshot = {
+  readonly frameCount: number;
+  readonly renderableObjectCount: number;
+  readonly boundsFinite: boolean;
+  readonly cameraFinite: boolean;
+  readonly frustumIntersectsBounds: boolean;
+  readonly cameraPosition: readonly [number, number, number] | null;
+  readonly cameraTarget: readonly [number, number, number] | null;
+  readonly near: number | null;
+  readonly far: number | null;
+  readonly bounds: {
+    readonly min: readonly [number, number, number] | null;
+    readonly max: readonly [number, number, number] | null;
+  };
+};
+
+function vectorSnapshot(v: THREE.Vector3): readonly [number, number, number] | null {
+  return Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z) ? [v.x, v.y, v.z] : null;
+}
+
+function boxSnapshot(box: THREE.Box3): ViewerRenderabilitySnapshot["bounds"] {
+  return {
+    min: vectorSnapshot(box.min),
+    max: vectorSnapshot(box.max),
+  };
+}
+
+function ViewerRenderabilityProbe({
+  box,
+  target,
+  renderableObjectCount,
+}: {
+  readonly box: THREE.Box3;
+  readonly target: THREE.Vector3;
+  readonly renderableObjectCount: number;
+}) {
+  const camera = useThree((s) => s.camera);
+  const frameCountRef = useRef(0);
+  const frustumRef = useRef(new THREE.Frustum());
+  const matrixRef = useRef(new THREE.Matrix4());
+
+  useFrame(() => {
+    frameCountRef.current += 1;
+    camera.updateMatrixWorld();
+    if ("updateProjectionMatrix" in camera && typeof camera.updateProjectionMatrix === "function") {
+      camera.updateProjectionMatrix();
+    }
+    matrixRef.current.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    frustumRef.current.setFromProjectionMatrix(matrixRef.current);
+    const near = (camera as THREE.PerspectiveCamera | THREE.OrthographicCamera).near;
+    const far = (camera as THREE.PerspectiveCamera | THREE.OrthographicCamera).far;
+    const snapshot: ViewerRenderabilitySnapshot = {
+      frameCount: frameCountRef.current,
+      renderableObjectCount,
+      boundsFinite: !box.isEmpty() && vectorSnapshot(box.min) != null && vectorSnapshot(box.max) != null,
+      cameraFinite: vectorSnapshot(camera.position) != null && Number.isFinite(near) && Number.isFinite(far),
+      frustumIntersectsBounds: !box.isEmpty() && frustumRef.current.intersectsBox(box),
+      cameraPosition: vectorSnapshot(camera.position),
+      cameraTarget: vectorSnapshot(target),
+      near: Number.isFinite(near) ? near : null,
+      far: Number.isFinite(far) ? far : null,
+      bounds: boxSnapshot(box),
+    };
+    (window as unknown as Record<string, unknown>)["__CALPINAGE_3D_RENDERABILITY__"] = snapshot;
+  });
+
+  return null;
+}
+
+function StatsGlProbe({ enabled }: { readonly enabled: boolean }) {
+  const frameCountRef = useRef(0);
+  useFrame(() => {
+    if (!enabled) return;
+    frameCountRef.current += 1;
+    (window as unknown as Record<string, unknown>)["__CALPINAGE_3D_STATS_GL_PROBE__"] = {
+      mounted: true,
+      frameCount: frameCountRef.current,
+      updatedAt: Date.now(),
+    };
+  });
   return null;
 }
 
@@ -2285,6 +2454,7 @@ export function SolarScene3DViewer({
   pvLayout3DInteractionMode = false,
   onPanelMoveCommit,
   enablePostProcessing = true,
+  showStatsGl = false,
   qualityMode: qualityModeControlled,
   onQualityModeChange,
   horizonMask = null,
@@ -3744,6 +3914,12 @@ export function SolarScene3DViewer({
           maximumFractionDigits: 2,
         })
       : null;
+  const renderableObjectCount =
+    (showRoof ? scene.roofModel.roofPlanePatches.length : 0) +
+    (showPanels ? scene.pvPanels.length : 0) +
+    (showObstacles ? scene.obstacleVolumes.length : 0) +
+    (showExtensions ? scene.extensionVolumes.length : 0) +
+    (scene.buildingShell ? 1 : 0);
 
   useEffect(() => {
     exposeViewerDebugFacade({
@@ -3766,11 +3942,71 @@ export function SolarScene3DViewer({
   ]);
 
   const sceneStableKey = `${scene.metadata.schemaVersion}|${scene.metadata.createdAtIso}|${scene.metadata.integrationNotes ?? ""}`;
+  const viewerRootRef = useRef<HTMLDivElement | null>(null);
+  const [lifecycleDiagnostics, setLifecycleDiagnostics] = useState<ViewerLifecycleDiagnostics>(() =>
+    readViewerLifecycleDiagnostics(),
+  );
+  const publishLifecycleDiagnostics = useCallback((diagnostics: ViewerLifecycleDiagnostics) => {
+    setLifecycleDiagnostics(diagnostics);
+  }, []);
+
+  useLayoutEffect(() => {
+    const initial = resetViewerLifecycleDiagnostics();
+    setLifecycleDiagnostics(initial);
+  }, [sceneStableKey]);
+
+  useEffect(() => {
+    const onLifecycle = (event: Event) => {
+      setLifecycleDiagnostics((event as CustomEvent<ViewerLifecycleDiagnostics>).detail);
+    };
+    window.addEventListener("calpinage-3d-lifecycle", onLifecycle);
+    return () => window.removeEventListener("calpinage-3d-lifecycle", onLifecycle);
+  }, []);
+
+  useLayoutEffect(() => {
+    const bounds = boundsLifecycleSnapshot(geometryBox);
+    const boundsComputed =
+      bounds.min != null &&
+      bounds.max != null &&
+      !geometryBox.isEmpty();
+    setLifecycleDiagnostics(
+      updateViewerLifecycleDiagnostics({
+        boundsComputed,
+        bounds,
+      }),
+    );
+  }, [geometryBox, sceneStableKey]);
+
+  useEffect(() => {
+    const node = viewerRootRef.current;
+    if (!node) return;
+
+    const publish = () => {
+      const rect = node.getBoundingClientRect();
+      setLifecycleDiagnostics(
+        updateViewerLifecycleDiagnostics({
+          containerWidth: Math.round(rect.width),
+          containerHeight: Math.round(rect.height),
+        }),
+      );
+    };
+
+    publish();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", publish);
+      return () => window.removeEventListener("resize", publish);
+    }
+
+    const observer = new ResizeObserver(publish);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [sceneStableKey]);
 
   const pvLayout3dA11yDescId = useId();
 
   return (
     <div
+      ref={viewerRootRef}
       className={className}
       style={{
         width: "100%",
@@ -3804,6 +4040,21 @@ export function SolarScene3DViewer({
       data-quality-mode={qualityMode}
       data-quality-tier={effectiveQualityTier}
       data-render-frameloop={effectiveFrameloop}
+      data-lifecycle-viewer-ready={lifecycleDiagnostics.viewerReady ? "true" : "false"}
+      data-lifecycle-viewer-blocked={lifecycleDiagnostics.viewerBlocked ? "true" : "false"}
+      data-lifecycle-block-reason={lifecycleDiagnostics.lastBlockReason}
+      data-lifecycle-canvas-mounted={lifecycleDiagnostics.canvasMounted ? "true" : "false"}
+      data-lifecycle-webgl-initialized={lifecycleDiagnostics.webglInitialized ? "true" : "false"}
+      data-lifecycle-camera-initialized={lifecycleDiagnostics.cameraInitialized ? "true" : "false"}
+      data-lifecycle-bounds-computed={lifecycleDiagnostics.boundsComputed ? "true" : "false"}
+      data-lifecycle-camera-fit-executed={lifecycleDiagnostics.cameraFitExecuted ? "true" : "false"}
+      data-lifecycle-scene-attached={lifecycleDiagnostics.sceneAttached ? "true" : "false"}
+      data-lifecycle-first-frame-rendered={lifecycleDiagnostics.firstFrameRendered ? "true" : "false"}
+      data-lifecycle-frame-count={lifecycleDiagnostics.frameCount}
+      data-lifecycle-container-width={lifecycleDiagnostics.containerWidth}
+      data-lifecycle-container-height={lifecycleDiagnostics.containerHeight}
+      data-lifecycle-canvas-width={lifecycleDiagnostics.canvasWidth}
+      data-lifecycle-canvas-height={lifecycleDiagnostics.canvasHeight}
       data-roof-patch-count={scene.roofModel.roofPlanePatches.length}
       data-pv-panel-count={scene.pvPanels.length}
       data-obstacle-volume-count={scene.obstacleVolumes.length}
@@ -4116,6 +4367,13 @@ export function SolarScene3DViewer({
         }
         onCreated={({ gl, invalidate }) => {
           applyCanonicalViewerGlOutput(gl);
+          const next = updateViewerLifecycleDiagnostics({
+            canvasMounted: true,
+            webglInitialized: true,
+            canvasWidth: gl.domElement.width,
+            canvasHeight: gl.domElement.height,
+          });
+          publishLifecycleDiagnostics(next);
           // touch-action:none sur le canvas WebGL : requis pour que Pointer Events
           // (et OrbitControls three-stdlib) reçoivent les gestes tactiles sans que
           // le browser n'intercepte le scroll ou le pinch-zoom au niveau du viewport.
@@ -4163,6 +4421,16 @@ export function SolarScene3DViewer({
           extensionCount={scene.extensionVolumes.length}
           pvOverlayEpoch={pv3dOverlayEpoch}
         />
+        <ViewerLifecycleFrameProbe
+          onDiagnostics={publishLifecycleDiagnostics}
+          sceneAttached={
+            showRoof ||
+            showPanels ||
+            showObstacles ||
+            showExtensions ||
+            scene.roofModel.roofPlanePatches.length > 0
+          }
+        />
         <ViewerPerformanceMonitor
           mode={qualityMode}
           effectiveTier={effectiveQualityTier}
@@ -4172,6 +4440,19 @@ export function SolarScene3DViewer({
         />
         <GlCursorBinder cursor={glCursor} />
         <LineRaycastThreshold maxDim={maxDim} enabled={enableStructuralRidgeHeightEdit} />
+        <ViewerRenderabilityProbe
+          box={geometryBox}
+          target={center}
+          renderableObjectCount={renderableObjectCount}
+        />
+        <StatsGlProbe enabled={showStatsGl} />
+        {showStatsGl ? (
+          <StatsGl
+            id="calpinage-stats-gl"
+            className="calpinage-stats-gl"
+            minimal
+          />
+        ) : null}
         <PvLayout3dScreenOverlayProjector
           overlay={pvLayout3dOverlayState}
           enabled={pvLayout3DInteractionMode}

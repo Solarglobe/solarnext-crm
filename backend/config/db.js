@@ -9,7 +9,7 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: getConnectionString(),
-  /** Taille max du pool — ajustable via DB_POOL_MAX (Railway/Supabase : vérifier la limite autorisée). */
+  /** Taille max du pool — ajustable via DB_POOL_MAX selon la limite du fournisseur PostgreSQL. */
   max: parseInt(process.env.DB_POOL_MAX ?? "10", 10),
   /** Libère une connexion inactive après 30 s. */
   idleTimeoutMillis: 30_000,
@@ -22,7 +22,7 @@ export const pool = new Pool({
   application_name: "solarnext-api",
 });
 
-/** Capture les erreurs sur les connexions idle (connexion PostgreSQL fermée côté serveur, ex. redémarrage Railway). */
+/** Capture les erreurs sur les connexions idle (connexion PostgreSQL fermée côté serveur, maintenance, redémarrage, etc.). */
 pool.on("error", (err) => {
   console.error("[DB Pool] Unexpected error on idle client:", err.message);
 });

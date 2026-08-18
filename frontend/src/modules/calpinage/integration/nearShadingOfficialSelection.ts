@@ -8,7 +8,7 @@
 
 
 
-import { CANONICAL_3D_NEAR_SHADING_ENABLED } from "./canonicalNearShadingFlags";
+import { getCanonicalNearShadingFlagResolution } from "./canonicalNearShadingFlags";
 
 import {
 
@@ -43,7 +43,11 @@ import type {
 
 import type { PanelInput } from "../shading/shadingInputTypes";
 
-import { getCalpinageRuntime } from "../runtime/calpinageRuntime";
+import {
+  getCalpinageLegacyBridgeStatus,
+  getCalpinageLegacyCapability,
+  type AnnualSunVectorsFn,
+} from "../runtime/calpinageRuntime";
 
 
 
@@ -87,7 +91,9 @@ function buildCanonicalFallbackEnvelope(
 
   reasonCode: string,
 
-  diagnostics: readonly string[]
+  diagnostics: readonly string[],
+
+  nearEngineMode: NearShadingCanonical3dEnvelope["nearEngineMode"] = "NONE",
 
 ): NearShadingCanonical3dEnvelope {
 
@@ -95,7 +101,7 @@ function buildCanonicalFallbackEnvelope(
 
     pipelineVersion: CANONICAL_NEAR_SHADING_PIPELINE_VERSION,
 
-    nearEngineMode: "legacy_fallback",
+    nearEngineMode,
 
     reasonCode,
 
@@ -203,7 +209,19 @@ export function attemptCanonicalNearShading(
 
 ): CanonicalAttemptResult {
 
-  if (!CANONICAL_3D_NEAR_SHADING_ENABLED) {
+  const flag = getCanonicalNearShadingFlagResolution();
+
+  if (flag.state === "MISCONFIGURED") {
+
+    return {
+      type: "skipped",
+      reasonCode: "CANONICAL_NEAR_FLAG_MISCONFIGURED",
+      diagnostics: [flag.message ?? "VITE_CANONICAL_3D_NEAR_SHADING mal configuré."],
+    };
+
+  }
+
+  if (flag.state !== "ENABLED") {
 
     return { type: "not_attempted", reason: "CANONICAL_NEAR_FLAG_OFF" };
 
@@ -249,13 +267,9 @@ export function attemptCanonicalNearShading(
 
 
 
-  const rt = getCalpinageRuntime();
+  const bridge = getCalpinageLegacyBridgeStatus(["annualSunVectors"]);
 
-  const getAnnualSunVectors =
-
-    (rt?.getAnnualSunVectors?.() as Window["getAnnualSunVectors"] | undefined) ??
-
-    (typeof window !== "undefined" ? window.getAnnualSunVectors : undefined);
+  const getAnnualSunVectors = getCalpinageLegacyCapability<AnnualSunVectorsFn>("annualSunVectors");
 
   if (typeof getAnnualSunVectors !== "function") {
 
@@ -265,7 +279,10 @@ export function attemptCanonicalNearShading(
 
       reasonCode: "NO_SUN_VECTORS",
 
-      diagnostics: ["getAnnualSunVectors indisponible (bundle shading)."],
+      diagnostics: [
+        "getAnnualSunVectors indisponible (bundle shading).",
+        ...bridge.diagnostics.map((d) => `${d.code}:${d.capability ?? ""}`),
+      ],
 
     };
 
@@ -305,15 +322,7 @@ export function attemptCanonicalNearShading(
 
 
 
-  const eng: PlacementEngineLike | undefined =
-
-    (rt?.getPlacementEngine?.() as PlacementEngineLike | undefined) ??
-
-    (typeof window !== "undefined"
-
-      ? (window as unknown as { pvPlacementEngine?: PlacementEngineLike }).pvPlacementEngine
-
-      : undefined);
+  const eng = getCalpinageLegacyCapability<PlacementEngineLike>("placementEngine") ?? undefined;
 
 
 
@@ -321,7 +330,7 @@ export function attemptCanonicalNearShading(
 
   const runtimeRootUnknown =
     params.calpinageRuntimeRoot ??
-    (typeof rt?.getState === "function" ? rt.getState() : null);
+    getCalpinageLegacyCapability("state");
   if (runtimeRootUnknown == null || typeof runtimeRootUnknown !== "object") {
     return {
       type: "skipped",
@@ -333,9 +342,9 @@ export function attemptCanonicalNearShading(
 
   const getAllPanelsForSignature = (): unknown[] => {
     try {
-      const w = typeof window !== "undefined" ? (window as unknown as { pvPlacementEngine?: { getAllPanels?: () => unknown[] } }) : null;
-      if (w?.pvPlacementEngine && typeof w.pvPlacementEngine.getAllPanels === "function") {
-        return w.pvPlacementEngine.getAllPanels() ?? [];
+      const placement = getCalpinageLegacyCapability<{ getAllPanels?: () => unknown[] }>("placementEngine");
+      if (placement && typeof placement.getAllPanels === "function") {
+        return placement.getAllPanels() ?? [];
       }
     } catch {
       /* ignore */
@@ -357,6 +366,15 @@ export function attemptCanonicalNearShading(
       diagnostics: [
         "Toiture 3D officielle indisponible (pas de cache et reconstruction échouée) — near canonical ignoré.",
       ],
+    };
+  }
+  if (!officialRoofModelResult.roofCommercialGeometryValidation.officialNearShadingAllowed) {
+    return {
+      type: "skipped",
+      reasonCode: "COMMERCIAL_GEOMETRY_INVALID",
+      diagnostics: officialRoofModelResult.roofCommercialGeometryValidation.diagnostics.map(
+        (d) => `${d.code}: ${d.message}`,
+      ),
     };
   }
 
@@ -484,7 +502,7 @@ export function mergeOfficialNearShading(
 
       officialNear: {
 
-        engine: "legacy_polygon",
+        engine: "LEGACY_POLYGON",
 
         officialLossPct: legacy.totalLossPct,
 
@@ -518,23 +536,29 @@ export function mergeOfficialNearShading(
 
       ...legacy,
 
-      canonicalNear: buildCanonicalFallbackEnvelope(code, attempt.diagnostics),
+      totalLossPct: null,
+
+      perPanel: panels.map((p) => ({ panelId: p.id, shadedFractionAvg: 0, lossPct: 0 })),
+
+      unavailable: { reliable: false, reason: code },
+
+      canonicalNear: buildCanonicalFallbackEnvelope(code, attempt.diagnostics, "NONE"),
 
       officialNear: {
 
-        engine: "legacy_polygon",
+        engine: "NONE",
 
-        officialLossPct: legacy.totalLossPct,
+        officialLossPct: null,
 
         legacyReferenceLossPct: legacyRef,
 
         canonicalUsable: false,
 
-        fallbackTriggered: true,
+        fallbackTriggered: false,
 
         canonicalRejectedBecause: code,
 
-        selectionReason: `Fallback legacy — canonical non retenu (${code}).`,
+        selectionReason: `Near officiel indisponible : canonical non retenu (${code}), aucun fallback officiel.`,
 
       },
 
@@ -576,7 +600,7 @@ export function mergeOfficialNearShading(
 
       pipelineVersion: CANONICAL_NEAR_SHADING_PIPELINE_VERSION,
 
-      nearEngineMode: "canonical_raycast",
+      nearEngineMode: "CANONICAL_3D",
 
       diagnostics: [
 
@@ -594,7 +618,7 @@ export function mergeOfficialNearShading(
 
     officialNear: {
 
-      engine: "canonical_3d",
+      engine: "CANONICAL_3D",
 
       officialLossPct: nearLossPct,
 

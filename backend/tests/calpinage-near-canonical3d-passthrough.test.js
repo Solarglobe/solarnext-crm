@@ -24,14 +24,14 @@ function assert(cond, label, msg) {
 
 const canonical3dStub = {
   pipelineVersion: "test-1",
-  mode: "canonical_raycast",
+  mode: "CANONICAL_3D",
   diagnostics: { reason: "ok" },
 };
 
 (() => {
   console.log("\n--- meta.nearCanonical3d → near.canonical3d ---");
   const nearOfficialStub = {
-    engine: "legacy_polygon",
+    engine: "LEGACY_POLYGON",
     officialLossPct: 5,
     legacyReferenceLossPct: 5,
     canonicalUsable: false,
@@ -70,7 +70,7 @@ const canonical3dStub = {
 
   console.log("\n--- Snapshot geometry : existing near.canonical3d conservé ---");
   const existingShading = {
-    near: { canonical3d: { pipelineVersion: "from_snapshot", mode: "legacy_fallback" } },
+    near: { canonical3d: { pipelineVersion: "from_snapshot", mode: "LEGACY_POLYGON" } },
   };
   const raw2 = buildStructuredShading(
     { nearLossPct: 3, farLossPct: 0, totalLossPct: 3 },

@@ -6,11 +6,11 @@
  *   - 64 caractères hexadécimaux  → 32 octets AES-256
  *   - Base64 décodant vers 32 octets exactement
  *
- * Génération d'une clé robuste (à faire UNE FOIS, résultat à stocker dans Railway) :
+ * Génération d'une clé robuste (à faire UNE FOIS, résultat à stocker dans l'environnement backend Infomaniak) :
  *   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
  *
- * Ajout dans Railway :
- *   Variables → Add → MAIL_ENCRYPTION_KEY = <sortie de la commande ci-dessus>
+ * Ajout côté service backend :
+ *   MAIL_ENCRYPTION_KEY = <sortie de la commande ci-dessus>
  */
 
 const KEY_LEN = 32;
@@ -21,7 +21,7 @@ if (!raw) {
     "\n❌  MAIL_ENCRYPTION_KEY manquante — le chiffrement AES-256-GCM des credentials mail est impossible.\n" +
     "\n   ► Générer une clé :\n" +
     '     node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
-    "\n   ► Puis ajouter dans Railway (ou .env.dev / backend/.env en local) :\n" +
+    "\n   ► Puis ajouter dans l'environnement backend Infomaniak (ou env local explicite) :\n" +
     "     MAIL_ENCRYPTION_KEY=<64 caractères hexadécimaux>\n"
   );
   process.exit(1);

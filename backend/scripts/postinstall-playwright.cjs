@@ -2,23 +2,18 @@
 /**
  * postinstall-playwright.cjs — Téléchargement du binaire Chromium pour Playwright.
  *
- * FLUX RAILWAY (production) :
- *   Au BUILD Nixpacks  → nixpacks.toml (racine) installe les libs système (apt) ET
- *                        exécute `npx playwright install chromium` via [phases.install].
- *                        Chromium est donc présent dans l'image Docker dès le build.
- *   Au COLD-START      → `cd backend && npm install` relance ce postinstall.
- *                        hasChromiumInCache() détecte le binaire → skip immédiat.
- *                        Démarrage rapide, aucun téléchargement runtime.
+ * FLUX PRODUCTION INFOMANIAK :
+ *   Le serveur backend doit fournir Chromium ou définir PLAYWRIGHT_FORCE_INSTALL=1
+ *   lors d'une installation contrôlée. Aucun hébergeur obsolète n'active ce script.
  *
  * FLUX LOCAL (dev) :
- *   RAILWAY_ENVIRONMENT absent → shouldRun = false → skip.
+ *   CI/PLAYWRIGHT_FORCE_INSTALL absents → shouldRun = false → skip.
  *   Pour forcer : PLAYWRIGHT_FORCE_INSTALL=1 npm install
  *
  * VARIABLES D'ENVIRONNEMENT :
- *   PLAYWRIGHT_FORCE_INSTALL=1       → force le dl même hors Railway/CI
+ *   PLAYWRIGHT_FORCE_INSTALL=1       → force le dl même hors CI
  *   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 → désactive toujours le dl (override total)
- *   PLAYWRIGHT_FORCE_INSTALL_DEPS=1  → force playwright install-deps (apt) même sur Railway
- *                                       (utile si nixpacks.toml n'est pas à la racine)
+ *   PLAYWRIGHT_FORCE_INSTALL_DEPS=1  → force playwright install-deps (apt)
  *   PLAYWRIGHT_BROWSERS_PATH         → chemin custom du cache Chromium
  */
 const { execSync } = require("node:child_process");
@@ -31,20 +26,13 @@ const path = require("node:path");
 const shouldRun =
   process.env.PLAYWRIGHT_FORCE_INSTALL === "1" ||
   process.env.CI === "true" ||
-  process.env.CI === "1" ||
-  Boolean(process.env.RAILWAY_ENVIRONMENT) ||
-  process.env.RAILWAY === "true";
+  process.env.CI === "1";
 
 const skipDownload =
   process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD === "true" ||
   process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD === "1";
 
-// Sur Railway, nixpacks.toml (racine) installe les libs système au BUILD →
-// `playwright install-deps` en runtime est redondant et ralentit le cold-start.
-// Forçable via PLAYWRIGHT_FORCE_INSTALL_DEPS=1 si nixpacks.toml n'est pas à la racine.
-const skipInstallDeps =
-  process.env.PLAYWRIGHT_FORCE_INSTALL_DEPS !== "1" &&
-  (Boolean(process.env.RAILWAY_ENVIRONMENT) || process.env.RAILWAY === "true");
+const skipInstallDeps = process.env.PLAYWRIGHT_FORCE_INSTALL_DEPS !== "1";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,7 +52,7 @@ function resolvePlaywrightCacheDir() {
 /**
  * Vérifie si le binaire Chromium (ou chromium_headless_shell) est déjà présent
  * dans le répertoire de cache Playwright.
- * En prod Railway, nixpacks [phases.install] l'installe au build → true au cold-start.
+ * En production, le cache serveur peut déjà contenir Chromium → true au redémarrage.
  */
 function hasChromiumInCache() {
   const cacheDir = resolvePlaywrightCacheDir();
@@ -91,7 +79,7 @@ if (skipDownload) {
 }
 
 if (!shouldRun) {
-  log("PLAYWRIGHT_INSTALL_SKIP", "reason=not_railway_or_ci");
+  log("PLAYWRIGHT_INSTALL_SKIP", "reason=not_ci_or_forced");
   process.exit(0);
 }
 
@@ -119,7 +107,7 @@ try {
       "reason=nixpacks_handles_system_deps"
     );
   } else {
-    // Hors Railway (CI sans nixpacks, ou PLAYWRIGHT_FORCE_INSTALL_DEPS=1).
+    // En CI ou avec PLAYWRIGHT_FORCE_INSTALL_DEPS=1, tenter l'installation des dépendances système.
     try {
       execSync("npx playwright install-deps chromium", { stdio: "inherit" });
     } catch (depErr) {

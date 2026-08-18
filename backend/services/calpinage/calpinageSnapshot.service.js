@@ -5,14 +5,10 @@
 
 import { pool } from "../../config/db.js";
 import { withTx } from "../../db/tx.js";
+import { sanitizeCalpinageGeometryForPersistence } from "./calpinageCommercialIntegrity.js";
+import { ERROR_CODES } from "./calpinageSnapshotErrors.js";
 
-export const ERROR_CODES = {
-  NO_CALPINAGE_DATA: "NO_CALPINAGE_DATA",
-  CALPINAGE_INCOMPLETE: "CALPINAGE_INCOMPLETE",
-  SHADING_NOT_COMPUTED: "SHADING_NOT_COMPUTED",
-  SNAPSHOT_TOO_RECENT: "SNAPSHOT_TOO_RECENT",
-  CALPINAGE_INVALID_JSON: "CALPINAGE_INVALID_JSON",
-};
+export { ERROR_CODES };
 
 function hasGps(geometryJson) {
   const gps = geometryJson?.roofState?.gps ?? geometryJson?.gps;
@@ -127,7 +123,7 @@ export async function createCalpinageSnapshot(studyId, studyVersionId, organizat
       const geometryJsonOverride = options?.geometryJson;
       let geometryJson;
       if (geometryJsonOverride != null && typeof geometryJsonOverride === "object") {
-        geometryJson = geometryJsonOverride;
+        geometryJson = sanitizeCalpinageGeometryForPersistence(geometryJsonOverride);
       } else {
         const calpinageRes = await client.query(
           `SELECT geometry_json FROM calpinage_data
@@ -149,6 +145,7 @@ export async function createCalpinageSnapshot(studyId, studyVersionId, organizat
         if (!geometryJson || typeof geometryJson !== "object") {
           throw err(ERROR_CODES.NO_CALPINAGE_DATA, "Calpinage non enregistré pour cette version");
         }
+        geometryJson = sanitizeCalpinageGeometryForPersistence(geometryJson);
       }
 
       // 5) Vérifier structure minimale

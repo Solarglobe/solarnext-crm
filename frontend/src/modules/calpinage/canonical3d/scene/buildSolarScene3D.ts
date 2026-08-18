@@ -5,7 +5,7 @@
  */
 
 import type { RoofModel3D } from "../types/model";
-import type { QualityBlock } from "../types/quality";
+import type { GeometryDiagnostic, QualityBlock } from "../types/quality";
 import type { NearShadingSeriesResult } from "../types/near-shading-3d";
 import type { NearShadingSolarDirectionInput } from "../types/near-shading-3d";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
@@ -68,6 +68,11 @@ export interface BuildSolarScene3DInput {
   /** Preuve technique Phase B (métriques, export support) — optionnel. */
   readonly roofQualityPhaseB?: SolarSceneRoofQualityPhaseB;
   readonly roofMultiPanDiagnostics?: SolarSceneRoofMultiPanDiagnostics;
+  /** Qualification commerciale issue du validateur central, prioritaire sur la seule triangulation. */
+  readonly commercialGeometryTruth?: {
+    readonly status: "VALID" | "DEGRADED" | "INVALID";
+    readonly diagnostics: readonly GeometryDiagnostic[];
+  };
 }
 
 function summarizePanelsFromNearSeries(
@@ -129,8 +134,14 @@ export function buildSolarScene3D(input: BuildSolarScene3DInput): SolarScene3D {
     pvPanels: input.pvPanels,
   };
   const geometryTruth = evaluateSolarSceneGeometryTruth(provisionalBaseForTruth);
+  const commercialStatus = input.commercialGeometryTruth?.status;
+  const commercialDiagnostics = input.commercialGeometryTruth?.diagnostics ?? [];
   const invalidPatchCount = geometryTruth.patchTruth.filter((p) => p.status === "INVALID").length;
   const degradedPatchCount = geometryTruth.patchTruth.filter((p) => p.status === "DEGRADED").length;
+  const commercialInvalidPatchCount =
+    commercialStatus === "INVALID" && invalidPatchCount === 0 ? input.roofModel.roofPlanePatches.length : 0;
+  const commercialDegradedPatchCount =
+    commercialStatus === "DEGRADED" && degradedPatchCount === 0 ? input.roofModel.roofPlanePatches.length : 0;
   const pvPlacementTruth = evaluatePvPanelPlacementsForScene({
     panels: input.pvPanels,
     roofPlanePatches: input.roofModel.roofPlanePatches,
@@ -142,7 +153,14 @@ export function buildSolarScene3D(input: BuildSolarScene3DInput): SolarScene3D {
     ...input.roofModel,
     roofPlanePatches: input.roofModel.roofPlanePatches.map((patch) => {
       const truth = geometryTruth.patchTruth.find((p) => p.patchId === patch.id);
-      return truth ? { ...patch, geometryTruthStatus: truth.status } : patch;
+      const commercialPanInvalid =
+        commercialStatus === "INVALID" &&
+        commercialDiagnostics.some((d) => String(d.context?.panId ?? "") === String(patch.id) && d.severity === "error");
+      const commercialPanDegraded =
+        commercialStatus === "DEGRADED" &&
+        commercialDiagnostics.some((d) => String(d.context?.panId ?? "") === String(patch.id) && d.severity === "warning");
+      const status = commercialPanInvalid ? "INVALID" : commercialPanDegraded ? "DEGRADED" : truth?.status;
+      return status ? { ...patch, geometryTruthStatus: status } : patch;
     }),
   };
 
@@ -150,9 +168,9 @@ export function buildSolarScene3D(input: BuildSolarScene3DInput): SolarScene3D {
     schemaVersion: SOLAR_SCENE_3D_SCHEMA_VERSION,
     createdAtIso,
     generator: input.generator ?? "buildSolarScene3D",
-    geometryTruthStatus: geometryTruth.status,
-    geometryTruthInvalidPatchCount: invalidPatchCount,
-    geometryTruthDegradedPatchCount: degradedPatchCount,
+    geometryTruthStatus: commercialStatus ?? geometryTruth.status,
+    geometryTruthInvalidPatchCount: invalidPatchCount + commercialInvalidPatchCount,
+    geometryTruthDegradedPatchCount: degradedPatchCount + commercialDegradedPatchCount,
     pvPlacementValidityStatus: pvPlacementTruth.status,
     pvPlacementInvalidPanelCount: pvPlacementTruth.invalidPanelCount,
     pvPlacementDroppedPanelCount: pvPlacementTruth.droppedPanelCount,

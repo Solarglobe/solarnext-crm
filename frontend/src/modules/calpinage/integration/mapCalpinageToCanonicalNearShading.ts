@@ -176,6 +176,8 @@ function mapCalpinageRoofToLegacyRoofGeometryInputFallback(
       id: pan.id != null ? String(pan.id) : `pan-${i}`,
       polygonPx,
       sourceIndex: i,
+      ...(typeof pan.roofType === "string" ? { roofKind: pan.roofType } : {}),
+      roofKindProvenance: typeof pan.roofType === "string" ? "EXPLICIT" : "UNRESOLVED",
     });
   }
   if (pans.length === 0) return null;

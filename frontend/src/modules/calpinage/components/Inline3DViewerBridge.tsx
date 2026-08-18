@@ -69,6 +69,7 @@ import {
 } from "../canonical3d/viewer/viewerReliabilityState";
 
 const MOUNT_ID = "zone-c-3d";
+const inline3DViewerRoots = new WeakMap<HTMLElement, ReturnType<typeof createRoot>>();
 
 /** Limite le spam de toasts lors d’éditions répétées (drag, micro-mouvements). */
 const CALPINAGE_ROOF_EDIT_ERROR_TOAST_DEBOUNCE_MS = 1400;
@@ -1460,6 +1461,9 @@ function Inline3DViewer({
         showSun={false}
         groundImage={groundImage ?? undefined}
         showDebugOverlay={!!getCalpinageWindow().__CALPINAGE_3D_DEBUG__}
+        showStatsGl={
+          !!(window as unknown as { __CALPINAGE_3D_STATS_GL__?: boolean }).__CALPINAGE_3D_STATS_GL__
+        }
         showXYAlignmentOverlay={
           !!getCalpinageWindow().__CALPINAGE_3D_XY_OVERLAY__ || !!getCalpinageWindow().__CALPINAGE_3D_DEBUG__
         }
@@ -1506,6 +1510,8 @@ export function Inline3DViewerBridge({
   runtimeNotifyEpoch = 0,
 }: Inline3DViewerBridgeProps) {
   const rootRef = useRef<ReturnType<typeof createRoot> | null>(null);
+  const [mountEpoch, setMountEpoch] = useState(0);
+  const pendingUnmountTokenRef = useRef<object | null>(null);
   /**
    * FA-ROOT-1 — Guard container stale.
    * Mémorise l'élément DOM sur lequel le React root a été créé.
@@ -1518,34 +1524,94 @@ export function Inline3DViewerBridge({
   setCalpinageStateRef.current = setCalpinageState;
 
   useEffect(() => {
+    pendingUnmountTokenRef.current = null;
     const container = containerRef.current;
     if (!container) return;
     const mount = container.querySelector("#" + MOUNT_ID) as HTMLElement | null;
-    if (!mount || !mount.isConnected) return;
+    if (!mount || !mount.isConnected) {
+      (window as unknown as Record<string, unknown>)["__CALPINAGE_3D_BRIDGE_MOUNT__"] = {
+        mountFound: false,
+        rootCreated: false,
+        mountEpoch,
+        timestamp: Date.now(),
+      };
+      const observer = new MutationObserver(() => {
+        const nextMount = container.querySelector("#" + MOUNT_ID) as HTMLElement | null;
+        if (nextMount?.isConnected) {
+          setMountEpoch((n) => n + 1);
+        }
+      });
+      observer.observe(container, { childList: true, subtree: true });
+      return () => observer.disconnect();
+    }
 
     // FA-ROOT-1: si le DOM a été reconstruit (nouvel élément), purger l'ancien root
     if (rootRef.current && mountedOnRef.current !== mount) {
-      rootRef.current.unmount();
+      const staleRoot = rootRef.current;
+      queueMicrotask(() => staleRoot.unmount());
       rootRef.current = null;
       mountedOnRef.current = null;
     }
 
     if (!rootRef.current) {
-      rootRef.current = createRoot(mount);
+      const existingRoot = inline3DViewerRoots.get(mount);
+      rootRef.current = existingRoot ?? createRoot(mount);
+      inline3DViewerRoots.set(mount, rootRef.current);
       mountedOnRef.current = mount;
     }
-    rootRef.current.render(
-      <Inline3DViewer
-        calpinageState={calpinageState}
-        setCalpinageState={(next) => setCalpinageStateRef.current?.(next)}
-        runtimeNotifyEpoch={runtimeNotifyEpoch}
-      />,
-    );
-  }, [containerRef, calpinageState, runtimeNotifyEpoch]);
+    (window as unknown as Record<string, unknown>)["__CALPINAGE_3D_BRIDGE_MOUNT__"] = {
+      mountFound: true,
+      rootCreated: true,
+      mountEpoch,
+      mountedOnConnected: mount.isConnected,
+      mountedOnChildCount: mount.childNodes.length,
+      timestamp: Date.now(),
+    };
+    const renderRoot = rootRef.current;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled || rootRef.current !== renderRoot || mountedOnRef.current !== mount || !mount.isConnected) return;
+      renderRoot?.render(
+        <Inline3DViewer
+          calpinageState={calpinageState}
+          setCalpinageState={(next) => setCalpinageStateRef.current?.(next)}
+          runtimeNotifyEpoch={runtimeNotifyEpoch}
+        />,
+      );
+      (window as unknown as Record<string, unknown>)["__CALPINAGE_3D_BRIDGE_MOUNT__"] = {
+        mountFound: true,
+        rootCreated: true,
+        mountEpoch,
+        mountedOnConnected: mount.isConnected,
+        mountedOnChildCount: mount.childNodes.length,
+        renderDeferred: true,
+        timestamp: Date.now(),
+      };
+    });
+    const observer = new MutationObserver(() => {
+      const currentMount = container.querySelector("#" + MOUNT_ID) as HTMLElement | null;
+      if (currentMount?.isConnected && currentMount !== mountedOnRef.current) {
+        setMountEpoch((n) => n + 1);
+      }
+    });
+    observer.observe(container, { childList: true, subtree: true });
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [containerRef, calpinageState, runtimeNotifyEpoch, mountEpoch]);
 
   useEffect(
     () => () => {
-      rootRef.current?.unmount();
+      const root = rootRef.current;
+      const mountedOn = mountedOnRef.current;
+      const unmountToken = {};
+      pendingUnmountTokenRef.current = unmountToken;
+      queueMicrotask(() => {
+        if (pendingUnmountTokenRef.current !== unmountToken) return;
+        root?.unmount();
+        if (mountedOn) inline3DViewerRoots.delete(mountedOn);
+      });
       rootRef.current = null;
       mountedOnRef.current = null;
     },

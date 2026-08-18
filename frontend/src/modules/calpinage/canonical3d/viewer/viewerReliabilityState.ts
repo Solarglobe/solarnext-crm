@@ -81,7 +81,14 @@ function issueText(code: ViewerReliabilityIssueCode): string {
   }
 }
 
-function messageForKind(kind: ViewerReliabilityState["kind"]): string | null {
+function hasBuildGuard(scene: SolarScene3D | null, code: string): boolean {
+  return scene?.metadata.buildGuards?.some((g) => g.code === code) === true;
+}
+
+function messageForKind(kind: ViewerReliabilityState["kind"], scene: SolarScene3D | null): string | null {
+  if (kind === "invalid" && hasBuildGuard(scene, "COMMERCIAL_ROOF_KIND_UNRESOLVED")) {
+    return "Le type de toiture doit être confirmé avant d'utiliser le placement photovoltaïque et l'ombrage 3D officiels. Sélectionnez toiture plate ou toiture inclinée.";
+  }
   switch (kind) {
     case "ready":
       return null;
@@ -162,7 +169,7 @@ export function resolveViewerReliabilityState(input: ResolveViewerReliabilitySta
     degradedPatchCount,
     lastKnownGoodGeneration: input.lastKnownGoodGeneration ?? null,
     issueCodes,
-    userMessage: messageForKind(kind),
+    userMessage: messageForKind(kind, scene),
     technicalDetails: issueCodes.map(issueText),
     diagnostics: diagnosticsFromScene(scene),
   };

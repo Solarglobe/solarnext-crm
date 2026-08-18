@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { mergeOfficialNearShading } from "../nearShadingOfficialSelection";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { attemptCanonicalNearShading, mergeOfficialNearShading } from "../nearShadingOfficialSelection";
+import {
+  __resetCanonicalNearShadingFlagWarningForTests,
+  getCanonicalNearShadingFlagResolution,
+} from "../canonicalNearShadingFlags";
 import type { ComputeNearShadingFrontendResult } from "../../shading/nearShadingTypes";
 import type { PanelInput } from "../../shading/shadingInputTypes";
 
@@ -25,7 +29,12 @@ function legacyBase(over: Partial<ComputeNearShadingFrontendResult> = {}): Omit<
 }
 
 describe("mergeOfficialNearShading", () => {
-  it("canonical success → engine canonical_3d, totalLossPct = canonical", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    __resetCanonicalNearShadingFlagWarningForTests();
+  });
+
+  it("canonical success → engine CANONICAL_3D, totalLossPct = canonical", () => {
     const out = mergeOfficialNearShading(
       legacyBase({ totalLossPct: 5 }),
       {
@@ -37,16 +46,16 @@ describe("mergeOfficialNearShading", () => {
       },
       panels
     );
-    expect(out.officialNear.engine).toBe("canonical_3d");
+    expect(out.officialNear.engine).toBe("CANONICAL_3D");
     expect(out.officialNear.fallbackTriggered).toBe(false);
     expect(out.officialNear.canonicalUsable).toBe(true);
     expect(out.officialNear.legacyReferenceLossPct).toBe(5);
     expect(out.officialNear.officialLossPct).toBe(8.5);
     expect(out.totalLossPct).toBe(8.5);
-    expect(out.canonicalNear?.nearEngineMode).toBe("canonical_raycast");
+    expect(out.canonicalNear?.nearEngineMode).toBe("CANONICAL_3D");
   });
 
-  it("canonical skipped → legacy officiel, fallbackTriggered", () => {
+  it("canonical skipped → NONE officiel, pas de fallback legacy silencieux", () => {
     const out = mergeOfficialNearShading(
       legacyBase(),
       {
@@ -56,11 +65,13 @@ describe("mergeOfficialNearShading", () => {
       },
       panels
     );
-    expect(out.officialNear.engine).toBe("legacy_polygon");
-    expect(out.officialNear.fallbackTriggered).toBe(true);
+    expect(out.officialNear.engine).toBe("NONE");
+    expect(out.officialNear.fallbackTriggered).toBe(false);
     expect(out.officialNear.canonicalRejectedBecause).toBe("NO_ROOF_STATE");
-    expect(out.totalLossPct).toBe(12);
-    expect(out.canonicalNear?.nearEngineMode).toBe("legacy_fallback");
+    expect(out.officialNear.legacyReferenceLossPct).toBe(12);
+    expect(out.totalLossPct).toBeNull();
+    expect(out.unavailable?.reason).toBe("NO_ROOF_STATE");
+    expect(out.canonicalNear?.nearEngineMode).toBe("NONE");
   });
 
   it("flag off (not_attempted) → legacy, pas de fallback", () => {
@@ -69,8 +80,38 @@ describe("mergeOfficialNearShading", () => {
       { type: "not_attempted", reason: "CANONICAL_NEAR_FLAG_OFF" },
       panels
     );
-    expect(out.officialNear.engine).toBe("legacy_polygon");
+    expect(out.officialNear.engine).toBe("LEGACY_POLYGON");
     expect(out.officialNear.fallbackTriggered).toBe(false);
     expect(out.canonicalNear).toBeUndefined();
+  });
+
+  it("parse strictement VITE_CANONICAL_3D_NEAR_SHADING", () => {
+    vi.stubEnv("VITE_CANONICAL_3D_NEAR_SHADING", "true");
+    expect(getCanonicalNearShadingFlagResolution().state).toBe("ENABLED");
+
+    vi.stubEnv("VITE_CANONICAL_3D_NEAR_SHADING", "false");
+    expect(getCanonicalNearShadingFlagResolution().state).toBe("DISABLED");
+
+    vi.stubEnv("VITE_CANONICAL_3D_NEAR_SHADING", "1");
+    const bad = getCanonicalNearShadingFlagResolution();
+    expect(bad.state).toBe("MISCONFIGURED");
+    expect(bad.diagnosticCode).toBe("FEATURE_FLAG_INVALID_BOOLEAN");
+  });
+
+  it("flag mal configuré → NONE, diagnostic explicite, pas de fallback officiel", () => {
+    vi.stubEnv("VITE_CANONICAL_3D_NEAR_SHADING", "yes");
+    const attempt = attemptCanonicalNearShading({
+      panels,
+      obstacles: [],
+      latitude: 48,
+      longitude: 2,
+    });
+    expect(attempt.type).toBe("skipped");
+    if (attempt.type !== "skipped") throw new Error("attempt should be skipped");
+    expect(attempt.reasonCode).toBe("CANONICAL_NEAR_FLAG_MISCONFIGURED");
+    const out = mergeOfficialNearShading(legacyBase(), attempt, panels);
+    expect(out.officialNear.engine).toBe("NONE");
+    expect(out.officialNear.officialLossPct).toBeNull();
+    expect(out.officialNear.legacyReferenceLossPct).toBe(12);
   });
 });

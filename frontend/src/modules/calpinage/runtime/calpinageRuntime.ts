@@ -24,11 +24,33 @@ export type AnnualSunVectorsFn = (
     stepMinutes?: number;
     minSunElevationDeg?: number;
   }
-) => unknown[];
+) => Array<{ dx: number; dy: number; dz: number }>;
 
 export type NearShadingCoreLike = {
   computeNearShading?: (params: unknown) => unknown;
   computeSunVector?: (azDeg: number, elDeg: number) => unknown;
+};
+
+export const CALPINAGE_LEGACY_BRIDGE_CONTRACT_VERSION = "calpinage-legacy-bridge-v1" as const;
+
+export type CalpinageLegacyCapabilityId =
+  | "state"
+  | "placementEngine"
+  | "render"
+  | "layoutRules"
+  | "computeProjectedPanelRect"
+  | "annualSunVectors"
+  | "nearShadingCore"
+  | "heightAtXY"
+  | "hitTestPan";
+
+export type CalpinageLegacyBridgeStatus = {
+  readonly contractVersion: typeof CALPINAGE_LEGACY_BRIDGE_CONTRACT_VERSION;
+  readonly active: boolean;
+  readonly available: boolean;
+  readonly capabilities: Readonly<Record<CalpinageLegacyCapabilityId, boolean>>;
+  readonly missingRequired: readonly CalpinageLegacyCapabilityId[];
+  readonly diagnostics: readonly { readonly code: string; readonly message: string; readonly capability?: CalpinageLegacyCapabilityId }[];
 };
 
 /** Façade lecture seule ; chaque getter lit window au moment de l'appel. */
@@ -147,6 +169,81 @@ export function getCalpinageRuntime(): CalpinageRuntime | null {
 
 export function isCalpinageRuntimeRegistered(): boolean {
   return active;
+}
+
+function readCapability(capability: CalpinageLegacyCapabilityId): unknown | null {
+  if (typeof window === "undefined" || !active) return null;
+  switch (capability) {
+    case "state":
+      return facade.getState();
+    case "placementEngine":
+      return facade.getPlacementEngine();
+    case "render":
+      return facade.getRender();
+    case "layoutRules":
+      return facade.getLayoutRules();
+    case "computeProjectedPanelRect":
+      return facade.getComputeProjectedPanelRect();
+    case "annualSunVectors":
+      return facade.getAnnualSunVectors();
+    case "nearShadingCore":
+      return facade.getNearShadingCore();
+    case "heightAtXY":
+      return facade.getHeightAtXY();
+    case "hitTestPan":
+      return facade.getHitTestPan();
+  }
+}
+
+export function getCalpinageLegacyCapability<T = unknown>(capability: CalpinageLegacyCapabilityId): T | null {
+  return readCapability(capability) as T | null;
+}
+
+export function getCalpinageLegacyBridgeStatus(
+  required: readonly CalpinageLegacyCapabilityId[] = [],
+): CalpinageLegacyBridgeStatus {
+  const capabilityIds: readonly CalpinageLegacyCapabilityId[] = [
+    "state",
+    "placementEngine",
+    "render",
+    "layoutRules",
+    "computeProjectedPanelRect",
+    "annualSunVectors",
+    "nearShadingCore",
+    "heightAtXY",
+    "hitTestPan",
+  ];
+  const capabilities = Object.fromEntries(
+    capabilityIds.map((id) => [id, readCapability(id) != null]),
+  ) as Record<CalpinageLegacyCapabilityId, boolean>;
+  const missingRequired = required.filter((id) => !capabilities[id]);
+  return {
+    contractVersion: CALPINAGE_LEGACY_BRIDGE_CONTRACT_VERSION,
+    active,
+    available: active && missingRequired.length === 0,
+    capabilities,
+    missingRequired,
+    diagnostics: missingRequired.map((capability) => ({
+      code: "CALPINAGE_LEGACY_CAPABILITY_MISSING",
+      capability,
+      message: `Capacité legacy requise indisponible: ${capability}.`,
+    })),
+  };
+}
+
+export function subscribeCalpinageLegacyEvent(
+  eventName: string,
+  handler: EventListener,
+  options?: AddEventListenerOptions,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(eventName, handler, options);
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    window.removeEventListener(eventName, handler, options);
+  };
 }
 
 export function registerCalpinageRuntime(): void {

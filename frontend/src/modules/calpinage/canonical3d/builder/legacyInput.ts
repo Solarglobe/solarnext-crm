@@ -27,6 +27,14 @@ export interface LegacyPanInput {
   /** Indices physiques du legacy (ne modifient pas la géométrie ; audit). */
   readonly tiltDegHint?: number;
   readonly azimuthDegHint?: number;
+  /** Typologie métier déclarée par l'utilisateur (`FLAT` explicite vs toiture inclinée par défaut). */
+  readonly roofKind?: string | null;
+  /** Provenance sérialisable de la typologie utilisée pour décider l'exploitation officielle. */
+  readonly roofKindProvenance?:
+    | "EXPLICIT"
+    | "MIGRATED_DETERMINISTIC"
+    | "INFERRED_HIGH_CONFIDENCE"
+    | "UNRESOLVED";
 }
 
 /**

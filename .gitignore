@@ -105,6 +105,8 @@ storage.tar.gz
 storage_tar_parts/
 backend/dump.sql
 verify-out.json
+code-source*.html
+*csrf*.html
 
 # --- Infrastructure : scripts locaux contenant des secrets ---
 infrastructure/vps-setup-env.sh

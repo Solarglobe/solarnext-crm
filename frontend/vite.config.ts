@@ -82,6 +82,29 @@ function copyDpToolTree(srcDir: string, destDir: string): void {
   }
 }
 
+function copyCalpinageStaticTree(srcDir: string, destDir: string): void {
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    if (entry.name === "__tests__" || entry.name === "docs") {
+      continue;
+    }
+    const from = path.join(srcDir, entry.name);
+    const to = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      copyCalpinageStaticTree(from, to);
+      continue;
+    }
+    if (!entry.isFile()) {
+      continue;
+    }
+    const ext = path.extname(entry.name).toLowerCase();
+    if (ext !== ".js" && ext !== ".cjs" && ext !== ".json") {
+      continue;
+    }
+    fs.copyFileSync(from, to);
+  }
+}
+
 function readLocalEnvFile(filePath: string): Record<string, string> {
   if (!fs.existsSync(filePath)) return {};
   const out: Record<string, string> = {};
@@ -181,6 +204,7 @@ function dpToolStaticPlugin(opts: DpToolStaticPluginOpts): Plugin {
         return;
       }
       copyDpToolTree(DP_TOOL_DIR, path.join(outDir, "dp-tool"));
+      copyCalpinageStaticTree(CALPINAGE_SRC_ROOT, path.join(outDir, "calpinage"));
 
       const destShared = path.join(outDir, "shared");
       fs.mkdirSync(destShared, { recursive: true });
@@ -362,6 +386,7 @@ export default defineConfig(({ mode }) => {
     react(),
   ],
   resolve: {
+    dedupe: ["three", "@react-three/fiber", "@react-three/drei"],
     alias: {
       "@": path.resolve(__dirname, "src"),
       "@shared": path.resolve(__dirname, "../shared"),

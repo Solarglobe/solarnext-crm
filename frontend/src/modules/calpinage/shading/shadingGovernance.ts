@@ -15,7 +15,7 @@ export const OFFICIAL_GLOBAL_LOSS_CONTRACT = "shading.combined.totalLossPct" as 
 
 export const BACKEND_NEAR_ENGINE_ID = "nearShadingCore.cjs" as const;
 
-export const FRONTEND_NEAR_LEGACY_ENGINE = "legacy_polygon" as const;
+export const FRONTEND_NEAR_LEGACY_ENGINE = "LEGACY_POLYGON" as const;
 
 export const FRONTEND_EXPERIMENTAL_NEAR_CANONICAL_ID = "canonical_3d_ts_frontend" as const;
 
@@ -80,7 +80,7 @@ export function diagnoseGlobalLossMismatch(
  * Trace unique en dev quand le near officiel UI est le pipeline expérimental (pas une erreur).
  */
 export function logOnceIfUiNearUsedExperimentalCanonical(engine: string | undefined): void {
-  if (engine !== "canonical_3d" || _experimentalNearInfoLogged) return;
+  if (engine !== "CANONICAL_3D" || _experimentalNearInfoLogged) return;
   if (!isDevBuild()) return;
   _experimentalNearInfoLogged = true;
   if (typeof console !== "undefined" && console.info) {

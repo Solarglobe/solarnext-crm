@@ -111,6 +111,55 @@ describe("mapCalpinageRoofToLegacyRoofGeometryInput", () => {
     expect(legacy!.pans[0]!.id).toBe("from-state");
   });
 
+  it("persiste roofType en typologie explicite après round-trip JSON", () => {
+    const runtime = {
+      pans: [
+        {
+          id: "explicit-flat",
+          roofType: "FLAT",
+          polygonPx: [
+            { x: 0, y: 0, h: 5 },
+            { x: 10, y: 0, h: 5 },
+            { x: 10, y: 10, h: 5 },
+          ],
+        },
+      ],
+      roof: {
+        scale: { metersPerPixel: 1 },
+        roof: { north: { angleDeg: 0 } },
+        roofPans: [],
+      },
+    };
+    const reloaded = JSON.parse(JSON.stringify(runtime));
+    const legacy = mapCalpinageRoofToLegacyRoofGeometryInput(reloaded.roof, null, reloaded);
+    expect(legacy?.pans[0]!.roofKind).toBe("FLAT");
+    expect(legacy?.pans[0]!.roofKindProvenance).toBe("EXPLICIT");
+  });
+
+  it("ancien projet sans roofType reste UNRESOLVED après round-trip JSON", () => {
+    const runtime = {
+      pans: [
+        {
+          id: "legacy-unknown",
+          polygonPx: [
+            { x: 0, y: 0, h: 5 },
+            { x: 10, y: 0, h: 5 },
+            { x: 10, y: 10, h: 7 },
+          ],
+        },
+      ],
+      roof: {
+        scale: { metersPerPixel: 1 },
+        roof: { north: { angleDeg: 0 } },
+        roofPans: [],
+      },
+    };
+    const reloaded = JSON.parse(JSON.stringify(runtime));
+    const legacy = mapCalpinageRoofToLegacyRoofGeometryInput(reloaded.roof, null, reloaded);
+    expect(legacy?.pans[0]!.roofKind).toBeUndefined();
+    expect(legacy?.pans[0]!.roofKindProvenance).toBe("UNRESOLVED");
+  });
+
   it("Cas C — hints physical transmis via chemin riche", () => {
     const rich = {
       metersPerPixel: 0.02,

@@ -11,8 +11,8 @@ export const CANONICAL_NEAR_SHADING_PIPELINE_VERSION = "canonical-near-3d-v2" as
  */
 export interface NearShadingCanonical3dEnvelope {
   readonly pipelineVersion: typeof CANONICAL_NEAR_SHADING_PIPELINE_VERSION;
-  /** `canonical_raycast` = moteur 3D ; `legacy_fallback` = nearShadingCore inchangé. */
-  readonly nearEngineMode: "canonical_raycast" | "legacy_fallback";
+  /** `CANONICAL_3D` = moteur 3D ; `LEGACY_POLYGON` = nearShadingCore ; `NONE` = pas de résultat officiel. */
+  readonly nearEngineMode: "CANONICAL_3D" | "LEGACY_POLYGON" | "NONE";
   /** Motif court si fallback ou dégradation. */
   readonly reasonCode?: string;
   readonly diagnostics: readonly string[];
@@ -23,7 +23,7 @@ export interface NearShadingCanonical3dEnvelope {
 }
 
 /** Moteur ayant produit la perte near officielle (`totalLossPct`). */
-export type NearShadingOfficialEngineId = "canonical_3d" | "legacy_polygon";
+export type NearShadingOfficialEngineId = "CANONICAL_3D" | "LEGACY_POLYGON" | "NONE";
 
 /**
  * Contrat produit — pas d’ambiguïté : `officialLossPct` = `totalLossPct` du résultat frontend.

@@ -69,6 +69,33 @@ describe("viewerReliabilityState", () => {
     expect(state.issueCodes).toContain("GEOMETRY_INVALID");
   });
 
+  it("C2 — typologie toiture non confirmee : message utilisateur actionnable", () => {
+    const base = sceneWithTruth("INVALID");
+    const scene = {
+      ...base,
+      metadata: {
+        ...base.metadata,
+        buildGuards: [
+          {
+            code: "COMMERCIAL_ROOF_KIND_UNRESOLVED",
+            severity: "warning" as const,
+            message: "Confirmez le type de toiture avant d'utiliser le placement photovoltaïque et l'ombrage 3D officiels.",
+          },
+        ],
+      },
+    };
+    const state = resolveViewerReliabilityState({
+      scene,
+      source: "OFFICIAL",
+      generation: 14,
+      renderedGeneration: 14,
+      officialBuildStatus: "SUCCESS",
+    });
+    expect(state.kind).toBe("invalid");
+    expect(state.userMessage).toMatch(/type de toiture doit être confirmé/i);
+    expect(state.userMessage).not.toMatch(/UNKNOWN|span Z|commercialGeometryVerdict/i);
+  });
+
   it("D — official echoue et fallback reussit : fallback explicite et erreur conservee", () => {
     const officialError = normalizeViewerOfficialBuildError(new Error("roof truth failed"));
     const state = resolveViewerReliabilityState({

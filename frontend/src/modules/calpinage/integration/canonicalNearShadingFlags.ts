@@ -7,6 +7,38 @@
  * @see ../config/featureFlags.ts — registre central, flag `NEAR_SHADING_3D`.
  * @see ../config/README-FLAGS.md — instructions d'activation.
  */
-import { isEnabled } from "../config/featureFlags";
+import {
+  CALPINAGE_FLAG_ENV_KEYS,
+  resolveStrictBooleanEnvFlag,
+  type StrictBooleanFeatureFlagResolution,
+} from "../config/featureFlags";
 
-export const CANONICAL_3D_NEAR_SHADING_ENABLED: boolean = isEnabled("NEAR_SHADING_3D");
+let warnedMisconfigured = false;
+
+export function getCanonicalNearShadingFlagResolution(): StrictBooleanFeatureFlagResolution {
+  const resolution = resolveStrictBooleanEnvFlag(CALPINAGE_FLAG_ENV_KEYS.NEAR_SHADING_3D);
+  if (
+    resolution.state === "MISCONFIGURED" &&
+    !warnedMisconfigured &&
+    typeof console !== "undefined" &&
+    console.warn
+  ) {
+    warnedMisconfigured = true;
+    console.warn("[CALPINAGE_NEAR_SHADING_FLAG]", {
+      state: resolution.state,
+      envKey: resolution.envKey,
+      raw: resolution.raw,
+      diagnosticCode: resolution.diagnosticCode,
+      message: resolution.message,
+    });
+  }
+  return resolution;
+}
+
+export const CANONICAL_3D_NEAR_SHADING_ENABLED: boolean =
+  getCanonicalNearShadingFlagResolution().state === "ENABLED";
+
+/** Tests : réinitialise le warning once. @internal */
+export function __resetCanonicalNearShadingFlagWarningForTests(): void {
+  warnedMisconfigured = false;
+}

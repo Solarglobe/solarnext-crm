@@ -2,7 +2,7 @@
  * Prompt 6 — passerelle scène officielle + signatures + cache.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { minimalCalpinageRuntimeFixture } from "../../dev/minimalCalpinageRuntimeFixture";
 import {
   clearOfficialSolarScene3DCache,
@@ -10,11 +10,17 @@ import {
 } from "../officialSolarScene3DGateway";
 import { computeRuntimeSceneStructuralSignatures } from "../sceneRuntimeStructuralSignature";
 import type { OfficialRuntimeStructuralChangePayload } from "../../../runtime/emitOfficialRuntimeStructuralChange";
-import { getCachedOfficialRoofModelForNearShading } from "../../../integration/officialRoofModelNearShadingCache";
+import {
+  getCachedOfficialRoofModelForNearShading,
+  rememberOfficialRoofModelForNearShading,
+} from "../../../integration/officialRoofModelNearShadingCache";
+import { __resetCanonicalNearShadingFlagWarningForTests } from "../../../integration/canonicalNearShadingFlags";
 
 describe("officialSolarScene3DGateway (Prompt 6)", () => {
   afterEach(() => {
     clearOfficialSolarScene3DCache();
+    vi.unstubAllEnvs();
+    __resetCanonicalNearShadingFlagWarningForTests();
   });
 
   it("CAS 1 — deux appels même runtime → même sceneRuntimeSignature, 2e hit cache", () => {
@@ -162,6 +168,23 @@ describe("officialSolarScene3DGateway (Prompt 6)", () => {
     expect(roofA).not.toBe(roofB);
   });
 
+  it("RoofTruth near — changement flag canonical invalide l'entree partagee", () => {
+    const getAllPanels = () => [] as unknown[];
+    const scene = getOrBuildOfficialSolarScene3DFromCalpinageRuntime(minimalCalpinageRuntimeFixture, {
+      getAllPanels,
+    });
+    expect(scene.ok).toBe(true);
+    const roof = getCachedOfficialRoofModelForNearShading(minimalCalpinageRuntimeFixture, getAllPanels);
+    expect(roof).not.toBeNull();
+
+    vi.stubEnv("VITE_CANONICAL_3D_NEAR_SHADING", "false");
+    rememberOfficialRoofModelForNearShading(minimalCalpinageRuntimeFixture, roof!, getAllPanels);
+    expect(getCachedOfficialRoofModelForNearShading(minimalCalpinageRuntimeFixture, getAllPanels)).toBe(roof);
+
+    vi.stubEnv("VITE_CANONICAL_3D_NEAR_SHADING", "true");
+    expect(getCachedOfficialRoofModelForNearShading(minimalCalpinageRuntimeFixture, getAllPanels)).toBeNull();
+  });
+
   it("CACHE GUARD — scène 0-panneau non mise en cache si getAllPanels() > 0 (bloc actif non figé)", () => {
     // Simule le cas : getAllPanels() retourne des panneaux (pipeline en a reçu)
     // mais la scène produite contient 0 pvPanels (résultat transitoire ou bug pipeline).
@@ -208,6 +231,8 @@ describe("officialSolarScene3DGateway (Prompt 6)", () => {
     const base = structuredClone(minimalCalpinageRuntimeFixture) as typeof minimalCalpinageRuntimeFixture & {
       shading?: unknown;
     };
+    base.pans[0]!.roofType = "FLAT";
+    base.pans[0]!.polygonPx = base.pans[0]!.polygonPx.map((point) => ({ ...point, h: 5 }));
 
     const first = getOrBuildOfficialSolarScene3DFromCalpinageRuntime(base, { getAllPanels });
     expect(first.ok).toBe(true);
@@ -225,6 +250,32 @@ describe("officialSolarScene3DGateway (Prompt 6)", () => {
     expect(second.scene?.panelVisualShadingByPanelId?.["pv-cache"]?.state).toBe("AVAILABLE");
     expect(second.scene?.panelVisualShadingByPanelId?.["pv-cache"]?.lossPct).toBe(22);
     expect(second.scene?.panelVisualShadingSummary?.totalLossPct).toBe(22);
+  });
+
+  it("UNKNOWN non résolu avec panneaux bruts reste affichable mais sans panneaux officiels", () => {
+    const panel = {
+      id: "pv-unknown",
+      panId: "pan-a",
+      enabled: true,
+      center: { x: 150, y: 150 },
+      polygonPx: [
+        { x: 135, y: 140 },
+        { x: 165, y: 140 },
+        { x: 165, y: 160 },
+        { x: 135, y: 160 },
+      ],
+    };
+    const getAllPanels = () => [panel] as unknown[];
+    const base = structuredClone(minimalCalpinageRuntimeFixture) as typeof minimalCalpinageRuntimeFixture;
+
+    const first = getOrBuildOfficialSolarScene3DFromCalpinageRuntime(base, { getAllPanels });
+    expect(first.ok).toBe(true);
+    expect(first.scene?.metadata.geometryTruthStatus).toBe("INVALID");
+    expect(first.scene?.metadata.buildGuards?.some((g) => g.code === "COMMERCIAL_ROOF_KIND_UNRESOLVED")).toBe(true);
+    expect(first.scene?.pvPanels.some((p) => String(p.id) === "pv-unknown")).toBe(false);
+
+    const second = getOrBuildOfficialSolarScene3DFromCalpinageRuntime(base, { getAllPanels });
+    expect(second.sceneSyncDiagnostics.usedSceneCache).toBe(false);
   });
 
   it("forceStructuralRebuild relance le pipeline et ré-enregistre RoofTruth", () => {

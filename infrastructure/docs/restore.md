@@ -200,7 +200,7 @@ cat > /home/ubuntu/app/backend/.env << 'EOF'
 NODE_ENV=production
 DATABASE_URL=postgresql://postgres@localhost/solarnext_prod
 JWT_SECRET=<valeur depuis Railway ou secret manager>
-MAIL_ENCRYPTION_KEY=89c5c684831b7e0d02c9ce2bcdf058ffac079ed845000116bbde3d42aa5e3cb6
+MAIL_ENCRYPTION_KEY=<MAIL_ENCRYPTION_KEY_FROM_SECRET_MANAGER>
 # ... autres variables (voir vps-setup-env.example.sh)
 EOF
 ```

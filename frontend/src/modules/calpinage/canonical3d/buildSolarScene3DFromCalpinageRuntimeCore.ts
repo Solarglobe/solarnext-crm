@@ -35,7 +35,7 @@ import { buildPvPanels3D } from "./pvPanels/buildPvPanels3D";
 import { computeMinimalHouse3DEligibility, type MinimalHouse3DBuildDiagnostics, type RoofGeometrySource } from "./fallback/fallbackMinimalHouse3D";
 import { buildCalpinageLevel0Guards } from "./scene/calpinageLevel0BuildGuards";
 import { buildSolarScene3D } from "./scene/buildSolarScene3D";
-import type { SolarScene3D } from "./types/solarScene3d";
+import type { SolarScene3D, SolarSceneBuildGuard } from "./types/solarScene3d";
 import type { RoofObstacleKind } from "./types/obstacle";
 import type { RoofVolumeStructuralRole } from "./types/roof-volume-common";
 import type { RoofObstacleVolume3D } from "./types/roof-obstacle-volume";
@@ -881,10 +881,13 @@ export function buildSolarScene3DFromCalpinageRuntime(
     });
     const obstaclesForVolumes = shiftCanonicalObstaclesZWorld(obsRebuiltForShift.obstacles, zSceneAdjustM);
     const panelsShifted = shiftCanonicalPanelsZWorld(sceneInput.panels.items, zSceneAdjustM);
-    const filteredPanels = filterPvPlacementInputsForOfficialBinding(
-      panelsShifted,
-      roofRes.roofReconstructionQuality,
-    );
+    const commercialRoofValidation = roofRes.roofCommercialGeometryValidation;
+    const filteredPanels = commercialRoofValidation.officialPvPlacementAllowed
+      ? filterPvPlacementInputsForOfficialBinding(
+          panelsShifted,
+          roofRes.roofReconstructionQuality,
+        )
+      : [];
     const volumeInput = canonicalObstaclesToVolumeInput(obstaclesForVolumes);
     const volRes = buildRoofVolumes3D(volumeInput, { roofPlanePatches: patches });
     const roofExtRes = buildRoofExtensions3DFromRuntime({
@@ -936,6 +939,10 @@ export function buildSolarScene3DFromCalpinageRuntime(
       builtPanelIds: new Set(pvRes.panels.map((p) => String(p.id))),
       roofReconstructionQuality: roofRes.roofReconstructionQuality,
       roofGeometrySource: roofGeoSrc,
+      officialGeometryUsable: commercialRoofValidation.officialPvPlacementAllowed,
+      officialGeometryBlockingCodes: commercialRoofValidation.diagnostics
+        .filter((d) => d.severity === "error")
+        .map((d) => d.code),
     });
 
     const panelIds = pvRes.panels.map((p) => String(p.id));
@@ -957,6 +964,17 @@ export function buildSolarScene3DFromCalpinageRuntime(
       roofGeometryFidelityMode,
       roofOutlineHorizontalAreaM2: sourceTrace.metrics?.roofOutlineHorizontalAreaM2 ?? null,
     });
+    const commercialGeometryBuildGuards: SolarSceneBuildGuard[] =
+      commercialRoofValidation.status === "INVALID"
+        ? commercialRoofValidation.diagnostics
+            .filter((d) => d.severity === "error")
+            .map((d) => ({
+              code: d.code,
+              severity: "warning",
+              message: d.message,
+            }))
+        : [];
+    const buildGuards = [...level0.guards, ...commercialGeometryBuildGuards];
 
     const buildingShell = buildBuildingShell3DFromCalpinageRuntime({
       runtime,
@@ -969,8 +987,8 @@ export function buildSolarScene3DFromCalpinageRuntime(
 
     const integrationNotesBase = `calpinage-runtime; sceneId=${sceneInput.sceneId}`;
     const integrationNotes =
-      level0.guards.length > 0
-        ? `${integrationNotesBase}; level0=${level0.guards.map((g) => g.code).join(",")}`
+      buildGuards.length > 0
+        ? `${integrationNotesBase}; level0=${buildGuards.map((g) => g.code).join(",")}`
         : integrationNotesBase;
 
     const roofQualityPhaseA = buildRoofQualityPhaseAActionPlan(roofRes.roofReconstructionQuality);
@@ -999,10 +1017,14 @@ export function buildSolarScene3DFromCalpinageRuntime(
       ...(panelVisualShadingSummary != null && { panelVisualShadingSummary }),
       generator: "manual",
       integrationNotes,
-      ...(level0.guards.length > 0 ? { buildGuards: level0.guards } : {}),
+      ...(buildGuards.length > 0 ? { buildGuards } : {}),
       roofQualityPhaseA,
       roofQualityPhaseB,
       roofMultiPanDiagnostics,
+      commercialGeometryTruth: {
+        status: commercialRoofValidation.status,
+        diagnostics: commercialRoofValidation.diagnostics,
+      },
     });
 
     if (isCalpinage3DRuntimeDebugEnabled()) {

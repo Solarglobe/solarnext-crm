@@ -1,8 +1,7 @@
 /**
  * Charge `.env.dev` (racine repo) puis `backend/.env` uniquement si `DATABASE_URL`
- * n’est pas déjà défini (ex. Railway, `railway run`, CI). Évite d’injecter des
- * clés locales (PGHOST, etc.) qui réorienteraient la connexion alors que l’URL
- * est déjà fournie par la plateforme, ainsi que les logs « injecting env from .env.dev ».
+ * n’est pas déjà défini par l'environnement réel du backend. Ces fichiers sont locaux
+ * et peuvent être obsolètes : une ancienne URL Railway est donc refusée explicitement.
  */
 import dotenv from "dotenv";
 import path from "path";
@@ -22,4 +21,15 @@ export function loadBackendLocalEnvFiles() {
     path: path.resolve(backendRoot, ".env"),
     override: false,
   });
+  const url = String(process.env.DATABASE_URL || "").trim();
+  if (!url) return;
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.toLowerCase().includes("railway")) {
+      throw new Error("DATABASE_URL Railway obsolète refusée depuis les fichiers .env locaux");
+    }
+  } catch (error) {
+    if (error instanceof TypeError) return;
+    throw error;
+  }
 }

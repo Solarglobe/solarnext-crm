@@ -107,11 +107,13 @@ export function PvPanelsLayer({
     console.log("pvPanelTexture:", "canvas-map");
     console.log("renderOrder:", pvLayout3DInteractionMode ? 20 : 2);
     if (panels.length === 0)
-      console.error("[PV3D-RENDER] ⛔ 0 panneaux transmis à PvPanelInstanced — GPU ne rendra rien.");
+      console.info("[PV3D-RENDER] 0 panneaux transmis à PvPanelInstanced — rendu PV ignoré.");
     if (hiddenCount > 0 && hiddenCount === panels.length)
       console.warn("[PV3D-RENDER] ⚠️ Tous les panneaux sont hidden (scale=0).");
     console.groupEnd();
   }, [panels, panelColors, pvLayout3DInteractionMode, pvLayout3DEffectiveHiddenIds]);
+
+  if (panels.length === 0) return null;
 
   return (
     <>

@@ -32,7 +32,9 @@
     "test:provider": "playwright test -g \"PROVIDER-STRESS\"",
     "test:exportjson": "playwright test -g \"EXPORT-JSON\"",
     "test:visual:calpinage": "playwright test -c playwright.visual.config.ts",
+    "test:visual:calpinage:stress": "node scripts/run-calpinage-visual-stress.mjs",
     "test:visual:calpinage:update": "playwright test -c playwright.visual.config.ts --update-snapshots",
+    "check:three:dedupe": "node scripts/assert-single-three-runtime.mjs",
     "check:calpinage:lock": "node scripts/check-calpinage-lock.js",
     "qa:calpinage:v1": "npm run check:calpinage:lock && npm run test:stability && npm run test:stress && npm run test:provider && npm run test:exportjson && npm run test:performance",
     "test:calpinage-final-json": "vitest run src/modules/calpinage/__tests__/calpinage-final-json-validate.test.js src/modules/calpinage/__tests__/calpinage-json-reload-integrity.test.js",
@@ -98,5 +100,10 @@
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.34.9"
+  },
+  "overrides": {
+    "stats-gl": {
+      "three": "$three"
+    }
   }
 }

@@ -76,24 +76,19 @@ const NO_RAYCAST = (): null => null;
  * (le parent n'a pas de transform — les coordonnées monde s'appliquent directement).
  */
 export function KeepoutZone3D({ vol }: KeepoutZone3DProps): React.ReactElement | null {
-  if (vol.visualRole !== "keepout_surface") return null;
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const fillRing = useMemo(() => buildTopRing(vol, FILL_LIFT), [vol]);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const markerRing = useMemo(() => buildTopRing(vol, MARKER_LIFT), [vol]);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const isKeepoutSurface = vol.visualRole === "keepout_surface";
+  const fillRing = useMemo(() => (isKeepoutSurface ? buildTopRing(vol, FILL_LIFT) : []), [isKeepoutSurface, vol]);
+  const markerRing = useMemo(() => (isKeepoutSurface ? buildTopRing(vol, MARKER_LIFT) : []), [isKeepoutSurface, vol]);
   const fillGeo = useMemo(() => buildFillGeometry(fillRing), [fillRing]);
 
   // Libère la géométrie GPU lors du changement de vol ou de l'unmount.
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     return () => {
       fillGeo?.dispose();
     };
   }, [fillGeo]);
 
-  if (!fillGeo || fillRing.length === 0) return null;
+  if (!isKeepoutSurface || !fillGeo || fillRing.length === 0) return null;
 
   return (
     <>

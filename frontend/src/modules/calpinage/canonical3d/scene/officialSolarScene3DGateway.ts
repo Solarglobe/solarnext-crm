@@ -33,6 +33,7 @@ import {
   clearOfficialRoofModelNearShadingCache,
   evictOfficialRoofTruthForSceneRuntimeSignature,
 } from "../../integration/officialRoofModelNearShadingCache";
+import { resolveOfficialRoofTruthFromRuntime } from "./resolveOfficialRoofTruthFromRuntime";
 
 export type SceneSyncStatus = "IN_SYNC" | "STALE" | "REBUILDING" | "INVALID";
 
@@ -169,6 +170,8 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
   runtime: unknown,
   options?: OfficialSolarSceneGatewayOptions,
 ): BuildSolarScene3DFromCalpinageRuntimeWithSyncResult {
+  resolveOfficialRoofTruthFromRuntime(runtime, { phase: "prepare" });
+
   // ── Guard: runtime de hauteur disponible ? ─────────────────────────────────
   // Si getCalpinageRuntime().getHeightAtXY() est absent, RuntimeHeightResolver
   // retournera RUNTIME_FALLBACK (Z=0) sur tous les sommets → toiture plate
@@ -323,4 +326,3 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
     }),
   };
 }
-    

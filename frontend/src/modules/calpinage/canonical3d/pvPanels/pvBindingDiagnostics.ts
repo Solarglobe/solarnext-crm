@@ -148,6 +148,8 @@ export function computePvBindingDiagnostics(args: {
   readonly builtPanelIds: ReadonlySet<string>;
   readonly roofReconstructionQuality: RoofReconstructionQualityDiagnostics;
   readonly roofGeometrySource: "REAL_ROOF_PANS" | "FALLBACK_BUILDING_CONTOUR";
+  readonly officialGeometryUsable?: boolean;
+  readonly officialGeometryBlockingCodes?: readonly string[];
 }): PvBindingDiagnostics {
   const warnings: string[] = [];
   const roofRec = args.roofReconstructionQuality.roofReconstructionQuality;
@@ -169,6 +171,20 @@ export function computePvBindingDiagnostics(args: {
     const patchId = String(pi.roofPlanePatchId);
     const supportTruth = truthForPatch(args.roofReconstructionQuality, patchId);
     const wc: string[] = [];
+
+    if (args.officialGeometryUsable === false) {
+      rejectedFromPolicy++;
+      wc.push("PV_REJECT_COMMERCIAL_GEOMETRY_INVALID", ...(args.officialGeometryBlockingCodes ?? []));
+      perPanel.push({
+        panelId: pid,
+        supportPanId: patchId,
+        supportPatchId: patchId,
+        supportRoofQuality: supportTruth,
+        bindingStatus: "REJECTED",
+        warningCodes: wc,
+      });
+      continue;
+    }
 
     if (supportTruth === "INCOHERENT") {
       rejectedFromPolicy++;
@@ -246,6 +262,9 @@ export function computePvBindingDiagnostics(args: {
   }
   if (rejectedFromPolicy > 0) {
     warnings.push(`PV_POLICY_REJECTED:${rejectedFromPolicy}`);
+  }
+  if (args.officialGeometryUsable === false) {
+    warnings.push("PV_OFFICIAL_GEOMETRY_INVALID");
   }
 
   let pvBindingQuality: PvBindingQualityLevel;

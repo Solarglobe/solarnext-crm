@@ -97,6 +97,10 @@ import {
   emptyRoofReconstructionQualityDiagnostics,
   type RoofReconstructionQualityDiagnostics,
 } from "./roofReconstructionQuality";
+import {
+  validateRoofCommercialGeometry,
+  type RoofCommercialGeometryValidationResult,
+} from "../validation/roofCommercialGeometryValidation";
 
 const POS_KEY_PRECISION = 1e5;
 const RESIDUAL_HIGH = 0.05;
@@ -285,6 +289,8 @@ export interface BuildRoofModel3DResult {
   readonly roofHeightSignal: RoofHeightSignalDiagnostics;
   /** Qualité reconstruction toiture 3D (Prompt 4) — vérité géométrique vs fallback. */
   readonly roofReconstructionQuality: RoofReconstructionQualityDiagnostics;
+  /** Qualification métier officielle : flat explicite, pente physique, fallbacks bloquants. */
+  readonly roofCommercialGeometryValidation: RoofCommercialGeometryValidationResult;
 }
 
 /**
@@ -327,6 +333,20 @@ export function buildRoofModel3DFromLegacyGeometry(
       stats: { panCount: 0, vertexCount: 0, edgeCount: 0, ridgeLineCount: 0, interPanRelationCount: 0 },
       roofHeightSignal: emptyRoofHeightSignalDiagnostics(),
       roofReconstructionQuality: emptyRoofReconstructionQualityDiagnostics(),
+      roofCommercialGeometryValidation: {
+        status: "INVALID",
+        commercialUsable: false,
+        officialPvPlacementAllowed: false,
+        officialNearShadingAllowed: false,
+        diagnostics: [
+          {
+            code: "COMMERCIAL_ROOF_INVALID_MPP",
+            severity: "error",
+            message: "Échelle invalide : géométrie toiture non exploitable officiellement.",
+          },
+        ],
+        panResults: [],
+      },
     };
   }
 
@@ -1056,6 +1076,10 @@ export function buildRoofModel3DFromLegacyGeometry(
     roofHeightSignal,
     interPanReports,
   });
+  const roofCommercialGeometryValidation = validateRoofCommercialGeometry({
+    legacyInput: input,
+    roofResult: { model, roofHeightSignal, roofReconstructionQuality },
+  });
 
   return {
     model,
@@ -1070,5 +1094,6 @@ export function buildRoofModel3DFromLegacyGeometry(
     },
     roofHeightSignal,
     roofReconstructionQuality,
+    roofCommercialGeometryValidation,
   };
 }

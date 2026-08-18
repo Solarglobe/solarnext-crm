@@ -16,7 +16,7 @@ import {
   attemptCanonicalNearShading,
   mergeOfficialNearShading,
 } from "../integration/nearShadingOfficialSelection";
-import { CANONICAL_3D_NEAR_SHADING_ENABLED } from "../integration/canonicalNearShadingFlags";
+import { getCanonicalNearShadingFlagResolution } from "../integration/canonicalNearShadingFlags";
 import {
   logOnceIfUiNearUsedExperimentalCanonical,
   warnOnceIfExperimentalNearCanonicalMayDivergeFromBackend,
@@ -27,7 +27,12 @@ import type {
   NearShadingConfig,
 } from "./nearShadingTypes";
 import type { ObstacleInput, PanelInput } from "./shadingInputTypes";
-import { getCalpinageRuntime } from "../runtime/calpinageRuntime";
+import {
+  getCalpinageLegacyBridgeStatus,
+  getCalpinageLegacyCapability,
+  type AnnualSunVectorsFn,
+  type NearShadingCoreLike,
+} from "../runtime/calpinageRuntime";
 
 export type {
   ComputeNearShadingFrontendParams,
@@ -64,13 +69,9 @@ function computeNearShadingLegacy(
 
   if (!panels.length) return emptyResult;
 
-  const rt = getCalpinageRuntime();
-  const getAnnualSunVectors =
-    (rt?.getAnnualSunVectors?.() as Window["getAnnualSunVectors"] | undefined) ??
-    (typeof window !== "undefined" ? window.getAnnualSunVectors : undefined);
-  const core =
-    (rt?.getNearShadingCore?.() as Window["nearShadingCore"] | undefined) ??
-    (typeof window !== "undefined" ? window.nearShadingCore : undefined);
+  const bridge = getCalpinageLegacyBridgeStatus(["annualSunVectors", "nearShadingCore"]);
+  const getAnnualSunVectors = getCalpinageLegacyCapability<AnnualSunVectorsFn>("annualSunVectors");
+  const core = getCalpinageLegacyCapability<NearShadingCoreLike>("nearShadingCore");
 
   if (typeof getAnnualSunVectors !== "function" || !core?.computeNearShading) {
     // ERREUR EXPLICITE — ne jamais retourner 0 silencieusement pour une valeur de perte.
@@ -83,7 +84,7 @@ function computeNearShadingLegacy(
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent("calpinage:near-shading-unavailable", {
-          detail: { reason: "BUNDLE_NOT_LOADED" },
+          detail: { reason: "BUNDLE_NOT_LOADED", bridge },
         })
       );
     }
@@ -139,7 +140,7 @@ function computeNearShadingLegacy(
     useZLocal,
     metersPerPixel: mpp,
     debug,
-  });
+  }) as Omit<ComputeNearShadingFrontendResult, "officialNear">;
 }
 
 /**
@@ -149,7 +150,9 @@ function computeNearShadingLegacy(
 export function computeNearShadingFrontend(
   params: ComputeNearShadingFrontendParams
 ): ComputeNearShadingFrontendResult {
-  warnOnceIfExperimentalNearCanonicalMayDivergeFromBackend(CANONICAL_3D_NEAR_SHADING_ENABLED);
+  warnOnceIfExperimentalNearCanonicalMayDivergeFromBackend(
+    getCanonicalNearShadingFlagResolution().state === "ENABLED",
+  );
   const legacy = computeNearShadingLegacy(params);
   const attempt = attemptCanonicalNearShading(params);
   const out = mergeOfficialNearShading(legacy, attempt, params.panels);

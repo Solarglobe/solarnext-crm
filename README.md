@@ -6,30 +6,22 @@ Voir `/docs/product/SOLARGLOBE_CRM_MONOREPO_STRUCTURE_V1.md` pour l'arborescence
 
 ## Environnements
 
-- .env.dev utilisé en local
-- .env.prod utilisé en production
+- Frontend : Vercel, projet lié dans `.vercel/project.json`
+- Backend : serveur Infomaniak/VPS, service Node géré côté serveur
+- Variables production : injectées sur le serveur backend, jamais déduites de `.env.dev` ou `backend/.env`
 - Aucun secret ne doit être commit
-- Copier .env.dev → .env avant run local
+- Les anciens fichiers `.env` locaux peuvent contenir des valeurs obsolètes et ne décrivent pas l'infrastructure production
 
 ### Base de données
 
-Toutes les migrations et scripts utilisent la base :
-solarnext
+Le backend lit PostgreSQL via `DATABASE_URL` injectée dans l'environnement réel du serveur Infomaniak.
+Les anciennes URL Railway ou locales ne doivent pas être utilisées comme production.
 
-Assurez-vous que DATABASE_URL dans .env et .env.dev pointe vers :
-postgresql://postgres:postgres@localhost:5432/solarnext
+## Déploiement
 
-## Lancer le projet en local
+La procédure backend versionnée dans ce dépôt est :
+`infrastructure/scripts/deploy.sh`
 
-<!-- Migrations: cd backend && npm run migrate:up -->
-
-1. Copier .env.dev en .env si nécessaire
-2. Lancer :
-
-```bash
-docker compose up --build
-```
-
-- Backend : http://localhost:3000
-- PostgreSQL : localhost:5432
-- Frontend : selon configuration existante
+Elle exécute sur le serveur : `git pull --ff-only origin main`, `npm ci --omit=dev`,
+`npm run migrate:up`, import PV idempotent, `pm2 reload solarnext-api --wait-ready`,
+puis health check `http://localhost:3000/api/health/ready` depuis le serveur.

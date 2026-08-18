@@ -31,6 +31,10 @@ export function useDataUrlTexture(dataUrl: string): THREE.Texture | null {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
 
   useEffect(() => {
+    if (!dataUrl) {
+      setTexture(null);
+      return;
+    }
     const img = new Image();
     const tex = new THREE.Texture(img);
     /**

@@ -1,5 +1,5 @@
 /**
- * URL PostgreSQL résolue (host local vs service Docker "db").
+ * URL PostgreSQL résolue depuis l'environnement backend.
  * Logique centralisée dans config/database.cjs (CommonJS pour node-pg-migrate).
  */
 import { createRequire } from "module";

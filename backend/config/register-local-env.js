@@ -1,6 +1,6 @@
 /**
  * À importer en premier dans les scripts (après shebang si présent).
- * Si `DATABASE_URL` est déjà défini (Railway, `railway run`, CI) : **aucun** chargement
+ * Si `DATABASE_URL` est déjà défini par l'hébergeur ou la CI : **aucun** chargement
  * de fichiers `.env` et **aucune** importation du module `dotenv` → pas de logs
  * « injecting env from .env.dev ».
  */

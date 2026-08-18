@@ -84,6 +84,14 @@ check({
     if (!/^postgres(ql)?:\/\//.test(v)) {
       return `doit commencer par postgresql:// ou postgres:// — reçu : "${v.slice(0, 40)}…"`;
     }
+    try {
+      const url = new URL(v);
+      if (url.hostname.toLowerCase().includes("railway")) {
+        return "URL Railway obsolète refusée : le backend production attendu est Infomaniak";
+      }
+    } catch {
+      return "URL PostgreSQL invalide";
+    }
     return null;
   },
   hint: "Exemple : postgresql://user:pass@host:5432/dbname",
@@ -120,10 +128,10 @@ check({
   hint: "Exemple : https://solarnext-crm.vercel.app",
 });
 
-// SMTP — warning uniquement (jamais fatal sauf si SMTP_REQUIRED=1 sur Railway).
+// SMTP — warning uniquement (jamais fatal sauf si SMTP_REQUIRED=1).
 // Logique : si aucune var SMTP n'est définie → warning global "mail désactivé".
 //           Si partiellement défini → warning par var manquante.
-//           Ajouter SMTP_REQUIRED=1 dans Railway pour rendre le bloc bloquant.
+//           Ajouter SMTP_REQUIRED=1 dans l'environnement backend pour rendre le bloc bloquant.
 const SMTP_REQUIRED = IS_PROD && process.env.SMTP_REQUIRED === "1";
 const smtpVarNames = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"];
 const smtpDefined = smtpVarNames.filter((k) => String(process.env[k] ?? "").trim());

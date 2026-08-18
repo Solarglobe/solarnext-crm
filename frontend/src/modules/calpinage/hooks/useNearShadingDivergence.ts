@@ -6,12 +6,13 @@
  *
  * Garanties anti-régression :
  * - Ne touche PAS aux moteurs de calcul (nearShadingCore.cjs, runCanonicalNearShadingPipeline).
- * - Ne dispatche PAS si le moteur canonical n'a pas été retenu (official.engine !== "canonical_3d").
+ * - Ne dispatche PAS si le moteur canonical n'a pas été retenu (official.engine !== "CANONICAL_3D").
  * - Ne dispatche PAS deux fois pour le même couple (canonical, backend) — pas de spam si user dismiss.
  * - Événement non-bloquant : aucune action automatique, uniquement notification.
  */
 
 import { useEffect } from "react";
+import { getCalpinageLegacyCapability, subscribeCalpinageLegacyEvent } from "../runtime/calpinageRuntime";
 
 export const NEAR_SHADING_DIVERGENCE_THRESHOLD = 0.02; // 2 %
 
@@ -48,13 +49,14 @@ function readNearDivergence(): {
   backend: number;
   delta: number;
 } | null {
-  const near = (window as CalpinageWindow).CALPINAGE_STATE?.shading?.normalized?.near;
+  const state = getCalpinageLegacyCapability<CalpinageWindow["CALPINAGE_STATE"]>("state");
+  const near = state?.shading?.normalized?.near;
   if (!near || typeof near !== "object") return null;
 
   // Divergence pertinente uniquement si le canonical a effectivement été retenu
   const official = near.official;
   if (!official || typeof official !== "object") return null;
-  if (official.engine !== "canonical_3d") return null;
+  if (official.engine !== "CANONICAL_3D") return null;
 
   const canonical3d = near.canonical3d;
   if (!canonical3d || typeof canonical3d !== "object") return null;
@@ -108,11 +110,11 @@ export function useNearShadingDivergence(): void {
     };
 
     check(); // vérification immédiate au montage
-    window.addEventListener("phase3:update", check);
+    const unsubscribe = subscribeCalpinageLegacyEvent("phase3:update", check);
     const id = setInterval(check, 2000); // polling défensif (calcul async)
 
     return () => {
-      window.removeEventListener("phase3:update", check);
+      unsubscribe();
       clearInterval(id);
     };
   }, []);

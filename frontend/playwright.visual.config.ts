@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
+  metadata: { calpinageStressMode: "dev" },
   testDir: "./tests/visual",
   timeout: 120000,
   fullyParallel: false,

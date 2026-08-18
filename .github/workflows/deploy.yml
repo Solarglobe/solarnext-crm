@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      rollback_vercel_deployment:
+        description: "Optional previous Vercel deployment URL/ID to rollback instead of deploying"
+        required: false
+        type: string
 
 concurrency:
   group: deploy-main
@@ -13,14 +18,31 @@ concurrency:
 jobs:
   quality-gates:
     name: Re-run CI gates before deploy
-    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && (github.event_name != 'workflow_dispatch' || inputs.rollback_vercel_deployment == '') }}
     uses: ./.github/workflows/ci.yml
 
-  deploy-vercel:
-    name: Deploy Frontend to Vercel
+  rollback-vercel:
+    name: Rollback Frontend on Vercel
+    runs-on: ubuntu-latest
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' && inputs.rollback_vercel_deployment != '') }}
+    steps:
+      - name: Rollback requested deployment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          ROLLBACK_DEPLOYMENT: ${{ inputs.rollback_vercel_deployment }}
+        run: |
+          test -n "$ROLLBACK_DEPLOYMENT"
+          npx vercel rollback "$ROLLBACK_DEPLOYMENT" --yes --token="$VERCEL_TOKEN"
+
+  vercel-preview:
+    name: Build Preview on Vercel
     runs-on: ubuntu-latest
     needs: quality-gates
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.DEPLOY_FRONTEND == 'vercel' }}
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.DEPLOY_FRONTEND == 'vercel' && (github.event_name != 'workflow_dispatch' || inputs.rollback_vercel_deployment == '') }}
+    outputs:
+      preview_url: ${{ steps.deploy-preview.outputs.preview_url }}
+      previous_production_deployment: ${{ steps.previous-prod.outputs.deployment_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -30,22 +52,66 @@ jobs:
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Vercel CLI and deploy
+      - name: Capture previous production deployment
+        id: previous-prod
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        run: |
+          node <<'NODE' > previous-production-deployment.txt
+          const token = process.env.VERCEL_TOKEN;
+          const projectId = process.env.VERCEL_PROJECT_ID;
+          const teamId = process.env.VERCEL_ORG_ID;
+          const url = new URL("https://api.vercel.com/v6/deployments");
+          url.searchParams.set("projectId", projectId);
+          url.searchParams.set("teamId", teamId);
+          url.searchParams.set("target", "production");
+          url.searchParams.set("limit", "1");
+          const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) throw new Error(`Previous production lookup failed: HTTP ${res.status}`);
+          const data = await res.json();
+          const deployment = data.deployments?.[0];
+          console.log(deployment?.url ? `https://${deployment.url}` : "");
+          NODE
+          echo "deployment_url=$(cat previous-production-deployment.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and deploy Preview
+        id: deploy-preview
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           npm ci --prefix frontend
-          npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-          npm run --prefix frontend build
-          npx vercel deploy --prod --yes --token="$VERCEL_TOKEN"
+          npx vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          npx vercel build --token="$VERCEL_TOKEN"
+          PREVIEW_URL="$(npx vercel deploy --prebuilt --yes --token="$VERCEL_TOKEN")"
+          echo "preview_url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+
+  preview-smoke-tests:
+    name: Validate Vercel Preview
+    runs-on: ubuntu-latest
+    needs: vercel-preview
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.DEPLOY_FRONTEND == 'vercel' && (github.event_name != 'workflow_dispatch' || inputs.rollback_vercel_deployment == '') }}
+    steps:
+      - name: Preview HTTP and Calpinage assets
+        env:
+          PREVIEW_URL: ${{ needs.vercel-preview.outputs.preview_url }}
+        run: |
+          test -n "$PREVIEW_URL"
+          curl --fail --silent --show-error "$PREVIEW_URL/"
+          curl --fail --silent --show-error "$PREVIEW_URL/config/vite-public-runtime.js"
+          curl --fail --silent --show-error "$PREVIEW_URL/calpinage/canvas-bundle.js"
+          curl --fail --silent --show-error "$PREVIEW_URL/calpinage/shading/nearShadingCore.cjs"
 
   deploy-vps:
     name: Deploy Backend to VPS
     runs-on: ubuntu-latest
-    needs: quality-gates
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.DEPLOY_BACKEND == 'vps' }}
+    needs:
+      - quality-gates
+      - preview-smoke-tests
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.DEPLOY_BACKEND == 'vps' && (github.event_name != 'workflow_dispatch' || inputs.rollback_vercel_deployment == '') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,13 +134,13 @@ jobs:
           ssh "$VPS_USER@$VPS_HOST" "$VPS_DEPLOY_COMMAND"
 
   smoke-tests:
-    name: Post-deploy Smoke Tests
+    name: Post-backend Smoke Tests
     runs-on: ubuntu-latest
     needs:
       - quality-gates
-      - deploy-vercel
+      - preview-smoke-tests
       - deploy-vps
-    if: ${{ always() && vars.DEPLOY_ENABLED == 'true' && needs.quality-gates.result == 'success' && (needs.deploy-vercel.result == 'success' || needs.deploy-vercel.result == 'skipped') && (needs.deploy-vps.result == 'success' || needs.deploy-vps.result == 'skipped') }}
+    if: ${{ always() && vars.DEPLOY_ENABLED == 'true' && (github.event_name != 'workflow_dispatch' || inputs.rollback_vercel_deployment == '') && needs.quality-gates.result == 'success' && (needs.preview-smoke-tests.result == 'success' || needs.preview-smoke-tests.result == 'skipped') && (needs.deploy-vps.result == 'success' || needs.deploy-vps.result == 'skipped') }}
     env:
       API_BASE_URL: ${{ secrets.PRODUCTION_API_BASE_URL }}
     steps:
@@ -86,6 +152,43 @@ jobs:
       - name: Financial engine health endpoint
         run: |
           curl --fail --silent --show-error "$API_BASE_URL/api/health/financial-engine"
+
+  promote-vercel:
+    name: Promote Validated Vercel Preview
+    runs-on: ubuntu-latest
+    needs:
+      - vercel-preview
+      - preview-smoke-tests
+      - deploy-vps
+      - smoke-tests
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.DEPLOY_FRONTEND == 'vercel' && (github.event_name != 'workflow_dispatch' || inputs.rollback_vercel_deployment == '') && needs.preview-smoke-tests.result == 'success' && (needs.deploy-vps.result == 'success' || needs.deploy-vps.result == 'skipped') && needs.smoke-tests.result == 'success' }}
+    steps:
+      - name: Promote exact validated Preview
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          PREVIEW_URL: ${{ needs.vercel-preview.outputs.preview_url }}
+          PREVIOUS_PRODUCTION_DEPLOYMENT: ${{ needs.vercel-preview.outputs.previous_production_deployment }}
+        run: |
+          test -n "$PREVIEW_URL"
+          echo "Previous production deployment: $PREVIOUS_PRODUCTION_DEPLOYMENT"
+          npx vercel promote "$PREVIEW_URL" --yes --token="$VERCEL_TOKEN"
+
+  production-frontend-smoke-tests:
+    name: Validate Vercel Production
+    runs-on: ubuntu-latest
+    needs: promote-vercel
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.DEPLOY_FRONTEND == 'vercel' && (github.event_name != 'workflow_dispatch' || inputs.rollback_vercel_deployment == '') }}
+    env:
+      FRONTEND_PRODUCTION_URL: ${{ vars.FRONTEND_PRODUCTION_URL }}
+    steps:
+      - name: Production HTTP and Calpinage assets
+        run: |
+          test -n "$FRONTEND_PRODUCTION_URL"
+          curl --fail --silent --show-error "$FRONTEND_PRODUCTION_URL/"
+          curl --fail --silent --show-error "$FRONTEND_PRODUCTION_URL/config/vite-public-runtime.js"
+          curl --fail --silent --show-error "$FRONTEND_PRODUCTION_URL/calpinage/canvas-bundle.js"
+          curl --fail --silent --show-error "$FRONTEND_PRODUCTION_URL/calpinage/shading/nearShadingCore.cjs"
 
   deploy-disabled:
     name: Deploy Disabled Notice

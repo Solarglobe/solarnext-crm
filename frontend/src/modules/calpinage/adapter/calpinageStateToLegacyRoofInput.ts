@@ -343,6 +343,8 @@ export function calpinageStateToLegacyRoofInput(
       | undefined;
     const tiltDegHint = physical?.slope?.valueDeg;
     const azimuthDegHint = physical?.orientation?.azimuthDeg;
+    const roofKind = typeof pan.roofType === "string" ? pan.roofType : null;
+    const roofKindProvenance = roofKind != null ? "EXPLICIT" : "UNRESOLVED";
 
     pans.push({
       id: panId,
@@ -350,6 +352,8 @@ export function calpinageStateToLegacyRoofInput(
       sourceIndex: i,
       ...(typeof tiltDegHint === "number" ? { tiltDegHint } : {}),
       ...(typeof azimuthDegHint === "number" ? { azimuthDegHint } : {}),
+      ...(roofKind != null ? { roofKind } : {}),
+      roofKindProvenance,
     });
   }
 

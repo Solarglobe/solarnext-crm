@@ -30,6 +30,10 @@ import {
   VIEWER_PLAN_ORBIT_MIN_POLAR,
 } from "./viewerConstants";
 import { isCalpinage3DRuntimeDebugEnabled, logCalpinage3DDebug } from "../../core/calpinage3dRuntimeDebug";
+import {
+  cameraLifecycleSnapshot,
+  updateViewerLifecycleDiagnostics,
+} from "./viewerLifecycleDiagnostics";
 
 /** Seuil de snap : quand la caméra est à < LERP_SNAP_THRESHOLD m de la cible, snap immédiat. */
 const LERP_SNAP_THRESHOLD = 0.01;
@@ -125,6 +129,12 @@ export function CameraFramingRig({
           ctrl.update();
         }
 
+        updateViewerLifecycleDiagnostics({
+          cameraInitialized: true,
+          cameraFitExecuted: true,
+          camera: cameraLifecycleSnapshot(camera, f.target),
+        });
+
         if (isCalpinage3DRuntimeDebugEnabled()) {
           logCalpinage3DDebug("[CameraFramingRig] PLAN_2D framing", { mode, aspect, f });
         }
@@ -163,6 +173,12 @@ export function CameraFramingRig({
         ctrl.update();
       }
 
+      updateViewerLifecycleDiagnostics({
+        cameraInitialized: true,
+        cameraFitExecuted: true,
+        camera: cameraLifecycleSnapshot(camera, f3.target),
+      });
+
       if (isCalpinage3DRuntimeDebugEnabled()) {
         logCalpinage3DDebug("[CameraFramingRig] SCENE_3D framing", { mode, aspect, f3 });
       }
@@ -178,7 +194,14 @@ export function CameraFramingRig({
    * L’utilisateur peut interrompre : l’event "start" d’OrbitControls met lerpActive à false.
    */
   useFrame((_, delta) => {
-    if (!lerpActive.current) return;
+    if (!lerpActive.current) {
+      updateViewerLifecycleDiagnostics({
+        cameraInitialized: true,
+        cameraFitExecuted: true,
+        camera: cameraLifecycleSnapshot(camera, controlsRef.current?.target ?? lerpTargetLookAt.current),
+      });
+      return;
+    }
     const factor = 1 - Math.pow(0.001, delta);
     camera.position.lerp(lerpTargetPos.current, factor);
     camera.lookAt(lerpTargetLookAt.current);
@@ -187,6 +210,11 @@ export function CameraFramingRig({
       camera.lookAt(lerpTargetLookAt.current);
       lerpActive.current = false;
     }
+    updateViewerLifecycleDiagnostics({
+      cameraInitialized: true,
+      cameraFitExecuted: true,
+      camera: cameraLifecycleSnapshot(camera, lerpTargetLookAt.current),
+    });
     invalidate();
   }, 1); // priority 1 — après OrbitControls (-1)
 

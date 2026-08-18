@@ -81,6 +81,44 @@ export function normalizeFlagValue(raw: string | undefined): boolean {
   return s === "true" || s === "1" || s === "yes" || s === "on";
 }
 
+export type StrictBooleanFeatureFlagState = "ENABLED" | "DISABLED" | "MISCONFIGURED";
+
+export type StrictBooleanFeatureFlagResolution = {
+  readonly state: StrictBooleanFeatureFlagState;
+  readonly enabled: boolean;
+  readonly raw: string | undefined;
+  readonly envKey: string;
+  readonly diagnosticCode?: string;
+  readonly message?: string;
+};
+
+/**
+ * Parseur strict pour les flags commerciaux sensibles.
+ * Seules les valeurs absente / "true" / "false" sont acceptées afin d'éviter
+ * qu'une chaîne non vide ou un alias historique active un moteur sans intention explicite.
+ */
+export function resolveStrictBooleanEnvFlag(envKey: string): StrictBooleanFeatureFlagResolution {
+  const raw = resolveEnvFlag(envKey);
+  if (raw == null) {
+    return { state: "DISABLED", enabled: false, raw, envKey };
+  }
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === "true") {
+    return { state: "ENABLED", enabled: true, raw, envKey };
+  }
+  if (normalized === "false") {
+    return { state: "DISABLED", enabled: false, raw, envKey };
+  }
+  return {
+    state: "MISCONFIGURED",
+    enabled: false,
+    raw,
+    envKey,
+    diagnosticCode: "FEATURE_FLAG_INVALID_BOOLEAN",
+    message: `${envKey} doit valoir exactement "true" ou "false".`,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // API principale
 // ---------------------------------------------------------------------------

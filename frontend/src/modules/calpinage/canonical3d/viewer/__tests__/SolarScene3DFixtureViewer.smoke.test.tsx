@@ -13,6 +13,33 @@ import {
 import { SolarScene3DViewer } from "../SolarScene3DViewer";
 
 const origGetContext = HTMLCanvasElement.prototype.getContext;
+const INCLINED_MIN_TILT_DEG = 0.75;
+const INCLINED_MIN_Z_SPAN_M = 0.02;
+
+function expectFinitePositiveRoofGeometry(scene: NonNullable<ReturnType<typeof buildSolarScene3DFromCalpinageRuntime>["scene"]>) {
+  for (const patch of scene.roofModel.roofPlanePatches) {
+    expect(Number.isFinite(patch.surface.areaM2)).toBe(true);
+    expect(patch.surface.areaM2).toBeGreaterThan(0);
+    expect(patch.cornersWorld.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z))).toBe(true);
+    expect(Number.isFinite(patch.normal.x) && Number.isFinite(patch.normal.y) && Number.isFinite(patch.normal.z)).toBe(true);
+    expect(Number.isFinite(patch.tiltDeg ?? Number.NaN)).toBe(true);
+  }
+}
+
+function expectFixtureBusinessGeometry(fixtureId: string, scene: NonNullable<ReturnType<typeof buildSolarScene3DFromCalpinageRuntime>["scene"]>) {
+  expectFinitePositiveRoofGeometry(scene);
+  if (fixtureId !== "simple_gable_clean") return;
+
+  expect(scene.metadata.geometryTruthStatus).toBe("VALID");
+  expect(scene.metadata.roofQualityPhaseA?.quality).toBe("TRUTHFUL");
+  expect(scene.roofModel.roofPlanePatches).toHaveLength(2);
+  for (const patch of scene.roofModel.roofPlanePatches) {
+    const zs = patch.cornersWorld.map((p) => p.z);
+    expect(Math.max(...zs) - Math.min(...zs)).toBeGreaterThan(INCLINED_MIN_Z_SPAN_M);
+    expect(patch.tiltDeg).toBeGreaterThan(INCLINED_MIN_TILT_DEG);
+    expect(patch.geometryTruthStatus).toBe("VALID");
+  }
+}
 
 beforeAll(() => {
   globalThis.ResizeObserver =
@@ -98,6 +125,7 @@ describe("SolarScene3DViewer — smoke fixtures officielles", () => {
       expect(res.ok, JSON.stringify(res.diagnostics.errors)).toBe(true);
       expect(res.scene).not.toBeNull();
       const scene = res.scene!;
+      expectFixtureBusinessGeometry(fixtureId, scene);
 
       const { unmount } = render(
         <SolarScene3DViewer scene={scene} height={220} showSun={false} inspectMode />,

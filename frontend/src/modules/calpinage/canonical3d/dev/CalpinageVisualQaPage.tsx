@@ -1,8 +1,9 @@
 import type { CSSProperties } from "react";
-import { useMemo } from "react";
+import { StrictMode, useEffect, useMemo, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { buildSolarScene3DFromCalpinageRuntime } from "../buildSolarScene3DFromCalpinageRuntime";
 import { SolarScene3DViewer } from "../viewer/SolarScene3DViewer";
+import type { GeometryTruthStatus } from "../types/quality";
 import { isPremiumHouse3DViewMode } from "../viewer/premium/premiumHouse3DViewModes";
 import {
   getRuntime3DFixture,
@@ -39,6 +40,12 @@ const stage: CSSProperties = {
   minHeight: 0,
   display: "grid",
   gridTemplateColumns: "minmax(280px, 32%) 1fr",
+};
+
+const mobileStage: CSSProperties = {
+  minHeight: 0,
+  display: "grid",
+  gridTemplateRows: "34% 66%",
 };
 
 const panel2d: CSSProperties = {
@@ -239,17 +246,92 @@ export default function CalpinageVisualQaPage() {
 
   const [params] = useSearchParams();
   const requested = params.get("fixture") ?? "visual_qa_premium_complex";
-  const bundle = getRuntime3DFixture(requested) ?? getRuntime3DFixture("visual_qa_premium_complex")!;
+  const switchTo = params.get("switchTo");
+  const delivery = params.get("delivery") === "after" ? "after" : "before";
+  const remountCycles = Math.max(0, Math.min(6, Number(params.get("remount") ?? "0") || 0));
+  const strictMode = params.get("strict") === "1";
+  const reliability = params.get("reliability");
   const viewParam = params.get("view");
   const premiumViewMode = isPremiumHouse3DViewMode(viewParam) ? viewParam : "validation";
   const pvOverlayMode = params.get("pv") === "1";
+  const [fixtureId, setFixtureId] = useState(requested);
+  const [dataReady, setDataReady] = useState(delivery === "before");
+  const [mountEpoch, setMountEpoch] = useState(0);
+  const [compactLayout, setCompactLayout] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 720 : false,
+  );
+
+  useEffect(() => {
+    const updateLayout = () => setCompactLayout(window.innerWidth < 720);
+    updateLayout();
+    window.addEventListener("resize", updateLayout);
+    return () => window.removeEventListener("resize", updateLayout);
+  }, []);
+
+  useEffect(() => {
+    setFixtureId(requested);
+    setDataReady(delivery === "before");
+    setMountEpoch(0);
+    if (delivery === "after") {
+      const frame = window.requestAnimationFrame(() => setDataReady(true));
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [delivery, requested]);
+
+  useEffect(() => {
+    if (!dataReady || remountCycles <= 0) return;
+    let count = 0;
+    let frame = 0;
+    const tick = () => {
+      count += 1;
+      setMountEpoch(count);
+      if (count < remountCycles) frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [dataReady, remountCycles]);
+
+  useEffect(() => {
+    if (!dataReady || !switchTo) return;
+    const frame = window.requestAnimationFrame(() => setFixtureId(switchTo));
+    return () => window.cancelAnimationFrame(frame);
+  }, [dataReady, switchTo]);
+
+  const bundle = getRuntime3DFixture(fixtureId) ?? getRuntime3DFixture("visual_qa_premium_complex")!;
 
   installPvOverlayQaFixture(bundle, pvOverlayMode);
 
   const state = useMemo(() => {
+    if (!dataReady) return null;
     const runtime = runtimeFixtureWithStrictRootPans(bundle.runtime);
-    return buildSolarScene3DFromCalpinageRuntime(runtime, { getAllPanels: () => bundle.panels });
-  }, [bundle]);
+    const result = buildSolarScene3DFromCalpinageRuntime(runtime, { getAllPanels: () => bundle.panels });
+    if (result.ok && result.scene && (reliability === "invalid" || reliability === "degraded")) {
+      const geometryTruthStatus: GeometryTruthStatus =
+        reliability === "invalid" ? "INVALID" : "DEGRADED";
+      return {
+        ...result,
+        scene: {
+          ...result.scene,
+          metadata: {
+            ...result.scene.metadata,
+            geometryTruthStatus,
+            geometryTruthInvalidPatchCount: reliability === "invalid" ? 1 : 0,
+            geometryTruthDegradedPatchCount: reliability === "degraded" ? 1 : 0,
+          },
+        },
+      };
+    }
+    return result;
+  }, [bundle, dataReady, reliability]);
+
+  if (!dataReady || state == null) {
+    return (
+      <div style={shell} data-testid="visual-qa-root" data-qa-data-ready="false">
+        <header style={header}>Calpinage Visual QA</header>
+        <main style={{ padding: 24 }} data-testid="visual-qa-loading">Chargement fixture</main>
+      </div>
+    );
+  }
 
   if (!state.ok || !state.scene) {
     return (
@@ -271,30 +353,58 @@ export default function CalpinageVisualQaPage() {
           panneaux={state.scene.pvPanels.length}
         </span>
       </header>
-      <main style={stage} data-testid="visual-qa-stage">
+      <main style={compactLayout ? mobileStage : stage} data-testid="visual-qa-stage">
         <FixturePlan2D bundle={bundle} />
         <section style={viewerWrap} data-testid="visual-qa-viewer-3d">
-          <SolarScene3DViewer
-            scene={state.scene}
-            height="100%"
-            showRoof
-            showRoofTruthBadges
-            showMissingHeightAlerts
-            showMultiPanDiagnostics
-            showRoofEdges
-            showObstacles
-            showExtensions
-            showPanels
-            showPanelShading
-            showShadingLegend
-            showSun
-            showDebugOverlay={false}
-            inspectMode
-            pvLayout3DInteractionMode={pvOverlayMode}
-            premiumViewMode={premiumViewMode}
-            cameraViewMode="SCENE_3D"
-            showCameraViewModeToggle={false}
-          />
+          {strictMode ? (
+            <StrictMode>
+              <SolarScene3DViewer
+                key={`${state.scene.metadata.createdAtIso}:${mountEpoch}`}
+                scene={state.scene}
+                height="100%"
+                showRoof
+                showRoofTruthBadges
+                showMissingHeightAlerts
+                showMultiPanDiagnostics
+                showRoofEdges
+                showObstacles
+                showExtensions
+                showPanels
+                showPanelShading
+                showShadingLegend
+                showSun
+                showDebugOverlay={false}
+                inspectMode
+                pvLayout3DInteractionMode={pvOverlayMode}
+                premiumViewMode={premiumViewMode}
+                cameraViewMode="SCENE_3D"
+                showCameraViewModeToggle={false}
+              />
+            </StrictMode>
+          ) : (
+            <SolarScene3DViewer
+              key={`${state.scene.metadata.createdAtIso}:${mountEpoch}`}
+              scene={state.scene}
+              height="100%"
+              showRoof
+              showRoofTruthBadges
+              showMissingHeightAlerts
+              showMultiPanDiagnostics
+              showRoofEdges
+              showObstacles
+              showExtensions
+              showPanels
+              showPanelShading
+              showShadingLegend
+              showSun
+              showDebugOverlay={false}
+              inspectMode
+              pvLayout3DInteractionMode={pvOverlayMode}
+              premiumViewMode={premiumViewMode}
+              cameraViewMode="SCENE_3D"
+              showCameraViewModeToggle={false}
+            />
+          )}
         </section>
       </main>
     </div>

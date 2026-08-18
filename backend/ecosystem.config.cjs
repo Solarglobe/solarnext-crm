@@ -5,7 +5,7 @@ module.exports = {
     {
       name: 'solarnext-api',
       script: 'server.js',
-      cwd: '/home/ubuntu/solarnext-crm/backend',
+      cwd: process.env.SOLARNEXT_BACKEND_CWD || '/home/ubuntu/solarnext-crm/backend',
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,

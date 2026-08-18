@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 /**
+ * OBSOLETE / HISTORIQUE : ancien outil de restauration vers Railway.
+ * Railway est hors architecture active (backend actuel attendu chez Infomaniak).
+ *
  * Copie un dossier local (même arborescence que les storage_key) vers /app/storage sur Railway.
  * Méthode : `tar` (évent. `-z`) (local) | `railway ssh` `sh -c` avec `dd` + `tar` sur fichier
  * (pas de `tar -f -` : PTY SSH → GNU tar refuse la lecture sur stdin).
@@ -10,11 +13,9 @@
  * Usage (le chemin passé à `node` est relatif au répertoire courant du terminal) :
  *   Depuis la racine du dépôt (Solarnext-crm) :
  *     node backend/scripts/railway-restore-storage.mjs
- *     npm run restore:storage:railway
  *   Depuis le dossier backend/ : ne pas écrire `node backend/scripts/...` (erreur
  *   MODULE_NOT_FOUND → …\\backend\\backend\\scripts) ; utiliser plutôt :
  *     node scripts/railway-restore-storage.mjs
- *     npm run restore:storage:railway
  *   Autre dossier source :
  *     node backend/scripts/railway-restore-storage.mjs "C:\\chemin\\vers\\storage"
  *   --chunk   (ou RESTORE_TOP_LEVEL_CHUNKS=1) : une session SSH / une archive par répertoire de 1er niveau.
