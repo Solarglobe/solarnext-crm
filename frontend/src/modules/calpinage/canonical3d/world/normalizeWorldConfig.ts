@@ -38,6 +38,28 @@ export type NormalizeWorldConfigInput = {
   readonly referenceFrame?: unknown;
 };
 
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+function finitePositiveNumber(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : undefined;
+}
+
+function finiteNumber(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+function readNestedRecord(root: Record<string, unknown>, path: readonly string[]): Record<string, unknown> | null {
+  let current: unknown = root;
+  for (const key of path) {
+    const rec = asRecord(current);
+    if (!rec) return null;
+    current = rec[key];
+  }
+  return asRecord(current);
+}
+
 /**
  * Extrait l’échelle / nord / repère depuis un state calpinage sans rien inventer.
  * - `northAngleDeg` : uniquement si `roof.roof.north.angleDeg` est un nombre fini (pas de 0 par défaut).
@@ -51,35 +73,37 @@ export function peekCalpinageRuntimeWorldFrame(state: unknown): {
   readonly referenceFrame: "LOCAL_IMAGE_ENU" | undefined;
 } | null {
   if (!state || typeof state !== "object") return null;
-  const roof = (state as Record<string, unknown>).roof;
-  if (!roof || typeof roof !== "object") return null;
-  const r = roof as Record<string, unknown>;
-  const scale = r.scale as { metersPerPixel?: number } | undefined;
-  const mpp = scale?.metersPerPixel;
-  if (typeof mpp !== "number" || !Number.isFinite(mpp) || mpp <= 0) return null;
+  const root = state as Record<string, unknown>;
+  const roof = asRecord(root.roof);
+  const roofState = asRecord(root.roofState);
+  const validatedRoofData = asRecord(root.validatedRoofData);
 
-  const roofBlock = r.roof as { north?: { angleDeg?: number } } | undefined;
-  const rawNorth = roofBlock?.north?.angleDeg;
+  const mpp =
+    finitePositiveNumber(readNestedRecord(root, ["roof", "scale"])?.metersPerPixel) ??
+    finitePositiveNumber(readNestedRecord(root, ["roofState", "canonical3DWorldContract"])?.metersPerPixel) ??
+    finitePositiveNumber(readNestedRecord(root, ["roofState", "scale"])?.metersPerPixel) ??
+    finitePositiveNumber(readNestedRecord(root, ["validatedRoofData", "scale"])?.metersPerPixel);
+  if (mpp === undefined) return null;
+
   const northAngleDeg =
-    typeof rawNorth === "number" && Number.isFinite(rawNorth) ? rawNorth : undefined;
+    finiteNumber(readNestedRecord(root, ["roof", "roof", "north"])?.angleDeg) ??
+    finiteNumber(readNestedRecord(root, ["roofState", "canonical3DWorldContract"])?.northAngleDeg) ??
+    finiteNumber(readNestedRecord(root, ["roofState", "roof", "north"])?.angleDeg) ??
+    finiteNumber(readNestedRecord(root, ["validatedRoofData", "north", "north"])?.angleDeg);
 
-  const contract = r.canonical3DWorldContract as {
-    referenceFrame?: unknown;
-    metersPerPixel?: unknown;
-    northAngleDeg?: unknown;
-  } | undefined;
+  const contract =
+    asRecord(roof?.canonical3DWorldContract) ??
+    asRecord(roofState?.canonical3DWorldContract) ??
+    asRecord(validatedRoofData?.canonical3DWorldContract);
 
   let referenceFrame: "LOCAL_IMAGE_ENU" | undefined;
   if (
     contract?.referenceFrame === "LOCAL_IMAGE_ENU" &&
-    typeof contract.metersPerPixel === "number" &&
-    Number.isFinite(contract.metersPerPixel) &&
-    contract.metersPerPixel > 0 &&
-    typeof contract.northAngleDeg === "number" &&
-    Number.isFinite(contract.northAngleDeg) &&
+    finitePositiveNumber(contract.metersPerPixel) !== undefined &&
+    finiteNumber(contract.northAngleDeg) !== undefined &&
     northAngleDeg !== undefined &&
-    Math.abs(contract.metersPerPixel - mpp) <= MPP_CONTRACT_DRIFT_EPS &&
-    Math.abs(contract.northAngleDeg - northAngleDeg) <= NORTH_CONTRACT_DRIFT_EPS
+    Math.abs(Number(contract.metersPerPixel) - mpp) <= MPP_CONTRACT_DRIFT_EPS &&
+    Math.abs(Number(contract.northAngleDeg) - northAngleDeg) <= NORTH_CONTRACT_DRIFT_EPS
   ) {
     referenceFrame = "LOCAL_IMAGE_ENU";
   }

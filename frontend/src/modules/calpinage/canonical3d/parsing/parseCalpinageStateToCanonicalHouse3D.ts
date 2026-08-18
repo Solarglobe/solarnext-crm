@@ -70,23 +70,41 @@ function finiteNum(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-function readMpp(state: Record<string, unknown>): number | null {
-  const roof = state.roof;
-  if (!isRecord(roof)) return null;
-  const scale = roof.scale;
-  if (!isRecord(scale)) return null;
-  return finiteNum(scale.metersPerPixel);
+function readRecordPath(root: Record<string, unknown>, path: readonly string[]): Record<string, unknown> | null {
+  let current: unknown = root;
+  for (const key of path) {
+    if (!isRecord(current)) return null;
+    current = current[key];
+  }
+  return isRecord(current) ? current : null;
 }
 
-function readNorthDegFromState(state: Record<string, unknown>): number {
-  const roof = state.roof;
-  if (!isRecord(roof)) return 0;
-  const rr = roof.roof;
-  if (!isRecord(rr)) return 0;
-  const north = rr.north;
-  if (!isRecord(north)) return 0;
-  const a = finiteNum(north.angleDeg);
-  return a ?? 0;
+function readMpp(state: Record<string, unknown>): { value: number | null; sourcePath: string } {
+  const sources: readonly [readonly string[], string][] = [
+    [["roof", "scale"], "state.roof.scale.metersPerPixel"],
+    [["roofState", "canonical3DWorldContract"], "state.roofState.canonical3DWorldContract.metersPerPixel"],
+    [["roofState", "scale"], "state.roofState.scale.metersPerPixel"],
+    [["validatedRoofData", "scale"], "state.validatedRoofData.scale.metersPerPixel"],
+  ];
+  for (const [path, sourcePath] of sources) {
+    const value = finiteNum(readRecordPath(state, path)?.metersPerPixel);
+    if (value !== null && value > 0) return { value, sourcePath };
+  }
+  return { value: null, sourcePath: "state.roof.scale.metersPerPixel" };
+}
+
+function readNorthDegFromState(state: Record<string, unknown>): { value: number; sourcePath: string } {
+  const sources: readonly [readonly string[], string][] = [
+    [["roof", "roof", "north"], "state.roof.roof.north.angleDeg"],
+    [["roofState", "canonical3DWorldContract"], "state.roofState.canonical3DWorldContract.northAngleDeg"],
+    [["roofState", "roof", "north"], "state.roofState.roof.north.angleDeg"],
+    [["validatedRoofData", "north", "north"], "state.validatedRoofData.north.north.angleDeg"],
+  ];
+  for (const [path, sourcePath] of sources) {
+    const value = finiteNum(readRecordPath(state, path)?.angleDeg ?? readRecordPath(state, path)?.northAngleDeg);
+    if (value !== null) return { value, sourcePath };
+  }
+  return { value: 0, sourcePath: "parser.defaultNorthAngleDeg" };
 }
 
 /** Conversion horizontale px → m : alignée convention `imagePxToWorldHorizontalM` (pont avec doc 3d-world-convention). */
@@ -103,6 +121,16 @@ function pointH(pt: unknown): number | null {
   return finiteNum(pt.h);
 }
 
+function panHasCompleteVertexHeights(pan: unknown): boolean {
+  if (!isRecord(pan)) return false;
+  const raw = panVertexSourceArray(pan);
+  return raw !== null && raw.length >= 3 && raw.every((pt) => pointH(pt) !== null);
+}
+
+function pansHaveCompleteVertexHeights(pans: readonly unknown[]): boolean {
+  return pans.length > 0 && pans.every((pan) => panHasCompleteVertexHeights(pan));
+}
+
 function selectPansSource(
   state: Record<string, unknown>,
   preferValidated: boolean | undefined,
@@ -110,15 +138,19 @@ function selectPansSource(
   const locked = state.roofSurveyLocked === true;
   const prefer = preferValidated !== false;
   const vrd = state.validatedRoofData;
+  const live = state.pans;
+  const livePans = Array.isArray(live) ? live : [];
   if (prefer && locked && isRecord(vrd)) {
     const vp = vrd.pans;
     if (Array.isArray(vp) && vp.length > 0) {
+      if (!pansHaveCompleteVertexHeights(vp) && pansHaveCompleteVertexHeights(livePans)) {
+        return { pans: livePans, label: "state.pans (validated_snapshot_missing_3d_heights)", priority: 1 };
+      }
       return { pans: vp, label: "validatedRoofData.pans", priority: 1 };
     }
   }
-  const live = state.pans;
-  if (Array.isArray(live) && live.length > 0) {
-    return { pans: live, label: "state.pans", priority: 2 };
+  if (livePans.length > 0) {
+    return { pans: livePans, label: "state.pans", priority: 2 };
   }
   if (isRecord(vrd) && Array.isArray(vrd.pans) && vrd.pans.length > 0) {
     return { pans: vrd.pans, label: "validatedRoofData.pans (unlocked_fallback)", priority: 3 };
@@ -266,8 +298,10 @@ export function parseCalpinageStateToCanonicalHouse3D(
   }
 
   const state = stateInput;
-  const mpp = readMpp(state);
-  const northDeg = readNorthDegFromState(state);
+  const mppResolution = readMpp(state);
+  const northResolution = readNorthDegFromState(state);
+  const mpp = mppResolution.value;
+  const northDeg = northResolution.value;
   let canonical3DWorldContractPresent = false;
 
   if (mpp === null || mpp <= 0) {
@@ -275,12 +309,13 @@ export function parseCalpinageStateToCanonicalHouse3D(
       code: "MISSING_METERS_PER_PIXEL",
       severity: "blocking",
       message: "roof.scale.metersPerPixel manquant ou invalide — pas de conversion px→m.",
-      path: "state.roof.scale.metersPerPixel",
+      path: mppResolution.sourcePath,
     });
   } else {
-    sourcesUsed.push("state.roof.scale.metersPerPixel");
+    sourcesUsed.push(mppResolution.sourcePath);
+    sourcesUsed.push(northResolution.sourcePath);
     worldProv.push({
-      sourcePath: "state.roof.scale.metersPerPixel",
+      sourcePath: mppResolution.sourcePath,
       sourceKind: "primary",
       sourcePriority: 1,
       isFallback: false,
@@ -289,9 +324,13 @@ export function parseCalpinageStateToCanonicalHouse3D(
   }
 
   const roof = state.roof;
+  const roofState = state.roofState;
   if (isRecord(roof) && roof.canonical3DWorldContract != null) {
     canonical3DWorldContractPresent = true;
     sourcesUsed.push("state.roof.canonical3DWorldContract (presence only)");
+  } else if (isRecord(roofState) && roofState.canonical3DWorldContract != null) {
+    canonical3DWorldContractPresent = true;
+    sourcesUsed.push("state.roofState.canonical3DWorldContract (presence only)");
   }
 
   const heightQuantities: HeightQuantity[] = [];
@@ -847,20 +886,19 @@ export function parseCalpinageStateToCanonicalHouse3D(
     },
   };
 
-  const worldPlacement: WorldPlacementBlock | undefined = isRecord(roof)
+  const gpsSource = isRecord(roof) && isRecord(roof.gps) ? roof.gps : isRecord(roofState) && isRecord(roofState.gps) ? roofState.gps : null;
+  const worldPlacement: WorldPlacementBlock | undefined = mpp !== null && mpp > 0
     ? {
-        gpsLatLon: isRecord(roof.gps)
-          ? { lat: finiteNum(roof.gps.lat) ?? 0, lon: finiteNum(roof.gps.lon) ?? 0 }
-          : undefined,
+        gpsLatLon: gpsSource ? { lat: finiteNum(gpsSource.lat) ?? 0, lon: finiteNum(gpsSource.lon) ?? 0 } : undefined,
         northAngleDeg: northDeg,
-        metersPerPixel: mpp ?? undefined,
+        metersPerPixel: mpp,
         imageSpaceOriginPolicy: "imagePxToWorldHorizontalM",
       }
     : undefined;
 
   if (worldPlacement) {
     worldProv.push({
-      sourcePath: "state.roof.gps | state.roof.roof.north | state.roof.scale",
+      sourcePath: `${mppResolution.sourcePath} | ${northResolution.sourcePath}`,
       sourceKind: "external",
       sourcePriority: 2,
       isFallback: false,

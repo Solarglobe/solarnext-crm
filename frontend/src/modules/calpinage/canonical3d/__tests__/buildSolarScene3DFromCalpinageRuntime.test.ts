@@ -101,6 +101,72 @@ describe("buildSolarScene3DFromCalpinageRuntime", () => {
     expect((roof.canonical3DWorldContract as { referenceFrame?: string }).referenceFrame).toBe("LOCAL_IMAGE_ENU");
   });
 
+  it("runtime format prod roofState + state.pans sans ancien state.roof → scène officielle ok", () => {
+    const runtime = {
+      roofSurveyLocked: true,
+      pans: [
+        {
+          id: "pan-prod-a",
+          polygonPx: [
+            { x: 100, y: 100, h: 6 },
+            { x: 200, y: 100, h: 6 },
+            { x: 200, y: 200, h: 7 },
+            { x: 100, y: 200, h: 7 },
+          ],
+        },
+      ],
+      roofState: {
+        scale: { metersPerPixel: 0.049 },
+        roof: { north: { angleDeg: 0 } },
+        canonical3DWorldContract: {
+          schemaVersion: 1,
+          metersPerPixel: 0.049,
+          northAngleDeg: 0,
+          referenceFrame: "LOCAL_IMAGE_ENU" as const,
+        },
+      },
+      validatedRoofData: {
+        scale: { metersPerPixel: 0.049 },
+        north: { north: { angleDeg: 0 } },
+        pans: [
+          {
+            id: "snapshot-2d-only",
+            polygon: [
+              { x: 100, y: 100 },
+              { x: 200, y: 100 },
+              { x: 200, y: 200 },
+              { x: 100, y: 200 },
+            ],
+          },
+        ],
+      },
+      contours: [
+        {
+          roofRole: "contour",
+          closed: true,
+          points: [
+            { x: 90, y: 90 },
+            { x: 210, y: 90 },
+            { x: 210, y: 210 },
+            { x: 90, y: 210 },
+          ],
+        },
+      ],
+    };
+
+    const res = buildSolarScene3DFromCalpinageRuntime(runtime);
+
+    expect(res.ok).toBe(true);
+    expect(res.scene).not.toBeNull();
+    expect(res.scene!.worldConfig).toEqual({
+      metersPerPixel: 0.049,
+      northAngleDeg: 0,
+      referenceFrame: "LOCAL_IMAGE_ENU",
+    });
+    expect(res.scene!.roofModel.roofPlanePatches.some((p) => String(p.id) === "pan-prod-a")).toBe(true);
+    expect(res.diagnostics.errors).toHaveLength(0);
+  });
+
   const contourOnlyWorldContract = {
     scale: { metersPerPixel: 0.02 },
     roof: { north: { angleDeg: 15 } },

@@ -32,6 +32,32 @@ describe("parseCalpinageStateToCanonicalHouse3D", () => {
     expect(r.document.roof.topology.patches.map((p) => p.roofPatchId)).toEqual(["from-snapshot"]);
   });
 
+  it("snapshot verrouillé sans hauteurs 3D : conserve state.pans quand il est complet", () => {
+    const state = loadFixture("state-validated-snapshot.json");
+    state.validatedRoofData = {
+      pans: [
+        {
+          id: "snapshot-2d-only",
+          points: [
+            { x: 5, y: 5 },
+            { x: 95, y: 5 },
+            { x: 95, y: 95 },
+            { x: 5, y: 95 },
+          ],
+        },
+      ],
+    };
+
+    const r = parseCalpinageStateToCanonicalHouse3D(state, { preferValidatedRoofSnapshot: true });
+
+    expect(r.sourcesUsed.some((s) => s.includes("state.pans (validated_snapshot_missing_3d_heights)"))).toBe(true);
+    expect(r.document.roof.topology.patches.map((p) => p.roofPatchId)).toEqual([
+      "live-pan-should-not-win-when-prefer-snapshot",
+    ]);
+    expect(r.document.roof.geometry.roofPatches[0]?.boundaryLoop3d).toHaveLength(4);
+    expect(r.eligibility.roof3dBuildable).toBe(true);
+  });
+
   it("désactiver préférence snapshot → state.pans prioritaire", () => {
     const state = loadFixture("state-validated-snapshot.json");
     const r = parseCalpinageStateToCanonicalHouse3D(state, { preferValidatedRoofSnapshot: false });
@@ -60,6 +86,31 @@ describe("parseCalpinageStateToCanonicalHouse3D", () => {
     const r = parseCalpinageStateToCanonicalHouse3D(state, {});
     expect(r.diagnostics.some((d) => d.code === "MISSING_METERS_PER_PIXEL")).toBe(true);
     expect(r.eligibility.house3dBuildable).toBe(false);
+  });
+
+  it("format prod roofState : lit mpp/nord hors ancien chemin state.roof", () => {
+    const state = loadFixture("state-simple-2pans.json");
+    delete state.roof;
+    state.roofState = {
+      scale: { metersPerPixel: 0.049 },
+      roof: { north: { angleDeg: 0 } },
+      canonical3DWorldContract: {
+        metersPerPixel: 0.049,
+        northAngleDeg: 0,
+        referenceFrame: "LOCAL_IMAGE_ENU",
+      },
+    };
+    state.validatedRoofData = {
+      scale: { metersPerPixel: 0.049 },
+      north: { north: { angleDeg: 0 } },
+    };
+
+    const r = parseCalpinageStateToCanonicalHouse3D(state, {});
+
+    expect(r.diagnostics.some((d) => d.code === "MISSING_METERS_PER_PIXEL")).toBe(false);
+    expect(r.sourcesUsed).toContain("state.roofState.canonical3DWorldContract.metersPerPixel");
+    expect(r.sourcesUsed).toContain("state.roofState.canonical3DWorldContract.northAngleDeg");
+    expect(r.eligibility.roof3dBuildable).toBe(true);
   });
 
   it("provenance hauteurs : chemins contours / ridges traçables", () => {

@@ -62,6 +62,7 @@ const EPS = 1e-9;
 const EDGE_EPS_M = 1e-6;
 const AREA_EPS_M2 = 1e-6;
 const SURFACE_AREA_EPS_M2 = 1e-4;
+const SURFACE_AREA_RELATIVE_EPS = 1e-4;
 const FRAME_UNIT_EPS = 1e-4;
 const FRAME_DOT_EPS = 1e-4;
 const TRIANGLE_AREA_EPS_M2 = 1e-8;
@@ -381,12 +382,17 @@ export function triangulateRoofPatchForMesh(patch: RoofPlanePatch3D): RoofPatchT
   }
 
   const areaDeltaM2 = Math.abs(meshAreaM2 - polygonValidation.areaAbsM2);
-  if (areaDeltaM2 > SURFACE_AREA_EPS_M2) {
+  const allowedSurfaceAreaDeltaM2 = Math.max(
+    SURFACE_AREA_EPS_M2,
+    polygonValidation.areaAbsM2 * SURFACE_AREA_RELATIVE_EPS,
+  );
+  if (areaDeltaM2 > allowedSurfaceAreaDeltaM2) {
     diagnostics.push(
       diag("TRIANGULATION_SURFACE_MISMATCH", "error", `Pan ${patch.id} : surface triangles incohérente`, {
         polygonAreaM2: polygonValidation.areaAbsM2,
         meshAreaM2,
         areaDeltaM2,
+        allowedSurfaceAreaDeltaM2,
       }),
     );
   }

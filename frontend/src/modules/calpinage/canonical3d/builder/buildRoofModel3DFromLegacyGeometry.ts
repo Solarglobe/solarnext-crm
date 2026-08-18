@@ -560,7 +560,7 @@ export function buildRoofModel3DFromLegacyGeometry(
     );
     globalDiagnostics.push(...pl.diagnostics);
 
-    if (import.meta.env.DEV && fidelityMode === "fidelity") {
+    if (import.meta.env?.DEV && fidelityMode === "fidelity") {
       for (const ph of cornerPhases) {
         const raw = ph.raw;
         const nV = raw.length;

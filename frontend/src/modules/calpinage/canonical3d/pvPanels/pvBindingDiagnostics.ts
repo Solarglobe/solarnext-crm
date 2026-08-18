@@ -34,7 +34,7 @@ import type {
 } from "../builder/roofReconstructionQuality";
 // ── Debug runtime [PV3D-FILTER] ───────────────────────────────────────────────
 const _pv3dDbg = (): boolean =>
-  import.meta.env.DEV ||
+  import.meta.env?.DEV ||
   (typeof window !== "undefined" && (window as unknown as Record<string, unknown>)["__PV3D_DEBUG"] === true);
 
 

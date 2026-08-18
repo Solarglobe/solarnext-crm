@@ -35,6 +35,53 @@ import {
 import { syncRoofPansMirrorFromPans } from "../../legacy/phase2RoofDerivedModel";
 import { applyCanonical3DWorldContractToRoof } from "../../runtime/canonical3DWorldContract";
 
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+function finitePositiveNumber(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : undefined;
+}
+
+function finiteNumber(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+function roofForLegacy3DFromRuntime(runtime: unknown): unknown {
+  const root = asRecord(runtime);
+  if (!root) return null;
+
+  const roof = asRecord(root.roof);
+  const roofState = asRecord(root.roofState);
+  const validatedRoofData = asRecord(root.validatedRoofData);
+  const mpp =
+    finitePositiveNumber(asRecord(roof?.scale)?.metersPerPixel) ??
+    finitePositiveNumber(asRecord(roofState?.canonical3DWorldContract)?.metersPerPixel) ??
+    finitePositiveNumber(asRecord(roofState?.scale)?.metersPerPixel) ??
+    finitePositiveNumber(asRecord(validatedRoofData?.scale)?.metersPerPixel);
+  if (mpp === undefined) return null;
+
+  const northAngleDeg =
+    finiteNumber(asRecord(asRecord(roof?.roof)?.north)?.angleDeg) ??
+    finiteNumber(asRecord(roofState?.canonical3DWorldContract)?.northAngleDeg) ??
+    finiteNumber(asRecord(asRecord(roofState?.roof)?.north)?.angleDeg) ??
+    finiteNumber(asRecord(asRecord(validatedRoofData?.north)?.north)?.angleDeg) ??
+    0;
+
+  return {
+    ...(roof ?? {}),
+    scale: { metersPerPixel: mpp },
+    roof: { north: { angleDeg: northAngleDeg } },
+    canonical3DWorldContract: {
+      schemaVersion: 1,
+      metersPerPixel: mpp,
+      northAngleDeg,
+      referenceFrame: "LOCAL_IMAGE_ENU",
+    },
+    roofPans: Array.isArray(root.pans) ? root.pans : Array.isArray(roof?.roofPans) ? roof.roofPans : [],
+  };
+}
+
 export type ResolveOfficialRoofTruthPreparePhase = {
   readonly phase: "prepare";
 };
@@ -114,7 +161,7 @@ export function resolveOfficialRoofTruthFromRuntime(
   }
 
   const structuralResolution = resolveCalpinageStructuralRoofForCanonicalChain(runtime, undefined);
-  const roof = runtime && typeof runtime === "object" ? (runtime as Record<string, unknown>).roof : null;
+  const roof = roofForLegacy3DFromRuntime(runtime);
 
   const mapOpts = args.legacyRoofMapOptions;
   let legacy = mapCalpinageRoofToLegacyRoofGeometryInput(roof, structuralResolution.payload, runtime, mapOpts);
@@ -141,7 +188,7 @@ export function resolveOfficialRoofTruthFromRuntime(
     };
   }
 
-  if (import.meta.env.DEV) {
+  if (import.meta.env?.DEV) {
     for (const pan of legacy.pans) {
       const poly = pan.polygonPx;
       let verticesWithHeight = 0;
@@ -179,7 +226,7 @@ export function resolveOfficialRoofTruthFromRuntime(
     roofGeometryFidelityMode,
   });
 
-  if (import.meta.env.DEV) {
+  if (import.meta.env?.DEV) {
     for (const patch of roofRes.model.roofPlanePatches) {
       const zs = patch.cornersWorld.map((c) => c.z);
       const minZ = Math.min(...zs);

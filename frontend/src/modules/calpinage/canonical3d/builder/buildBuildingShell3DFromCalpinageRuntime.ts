@@ -145,7 +145,7 @@ export function buildBuildingShell3DFromCalpinageRuntime(
   const prism = extrudeShellUnderSlopedRoofWorld(ringXYForExtrude, baseZ, zTopRing, "calpinage-building-shell");
   if (prism.vertices.length === 0 || prism.faces.length === 0) return null;
 
-  if (import.meta.env.DEV) {
+  if (import.meta.env?.DEV) {
     console.info("[HOUSE-SHELL-FIX][HEIGHT]", {
       zContourMin: Number(zContourMin.toFixed(4)),
       zContourMax: Number(zContourMax.toFixed(4)),

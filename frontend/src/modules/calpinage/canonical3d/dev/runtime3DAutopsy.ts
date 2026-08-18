@@ -1,6 +1,6 @@
 /**
  * Autopsie runtime DEV uniquement — mesures console, aucune géométrie modifiée.
- * Activé quand import.meta.env.DEV ; couleurs si window.__CALPINAGE_3D_AUTOPSY_COLORS__ === true
+ * Activé quand import.meta.env?.DEV ; couleurs si window.__CALPINAGE_3D_AUTOPSY_COLORS__ === true
  */
 
 import * as THREE from "three";
@@ -11,17 +11,17 @@ export type AutopsyLegacyRoofPath = "rich" | "fallback" | "none" | "emergency" |
 let legacyPathPending: AutopsyLegacyRoofPath | undefined;
 
 export function resetAutopsyLegacyRoofPath(): void {
-  if (!import.meta.env.DEV) return;
+  if (!import.meta.env?.DEV) return;
   legacyPathPending = undefined;
 }
 
 export function recordAutopsyLegacyRoofPath(p: AutopsyLegacyRoofPath): void {
-  if (!import.meta.env.DEV) return;
+  if (!import.meta.env?.DEV) return;
   legacyPathPending = p;
 }
 
 export function peekAutopsyLegacyRoofPath(): AutopsyLegacyRoofPath {
-  if (!import.meta.env.DEV) return "unknown";
+  if (!import.meta.env?.DEV) return "unknown";
   return legacyPathPending ?? "unknown";
 }
 
@@ -127,7 +127,7 @@ export function dump3DRuntimePreViewer(
     readonly roofGeometrySource?: string | null;
   },
 ): void {
-  if (!import.meta.env.DEV) return;
+  if (!import.meta.env?.DEV) return;
 
   const patches = scene.roofModel.roofPlanePatches;
   let allFlat = true;
@@ -249,7 +249,7 @@ export function dump3DRuntimeViewerGeoCompare(
   shellGeo: THREE.BufferGeometry | null,
   roofGeos: readonly { id: string | number; geo: THREE.BufferGeometry }[],
 ): { viewerMismatch: boolean; patchMismatchIds: string[]; shellBboxMatch: boolean | null } {
-  if (!import.meta.env.DEV) {
+  if (!import.meta.env?.DEV) {
     return { viewerMismatch: false, patchMismatchIds: [], shellBboxMatch: null };
   }
 
@@ -340,6 +340,6 @@ export function log3DRuntimeVerdictFinal(payload: {
   readonly legacyPath: AutopsyLegacyRoofPath;
   readonly viewerMismatch: boolean;
 }): void {
-  if (!import.meta.env.DEV) return;
+  if (!import.meta.env?.DEV) return;
   console.log("[3D-RUNTIME][VERDICT]", payload);
 }

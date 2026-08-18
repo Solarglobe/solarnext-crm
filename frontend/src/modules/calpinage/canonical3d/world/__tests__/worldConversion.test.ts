@@ -100,6 +100,29 @@ describe("worldConversion — image ↔ monde (ENU Z-up)", () => {
     expect(p?.referenceFrame).toBe("LOCAL_IMAGE_ENU");
   });
 
+  it("peekCalpinageRuntimeWorldFrame lit le format prod roofState sans ancien state.roof", () => {
+    const state = {
+      roofState: {
+        scale: { metersPerPixel: 0.049 },
+        roof: { north: { angleDeg: 0 } },
+        canonical3DWorldContract: {
+          schemaVersion: 1,
+          metersPerPixel: 0.049,
+          northAngleDeg: 0,
+          referenceFrame: "LOCAL_IMAGE_ENU",
+        },
+      },
+      validatedRoofData: {
+        scale: { metersPerPixel: 0.049 },
+        north: { north: { angleDeg: 0 } },
+      },
+    };
+    const p = peekCalpinageRuntimeWorldFrame(state);
+    expect(p?.metersPerPixel).toBe(0.049);
+    expect(p?.northAngleDeg).toBe(0);
+    expect(p?.referenceFrame).toBe("LOCAL_IMAGE_ENU");
+  });
+
   it("normalizeWorldConfig : WORLD_REFERENCE_FRAME_MISSING sans referenceFrame", () => {
     expect(() => normalizeWorldConfig({ metersPerPixel: 1, northAngleDeg: 0 })).toThrow(WorldConfigError);
     try {

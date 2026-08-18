@@ -207,7 +207,7 @@ export function buildSolarScene3D(input: BuildSolarScene3DInput): SolarScene3D {
     ...(nearShadingSnapshot && { nearShadingSnapshot }),
   };
 
-  if (import.meta.env.DEV && input.buildingShell != null) {
+  if (import.meta.env?.DEV && input.buildingShell != null) {
     const sh = input.buildingShell;
     console.info("[HOUSE3D-FIX][SCENE]", {
       buildingShellInjected: true,

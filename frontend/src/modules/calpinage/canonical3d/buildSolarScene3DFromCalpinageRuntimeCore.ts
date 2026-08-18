@@ -756,7 +756,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       const stage = roofTruthPipe.stage;
       if (stage === "pre_roof_validation") {
         dumpPipelineDiagnostics(runtime, null, null);
-        if (import.meta.env.DEV) {
+        if (import.meta.env?.DEV) {
           console.log("[3D-RUNTIME][ENTRY]", { ok: false, stage: "validateCanonicalScene3DInput" });
           console.log("[3D-RUNTIME][PIPELINE]", { official: true, buildEnded: "validation_fail" });
         }
@@ -771,7 +771,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       if (stage === "roof_truth_build") {
         const autopsyLegacyPath = roofTruthPipe.autopsyLegacyPath;
         dumpPipelineDiagnostics(runtime, null, null);
-        if (import.meta.env.DEV) {
+        if (import.meta.env?.DEV) {
           console.log("[3D-RUNTIME][ENTRY]", { ok: false, stage: "mapCalpinageRoofToLegacyRoofGeometryInput_null" });
           console.log("[3D-RUNTIME][PIPELINE]", { official: true, buildEnded: "legacy_null", autopsyLegacyPath });
         }
@@ -785,7 +785,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
         };
       }
       dumpPipelineDiagnostics(runtime, null, null);
-      if (import.meta.env.DEV) {
+      if (import.meta.env?.DEV) {
         console.log("[3D-RUNTIME][ENTRY]", { ok: false, stage: "validateCanonicalScene3DInput_after_roof_truth_pans" });
         console.log("[3D-RUNTIME][PIPELINE]", { official: true, buildEnded: "validation_fail_post_roof_truth_pans" });
       }
@@ -842,7 +842,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
         extra: { sceneAfterMergeNull: validationMerged.scene == null },
       });
       dumpPipelineDiagnostics(runtime, legacy, roofRes);
-      if (import.meta.env.DEV) {
+      if (import.meta.env?.DEV) {
         console.log("[3D-RUNTIME][ENTRY]", { ok: false, stage: "validateCanonicalScene3DInput_after_panel_merge" });
         console.log("[3D-RUNTIME][PIPELINE]", { official: true, buildEnded: "validation_fail_post_merge" });
       }
@@ -1010,7 +1010,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       logCalpinage3DDebug("roofShellAlignment", roofShellAlignmentDiagnosticsToDebugPayload(shellAlign));
     }
 
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV) {
       console.log("[3D-RUNTIME][ENTRY]", { ok: true, stage: "buildSolarScene3D_done" });
       dump3DRuntimePreViewer(scene3d, {
         pipeline: "official_ok",
@@ -1066,7 +1066,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       exception: e,
       extra: { message },
     });
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV) {
       console.log("[3D-RUNTIME][ENTRY]", { ok: false, stage: "throw", message });
       console.log("[3D-RUNTIME][PIPELINE]", { official: true, buildEnded: "throw" });
     }

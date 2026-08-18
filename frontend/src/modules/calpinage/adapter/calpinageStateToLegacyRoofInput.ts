@@ -148,7 +148,7 @@ function legacyHeightMFromValidatedRuntime(
   heightState: HeightStateContext | null,
 ): number | undefined {
   const hRuntime = resolveHeightAtPxRuntime(panId, xPx, yPx, heightState);
-  if (import.meta.env.DEV && !Number.isFinite(hRuntime)) {
+  if (import.meta.env?.DEV && !Number.isFinite(hRuntime)) {
     console.warn("[HEIGHT_REJECTED]", { panId, xPx, yPx });
   }
   return Number.isFinite(hRuntime) ? hRuntime : undefined;
@@ -358,7 +358,7 @@ export function calpinageStateToLegacyRoofInput(
   if (pans.length >= 2 && !skipInterPanVertexSnap) {
     const snapTolPx = legacySharedCornerClusterTolPx(mpp);
     const snapWrites = snapLegacyPanPolygonVerticesInPlace(pans, snapTolPx);
-    if (import.meta.env.DEV && snapWrites > 0) {
+    if (import.meta.env?.DEV && snapWrites > 0) {
       console.info("[CALPINAGE-2D][SNAP]", { mergedVertexWrites: snapWrites, tolPx: snapTolPx });
     }
   }
