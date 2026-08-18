@@ -33,6 +33,7 @@ export interface DynamicCameraProps {
 export function DynamicCamera({ mode, framingBox }: DynamicCameraProps): null {
   const set = useThree((s) => s.set);
   const size = useThree((s) => s.size);
+  const invalidate = useThree((s) => s.invalidate);
 
   // Ref pattern : framingBox mis à jour à chaque render sans être une dépendance de l'effect.
   // Seul `mode` déclenche le swap caméra ; CameraFramingRig gère le re-framing sur bbox change.
@@ -55,6 +56,7 @@ export function DynamicCamera({ mode, framingBox }: DynamicCameraProps): null {
       cam.up.set(0, 0, 1);
       cam.lookAt(new THREE.Vector3(center.x, center.y, 0));
       set({ camera: cam });
+      invalidate();
     } else {
       // Caméra perspective pour la vue 3D orbitale.
       // Position identique à la prop `camera` du Canvas (loin dans la direction VIEWER_DEFAULT_CAMERA_OFFSET).
@@ -69,9 +71,10 @@ export function DynamicCamera({ mode, framingBox }: DynamicCameraProps): null {
       cam.up.set(0, 0, 1);
       cam.lookAt(center);
       set({ camera: cam });
+      invalidate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, set]);
+  }, [invalidate, mode, set]);
   // size.width / size.height exclus intentionnellement : on ne veut pas recréer la caméra
   // sur chaque resize — CameraFramingRig met à jour le frustum/aspect dans son propre effect.
 

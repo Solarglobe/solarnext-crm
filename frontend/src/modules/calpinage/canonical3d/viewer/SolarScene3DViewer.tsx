@@ -92,6 +92,7 @@ import {
   ViewerEnvironment,
   ViewerPostProcessing,
 } from "./ViewerRenderingEffects";
+import { ViewerRenderInvalidator } from "./viewerRenderInvalidation";
 import { ViewerReliabilityOverlay } from "./ViewerReliabilityOverlay";
 import { DebugSceneHelpers, DebugStatsOverlay } from "./ViewerDebugTools";
 import {
@@ -4103,7 +4104,7 @@ export function SolarScene3DViewer({
                 up: [0, 0, 1],
               }
         }
-        onCreated={({ gl }) => {
+        onCreated={({ gl, invalidate }) => {
           applyCanonicalViewerGlOutput(gl);
           // touch-action:none sur le canvas WebGL : requis pour que Pointer Events
           // (et OrbitControls three-stdlib) reçoivent les gestes tactiles sans que
@@ -4121,7 +4122,9 @@ export function SolarScene3DViewer({
           // correctement dimensionné.
           requestAnimationFrame(() => {
             window.dispatchEvent(new Event("resize"));
+            invalidate();
           });
+          invalidate();
         }}
         onPointerMissed={() => {
           if (zDragGestureActiveRef.current) return;
@@ -4138,6 +4141,18 @@ export function SolarScene3DViewer({
       >
         <color attach="background" args={[premiumAssembly.backgroundHex]} />
         <CanvasQualityApplier profile={qualityProfile} dpr={effectiveDpr} />
+        <ViewerRenderInvalidator
+          sceneKey={sceneStableKey}
+          cameraViewMode={cameraViewMode}
+          qualityTier={effectiveQualityTier}
+          frameloop={qualityProfile.frameloop}
+          reliability={effectiveReliabilityState}
+          patchCount={scene.roofModel.roofPlanePatches.length}
+          pvPanelCount={scene.pvPanels.length}
+          obstacleCount={scene.obstacleVolumes.length}
+          extensionCount={scene.extensionVolumes.length}
+          pvOverlayEpoch={pv3dOverlayEpoch}
+        />
         <ViewerPerformanceMonitor
           mode={qualityMode}
           effectiveTier={effectiveQualityTier}

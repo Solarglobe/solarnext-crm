@@ -1,6 +1,7 @@
 import type { SolarScene3D } from "../types/solarScene3d";
 import type { ViewerReliabilityState } from "./viewerReliabilityState";
 import type { ViewerQualityMode, ViewerQualityTier } from "./viewerQualityProfile";
+import { readViewerRenderInvalidationSnapshot } from "./viewerRenderInvalidation";
 
 export interface ViewerDebugFacadeSnapshot {
   readonly lifecycle: unknown;
@@ -15,6 +16,18 @@ export interface ViewerDebugFacadeSnapshot {
     readonly pvPanelCount: number;
     readonly obstacleCount: number;
     readonly extensionCount: number;
+    readonly pvPlacementValidityStatus: string;
+    readonly pvPlacementInvalidPanelCount: number;
+    readonly pvPlacementDroppedPanelCount: number;
+    readonly invalidPvPanels: readonly {
+      readonly id: string;
+      readonly roofPlanePatchId: string;
+      readonly status: string;
+      readonly reasons: readonly string[];
+      readonly distanceCenterToPlaneM: number | null;
+      readonly maxCornerDistanceToPlaneM: number | null;
+      readonly diagnostics: readonly unknown[];
+    }[];
     readonly patches: readonly {
       readonly id: string;
       readonly surfaceM2: number | null;
@@ -37,6 +50,7 @@ export interface ViewerDebugFacadeSnapshot {
     readonly mode: ViewerQualityMode;
     readonly effectiveTier: ViewerQualityTier;
   };
+  readonly renderInvalidation: unknown;
 }
 
 export interface ViewerDebugFacadeInput {
@@ -97,6 +111,8 @@ function buildGeometryDebug(scene: SolarScene3D): ViewerDebugFacadeSnapshot["geo
   const panelsByPatch = new Map<string, string[]>();
   for (const panel of scene.pvPanels) {
     const patchId =
+      (panel as unknown as { readonly attachment?: { readonly roofPlanePatchId?: unknown } }).attachment
+        ?.roofPlanePatchId ??
       (panel as unknown as { readonly roofPlanePatchId?: unknown; readonly panId?: unknown }).roofPlanePatchId ??
       (panel as unknown as { readonly panId?: unknown }).panId;
     const panelId = String((panel as unknown as { readonly id?: unknown }).id ?? "");
@@ -116,6 +132,24 @@ function buildGeometryDebug(scene: SolarScene3D): ViewerDebugFacadeSnapshot["geo
     pvPanelCount: scene.pvPanels.length,
     obstacleCount: scene.obstacleVolumes.length,
     extensionCount: scene.extensionVolumes.length,
+    pvPlacementValidityStatus: scene.metadata.pvPlacementValidityStatus ?? "UNKNOWN",
+    pvPlacementInvalidPanelCount: scene.metadata.pvPlacementInvalidPanelCount ?? 0,
+    pvPlacementDroppedPanelCount: scene.metadata.pvPlacementDroppedPanelCount ?? 0,
+    invalidPvPanels: scene.pvPanels
+      .filter((panel) => panel.placementValidity?.status === "INVALID")
+      .map((panel) => ({
+        id: String(panel.id),
+        roofPlanePatchId: String(panel.attachment?.roofPlanePatchId ?? ""),
+        status: panel.placementValidity.status,
+        reasons: panel.placementValidity.reasons.map(String),
+        distanceCenterToPlaneM: Number.isFinite(panel.placementValidity.distanceCenterToPlaneM)
+          ? panel.placementValidity.distanceCenterToPlaneM
+          : null,
+        maxCornerDistanceToPlaneM: Number.isFinite(panel.placementValidity.maxCornerDistanceToPlaneM)
+          ? panel.placementValidity.maxCornerDistanceToPlaneM
+          : null,
+        diagnostics: panel.quality?.diagnostics ?? [],
+      })),
     patches: scene.roofModel.roofPlanePatches.map((patch) => ({
       id: patch.id,
       surfaceM2: patchSurfaceM2(patch),
@@ -147,6 +181,7 @@ export function exposeViewerDebugFacade(input: ViewerDebugFacadeInput): void {
       mode: input.qualityMode,
       effectiveTier: input.effectiveQualityTier,
     },
+    renderInvalidation: readViewerRenderInvalidationSnapshot(),
   };
 
   (window as unknown as Record<string, unknown>)["__CALPINAGE_3D_DEBUG_API__"] = {
@@ -157,5 +192,6 @@ export function exposeViewerDebugFacade(input: ViewerDebugFacadeInput): void {
     geometry: snapshot.geometry,
     selection: snapshot.selection,
     quality: snapshot.quality,
+    renderInvalidation: snapshot.renderInvalidation,
   };
 }

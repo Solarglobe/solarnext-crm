@@ -180,4 +180,26 @@ describe("SolarScene3DViewer — cameraViewMode (Prompt 34)", () => {
     expect(root.getAttribute("data-canonical-scene-key")).toBe(key0);
     cleanup();
   });
+
+  it.each(["AUTO", "HIGH", "MEDIUM", "LOW"] as const)(
+    "mode qualité %s : le viewer monte sans changer la scène canonique",
+    (qualityMode) => {
+      const scene = minimalScene();
+      render(
+        <SolarScene3DViewer
+          scene={scene}
+          height={140}
+          qualityMode={qualityMode}
+          showSun={false}
+          showShadingLegend={false}
+        />,
+      );
+      const root = screen.getByTestId("solar-scene-3d-viewer-root");
+      const expectedTier = qualityMode === "AUTO" ? root.getAttribute("data-quality-tier") : qualityMode;
+      expect(root.getAttribute("data-quality-mode")).toBe(qualityMode);
+      expect(root.getAttribute("data-quality-tier")).toBe(expectedTier);
+      expect(document.querySelector("canvas")).toBeTruthy();
+      cleanup();
+    },
+  );
 });

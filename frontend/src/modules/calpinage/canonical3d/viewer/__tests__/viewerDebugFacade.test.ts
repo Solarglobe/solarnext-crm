@@ -77,7 +77,14 @@ function makeScene(): SolarScene3D {
     pvPanels: [
       {
         id: "pv-a",
-        roofPlanePatchId: "pan-a",
+        attachment: { roofPlanePatchId: "pan-a" },
+        placementValidity: {
+          status: "VALID",
+          reasons: [],
+          distanceCenterToPlaneM: 0,
+          maxCornerDistanceToPlaneM: 0,
+        },
+        quality: { diagnostics: [] },
       },
     ],
     volumesQuality: { status: "VALID", diagnostics: [] },
@@ -105,8 +112,11 @@ describe("viewer debug facade", () => {
     expect(snapshot.geometry.patchCount).toBe(1);
     expect(snapshot.geometry.patches[0].id).toBe("pan-a");
     expect(snapshot.geometry.patches[0].pvPanelIds).toEqual(["pv-a"]);
+    expect(snapshot.geometry.pvPlacementValidityStatus).toBe("VALID");
+    expect(snapshot.geometry.invalidPvPanels).toEqual([]);
     expect(snapshot.reliability.kind).toBe("ready");
     expect(snapshot.quality.effectiveTier).toBe("HIGH");
     expect(snapshot.selection.pvLayoutSelectedCount).toBe(1);
+    expect(snapshot.renderInvalidation).toBeNull();
   });
 });
