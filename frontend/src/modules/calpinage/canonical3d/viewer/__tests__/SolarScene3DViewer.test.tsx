@@ -83,7 +83,7 @@ afterAll(() => {
 
 describe("SolarScene3DViewer", () => {
   it("monte et démonte sans erreur", async () => {
-    const scene = buildDemoSolarScene3D();
+    const scene = await buildDemoSolarScene3D();
     const { unmount } = render(<SolarScene3DViewer scene={scene} height={200} showSun={false} />);
     await vi.waitFor(
       () => {
@@ -95,8 +95,8 @@ describe("SolarScene3DViewer", () => {
     cleanup();
   });
 
-  it("bounding + framing cohérents pour la scène démo", () => {
-    const scene = buildDemoSolarScene3D();
+  it("bounding + framing cohérents pour la scène démo", async () => {
+    const scene = await buildDemoSolarScene3D();
     const box = computeSolarSceneBoundingBox(scene);
     expect(box.isEmpty()).toBe(false);
     const f = computeViewerFraming(box, 1);
@@ -104,7 +104,7 @@ describe("SolarScene3DViewer", () => {
   });
 
   it("légende shading affichée (mode actif) quand snapshot near présent", async () => {
-    const scene = buildDemoSolarScene3D();
+    const scene = await buildDemoSolarScene3D();
     const { unmount } = render(<SolarScene3DViewer scene={scene} height={200} showSun={false} />);
     await vi.waitFor(
       () => {
@@ -118,7 +118,7 @@ describe("SolarScene3DViewer", () => {
   });
 
   it("panSelection3DMode : panneau latéral invite + provenance vide tant que pas de pick", async () => {
-    const scene = buildDemoSolarScene3D();
+    const scene = await buildDemoSolarScene3D();
     const { unmount } = render(
       <SolarScene3DViewer scene={scene} height={200} showSun={false} panSelection3DMode />,
     );
@@ -138,7 +138,7 @@ describe("SolarScene3DViewer", () => {
   });
 
   it("inspectMode affiche le panneau d’inspection (sans sélection initiale)", async () => {
-    const scene = buildDemoSolarScene3D();
+    const scene = await buildDemoSolarScene3D();
     const { unmount } = render(
       <SolarScene3DViewer scene={scene} height={200} showSun={false} inspectMode />,
     );
@@ -155,7 +155,7 @@ describe("SolarScene3DViewer", () => {
   });
 
   it("légende indisponible si aucune donnée shading sur la scène", async () => {
-    const base = buildDemoSolarScene3D();
+    const base = await buildDemoSolarScene3D();
     const scene = {
       ...base,
       nearShadingSnapshot: undefined,

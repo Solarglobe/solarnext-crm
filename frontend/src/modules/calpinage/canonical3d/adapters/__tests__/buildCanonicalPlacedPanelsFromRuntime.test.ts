@@ -250,9 +250,12 @@ describe("buildCanonicalPlacedPanelsFromRuntime", () => {
     });
 
     const pi = res.placementInputs[0];
-    expect(pi.center.mode).toBe("world");
-    if (pi.center.mode === "world") {
-      expect(pi.center.position.z).toBeCloseTo(0);
+    expect(pi.center.mode).toBe("plane_uv");
+    if (pi.center.mode === "plane_uv") {
+      expect(Number.isFinite(pi.center.uv.u)).toBe(true);
+      expect(Number.isFinite(pi.center.uv.v)).toBe(true);
     }
+    const pv = buildPvPanels3D({ panels: [...res.placementInputs] }, { roofPlanePatches: model.roofPlanePatches });
+    expect(pv.panels[0]!.attachment.signedDistanceCenterToPlaneM).toBeCloseTo(0, 6);
   });
 });

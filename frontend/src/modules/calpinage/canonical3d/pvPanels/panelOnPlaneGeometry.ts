@@ -8,8 +8,9 @@ import type { PlaneEquation } from "../types/plane";
 import type { PvPanelGrid3D, PvPanelSamplingParams } from "../types/pv-panel-3d";
 import type { Vector3 } from "../types/primitives";
 import type { RoofPlanePatch3D } from "../types/roof-surface";
-import { add3, cross3, dot3, normalize3, scale3, sub3 } from "../utils/math3";
+import { add3, dot3, normalize3, scale3 } from "../utils/math3";
 import { projectPointOntoPlane } from "../volumes/planeAnchor";
+import { normalizedLocalFrameForPatch } from "../validation/geometricTruthStatus";
 // ── Debug runtime [PV3D-MATRIX] ───────────────────────────────────────────────
 const _pv3dDbg = (): boolean =>
   import.meta.env.DEV ||
@@ -25,15 +26,14 @@ export interface PatchTangentBasis {
 
 /** Normalise les axes tangents du patch : u × v = n (main droite, n sortante). */
 export function orthonormalPatchBasis(patch: RoofPlanePatch3D): PatchTangentBasis | null {
-  const n = normalize3(patch.normal) ?? normalize3(patch.localFrame.zAxis);
-  if (!n) return null;
-  const x0 = patch.localFrame.xAxis;
-  const u0 = sub3(x0, scale3(n, dot3(x0, n)));
-  const u = normalize3(u0);
-  if (!u) return null;
-  const v = normalize3(cross3(n, u));
-  if (!v) return null;
-  return { origin: { ...patch.localFrame.origin }, uHat: u, vHat: v, nHat: n };
+  const normalized = normalizedLocalFrameForPatch(patch).frame;
+  if (!normalized) return null;
+  return {
+    origin: { ...normalized.origin },
+    uHat: { ...normalized.xAxis },
+    vHat: { ...normalized.yAxis },
+    nHat: { ...normalized.zAxis },
+  };
 }
 
 export function resolveCenterOnPlaneWorld(

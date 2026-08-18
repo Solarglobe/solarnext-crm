@@ -396,8 +396,21 @@ export function buildRoofVolumes3D(
   const obstacleVolumes: RoofObstacleVolume3D[] = [];
   const extensionVolumes: RoofExtensionVolume3D[] = [];
   const globalDiag: GeometryDiagnostic[] = [];
+  const patchIds =
+    context?.roofPlanePatches && context.roofPlanePatches.length > 0
+      ? new Set(context.roofPlanePatches.map((p) => String(p.id)))
+      : null;
 
   for (const o of input.obstacles) {
+    if (patchIds && o.relatedPlanePatchIds?.length && !o.relatedPlanePatchIds.some((id) => patchIds.has(String(id)))) {
+      globalDiag.push({
+        code: "OBSTACLE_ORPHAN_PLANE_PATCH_SKIPPED",
+        severity: "warning",
+        message: `Obstacle ${o.id} : pan support introuvable — volume non généré.`,
+        context: { entityId: o.id },
+      });
+      continue;
+    }
     const v = buildObstacleVolume(o, context, globalDiag);
     if (v) obstacleVolumes.push(v);
     else {
@@ -411,6 +424,15 @@ export function buildRoofVolumes3D(
   }
 
   for (const e of input.extensions) {
+    if (patchIds && e.relatedPlanePatchIds?.length && !e.relatedPlanePatchIds.some((id) => patchIds.has(String(id)))) {
+      globalDiag.push({
+        code: "EXTENSION_ORPHAN_PLANE_PATCH_SKIPPED",
+        severity: "warning",
+        message: `Extension ${e.id} : pan support introuvable — volume non généré.`,
+        context: { entityId: e.id },
+      });
+      continue;
+    }
     const v = buildExtensionVolume(e, context, globalDiag);
     if (v) extensionVolumes.push(v);
     else {

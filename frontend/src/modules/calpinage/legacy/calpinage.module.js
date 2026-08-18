@@ -13575,8 +13575,7 @@ updateValidateButton();
 
       (function initValidateRoofButton() {
         var btn = container.querySelector("#btn-validate-roof");
-        if (!btn) return;
-        addSafeListener(btn, "click", function () {
+        function performValidateRoofSurvey() {
           if (!canValidateRoofSurvey()) return;
           CALPINAGE_STATE.validatedRoofData = buildValidatedRoofData();
           CALPINAGE_STATE.roofSurveyLocked = true;
@@ -13648,12 +13647,14 @@ updateValidateButton();
             }
           }
           if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
-        });
+        }
+        window.validateRoofSurveyAction = performValidateRoofSurvey;
+        if (!btn) return;
+        addSafeListener(btn, "click", performValidateRoofSurvey);
       })();
 
       (function initBackToRoofButton() {
         var btn = container.querySelector("#btn-back-roof");
-        if (!btn) return;
         var doBackToRoof = function () {
           CALPINAGE_STATE.phase = 2;
           CALPINAGE_STATE.currentPhase = "ROOF_EDIT";
@@ -13670,7 +13671,7 @@ updateValidateButton();
           saveCalpinageState();
           if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
         };
-        addSafeListener(btn, "click", function () {
+        var requestBackToRoofAction = function () {
           if (typeof window.requestCalpinageConfirm !== "function") {
             if (typeof console !== "undefined" && console.error) console.error("[CALPINAGE] ConfirmProvider missing — destructive action blocked");
             return;
@@ -13682,13 +13683,15 @@ updateValidateButton();
             cancelLabel: "Annuler",
             onConfirm: doBackToRoof
           });
-        });
+        };
+        window.requestBackToRoofAction = requestBackToRoofAction;
+        if (!btn) return;
+        addSafeListener(btn, "click", requestBackToRoofAction);
       })();
 
       (function initValidateCalpinageButton() {
         var btn = container.querySelector("#btn-validate-calpinage");
-        if (!btn) return;
-        addSafeListener(btn, "click", async function () {
+        var validateCalpinageAction = async function () {
           if (devLog) console.log("[CALPINAGE] Valider handler entry");
           var delegateValidateToCrmOverlay = false;
           function notifyCalpinageValidateFinished() {
@@ -13867,7 +13870,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               notifyCalpinageValidateFinished();
             }
           }
-        });
+        };
+        window.validateCalpinageAction = validateCalpinageAction;
+        if (!btn) return;
+        addSafeListener(btn, "click", validateCalpinageAction);
       })();
 
       /* ========== Menu Phase 3 ??? Implantation des modules (UI ??? PV_LAYOUT_RULES) ========== */
@@ -14818,6 +14824,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           window.refreshAutofillToolbar = refreshAutofillToolbar;
           window.clearAutofillPreview = clearAutofillPreview;
           window.runCalpinageAutofillPreview = runAutofillPreview;
+          window.confirmCalpinageAutofill = confirmAutofill;
+          window.cancelCalpinageAutofill = clearAutofillPreview;
           window.__getLiveAutofillRenderData = getLiveAutofillRenderData;
           window.__ensureCalpinageAutofillSelection = ensureAutofillSelection;
         })();

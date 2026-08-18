@@ -1,53 +1,74 @@
 /**
- * CFIX-1 — getPhase2Data expose hasExistingGeometry pour la sidebar Phase 2.
+ * CFIX-1 — usePhase2Data expose hasExistingGeometry pour la sidebar Phase 2.
  */
-import { describe, it, expect, afterEach } from "vitest";
-import { usePhase2Data } from "../usePhase2Data";
-import { renderHook } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { setupPhase2SidebarNotify, usePhase2Data } from "../usePhase2Data";
+import { useCalpinageStore } from "../../store/calpinageStore";
+import { act, renderHook } from "@testing-library/react";
 
 describe("usePhase2Data", () => {
-  const prevGetPhase2Data = (window as unknown as { getPhase2Data?: () => unknown }).getPhase2Data;
+  const initialState = useCalpinageStore.getState();
 
   afterEach(() => {
-    if (prevGetPhase2Data) {
-      (window as unknown as { getPhase2Data?: () => unknown }).getPhase2Data = prevGetPhase2Data;
-    } else {
-      delete (window as unknown as { getPhase2Data?: () => unknown }).getPhase2Data;
-    }
-    delete (window as unknown as { getPhase2ActiveTool?: () => string }).getPhase2ActiveTool;
+    act(() => {
+      useCalpinageStore.setState(initialState, true);
+    });
+    delete (window as unknown as { notifyPhase2SidebarUpdate?: unknown }).notifyPhase2SidebarUpdate;
   });
 
-  it("expose hasExistingGeometry depuis getPhase2Data", () => {
-    (window as unknown as { getPhase2Data: () => Record<string, unknown> }).getPhase2Data = () => ({
-      contourClosed: true,
-      ridgeDefined: false,
-      heightsDefined: false,
-      obstaclesCount: 0,
-      canValidate: false,
-      validateHint: "",
-      captured: true,
-      hasExistingGeometry: true,
+  it("expose hasExistingGeometry depuis le store Phase2", () => {
+    act(() => {
+      useCalpinageStore.setState({
+        phase2: {
+          activeTool: "select",
+          contourClosed: true,
+          ridgeDefined: false,
+          heightsDefined: false,
+          obstaclesCount: 0,
+          canValidate: false,
+          validateHint: "",
+          captured: true,
+          hasExistingGeometry: true,
+        },
+      });
     });
-    (window as unknown as { getPhase2ActiveTool: () => string }).getPhase2ActiveTool = () => "select";
 
     const { result } = renderHook(() => usePhase2Data());
     expect(result.current.hasExistingGeometry).toBe(true);
     expect(result.current.captured).toBe(true);
   });
 
-  it("hasExistingGeometry false si absent du legacy", () => {
-    (window as unknown as { getPhase2Data: () => Record<string, unknown> }).getPhase2Data = () => ({
-      contourClosed: false,
-      ridgeDefined: false,
-      heightsDefined: false,
-      obstaclesCount: 0,
-      canValidate: false,
-      validateHint: "",
-      captured: false,
+  it("hasExistingGeometry false par défaut avant bootstrap adapter", () => {
+    act(() => {
+      useCalpinageStore.setState({
+        phase2: {
+          activeTool: "contour",
+          contourClosed: false,
+          ridgeDefined: false,
+          heightsDefined: false,
+          obstaclesCount: 0,
+          canValidate: false,
+          validateHint: "",
+          captured: false,
+          hasExistingGeometry: false,
+        },
+      });
     });
-    (window as unknown as { getPhase2ActiveTool: () => string }).getPhase2ActiveTool = () => "contour";
 
     const { result } = renderHook(() => usePhase2Data());
     expect(result.current.hasExistingGeometry).toBe(false);
+  });
+
+  it("setupPhase2SidebarNotify expose une notification d'update Phase2", () => {
+    const listener = vi.fn();
+    window.addEventListener("phase2:update", listener);
+    try {
+      const cleanup = setupPhase2SidebarNotify();
+      (window as unknown as { notifyPhase2SidebarUpdate: () => void }).notifyPhase2SidebarUpdate();
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(cleanup).toBe((window as unknown as { notifyPhase2SidebarUpdate: unknown }).notifyPhase2SidebarUpdate);
+    } finally {
+      window.removeEventListener("phase2:update", listener);
+    }
   });
 });

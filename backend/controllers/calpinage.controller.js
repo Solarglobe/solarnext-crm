@@ -17,7 +17,6 @@ import {
   resolvePanelPowerWc,
   isInstalledKwcDivergent,
 } from "../utils/resolvePanelPowerWc.js";
-import { DEFAULT_PANEL_POWER_WC } from "../services/core/engineConstants.js";
 import { fetchPvPanelRowById } from "../services/pv/resolvePanelFromDb.service.js";
 import { fetchPvInverterRowById } from "../services/pv/resolveInverterFromDb.service.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
@@ -284,9 +283,6 @@ export async function upsertCalpinage(req, res) {
       if (totalPowerKwc == null || isInstalledKwcDivergent(totalPowerKwc, recomputed)) {
         totalPowerKwc = recomputed;
       }
-    } else if (totalPowerKwc == null && totalPanels > 0) {
-      // Compat : aucune puissance panneau dans la géométrie — dernier recours (DEFAULT_PANEL_POWER_WC moteur)
-      totalPowerKwc = (totalPanels * DEFAULT_PANEL_POWER_WC) / 1000;
     }
 
     const row = await withPgRetryOnce(() =>

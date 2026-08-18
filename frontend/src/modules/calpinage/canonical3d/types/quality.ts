@@ -7,6 +7,10 @@ export type ConfidenceTier = "high" | "medium" | "low" | "unknown";
 
 export type GeometryDiagnosticSeverity = "info" | "warning" | "error";
 
+export type GeometryTruthStatus = "VALID" | "DEGRADED" | "INVALID";
+
+export type PvPanelPlacementValidityStatus = "VALID" | "INVALID";
+
 export interface GeometryDiagnostic {
   readonly code: string;
   readonly severity: GeometryDiagnosticSeverity;

@@ -16,7 +16,7 @@ import type { PlaneFrameUv2D, WorldPosition3D } from "./coordinates";
 import type { LocalFrame3D } from "./frame";
 import type { PlaneEquation } from "./plane";
 import type { GeometryProvenance } from "./provenance";
-import type { QualityBlock } from "./quality";
+import type { GeometryTruthStatus, QualityBlock } from "./quality";
 import type { StableEntityId, SurfaceMeasures, Vector3 } from "./primitives";
 
 /** Point 2D dans le repère tangent du pan (axes u,v du patch), en mètres — pas des coordonnées WORLD. */
@@ -70,6 +70,7 @@ export interface RoofPlanePatch3D {
   /** Centroïde du patch en WORLD (souvent dans le plan du pan). */
   readonly centroid: WorldPosition3D;
   readonly surface: SurfaceMeasures;
+  readonly geometryTruthStatus?: GeometryTruthStatus;
   /** IDs des faces adjacentes (arête commune). Symétrie recommandée (validation warning si asymétrique). */
   readonly adjacentPlanePatchIds: readonly StableEntityId[];
   readonly provenance: GeometryProvenance;

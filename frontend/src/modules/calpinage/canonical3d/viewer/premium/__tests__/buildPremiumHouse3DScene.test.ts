@@ -2,12 +2,13 @@
  * Preuves Prompt 10 : assembleur premium branché sur SolarScene3D + rapport validation réel (pas cosmétique seul).
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { buildDemoSolarScene3D } from "../../demoSolarScene3d";
 import { buildPremiumHouse3DScene } from "../buildPremiumHouse3DScene";
 import { CANONICAL_HOUSE_3D_VALIDATION_REPORT_SCHEMA_ID } from "../../../validation/canonicalHouse3DValidationCodes";
 import type { CanonicalHouse3DValidationBlockReport } from "../../../validation/canonicalHouse3DValidationModel";
 import type { CanonicalHouse3DValidationReport } from "../../../validation/canonicalHouse3DValidationModel";
+import type { SolarScene3D } from "../../../types/solarScene3d";
 
 function emptyBlock(): CanonicalHouse3DValidationBlockReport {
   return { status: "ok", errorCount: 0, warningCount: 0, infoCount: 0, diagnostics: [] };
@@ -38,7 +39,11 @@ function stubReport(overrides: Partial<CanonicalHouse3DValidationReport>): Canon
 }
 
 describe("buildPremiumHouse3DScene (Prompt 10)", () => {
-  const scene = buildDemoSolarScene3D();
+  let scene: SolarScene3D;
+
+  beforeAll(async () => {
+    scene = await buildDemoSolarScene3D();
+  });
 
   it("maison simple : schéma stable + mode presentation allume toit et panneaux", () => {
     const a = buildPremiumHouse3DScene({ scene, viewMode: "presentation" });
@@ -51,7 +56,7 @@ describe("buildPremiumHouse3DScene (Prompt 10)", () => {
 
   it("mode technical renforce arêtes et autorise lignes structurantes si ridges présents", () => {
     const a = buildPremiumHouse3DScene({ scene, viewMode: "technical" });
-    expect(a.materials.roofEdgeLine.color).toBe(0xffb74d);
+    expect(a.materials.roofEdgeLine.color).toBe(0xf0bd72);
     expect(a.layers.showStructuralRidgeLines).toBe(scene.roofModel.roofRidges.length > 0);
   });
 

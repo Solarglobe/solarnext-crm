@@ -16,8 +16,8 @@ describe("SceneInspectionPanel3D", () => {
     expect(screen.getByText(/Aucune sélection/i)).toBeTruthy();
   });
 
-  it("avec modèle pan : affiche le type", () => {
-    const scene = buildDemoSolarScene3D();
+  it("avec modèle pan : affiche le type", async () => {
+    const scene = await buildDemoSolarScene3D();
     const model = buildSceneInspectionViewModel(scene, { kind: "PAN", id: "roof-h" });
     render(<SceneInspectionPanel3D model={model} onDismiss={() => {}} />);
     expect(screen.getByText(/Inspection — pan/i)).toBeTruthy();

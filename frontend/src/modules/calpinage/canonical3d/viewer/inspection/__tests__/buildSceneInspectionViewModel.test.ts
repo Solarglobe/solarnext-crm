@@ -1,9 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 import { buildDemoSolarScene3D } from "../../demoSolarScene3d";
+import type { SolarScene3D } from "../../../types/solarScene3d";
 import { buildSceneInspectionViewModel } from "../buildSceneInspectionViewModel";
 
 describe("buildSceneInspectionViewModel", () => {
-  const scene = buildDemoSolarScene3D();
+  let scene: SolarScene3D;
+
+  beforeAll(async () => {
+    scene = await buildDemoSolarScene3D();
+  });
 
   it("résout un pan", () => {
     const m = buildSceneInspectionViewModel(scene, { kind: "PAN", id: "roof-h" });

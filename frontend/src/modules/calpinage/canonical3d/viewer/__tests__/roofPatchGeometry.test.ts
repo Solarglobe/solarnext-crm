@@ -3,7 +3,7 @@ import type { RoofPlanePatch3D } from "../../types/roof-surface";
 import { roofPatchGeometry } from "../solarSceneThreeGeometry";
 
 describe("roofPatchGeometry", () => {
-  it("repli triangulation XY monde si le contour UV est non simple / échoue", () => {
+  it("rejette un contour UV non simple au lieu de le réparer silencieusement en XY", () => {
     const normal = { x: 0, y: 0, z: 1 };
     const patch = {
       id: "bowtie-uv",
@@ -42,7 +42,7 @@ describe("roofPatchGeometry", () => {
     const geo = roofPatchGeometry(patch);
     const idx = geo.getIndex();
     expect(idx).not.toBeNull();
-    expect(idx!.array.length).toBe(6);
+    expect(idx!.array.length).toBe(0);
     geo.dispose();
   });
 });

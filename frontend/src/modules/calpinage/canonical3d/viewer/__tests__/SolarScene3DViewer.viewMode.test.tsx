@@ -150,4 +150,34 @@ describe("SolarScene3DViewer — cameraViewMode (Prompt 34)", () => {
     expect(root.getAttribute("data-canonical-scene-key")).toBe(key0);
     cleanup();
   });
+
+  it("quality tier contrôlé : changement graphique sans changement de scène canonique", () => {
+    const scene = minimalScene();
+    const { rerender } = render(
+      <SolarScene3DViewer
+        scene={scene}
+        height={140}
+        qualityMode="LOW"
+        showSun={false}
+        showShadingLegend={false}
+      />,
+    );
+    const root = screen.getByTestId("solar-scene-3d-viewer-root");
+    const key0 = root.getAttribute("data-canonical-scene-key");
+    expect(root.getAttribute("data-quality-tier")).toBe("LOW");
+
+    rerender(
+      <SolarScene3DViewer
+        scene={scene}
+        height={140}
+        qualityMode="HIGH"
+        showSun={false}
+        showShadingLegend={false}
+      />,
+    );
+
+    expect(root.getAttribute("data-quality-tier")).toBe("HIGH");
+    expect(root.getAttribute("data-canonical-scene-key")).toBe(key0);
+    cleanup();
+  });
 });

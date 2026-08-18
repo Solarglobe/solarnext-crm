@@ -32,6 +32,8 @@ import { SOLAR_SCENE_3D_SCHEMA_VERSION } from "../types/solarScene3d";
 import type { CanonicalWorldConfig } from "../world/worldConvention";
 import type { Scene2DSourceTrace } from "../types/scene2d3dCoherence";
 import { validate2DTo3DCoherence } from "../validation/validate2DTo3DCoherence";
+import { evaluateSolarSceneGeometryTruth } from "../validation/geometricTruthStatus";
+import { evaluatePvPanelPlacementsForScene } from "../pvPanels/pvPanelPlacementValidation";
 
 export interface BuildSolarScene3DInput {
   readonly worldConfig?: CanonicalWorldConfig;
@@ -40,6 +42,7 @@ export interface BuildSolarScene3DInput {
   readonly extensionVolumes: readonly RoofExtensionVolume3D[];
   readonly volumesQuality: QualityBlock;
   readonly pvPanels: readonly PvPanelSurface3D[];
+  readonly pvPanelPlacementRequestedCount?: number;
   /** Directions soleil (vers le soleil) — sérialisées dans solarContext. */
   readonly solarDirections?: readonly NearShadingSolarDirectionInput[];
   readonly solarSamplingKind?: SolarSceneSolarContext3D["samplingKind"];
@@ -113,10 +116,46 @@ function buildSolarDirectionsUnit(
  */
 export function buildSolarScene3D(input: BuildSolarScene3DInput): SolarScene3D {
   const createdAtIso = new Date().toISOString();
+  const provisionalBaseForTruth: SolarScene3D = {
+    metadata: {
+      schemaVersion: SOLAR_SCENE_3D_SCHEMA_VERSION,
+      createdAtIso,
+      generator: input.generator ?? "buildSolarScene3D",
+    },
+    roofModel: input.roofModel,
+    obstacleVolumes: input.obstacleVolumes,
+    extensionVolumes: input.extensionVolumes,
+    volumesQuality: input.volumesQuality,
+    pvPanels: input.pvPanels,
+  };
+  const geometryTruth = evaluateSolarSceneGeometryTruth(provisionalBaseForTruth);
+  const invalidPatchCount = geometryTruth.patchTruth.filter((p) => p.status === "INVALID").length;
+  const degradedPatchCount = geometryTruth.patchTruth.filter((p) => p.status === "DEGRADED").length;
+  const pvPlacementTruth = evaluatePvPanelPlacementsForScene({
+    panels: input.pvPanels,
+    roofPlanePatches: input.roofModel.roofPlanePatches,
+    requestedPanelCount: input.pvPanelPlacementRequestedCount,
+    obstacleVolumes: input.obstacleVolumes,
+    extensionVolumes: input.extensionVolumes,
+  });
+  const roofModelWithGeometryTruth: RoofModel3D = {
+    ...input.roofModel,
+    roofPlanePatches: input.roofModel.roofPlanePatches.map((patch) => {
+      const truth = geometryTruth.patchTruth.find((p) => p.patchId === patch.id);
+      return truth ? { ...patch, geometryTruthStatus: truth.status } : patch;
+    }),
+  };
+
   const meta: SolarScene3DMetadata = {
     schemaVersion: SOLAR_SCENE_3D_SCHEMA_VERSION,
     createdAtIso,
     generator: input.generator ?? "buildSolarScene3D",
+    geometryTruthStatus: geometryTruth.status,
+    geometryTruthInvalidPatchCount: invalidPatchCount,
+    geometryTruthDegradedPatchCount: degradedPatchCount,
+    pvPlacementValidityStatus: pvPlacementTruth.status,
+    pvPlacementInvalidPanelCount: pvPlacementTruth.invalidPanelCount,
+    pvPlacementDroppedPanelCount: pvPlacementTruth.droppedPanelCount,
     ...(input.studyRef != null && { studyRef: input.studyRef }),
     ...(input.integrationNotes != null && { integrationNotes: input.integrationNotes }),
     ...(input.roofGeometrySource != null && { roofGeometrySource: input.roofGeometrySource }),
@@ -152,7 +191,7 @@ export function buildSolarScene3D(input: BuildSolarScene3DInput): SolarScene3D {
     metadata: meta,
     ...(input.worldConfig != null && { worldConfig: input.worldConfig }),
     ...(input.sourceTrace != null && { sourceTrace: input.sourceTrace }),
-    roofModel: input.roofModel,
+    roofModel: roofModelWithGeometryTruth,
     ...(input.buildingShell != null ? { buildingShell: input.buildingShell } : {}),
     obstacleVolumes: input.obstacleVolumes,
     extensionVolumes: input.extensionVolumes,

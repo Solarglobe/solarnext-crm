@@ -6,59 +6,13 @@
  */
 
 import * as THREE from "three";
-import { projectPointToPlaneUv } from "../builder/planePolygon3d";
 import type { RoofPlanePatch3D } from "../types/roof-surface";
 import type { RoofObstacleVolume3D } from "../types/roof-obstacle-volume";
 import type { RoofExtensionVolume3D } from "../types/roof-extension-volume";
 import type { BuildingShell3D } from "../types/building-shell-3d";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import type { RoofModel3D } from "../types/model";
-import { signedArea2d, triangulateSimplePolygon2dCcW } from "../utils/triangulateSimplePolygon2d";
-
-function fanTriangulateIndices(n: number): number[] {
-  const idx: number[] = [];
-  for (let i = 1; i < n - 1; i++) {
-    idx.push(0, i, i + 1);
-  }
-  return idx;
-}
-
-function patchUvPoints2d(patch: RoofPlanePatch3D): { readonly x: number; readonly y: number }[] {
-  const corners = patch.cornersWorld;
-  const n = corners.length;
-  const poly = patch.polygon2DInPlane;
-  if (poly && poly.length === n) {
-    return poly.map((p) => ({ x: p.u, y: p.v }));
-  }
-  const { origin, xAxis, yAxis } = patch.localFrame;
-  return corners.map((c) => {
-    const uv = projectPointToPlaneUv(c, origin, xAxis, yAxis);
-    return { x: uv.u, y: uv.v };
-  });
-}
-
-function triangleWindAlongNormal(
-  i0: number,
-  i1: number,
-  i2: number,
-  corners: readonly { x: number; y: number; z: number }[],
-  patchNormal: { x: number; y: number; z: number },
-): readonly [number, number, number] {
-  const p0 = corners[i0]!;
-  const p1 = corners[i1]!;
-  const p2 = corners[i2]!;
-  const e1x = p1.x - p0.x;
-  const e1y = p1.y - p0.y;
-  const e1z = p1.z - p0.z;
-  const e2x = p2.x - p0.x;
-  const e2y = p2.y - p0.y;
-  const e2z = p2.z - p0.z;
-  const cx = e1y * e2z - e1z * e2y;
-  const cy = e1z * e2x - e1x * e2z;
-  const cz = e1x * e2y - e1y * e2x;
-  const dot = cx * patchNormal.x + cy * patchNormal.y + cz * patchNormal.z;
-  return dot >= 0 ? [i0, i1, i2] : [i0, i2, i1];
-}
+import { triangulateRoofPatchForMesh } from "../validation/geometricTruthStatus";
 
 /**
  * Polygone plan : triangulation oreilles en UV (concave) avec repli éventail.
@@ -81,48 +35,8 @@ export function roofPatchGeometry(
     positions[i * 3 + 2] = corners[i]!.z;
   }
 
-  const uv2 = patchUvPoints2d(patch);
-  let order = Array.from({ length: n }, (_, i) => i);
-  if (signedArea2d(order.map((i) => uv2[i]!)) < 0) {
-    order = order.slice().reverse();
-  }
-  const ccwUv = order.map((i) => uv2[i]!);
-  let raw = triangulateSimplePolygon2dCcW(ccwUv);
-  let indices: number[];
-  if (raw != null) {
-    const out: number[] = [];
-    const mapOrig = (k: number) => order[k]!;
-    for (let t = 0; t < raw.length; t += 3) {
-      const a = mapOrig(raw[t]!);
-      const b = mapOrig(raw[t + 1]!);
-      const c = mapOrig(raw[t + 2]!);
-      const w = triangleWindAlongNormal(a, b, c, corners, patch.normal);
-      out.push(w[0], w[1], w[2]);
-    }
-    indices = out;
-  } else {
-    let orderXy = Array.from({ length: n }, (_, i) => i);
-    const xyLoop = orderXy.map((i) => ({ x: corners[i]!.x, y: corners[i]!.y }));
-    if (signedArea2d(xyLoop) < 0) {
-      orderXy = orderXy.slice().reverse();
-    }
-    const ccwXy = orderXy.map((i) => ({ x: corners[i]!.x, y: corners[i]!.y }));
-    raw = triangulateSimplePolygon2dCcW(ccwXy);
-    if (raw != null) {
-      const out: number[] = [];
-      const mapOrig = (k: number) => orderXy[k]!;
-      for (let t = 0; t < raw.length; t += 3) {
-        const a = mapOrig(raw[t]!);
-        const b = mapOrig(raw[t + 1]!);
-        const c = mapOrig(raw[t + 2]!);
-        const w = triangleWindAlongNormal(a, b, c, corners, patch.normal);
-        out.push(w[0], w[1], w[2]);
-      }
-      indices = out;
-    } else {
-      indices = fanTriangulateIndices(n);
-    }
-  }
+  const triangulation = triangulateRoofPatchForMesh(patch);
+  const indices = triangulation.status === "INVALID" ? [] : [...triangulation.indices];
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));

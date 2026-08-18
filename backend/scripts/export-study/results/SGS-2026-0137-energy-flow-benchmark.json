@@ -1,0 +1,448 @@
+{
+  "status": "success",
+  "export_metadata": {
+    "study_reference": "SGS-2026-0137",
+    "generated_at": "2026-07-17T12:05:50.771Z",
+    "hourly_benchmark_file": "C:\\Users\\Benoit\\Desktop\\Solarnext-crm\\backend\\scripts\\export-study\\results\\SGS-2026-0137-hourly-benchmark.json",
+    "snapshot_file": "C:\\Users\\Benoit\\Desktop\\Solarnext-crm\\backend\\scripts\\export-study\\results\\SGS-2026-0137-snapshot.json",
+    "no_database_access": true,
+    "no_vps_access": true,
+    "no_battery_or_v2h_recalculation": true
+  },
+  "annual": {
+    "production_kwh": 11592,
+    "consumption_kwh": 12234.379,
+    "autoconsumption_kwh": 3734.012969,
+    "surplus_injected_kwh": 7857.987031,
+    "grid_import_kwh": 8500.366031,
+    "self_consumption_pct": 32.211982,
+    "self_sufficiency_pct": 30.520658
+  },
+  "monthly": [
+    {
+      "month": 1,
+      "production_kwh": 276,
+      "consumption_kwh": 1280.158234,
+      "autoconsumption_kwh": 168.802976,
+      "surplus_injected_kwh": 107.197024,
+      "grid_import_kwh": 1111.355259,
+      "self_consumption_pct": 61.160498,
+      "self_sufficiency_pct": 13.186102
+    },
+    {
+      "month": 2,
+      "production_kwh": 492,
+      "consumption_kwh": 935.7746,
+      "autoconsumption_kwh": 253.047849,
+      "surplus_injected_kwh": 238.952151,
+      "grid_import_kwh": 682.726751,
+      "self_consumption_pct": 51.43249,
+      "self_sufficiency_pct": 27.041539
+    },
+    {
+      "month": 3,
+      "production_kwh": 948,
+      "consumption_kwh": 737.331272,
+      "autoconsumption_kwh": 291.289066,
+      "surplus_injected_kwh": 656.710934,
+      "grid_import_kwh": 446.042206,
+      "self_consumption_pct": 30.726695,
+      "self_sufficiency_pct": 39.505861
+    },
+    {
+      "month": 4,
+      "production_kwh": 1404,
+      "consumption_kwh": 769.875256,
+      "autoconsumption_kwh": 359.141768,
+      "surplus_injected_kwh": 1044.858232,
+      "grid_import_kwh": 410.733488,
+      "self_consumption_pct": 25.579898,
+      "self_sufficiency_pct": 46.649346
+    },
+    {
+      "month": 5,
+      "production_kwh": 1620,
+      "consumption_kwh": 1031.878469,
+      "autoconsumption_kwh": 506.881943,
+      "surplus_injected_kwh": 1113.118057,
+      "grid_import_kwh": 524.996525,
+      "self_consumption_pct": 31.289009,
+      "self_sufficiency_pct": 49.122252
+    },
+    {
+      "month": 6,
+      "production_kwh": 1620,
+      "consumption_kwh": 1433.872212,
+      "autoconsumption_kwh": 714.518461,
+      "surplus_injected_kwh": 905.481539,
+      "grid_import_kwh": 719.353752,
+      "self_consumption_pct": 44.106078,
+      "self_sufficiency_pct": 49.83139
+    },
+    {
+      "month": 7,
+      "production_kwh": 1644,
+      "consumption_kwh": 855.173119,
+      "autoconsumption_kwh": 370.744468,
+      "surplus_injected_kwh": 1273.255532,
+      "grid_import_kwh": 484.428651,
+      "self_consumption_pct": 22.551367,
+      "self_sufficiency_pct": 43.353148
+    },
+    {
+      "month": 8,
+      "production_kwh": 1404,
+      "consumption_kwh": 898.525413,
+      "autoconsumption_kwh": 319.974772,
+      "surplus_injected_kwh": 1084.025228,
+      "grid_import_kwh": 578.55064,
+      "self_consumption_pct": 22.790226,
+      "self_sufficiency_pct": 35.611099
+    },
+    {
+      "month": 9,
+      "production_kwh": 1032,
+      "consumption_kwh": 923.727875,
+      "autoconsumption_kwh": 244.72298,
+      "surplus_injected_kwh": 787.27702,
+      "grid_import_kwh": 679.004895,
+      "self_consumption_pct": 23.713467,
+      "self_sufficiency_pct": 26.492973
+    },
+    {
+      "month": 10,
+      "production_kwh": 624,
+      "consumption_kwh": 992.599702,
+      "autoconsumption_kwh": 199.646771,
+      "surplus_injected_kwh": 424.353229,
+      "grid_import_kwh": 792.952931,
+      "self_consumption_pct": 31.994675,
+      "self_sufficiency_pct": 20.113523
+    },
+    {
+      "month": 11,
+      "production_kwh": 312,
+      "consumption_kwh": 1139.389064,
+      "autoconsumption_kwh": 161.911418,
+      "surplus_injected_kwh": 150.088582,
+      "grid_import_kwh": 977.477647,
+      "self_consumption_pct": 51.894685,
+      "self_sufficiency_pct": 14.210371
+    },
+    {
+      "month": 12,
+      "production_kwh": 216,
+      "consumption_kwh": 1236.073782,
+      "autoconsumption_kwh": 143.330496,
+      "surplus_injected_kwh": 72.669504,
+      "grid_import_kwh": 1092.743286,
+      "self_consumption_pct": 66.356711,
+      "self_sufficiency_pct": 11.595626
+    }
+  ],
+  "comparable_scenario": {
+    "status": "selected",
+    "evaluated": [
+      {
+        "id": "BASE",
+        "label": "Sans batterie",
+        "kwc": 12,
+        "battery": false,
+        "v2h": false,
+        "piloting": false,
+        "kwc_matches_12kwc": true,
+        "comparable": true
+      },
+      {
+        "id": "BATTERY_PHYSICAL",
+        "label": "Batterie physique",
+        "kwc": 12,
+        "battery": true,
+        "v2h": false,
+        "piloting": false,
+        "kwc_matches_12kwc": true,
+        "comparable": false
+      },
+      {
+        "id": "BATTERY_VIRTUAL",
+        "label": "Batterie virtuelle",
+        "kwc": 12,
+        "battery": true,
+        "v2h": false,
+        "piloting": false,
+        "kwc_matches_12kwc": true,
+        "comparable": false
+      },
+      {
+        "id": "BATTERY_HYBRID",
+        "label": "Hybride : physique + virtuelle",
+        "kwc": 12,
+        "battery": true,
+        "v2h": false,
+        "piloting": false,
+        "kwc_matches_12kwc": true,
+        "comparable": false
+      },
+      {
+        "id": "VEHICLE_V2H",
+        "label": "Voiture V2H",
+        "kwc": 12,
+        "battery": false,
+        "v2h": true,
+        "piloting": false,
+        "kwc_matches_12kwc": true,
+        "comparable": false
+      },
+      {
+        "id": "VEHICLE_V2H_PHYSICAL",
+        "label": "Voiture V2H + batterie physique",
+        "kwc": 12,
+        "battery": true,
+        "v2h": true,
+        "piloting": false,
+        "kwc_matches_12kwc": true,
+        "comparable": false
+      },
+      {
+        "id": "VEHICLE_V2H_VIRTUAL",
+        "label": "Voiture V2H + batterie virtuelle",
+        "kwc": 12,
+        "battery": true,
+        "v2h": true,
+        "piloting": false,
+        "kwc_matches_12kwc": true,
+        "comparable": false
+      },
+      {
+        "id": "VEHICLE_V2H_PHYSICAL_VIRTUAL",
+        "label": "Voiture V2H + physique + virtuelle",
+        "kwc": 12,
+        "battery": true,
+        "v2h": true,
+        "piloting": false,
+        "kwc_matches_12kwc": true,
+        "comparable": false
+      }
+    ],
+    "selected": {
+      "id": "BASE",
+      "label": "Sans batterie",
+      "kwc": 12
+    }
+  },
+  "comparison": {
+    "fields": {
+      "production_kwh": {
+        "canonical_key": "production_kwh",
+        "aliases_checked": [
+          "production_kwh"
+        ],
+        "found": [
+          {
+            "alias": "production_kwh",
+            "value": 11516
+          }
+        ],
+        "selected": {
+          "alias": "production_kwh",
+          "value": 11516
+        },
+        "status": "selected",
+        "comparison": {
+          "benchmark_value": 11592,
+          "stored_value": 11516,
+          "abs_diff": 76,
+          "rel_diff_pct": 0.659951
+        }
+      },
+      "consumption_kwh": {
+        "canonical_key": "consumption_kwh",
+        "aliases_checked": [
+          "consumption_kwh"
+        ],
+        "found": [
+          {
+            "alias": "consumption_kwh",
+            "value": 13195.03
+          }
+        ],
+        "selected": {
+          "alias": "consumption_kwh",
+          "value": 13195.03
+        },
+        "status": "selected",
+        "comparison": {
+          "benchmark_value": 12234.379,
+          "stored_value": 13195.03,
+          "abs_diff": -960.651,
+          "rel_diff_pct": -7.2804
+        }
+      },
+      "autoconsumption_kwh": {
+        "canonical_key": "autoconsumption_kwh",
+        "aliases_checked": [
+          "autoconsumption_kwh",
+          "total_pv_used_on_site_kwh",
+          "energy_solar_used_kwh"
+        ],
+        "found": [
+          {
+            "alias": "autoconsumption_kwh",
+            "value": 4486
+          },
+          {
+            "alias": "total_pv_used_on_site_kwh",
+            "value": 4486
+          }
+        ],
+        "selected": {
+          "alias": "autoconsumption_kwh",
+          "value": 4486
+        },
+        "status": "selected_multiple_aliases_same_value",
+        "comparison": {
+          "benchmark_value": 3734.012969,
+          "stored_value": 4486,
+          "abs_diff": -751.987031,
+          "rel_diff_pct": -16.762974
+        }
+      },
+      "surplus_injected_kwh": {
+        "canonical_key": "surplus_injected_kwh",
+        "aliases_checked": [
+          "surplus_kwh",
+          "exported_kwh",
+          "surplus_to_virtual_or_grid_kwh"
+        ],
+        "found": [
+          {
+            "alias": "surplus_kwh",
+            "value": 7030
+          },
+          {
+            "alias": "exported_kwh",
+            "value": 7030
+          },
+          {
+            "alias": "surplus_to_virtual_or_grid_kwh",
+            "value": 0
+          }
+        ],
+        "selected": null,
+        "status": "ambiguous",
+        "comparison": null
+      },
+      "grid_import_kwh": {
+        "canonical_key": "grid_import_kwh",
+        "aliases_checked": [
+          "grid_import_kwh",
+          "energy_grid_import_kwh",
+          "import_kwh"
+        ],
+        "found": [
+          {
+            "alias": "grid_import_kwh",
+            "value": 8709
+          },
+          {
+            "alias": "energy_grid_import_kwh",
+            "value": 8709
+          },
+          {
+            "alias": "import_kwh",
+            "value": 8709
+          }
+        ],
+        "selected": {
+          "alias": "grid_import_kwh",
+          "value": 8709
+        },
+        "status": "selected_multiple_aliases_same_value",
+        "comparison": {
+          "benchmark_value": 8500.366031,
+          "stored_value": 8709,
+          "abs_diff": -208.633969,
+          "rel_diff_pct": -2.395613
+        }
+      },
+      "self_consumption_pct": {
+        "canonical_key": "self_consumption_pct",
+        "aliases_checked": [
+          "self_consumption_pct",
+          "pv_self_consumption_pct"
+        ],
+        "found": [
+          {
+            "alias": "self_consumption_pct",
+            "value": 38.95
+          },
+          {
+            "alias": "pv_self_consumption_pct",
+            "value": 38.95
+          }
+        ],
+        "selected": {
+          "alias": "self_consumption_pct",
+          "value": 38.95
+        },
+        "status": "selected_multiple_aliases_same_value",
+        "comparison": {
+          "benchmark_value": 32.211982,
+          "stored_value": 38.95,
+          "abs_diff": -6.738018,
+          "rel_diff_pct": -17.299148
+        }
+      },
+      "self_sufficiency_pct": {
+        "canonical_key": "self_sufficiency_pct",
+        "aliases_checked": [
+          "self_production_pct",
+          "site_autonomy_pct",
+          "energy_independence_pct",
+          "solar_coverage_pct"
+        ],
+        "found": [
+          {
+            "alias": "self_production_pct",
+            "value": 34
+          },
+          {
+            "alias": "site_autonomy_pct",
+            "value": 34
+          },
+          {
+            "alias": "energy_independence_pct",
+            "value": 34
+          },
+          {
+            "alias": "solar_coverage_pct",
+            "value": 34
+          }
+        ],
+        "selected": {
+          "alias": "self_production_pct",
+          "value": 34
+        },
+        "status": "selected_multiple_aliases_same_value",
+        "comparison": {
+          "benchmark_value": 30.520658,
+          "stored_value": 34,
+          "abs_diff": -3.479342,
+          "rel_diff_pct": -10.233359
+        }
+      }
+    },
+    "warnings": [
+      "autoconsumption_kwh: plusieurs alias presents avec la meme valeur (autoconsumption_kwh, total_pv_used_on_site_kwh); alias retenu: autoconsumption_kwh.",
+      "surplus_injected_kwh: plusieurs alias presents (surplus_kwh, exported_kwh, surplus_to_virtual_or_grid_kwh), comparaison non retenue.",
+      "grid_import_kwh: plusieurs alias presents avec la meme valeur (grid_import_kwh, energy_grid_import_kwh, import_kwh); alias retenu: grid_import_kwh.",
+      "self_consumption_pct: plusieurs alias presents avec la meme valeur (self_consumption_pct, pv_self_consumption_pct); alias retenu: self_consumption_pct.",
+      "self_sufficiency_pct: plusieurs alias presents avec la meme valeur (self_production_pct, site_autonomy_pct, energy_independence_pct, solar_coverage_pct); alias retenu: self_production_pct."
+    ]
+  },
+  "definition_warnings": [
+    "Benchmark calcule sans batterie, sans V2H et sans pilotage: comparaison limitee aux champs energetiques de meme definition apparente.",
+    "Le surplus benchmark correspond a max(PV-consommation, 0) avant toute batterie virtuelle ou valorisation contractuelle.",
+    "L'import reseau benchmark correspond a max(consommation-PV, 0) avant batterie, credits ou pilotage."
+  ]
+}

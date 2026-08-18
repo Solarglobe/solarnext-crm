@@ -17,29 +17,25 @@ import { useHorizonMaskFetch } from "../hooks/useHorizonMaskFetch";
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Tente de cliquer sur un bouton DOM identifié par `id`.
- * Retry jusqu'à `maxRetries` fois avec `delayMs` entre chaque tentative.
- * Appelle `onFail` si le bouton reste introuvable après tous les essais.
- *
- * Cas couvert : race condition où React monte Phase2Sidebar avant que le module
- * legacy ait injecté son template (et donc avant que #btn-validate-roof soit dans le DOM).
+ * Tente d'appeler une action legacy explicite.
+ * Retry court pour couvrir la race condition où React monte avant initCalpinage().
  */
-function clickWithRetry(
-  id: string,
+function callLegacyActionWithRetry(
+  getAction: () => (() => void) | undefined,
   maxRetries: number,
   delayMs: number,
   onFail: () => void,
 ): void {
-  const btn = document.getElementById(id) as HTMLButtonElement | null;
-  if (btn) {
-    btn.click();
+  const action = getAction();
+  if (typeof action === "function") {
+    action();
     return;
   }
   if (maxRetries <= 0) {
     onFail();
     return;
   }
-  setTimeout(() => clickWithRetry(id, maxRetries - 1, delayMs, onFail), delayMs);
+  setTimeout(() => callLegacyActionWithRetry(getAction, maxRetries - 1, delayMs, onFail), delayMs);
 }
 
 function Phase2Header() {
@@ -234,25 +230,8 @@ function Phase2Actions() {
   const toast = useToast();
 
   const handleValidate = () => {
-    const btn = document.getElementById("btn-validate-roof") as HTMLButtonElement | null;
-
-    // Cas 1 : bouton présent mais désactivé côté legacy (incohérence avec canValidate React).
-    // Ne devrait pas arriver (React reflète l'état legacy), mais on guard défensivement.
-    if (btn?.disabled) {
-      toast.error("Validation impossible — contour bâti valide et au moins un pan requis.");
-      return;
-    }
-
-    // Cas 2 : bouton présent et actif → click direct (cas nominal).
-    if (btn) {
-      btn.click();
-      return;
-    }
-
-    // Cas 3 : bouton absent du DOM → race condition (React monté avant le template legacy).
-    // Retry 3× toutes les 100ms, toast d'erreur si toujours absent.
-    clickWithRetry(
-      "btn-validate-roof",
+    callLegacyActionWithRetry(
+      () => getCalpinageWindow().validateRoofSurveyAction,
       3,
       100,
       () => {
@@ -261,7 +240,7 @@ function Phase2Actions() {
         );
         if (import.meta.env.DEV) {
           console.error(
-            "[Phase2Actions] #btn-validate-roof introuvable après 3 tentatives.",
+            "[Phase2Actions] validateRoofSurveyAction introuvable après 3 tentatives.",
             "Cause probable : initValidateRoofButton() non encore exécuté.",
           );
         }

@@ -5,11 +5,12 @@
  * (worldPosition), légèrement au-dessus de la surface (+0.15 m selon la normale).
  *
  * Tilt et azimut calculés depuis `outwardNormal` (convention SolarNext : X=Est, Y=Nord, Z=Up).
- * Puissance estimée à 227 Wc/m² (monocristallin standard) — pas de logique métier externe.
+ * Puissance lue depuis le module catalogue/snapshot sélectionné, sans estimation locale.
  */
 
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
+import { isPvPanelCountableForPower } from "../../../power/installedPvPower";
 import type { PvPanelSurface3D } from "../../types/pv-panel-3d";
 
 // ── Types publics ─────────────────────────────────────────────────────────────
@@ -19,6 +20,7 @@ export interface PanelTooltipProps {
   readonly panelId: string | null;
   readonly panel: PvPanelSurface3D | null;
   readonly worldPosition: THREE.Vector3 | null;
+  readonly modulePowerWc?: number | null;
 }
 
 // ── Helpers géométriques ──────────────────────────────────────────────────────
@@ -39,11 +41,6 @@ function computeAzimuthDeg(n: { x: number; y: number; z: number }): number {
   return Math.round(((azRad * 180 / Math.PI) + 360) % 360);
 }
 
-/** Estimation puissance crête : mono-Si 227 Wc/m² × surface réelle. */
-function estimatePanelPowerWc(panel: PvPanelSurface3D): number {
-  return Math.round(panel.widthM * panel.heightM * 227);
-}
-
 /** Tronque l'ID pour affichage (max 8 caractères, ellipsis si trop long). */
 function formatPanelId(id: string): string {
   return id.length > 8 ? `…${id.slice(-7)}` : id;
@@ -51,12 +48,13 @@ function formatPanelId(id: string): string {
 
 // ── Composant ─────────────────────────────────────────────────────────────────
 
-export function PanelTooltip3D({ panelId, panel, worldPosition }: PanelTooltipProps) {
+export function PanelTooltip3D({ panelId, panel, worldPosition, modulePowerWc = null }: PanelTooltipProps) {
   if (!panelId || !panel || !worldPosition) return null;
 
   const tiltDeg     = computeTiltDeg(panel.outwardNormal);
   const azimuthDeg  = computeAzimuthDeg(panel.outwardNormal);
-  const powerWc     = estimatePanelPowerWc(panel);
+  const countable = isPvPanelCountableForPower(panel);
+  const powerWc = countable && modulePowerWc != null ? modulePowerWc : null;
 
   // Légèrement surélevé au-dessus de la surface
   const pos: [number, number, number] = [
@@ -105,7 +103,7 @@ export function PanelTooltip3D({ panelId, panel, worldPosition }: PanelTooltipPr
             letterSpacing: "-0.01em",
           }}
         >
-          {powerWc.toLocaleString("fr-FR")} Wc
+          {powerWc != null ? `${powerWc.toLocaleString("fr-FR")} Wc` : "Puissance indisponible"}
         </div>
 
         {/* Grille inclinaison / azimut */}

@@ -33,12 +33,9 @@
  * (voir `roofExtensions/VIEWER_VALIDATION_P3.md`).
  */
 
-import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
-import { Environment, Grid, Outlines } from "@react-three/drei";
-import { EffectComposer, SMAA, Bloom, Vignette } from "@react-three/postprocessing";
-import { isCanonical3DEnabled } from "../featureFlags";
+import { Canvas, type ThreeEvent, useThree } from "@react-three/fiber";
+import { Grid, Outlines } from "@react-three/drei";
 import {
-  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -72,6 +69,38 @@ import {
   formatRoofShellAlignmentOneLine,
 } from "../diagnostics/computeRoofShellAlignmentDiagnostics";
 import type { SolarScene3D } from "../types/solarScene3d";
+import {
+  resolveViewerReliabilityState,
+  type ViewerReliabilityState,
+} from "./viewerReliabilityState";
+import { ViewerPerformanceMonitor } from "./ViewerPerformanceMonitor";
+import {
+  clampViewerDpr,
+  isViewerQualityManual,
+  readViewerDeviceCapabilitySignals,
+  resolveInitialViewerQualityTier,
+  resolveViewerQualityTransition,
+  VIEWER_QUALITY_PROFILES,
+  type ViewerFrameWindowStats,
+  type ViewerQualityMode,
+  type ViewerQualityProfile,
+  type ViewerQualityTier,
+} from "./viewerQualityProfile";
+import { ViewerLighting } from "./ViewerLighting";
+import {
+  CanvasQualityApplier,
+  ViewerEnvironment,
+  ViewerPostProcessing,
+} from "./ViewerRenderingEffects";
+import { ViewerReliabilityOverlay } from "./ViewerReliabilityOverlay";
+import { DebugSceneHelpers, DebugStatsOverlay } from "./ViewerDebugTools";
+import {
+  PvLayout3dScreenOverlayProjector,
+  PvLayout3dSvgOverlay,
+  type PvLayout3dHandleUi,
+  type PvLayout3dScreenOverlayState,
+} from "./pvLayout3dScreenOverlay";
+import { exposeViewerDebugFacade } from "./viewerDebugFacade";
 import { keepoutHatchGeometry, keepoutCornerMarksGeometry } from "./keepout3DGeometry";
 
 import {
@@ -107,13 +136,8 @@ import { RoofVertexZDragController, type RoofZDragSession } from "./RoofVertexZD
 import { worldZFromPointerOnVerticalThroughXY } from "./roofVertexVerticalPointerMath";
 import {
   GROUND_PLANE_CONTACT_OFFSET_M,
-  VIEWER_AMBIENT_INTENSITY,
   VIEWER_CAMERA_FOV_DEG,
   VIEWER_DEFAULT_CAMERA_OFFSET,
-  VIEWER_FILL_LIGHT_INTENSITY,
-  VIEWER_KEY_LIGHT_INTENSITY,
-  VIEWER_SHADOW_BIAS,
-  VIEWER_SHADOW_NORMAL_BIAS,
 } from "./viewerConstants";
 import {
   applyCanonicalViewerGlOutput,
@@ -152,11 +176,14 @@ import type { PremiumHouse3DViewMode } from "./premium/premiumHouse3DViewModes";
 import { buildPremiumObstacleAssets } from "./obstacles/premiumObstacleAssets";
 import {
   resolveRoofMissingHeightAlerts,
-  resolveRoofTruthBadge,
-  type RoofMissingHeightAlert,
-  type RoofTruthBadgeModel,
-  type RoofTruthBadgeTone,
 } from "./roofTruthBadges";
+import {
+  MissingHeightAlertsOverlay,
+  MultiPanDiagnosticsOverlay,
+  RoofTruthBadgesOverlay,
+  RoofTruthBadgesProjector,
+  type RoofTruthBadgeScreenModel,
+} from "./ViewerWarningOverlays";
 import { ObstaclesMesh, type ObstacleDetailGeometries } from "./ObstaclesMesh";
 import { RoofPansMesh } from "./RoofPansMesh";
 import { PvPanelsLayer } from "./PvPanelsLayer";
@@ -169,6 +196,10 @@ import {
 import { PanelTooltip3D } from "./overlays/PanelTooltip3D";
 import { PowerIndicator3D } from "./overlays/PowerIndicator3D";
 import { MagneticGrid3D } from "./overlays/MagneticGrid3D";
+import {
+  computeInstalledPvPower,
+  resolveSelectedPvModulePower,
+} from "../../power/installedPvPower";
 
 // ─── HorizonMaskRing3D ────────────────────────────────────────────────────────
 // Visualise le masque d'horizon lointain comme une couronne LineLoop 3D.
@@ -307,6 +338,7 @@ export interface SolarScene3DViewerProps {
   readonly scene?: SolarScene3D;
   /** Alias de `scene` (même type). Si `scene` est défini, il prime. */
   readonly runtimeScene?: SolarScene3D;
+  readonly reliabilityState?: ViewerReliabilityState;
   readonly className?: string;
   readonly height?: number | string;
   readonly showRoof?: boolean;
@@ -356,6 +388,11 @@ export interface SolarScene3DViewerProps {
    * Runtime CALPINAGE_STATE brut — overlay XY debug + **aperçu live drag Z** (clone JSON + rebuild scène, sans commit).
    */
   readonly debugRuntime?: unknown;
+  /**
+   * Puissance du module sélectionné/snapshot (mono-module scène).
+   * Le viewer n'est pas autorisé à estimer une puissance depuis la surface panneau.
+   */
+  readonly selectedModulePowerWc?: number | null;
   readonly cameraViewMode?: CameraViewMode;
   readonly onCameraViewModeChange?: (mode: CameraViewMode) => void;
   readonly defaultCameraViewMode?: CameraViewMode;
@@ -411,6 +448,9 @@ export interface SolarScene3DViewerProps {
    * Désactiver si le GPU cible ne supporte pas les FBO multiples. Défaut : true.
    */
   readonly enablePostProcessing?: boolean;
+  /** Phase 5 — qualité graphique adaptative. Défaut AUTO, pilotable en dev via window.__CALPINAGE_3D_PERF__. */
+  readonly qualityMode?: ViewerQualityMode;
+  readonly onQualityModeChange?: (mode: ViewerQualityMode) => void;
   /**
    * Masque d'horizon lointain (far shading) — list { az, elev } depuis GET /api/horizon-mask.
    * Si fourni, affiche une couronne LineLoop orange (rayon 500 m) dans la scène 3D.
@@ -1089,757 +1129,6 @@ function extensionV1FootprintSafeZoneGeometries(
   return ribbon || line ? { id: String(extension.id), ribbon, line } : null;
 }
 
-type PvLayout3dScreenPoint = { readonly x: number; readonly y: number };
-
-type PvLayout3dProjectedPanel = {
-  readonly id: string;
-  readonly selected: boolean;
-  readonly invalid: boolean;
-  readonly enabled: boolean;
-  readonly points: readonly PvLayout3dScreenPoint[];
-};
-
-type PvLayout3dProjectedGhost = {
-  readonly id: string;
-  readonly valid: boolean;
-  readonly excluded: boolean;
-  readonly source?: "expansion" | "autofill";
-  readonly points: readonly PvLayout3dScreenPoint[];
-  readonly labelPoint: PvLayout3dScreenPoint;
-  readonly label: string;
-};
-
-type PvLayout3dProjectedSafeZone = {
-  readonly id: string;
-  readonly points: readonly PvLayout3dScreenPoint[];
-  readonly labelPoint: PvLayout3dScreenPoint;
-};
-
-type PvLayout3dProjectedHandles = {
-  readonly blockId: string;
-  readonly rotate: PvLayout3dScreenPoint;
-  readonly move: PvLayout3dScreenPoint;
-  readonly topOfBlock: PvLayout3dScreenPoint;
-  readonly rotateImg: { readonly x: number; readonly y: number };
-  readonly moveImg: { readonly x: number; readonly y: number };
-};
-
-type PvLayout3dScreenOverlayState = {
-  readonly width: number;
-  readonly height: number;
-  readonly panels: readonly PvLayout3dProjectedPanel[];
-  readonly ghosts: readonly PvLayout3dProjectedGhost[];
-  readonly safeZones: readonly PvLayout3dProjectedSafeZone[];
-  readonly handles: PvLayout3dProjectedHandles | null;
-};
-
-type PvLayout3dHandleUi = PvLayout3dProjectedHandles;
-
-function projectWorldToScreenPoint(
-  world: THREE.Vector3,
-  camera: THREE.Camera,
-  width: number,
-  height: number,
-): PvLayout3dScreenPoint | null {
-  const p = world.clone().project(camera);
-  if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)) return null;
-  return {
-    x: ((p.x + 1) / 2) * width,
-    y: ((-p.y + 1) / 2) * height,
-  };
-}
-
-function screenPolygonCentroid(points: readonly PvLayout3dScreenPoint[]): PvLayout3dScreenPoint {
-  if (points.length === 0) return { x: 0, y: 0 };
-  return {
-    x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
-    y: points.reduce((sum, p) => sum + p.y, 0) / points.length,
-  };
-}
-
-function pv3dGhostLabel(g: { readonly valid?: boolean; readonly excluded?: boolean; readonly source?: "expansion" | "autofill" }): string {
-  if (g.excluded) return "Retire";
-  if (g.valid === false) return "Refuse";
-  return g.source === "autofill" ? "Auto" : "OK";
-}
-
-function overlaySignature(o: PvLayout3dScreenOverlayState | null): string {
-  if (!o) return "null";
-  const h = o.handles
-    ? `${o.handles.blockId}:${o.handles.rotate.x.toFixed(1)},${o.handles.rotate.y.toFixed(1)}:${o.handles.move.x.toFixed(1)},${o.handles.move.y.toFixed(1)}`
-    : "none";
-  const panels = o.panels
-    .filter((p) => p.selected || p.invalid)
-    .map((p) => `${p.id}:${p.selected ? 1 : 0}:${p.invalid ? 1 : 0}:${p.points.map((pt) => `${pt.x.toFixed(0)},${pt.y.toFixed(0)}`).join(";")}`)
-    .join("|");
-  const ghosts = o.ghosts
-    .map((g) => `${g.id}:${g.valid ? 1 : 0}:${g.excluded ? 1 : 0}:${g.label}:${g.points.map((pt) => `${pt.x.toFixed(0)},${pt.y.toFixed(0)}`).join(";")}`)
-    .join("|");
-  const safeZones = o.safeZones
-    .map((z) => `${z.id}:${z.points.map((pt) => `${pt.x.toFixed(0)},${pt.y.toFixed(0)}`).join(";")}`)
-    .join("|");
-  return `${o.width}x${o.height}|${h}|${panels}|${ghosts}|${safeZones}`;
-}
-
-interface RoofTruthBadgeScreenModel extends RoofTruthBadgeModel {
-  readonly x: number;
-  readonly y: number;
-  readonly visible: boolean;
-}
-
-const ROOF_TRUTH_BADGE_TOKENS: Record<
-  RoofTruthBadgeTone,
-  {
-    readonly dot: string;
-    readonly text: string;
-    readonly border: string;
-    readonly background: string;
-  }
-> = {
-  measured: {
-    dot: "#22c55e",
-    text: "#dcfce7",
-    border: "rgba(34,197,94,0.38)",
-    background: "rgba(6,78,59,0.74)",
-  },
-  deduced: {
-    dot: "#38bdf8",
-    text: "#e0f2fe",
-    border: "rgba(56,189,248,0.36)",
-    background: "rgba(12,74,110,0.74)",
-  },
-  generic: {
-    dot: "#f59e0b",
-    text: "#fffbeb",
-    border: "rgba(245,158,11,0.42)",
-    background: "rgba(120,53,15,0.76)",
-  },
-  incoherent: {
-    dot: "#ef4444",
-    text: "#fee2e2",
-    border: "rgba(239,68,68,0.48)",
-    background: "rgba(127,29,29,0.78)",
-  },
-};
-
-function roofTruthBadgesSignature(badges: readonly RoofTruthBadgeScreenModel[]): string {
-  return badges
-    .map((b) => `${b.panId}:${b.truthClass}:${b.visible ? 1 : 0}:${b.x.toFixed(0)},${b.y.toFixed(0)}`)
-    .join("|");
-}
-
-function roofPatchBadgeAnchor(patch: SolarScene3D["roofModel"]["roofPlanePatches"][number]): THREE.Vector3 | null {
-  const c = patch.centroid;
-  const n = patch.normal;
-  if (
-    !c ||
-    !n ||
-    !Number.isFinite(c.x) ||
-    !Number.isFinite(c.y) ||
-    !Number.isFinite(c.z) ||
-    !Number.isFinite(n.x) ||
-    !Number.isFinite(n.y) ||
-    !Number.isFinite(n.z)
-  ) {
-    return null;
-  }
-  return new THREE.Vector3(c.x + n.x * 0.18, c.y + n.y * 0.18, c.z + n.z * 0.18);
-}
-
-function RoofTruthBadgesProjector({
-  scene,
-  enabled,
-  onProjected,
-}: {
-  readonly scene: SolarScene3D;
-  readonly enabled: boolean;
-  readonly onProjected: (badges: RoofTruthBadgeScreenModel[]) => void;
-}) {
-  const { camera, gl } = useThree();
-  const lastSigRef = useRef("");
-  /** Accumulateur delta pour throttler la projection à max 10fps (100ms). */
-  const projectionAccRef = useRef(0);
-
-  useEffect(() => {
-    if (!enabled) onProjected([]);
-  }, [enabled, onProjected]);
-
-  useFrame((_, delta) => {
-    // Désactivation : nettoyage immédiat, pas throttlé.
-    if (!enabled) {
-      if (lastSigRef.current !== "empty") {
-        lastSigRef.current = "empty";
-        onProjected([]);
-      }
-      return;
-    }
-    // Throttle projection matricielle : max 10fps (100ms entre mises à jour).
-    projectionAccRef.current += delta;
-    if (projectionAccRef.current < 0.1) return;
-    projectionAccRef.current = 0;
-    const rect = gl.domElement.getBoundingClientRect();
-    const width = Math.max(1, rect.width);
-    const height = Math.max(1, rect.height);
-    const badges: RoofTruthBadgeScreenModel[] = scene.roofModel.roofPlanePatches.flatMap((patch) => {
-      const anchor = roofPatchBadgeAnchor(patch);
-      if (!anchor) return [];
-      const projected = anchor.clone().project(camera);
-      if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y) || !Number.isFinite(projected.z)) return [];
-      const x = ((projected.x + 1) / 2) * width;
-      const y = ((-projected.y + 1) / 2) * height;
-      const badge = resolveRoofTruthBadge(scene, patch);
-      const visible =
-        projected.z >= -1 &&
-        projected.z <= 1 &&
-        x >= -36 &&
-        y >= -18 &&
-        x <= width + 36 &&
-        y <= height + 18;
-      return [{ ...badge, x, y, visible }];
-    });
-    const sig = roofTruthBadgesSignature(badges);
-    if (sig !== lastSigRef.current) {
-      lastSigRef.current = sig;
-      onProjected(badges);
-    }
-  });
-
-  return null;
-}
-
-function RoofTruthBadgesOverlay({
-  badges,
-  visible,
-}: {
-  readonly badges: readonly RoofTruthBadgeScreenModel[];
-  readonly visible: boolean;
-}) {
-  if (!visible || badges.length === 0) return null;
-  return (
-    <div
-      aria-hidden="true"
-      data-testid="roof-truth-badges-overlay"
-      style={{
-        position: "absolute",
-        inset: 0,
-        zIndex: 6,
-        pointerEvents: "none",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      }}
-    >
-      {badges.filter((b) => b.visible).map((b) => {
-        const tokens = ROOF_TRUTH_BADGE_TOKENS[b.tone];
-        return (
-          <div
-            key={b.panId}
-            data-testid={`roof-truth-badge-${b.panId}`}
-            data-roof-truth={b.truthClass}
-            title={b.title}
-            style={{
-              position: "absolute",
-              left: b.x,
-              top: b.y,
-              transform: "translate(-50%, -50%)",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              height: 22,
-              maxWidth: 112,
-              padding: "0 8px",
-              borderRadius: 999,
-              border: `1px solid ${tokens.border}`,
-              background: tokens.background,
-              color: tokens.text,
-              boxShadow: "0 8px 20px rgba(0,0,0,0.28)",
-              backdropFilter: "blur(8px)",
-              WebkitBackdropFilter: "blur(8px)",
-              fontSize: 10,
-              fontWeight: 700,
-              lineHeight: "22px",
-              letterSpacing: 0,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 999,
-                background: tokens.dot,
-                boxShadow: `0 0 0 2px ${tokens.border}`,
-                flex: "0 0 auto",
-              }}
-            />
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{b.label}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function MissingHeightAlertsOverlay({
-  alerts,
-  visible,
-}: {
-  readonly alerts: readonly RoofMissingHeightAlert[];
-  readonly visible: boolean;
-}) {
-  if (!visible || alerts.length === 0) return null;
-  const defaultCount = alerts.filter((a) => a.kind === "default").length;
-  const averageCount = alerts.length - defaultCount;
-  return (
-    <div
-      data-testid="missing-height-alerts-3d"
-      role="status"
-      aria-label="Alertes hauteur manquante"
-      style={{
-        position: "absolute",
-        left: 10,
-        bottom: 10,
-        zIndex: 7,
-        width: "min(360px, calc(100% - 20px))",
-        padding: "10px 12px",
-        borderRadius: 8,
-        border: "1px solid rgba(245,158,11,0.28)",
-        background: "rgba(24, 20, 14, 0.82)",
-        color: "rgba(255,251,235,0.95)",
-        boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        pointerEvents: "none",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: 999,
-            background: defaultCount > 0 ? "#f59e0b" : "#38bdf8",
-            boxShadow: "0 0 0 3px rgba(245,158,11,0.16)",
-            flex: "0 0 auto",
-          }}
-        />
-        <div style={{ fontSize: 12, fontWeight: 800, lineHeight: "16px", letterSpacing: 0 }}>
-          Hauteurs à compléter
-        </div>
-        <div
-          style={{
-            marginLeft: "auto",
-            fontSize: 10,
-            lineHeight: "16px",
-            color: "rgba(254,243,199,0.72)",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {alerts.length} pan{alerts.length > 1 ? "s" : ""}
-        </div>
-      </div>
-      <div style={{ marginTop: 5, fontSize: 11, lineHeight: "15px", color: "rgba(254,243,199,0.78)" }}>
-        {defaultCount > 0 ? `${defaultCount} par défaut` : null}
-        {defaultCount > 0 && averageCount > 0 ? " · " : null}
-        {averageCount > 0 ? `${averageCount} moyenne/déduite` : null}
-      </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
-        {alerts.slice(0, 8).map((a) => (
-          <span
-            key={`${a.panId}-${a.kind}`}
-            data-testid={`missing-height-alert-pan-${a.panId}`}
-            title={a.detail}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 20,
-              maxWidth: 120,
-              padding: "0 7px",
-              borderRadius: 999,
-              border:
-                a.kind === "default"
-                  ? "1px solid rgba(245,158,11,0.42)"
-                  : "1px solid rgba(56,189,248,0.34)",
-              background:
-                a.kind === "default"
-                  ? "rgba(120,53,15,0.52)"
-                  : "rgba(12,74,110,0.48)",
-              color: "rgba(255,251,235,0.94)",
-              fontSize: 10,
-              fontWeight: 700,
-              lineHeight: "20px",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Pan {a.panId} · {a.kind === "default" ? "défaut" : "moyenne"}
-          </span>
-        ))}
-        {alerts.length > 8 ? (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 20,
-              padding: "0 7px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.08)",
-              color: "rgba(255,251,235,0.74)",
-              fontSize: 10,
-              fontWeight: 700,
-              lineHeight: "20px",
-            }}
-          >
-            +{alerts.length - 8}
-          </span>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function MultiPanDiagnosticsOverlay({
-  scene,
-  visible,
-}: {
-  readonly scene: SolarScene3D;
-  readonly visible: boolean;
-}) {
-  const diag = scene.metadata.roofMultiPanDiagnostics;
-  if (!visible || !diag || diag.relationCount === 0) return null;
-  const blocking = !diag.okForPvLayout;
-  const tone = blocking
-    ? {
-        border: "rgba(248,113,113,0.35)",
-        bg: "rgba(35, 18, 18, 0.84)",
-        dot: "#ef4444",
-        text: "rgba(254,242,242,0.96)",
-      }
-    : {
-        border: "rgba(34,197,94,0.28)",
-        bg: "rgba(12, 32, 25, 0.78)",
-        dot: "#22c55e",
-        text: "rgba(220,252,231,0.94)",
-      };
-  const items = diag.items.filter((i) => i.severity !== "info").slice(0, 4);
-  return (
-    <div
-      data-testid="multi-pan-diagnostics-3d"
-      role="status"
-      aria-label="Diagnostic multi-pans"
-      style={{
-        position: "absolute",
-        left: 10,
-        top: 10,
-        zIndex: 7,
-        width: "min(380px, calc(100% - 20px))",
-        padding: "10px 12px",
-        borderRadius: 8,
-        border: `1px solid ${tone.border}`,
-        background: tone.bg,
-        color: tone.text,
-        boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        pointerEvents: "none",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: 999,
-            background: tone.dot,
-            boxShadow: `0 0 0 3px ${tone.border}`,
-            flex: "0 0 auto",
-          }}
-        />
-        <div style={{ fontSize: 12, fontWeight: 800, lineHeight: "16px", letterSpacing: 0 }}>
-          Multi-pans {blocking ? "à vérifier" : "OK"}
-        </div>
-        <div style={{ marginLeft: "auto", fontSize: 10, lineHeight: "16px", opacity: 0.72, whiteSpace: "nowrap" }}>
-          {diag.relationCount} jonction{diag.relationCount > 1 ? "s" : ""}
-        </div>
-      </div>
-      <div style={{ marginTop: 5, fontSize: 11, lineHeight: "15px", opacity: 0.78 }}>
-        {diag.summaryFr}
-      </div>
-      {items.length > 0 ? (
-        <div style={{ display: "grid", gap: 5, marginTop: 8 }}>
-          {items.map((item) => (
-            <div
-              key={`${item.edgeId}-${item.kind}-${item.panIds.join("-")}`}
-              title={item.codes.join(", ")}
-              style={{
-                display: "flex",
-                gap: 7,
-                alignItems: "flex-start",
-                padding: "6px 7px",
-                borderRadius: 6,
-                background: "rgba(255,255,255,0.07)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                fontSize: 10,
-                lineHeight: "14px",
-              }}
-            >
-              <span style={{ fontWeight: 800, color: item.severity === "error" ? "#fecaca" : "#fde68a" }}>
-                {item.panIds.join(" ↔ ")}
-              </span>
-              <span style={{ opacity: 0.82 }}>{item.messageFr}</span>
-            </div>
-          ))}
-          {diag.items.filter((i) => i.severity !== "info").length > items.length ? (
-            <div style={{ fontSize: 10, opacity: 0.6 }}>
-              +{diag.items.filter((i) => i.severity !== "info").length - items.length} autre(s) jonction(s)
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function PvLayout3dScreenOverlayProjector({
-  scene,
-  overlay,
-  enabled,
-  onProjected,
-}: {
-  readonly scene: SolarScene3D;
-  readonly overlay: PvLayout3dOverlayState | null;
-  readonly enabled: boolean;
-  readonly onProjected: (overlay: PvLayout3dScreenOverlayState | null) => void;
-}) {
-  const { camera, gl } = useThree();
-  const lastSigRef = useRef("");
-  /** Accumulateur delta pour throttler la projection à max 30fps (33ms). */
-  const projectionAccRef = useRef(0);
-
-  useEffect(() => {
-    if (!enabled || !overlay) onProjected(null);
-  }, [enabled, overlay, onProjected]);
-
-  useFrame((_, delta) => {
-    // Désactivation : nettoyage immédiat, pas throttlé.
-    if (!enabled || !overlay) {
-      if (lastSigRef.current !== "null") {
-        lastSigRef.current = "null";
-        onProjected(null);
-      }
-      return;
-    }
-    // Throttle projection matricielle : max 30fps (33ms entre mises à jour).
-    projectionAccRef.current += delta;
-    if (projectionAccRef.current < 0.033) return;
-    projectionAccRef.current = 0;
-    const rect = gl.domElement.getBoundingClientRect();
-    const width = Math.max(1, rect.width);
-    const height = Math.max(1, rect.height);
-    const projectImagePoly = (
-      points: readonly { readonly x: number; readonly y: number }[],
-      panId: string | null | undefined,
-      offsetM: number,
-    ): PvLayout3dScreenPoint[] => {
-      const world = imagePolygonToRoofWorldPoints(scene, points, panId, offsetM);
-      const projected: PvLayout3dScreenPoint[] = [];
-      for (const w of world) {
-        const p = projectWorldToScreenPoint(w, camera, width, height);
-        if (!p) return [];
-        projected.push(p);
-      }
-      return projected;
-    };
-
-    const panels = overlay.panels
-      .map((p) => ({
-        id: p.id,
-        selected: p.selected,
-        invalid: p.invalid,
-        enabled: p.enabled,
-        points: projectImagePoly(p.points, p.panId, 0.24),
-      }))
-      .filter((p) => p.points.length >= 3);
-    const ghosts = overlay.ghosts
-      .map((g) => {
-        const points = projectImagePoly(g.points, g.panId, 0.26);
-        return {
-          id: g.id,
-          valid: g.valid !== false,
-          excluded: !!g.excluded,
-          source: g.source,
-          points,
-          labelPoint: screenPolygonCentroid(points),
-          label: pv3dGhostLabel(g),
-        };
-      })
-      .filter((g) => g.points.length >= 3);
-    const safeZones = overlay.safeZones.flatMap((z) =>
-      z.polygons
-        .map((poly, index) => {
-          const points = projectImagePoly(poly, z.panId, 0.28);
-          return {
-            id: `${z.panId}-${index}`,
-            points,
-            labelPoint: screenPolygonCentroid(points),
-          };
-        })
-        .filter((z2) => z2.points.length >= 3),
-    );
-
-    let handles: PvLayout3dProjectedHandles | null = null;
-    if (overlay.handles) {
-      const selectedPanId = overlay.panels.find((p) => p.selected)?.panId ?? null;
-      const [rotateW, moveW, topW] = imagePolygonToRoofWorldPoints(
-        scene,
-        [overlay.handles.rotate, overlay.handles.move, overlay.handles.topOfBlock],
-        selectedPanId,
-        0.32,
-      );
-      const rotate = rotateW ? projectWorldToScreenPoint(rotateW, camera, width, height) : null;
-      const move = moveW ? projectWorldToScreenPoint(moveW, camera, width, height) : null;
-      const topOfBlock = topW ? projectWorldToScreenPoint(topW, camera, width, height) : null;
-      if (rotate && move && topOfBlock) {
-        handles = {
-          blockId: overlay.handles.blockId,
-          rotate,
-          move,
-          topOfBlock,
-          rotateImg: overlay.handles.rotate,
-          moveImg: overlay.handles.move,
-        };
-      }
-    }
-    if (!handles) {
-      const selectedPanels = overlay.panels.filter((p) => p.selected && p.points.length >= 3);
-      const selectedProjected = panels.filter((p) => p.selected && p.points.length >= 3);
-      if (overlay.focusBlockId && selectedPanels.length > 0 && selectedProjected.length > 0) {
-        const screenPts = selectedProjected.flatMap((p) => p.points);
-        const imagePts = selectedPanels.flatMap((p) => p.points);
-        const minX = Math.min(...screenPts.map((p) => p.x));
-        const maxX = Math.max(...screenPts.map((p) => p.x));
-        const minY = Math.min(...screenPts.map((p) => p.y));
-        const maxY = Math.max(...screenPts.map((p) => p.y));
-        const imgMinY = Math.min(...imagePts.map((p) => p.y));
-        const imgMaxY = Math.max(...imagePts.map((p) => p.y));
-        const cx = screenPts.reduce((sum, p) => sum + p.x, 0) / screenPts.length;
-        const cy = screenPts.reduce((sum, p) => sum + p.y, 0) / screenPts.length;
-        const imgCx = imagePts.reduce((sum, p) => sum + p.x, 0) / imagePts.length;
-        const imgCy = imagePts.reduce((sum, p) => sum + p.y, 0) / imagePts.length;
-        const screenOffset = Math.max(36, Math.min(56, (maxY - minY) * 0.35 || 48));
-        const imgOffset = Math.max(20, Math.min(90, (imgMaxY - imgMinY) * 0.45 || 48));
-        handles = {
-          blockId: overlay.focusBlockId,
-          rotate: { x: Math.min(Math.max(cx, minX), maxX), y: cy - screenOffset },
-          move: { x: Math.min(Math.max(cx, minX), maxX), y: cy + screenOffset },
-          topOfBlock: { x: cx, y: cy },
-          rotateImg: { x: imgCx, y: imgCy - imgOffset },
-          moveImg: { x: imgCx, y: imgCy + imgOffset },
-        };
-      }
-    }
-
-    const projected: PvLayout3dScreenOverlayState = { width, height, panels, ghosts, safeZones, handles };
-    const sig = overlaySignature(projected);
-    if (sig !== lastSigRef.current) {
-      lastSigRef.current = sig;
-      onProjected(projected);
-    }
-  });
-
-  return null;
-}
-
-export function PvLayout3dSvgOverlay({
-  overlay,
-  onMovePointerDown,
-  onRotatePointerDown,
-}: {
-  readonly overlay: PvLayout3dScreenOverlayState | null;
-  readonly onMovePointerDown: (e: ReactPointerEvent<Element>, h: PvLayout3dHandleUi) => void;
-  readonly onRotatePointerDown: (e: ReactPointerEvent<Element>, h: PvLayout3dHandleUi) => void;
-}) {
-  if (!overlay) return null;
-  const h = overlay.handles;
-  return (
-    <svg
-      role="img"
-      aria-label="Aide visuelle pose photovoltaïque 3D"
-      width={overlay.width}
-      height={overlay.height}
-      viewBox={`0 0 ${overlay.width} ${overlay.height}`}
-      style={{
-        position: "absolute",
-        inset: 0,
-        zIndex: 6,
-        pointerEvents: "none",
-        overflow: "hidden",
-      }}
-    >
-      {h ? (
-        <g>
-          <line
-            x1={h.topOfBlock.x}
-            y1={h.topOfBlock.y}
-            x2={h.rotate.x}
-            y2={h.rotate.y}
-            stroke="rgba(255,255,255,0.34)"
-            strokeWidth={1}
-            vectorEffect="non-scaling-stroke"
-          />
-          <line
-            x1={h.topOfBlock.x}
-            y1={h.topOfBlock.y}
-            x2={h.move.x}
-            y2={h.move.y}
-            stroke="rgba(255,255,255,0.34)"
-            strokeWidth={1}
-            vectorEffect="non-scaling-stroke"
-          />
-          <circle
-            cx={h.rotate.x}
-            cy={h.rotate.y}
-            r={24}
-            fill="transparent"
-            style={{ pointerEvents: "auto", cursor: "grab" }}
-            onPointerDown={(e) => onRotatePointerDown(e, h)}
-          />
-          <circle cx={h.rotate.x} cy={h.rotate.y} r={9} fill="#6366F1" stroke="rgba(0,0,0,0.35)" strokeWidth={1} />
-          <path
-            d={`M ${(h.rotate.x - 4.6).toFixed(1)} ${(h.rotate.y + 2.6).toFixed(1)} A 5 5 0 1 1 ${(h.rotate.x + 4.7).toFixed(1)} ${(h.rotate.y - 1.8).toFixed(1)}`}
-            fill="none"
-            stroke="rgba(0,0,0,0.55)"
-            strokeWidth={1}
-          />
-          <path
-            d={`M ${(h.rotate.x + 4.7).toFixed(1)} ${(h.rotate.y - 1.8).toFixed(1)} l -0.4 3.0 l -2.5 -1.7`}
-            fill="none"
-            stroke="rgba(0,0,0,0.55)"
-            strokeWidth={1}
-          />
-          <circle
-            cx={h.move.x}
-            cy={h.move.y}
-            r={22}
-            fill="transparent"
-            style={{ pointerEvents: "auto", cursor: "move" }}
-            onPointerDown={(e) => onMovePointerDown(e, h)}
-          />
-          <circle cx={h.move.x} cy={h.move.y} r={6} fill="#ffffff" stroke="#6366F1" strokeWidth={1.25} />
-          <path
-            d={`M ${(h.move.x - 3.5).toFixed(1)} ${h.move.y.toFixed(1)} L ${(h.move.x + 3.5).toFixed(1)} ${h.move.y.toFixed(1)} M ${h.move.x.toFixed(1)} ${(h.move.y - 3.5).toFixed(1)} L ${h.move.x.toFixed(1)} ${(h.move.y + 3.5).toFixed(1)}`}
-            stroke="#6366F1"
-            strokeWidth={1}
-          />
-        </g>
-      ) : null}
-    </svg>
-  );
-}
-
 function getActiveRoofVertexModelingTarget(
   inspectMode: boolean,
   panSelection3DMode: boolean,
@@ -1999,55 +1288,6 @@ function PanVertexSelectionMarkerMesh({
   );
 }
 
-/** Lumières : racine séparée du contenu géométrique. */
-function CanonicalViewerLights({
-  center,
-  maxDim,
-  ambientScale,
-  keyScale,
-  fillScale,
-  shadowMapSize,
-}: {
-  readonly center: THREE.Vector3;
-  readonly maxDim: number;
-  readonly ambientScale: number;
-  readonly keyScale: number;
-  readonly fillScale: number;
-  readonly shadowMapSize: number;
-}) {
-  const cx = center.x;
-  const cy = center.y;
-  const cz = center.z;
-  const m = maxDim;
-
-  return (
-    <>
-      {/* LOT3-C2 : <Environment preset="city"> retiré — conflictuel avec l'Environment HDRI monté
-       * dans le Canvas principal (<Suspense>). Deux <Environment> simultanés s'écrasent mutuellement
-       * selon le timing Suspense → env map incohérente ou absente → panneaux metalness=0.72 quasi-noirs.
-       * L'env map est désormais fournie uniquement par l'Environment HDRI calibré (environmentIntensity=0.52)
-       * du Canvas ; l'emissiveIntensity relevée (LOT3-C3) assure un plancher de visibilité pendant le load. */}
-      <hemisphereLight
-        args={[SOLARNEXT_3D_PREMIUM_THEME.lighting.skyColor, SOLARNEXT_3D_PREMIUM_THEME.lighting.groundColor]}
-        intensity={SOLARNEXT_3D_PREMIUM_THEME.lighting.hemisphereIntensity * ambientScale}
-      />
-      <ambientLight intensity={VIEWER_AMBIENT_INTENSITY * ambientScale} />
-      <directionalLight
-        position={[cx + m * 1.8, cy + m * 1.2, cz + m * 2.45]}
-        intensity={VIEWER_KEY_LIGHT_INTENSITY * keyScale}
-        castShadow
-        shadow-mapSize={[shadowMapSize, shadowMapSize]}
-        shadow-bias={VIEWER_SHADOW_BIAS}
-        shadow-normalBias={VIEWER_SHADOW_NORMAL_BIAS}
-      />
-      <directionalLight
-        position={[cx - m * 1.4, cy - m * 1.05, cz + m * 0.72]}
-        intensity={VIEWER_FILL_LIGHT_INTENSITY * fillScale}
-      />
-    </>
-  );
-}
-
 type PanelHover = { readonly panelId: string; readonly clientX: number; readonly clientY: number } | null;
 
 type RoofModelingPointerUi =
@@ -2088,6 +1328,7 @@ function LineRaycastThreshold({ maxDim, enabled }: { readonly maxDim: number; re
   return null;
 }
 
+
 /** Contenu géométrique + soleil — dispose explicite des BufferGeometry créées ici. */
 function ViewerSceneContent({
   scene,
@@ -2122,6 +1363,7 @@ function ViewerSceneContent({
   satelliteTexture,
   satelliteUvMapper,
   extensionVolDebugLevel = 0,
+  qualityProfile,
 }: Required<
   Pick<
     SolarScene3DViewerProps,
@@ -2179,6 +1421,7 @@ function ViewerSceneContent({
   readonly satelliteUvMapper?: ((wx: number, wy: number) => { u: number; v: number }) | null;
   /** Dev uniquement : Shift+Alt+E cycle fil de fer / normales sur les volumes extension (chien assis). */
   readonly extensionVolDebugLevel?: 0 | 1 | 2;
+  readonly qualityProfile: ViewerQualityProfile;
 }) {
   const pvPanelRaycastPassThrough = roofModelingPassThroughOccluders && !pvLayout3DInteractionMode;
 
@@ -2645,19 +1888,19 @@ function ViewerSceneContent({
 
   return (
     <>
-      <CanonicalViewerLights
+      <ViewerLighting
         center={center}
         maxDim={maxDimLocal}
         ambientScale={assembly.lighting.ambientScale}
         keyScale={assembly.lighting.keyScale}
         fillScale={assembly.lighting.fillScale}
-        shadowMapSize={assembly.lighting.shadowMapSize}
+        qualityProfile={qualityProfile}
       />
       {shellGeo && (
         <mesh
           geometry={shellGeo}
-          castShadow
-          receiveShadow
+          castShadow={qualityProfile.shadows}
+          receiveShadow={qualityProfile.shadows}
           position={[0, 0, 0]}
           userData={inspectData("SHELL", shellIdForInspect, "shell_tessellation")}
           onClick={inspectMode ? onInspectClick : undefined}
@@ -2732,8 +1975,8 @@ function ViewerSceneContent({
                 <mesh
                   userData={inspectData("EXTENSION", sid)}
                   geometry={geo}
-                  castShadow
-                  receiveShadow
+                  castShadow={qualityProfile.shadows}
+                  receiveShadow={qualityProfile.shadows}
                   raycast={(roofModelingPassThroughOccluders || pvLayout3DInteractionMode) ? roofModelingSkipOccluderRaycast : undefined}
                   onClick={inspectMode ? onInspectClick : undefined}
                 >
@@ -2994,150 +2237,10 @@ function ViewerSceneContent({
   );
 }
 
-function DebugSceneHelpers({
-  box,
-  center,
-  maxDim,
-}: {
-  readonly box: THREE.Box3;
-  readonly center: THREE.Vector3;
-  readonly maxDim: number;
-  readonly scene: SolarScene3D;
-}) {
-  const axisSize = Math.max(maxDim * 0.35, 3);
-  const boxHelper = useMemo(() => {
-    const h = new THREE.Box3Helper(box, new THREE.Color("#ff8800"));
-    return h;
-  }, [box]);
-
-  useEffect(() => {
-    return () => { boxHelper.dispose(); };
-  }, [boxHelper]);
-
-  const gridZ = Math.min(box.min.z - 0.15, 0);
-  const groundCenter = useMemo(
-    () => new THREE.Vector3(center.x, center.y, gridZ),
-    [center.x, center.y, gridZ],
-  );
-  const upArrow = useMemo(() => {
-    const dir = new THREE.Vector3(0, 0, 1);
-    const len = axisSize * 0.6;
-    return new THREE.ArrowHelper(dir, groundCenter, len, 0x4488ff, len * 0.12, len * 0.06);
-  }, [groundCenter, axisSize]);
-
-  useEffect(() => {
-    return () => { upArrow.dispose(); };
-  }, [upArrow]);
-
-  return (
-    <>
-      <axesHelper args={[axisSize]} position={[center.x, center.y, center.z]} />
-      <primitive object={boxHelper} />
-      <primitive object={upArrow} />
-    </>
-  );
-}
-
-function DebugStatsOverlay({
-  scene,
-  box,
-  groundPlaneConfig,
-  groundZ,
-  extensionVolDebugLevel = 0,
-}: {
-  readonly scene: SolarScene3D;
-  readonly box: THREE.Box3;
-  readonly groundPlaneConfig?: { metersPerPixel: number; northAngleDeg: number; image: GroundPlaneImageData } | null;
-  readonly groundZ?: number;
-  readonly extensionVolDebugLevel?: 0 | 1 | 2;
-}) {
-  const patches = scene.roofModel.roofPlanePatches.length;
-  const panels = scene.pvPanels.length;
-  const obs = scene.obstacleVolumes.length;
-  const ext = scene.extensionVolumes.length;
-  const edges = scene.roofModel.roofEdges.length;
-  const ridges = scene.roofModel.roofRidges?.length ?? 0;
-  const s = new THREE.Vector3();
-  box.getSize(s);
-  const zRange = `${box.min.z.toFixed(2)}..${box.max.z.toFixed(2)}`;
-
-  return (
-    <div
-      style={{
-        position: "absolute",
-        bottom: 8,
-        left: 8,
-        zIndex: 5,
-        padding: "8px 10px",
-        background: "rgba(0,0,0,0.78)",
-        borderRadius: 6,
-        border: "1px solid rgba(255,180,0,0.35)",
-        color: "rgba(255,220,140,0.95)",
-        fontFamily: "ui-monospace, monospace",
-        fontSize: 11,
-        lineHeight: 1.5,
-        pointerEvents: "none",
-        maxWidth: 320,
-      }}
-      data-testid="viewer-debug-stats"
-    >
-      <div><strong>DEBUG 3D</strong></div>
-      <div>
-        Pans: {patches} | Shell: {scene.buildingShell ? 1 : 0} | Panels: {panels} | Obs: {obs} | Ext: {ext}
-      </div>
-      {import.meta.env.DEV && (
-        <div style={{ marginTop: 4, opacity: 0.85, fontSize: 10 }}>
-          Ext debug (dev):{" "}
-          {extensionVolDebugLevel === 0
-            ? "off"
-            : extensionVolDebugLevel === 1
-              ? "fil de fer cyan"
-              : "fil de fer + normales jaunes"}{" "}
-          — <kbd style={{ opacity: 0.9 }}>Shift+Alt+E</kbd>
-        </div>
-      )}
-      {scene.metadata.buildGuards != null && scene.metadata.buildGuards.length > 0 ? (
-        <div style={{ marginTop: 6, borderTop: "1px solid rgba(255,180,0,0.25)", paddingTop: 6 }}>
-          <div>
-            <strong>NIVEAU 0</strong>
-          </div>
-          {scene.metadata.buildGuards.map((g) => (
-            <div key={g.code} style={{ marginTop: 3, fontSize: 10, opacity: 0.9 }}>
-              [{g.severity}] {g.code}: {g.message}
-            </div>
-          ))}
-        </div>
-      ) : null}
-      <div>Edges: {edges} | Ridges: {ridges}</div>
-      <div>BBox size: {s.x.toFixed(1)}×{s.y.toFixed(1)}×{s.z.toFixed(1)} m</div>
-      <div>Z range: {zRange} m</div>
-      <div style={{ marginTop: 2, opacity: 0.75 }}>
-        Axes: <span style={{ color: "#ff4444" }}>X=Est</span>{" "}
-        <span style={{ color: "#44ff44" }}>Y=Nord</span>{" "}
-        <span style={{ color: "#4488ff" }}>Z=Haut</span>
-      </div>
-      {groundPlaneConfig && (
-        <div style={{ marginTop: 4, borderTop: "1px solid rgba(255,180,0,0.2)", paddingTop: 4 }}>
-          <div><strong>FOND PLAN</strong></div>
-          <div>Image: {groundPlaneConfig.image.widthPx}×{groundPlaneConfig.image.heightPx} px</div>
-          <div>mpp: {groundPlaneConfig.metersPerPixel.toFixed(4)} | nord: {groundPlaneConfig.northAngleDeg.toFixed(1)}°</div>
-          <div>Emprise: {(groundPlaneConfig.image.widthPx * groundPlaneConfig.metersPerPixel).toFixed(1)}×{(groundPlaneConfig.image.heightPx * groundPlaneConfig.metersPerPixel).toFixed(1)} m</div>
-          {groundZ != null && <div>Z sol: {groundZ.toFixed(2)} m</div>}
-          <div style={{ opacity: 0.75, fontSize: 10 }}>
-            Coins: <span style={{ color: "#00ff00" }}>TL(0,0)</span>{" "}
-            <span style={{ color: "#ff4444" }}>TR</span>{" "}
-            <span style={{ color: "#4488ff" }}>BL</span>{" "}
-            <span style={{ color: "#ff8800" }}>BR</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function SolarScene3DViewer({
   scene: sceneProp,
   runtimeScene,
+  reliabilityState,
   className,
   height = 420,
   showRoof = true,
@@ -3159,9 +2262,11 @@ export function SolarScene3DViewer({
   showXYAlignmentOverlay = false,
   groundImage,
   debugRuntime,
+  selectedModulePowerWc,
   cameraViewMode: cameraViewModeControlled,
+  onCameraViewModeChange,
   defaultCameraViewMode,
-  showCameraViewModeToggle: _showCameraViewModeToggle,
+  showCameraViewModeToggle = false,
   premiumViewMode: premiumViewModeControlled,
   onPremiumViewModeChange,
   geometryValidationReport = null,
@@ -3179,6 +2284,8 @@ export function SolarScene3DViewer({
   pvLayout3DInteractionMode = false,
   onPanelMoveCommit,
   enablePostProcessing = true,
+  qualityMode: qualityModeControlled,
+  onQualityModeChange,
   horizonMask = null,
 }: SolarScene3DViewerProps) {
   const baseScene = sceneProp ?? runtimeScene;
@@ -3190,9 +2297,82 @@ export function SolarScene3DViewer({
   // Reflet de window.CALPINAGE_STATE depuis le store Zustand — aucune lecture directe de window.
   // Mis à jour à chaque "phase3:update" par legacyCalpinageStateAdapter.
   const roofRawState = useCalpinageStore((s) => s.roofRawState);
+  const phase3PowerSnapshot = useCalpinageStore((s) => s.phase3);
+  const selectedPvModulePower = useMemo(() => {
+    if (selectedModulePowerWc != null) {
+      return {
+        unitPowerWc: selectedModulePowerWc,
+        source: "runtime_panel_spec" as const,
+        moduleId: null,
+      };
+    }
+    return resolveSelectedPvModulePower({
+      selectedPanelId: phase3PowerSnapshot.selectedPanelId,
+      selectedPanel: phase3PowerSnapshot.pvSelectedPanel,
+      panelCatalog: phase3PowerSnapshot.panelCatalog,
+      runtimeSnapshot: debugRuntime,
+    });
+  }, [
+    debugRuntime,
+    phase3PowerSnapshot.panelCatalog,
+    phase3PowerSnapshot.pvSelectedPanel,
+    phase3PowerSnapshot.selectedPanelId,
+    selectedModulePowerWc,
+  ]);
 
   // Feature flags 3D — A2 : lecture via Context (plus de window.__CALPINAGE_3D_PV_PLACE_PROBE__).
   const { pvPlaceProbe } = useCalpinageFeatures();
+
+  const [internalQualityMode, setInternalQualityMode] = useState<ViewerQualityMode>("AUTO");
+  const qualityMode = qualityModeControlled ?? internalQualityMode;
+  const [effectiveQualityTier, setEffectiveQualityTier] = useState<ViewerQualityTier>(() => {
+    const initial = resolveInitialViewerQualityTier(readViewerDeviceCapabilitySignals());
+    return isViewerQualityManual(qualityModeControlled ?? "AUTO") ? (qualityModeControlled as ViewerQualityTier) : initial;
+  });
+  const lastQualityTierChangeAtRef = useRef(0);
+  const setQualityMode = useCallback(
+    (mode: ViewerQualityMode) => {
+      onQualityModeChange?.(mode);
+      if (qualityModeControlled === undefined) setInternalQualityMode(mode);
+      if (isViewerQualityManual(mode)) {
+        setEffectiveQualityTier(mode);
+        lastQualityTierChangeAtRef.current = typeof performance !== "undefined" ? performance.now() : Date.now();
+      }
+    },
+    [onQualityModeChange, qualityModeControlled],
+  );
+
+  useEffect(() => {
+    if (isViewerQualityManual(qualityMode)) {
+      setEffectiveQualityTier(qualityMode);
+      lastQualityTierChangeAtRef.current = typeof performance !== "undefined" ? performance.now() : Date.now();
+    }
+  }, [qualityMode]);
+
+  const onViewerPerformanceWindow = useCallback(
+    (stats: ViewerFrameWindowStats, nowMs: number) => {
+      if (qualityMode !== "AUTO") return;
+      setEffectiveQualityTier((current) => {
+        const next = resolveViewerQualityTransition({
+          mode: qualityMode,
+          currentTier: current,
+          stats,
+          nowMs,
+          lastTierChangeAtMs: lastQualityTierChangeAtRef.current,
+        });
+        if (next.tier === current) return current;
+        lastQualityTierChangeAtRef.current = nowMs;
+        return next.tier;
+      });
+    },
+    [qualityMode],
+  );
+
+  const qualityProfile = VIEWER_QUALITY_PROFILES[effectiveQualityTier];
+  const effectiveDpr = clampViewerDpr(
+    typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+    qualityProfile,
+  );
 
   const [extensionVolDebugLevel, setExtensionVolDebugLevel] = useState<0 | 1 | 2>(0);
   useEffect(() => {
@@ -3229,8 +2409,15 @@ export function SolarScene3DViewer({
    */
   const effectiveDefaultViewMode: CameraViewMode =
     defaultCameraViewMode ?? DEFAULT_CAMERA_VIEW_MODE;
-  const [internalViewMode] = useState<CameraViewMode>(effectiveDefaultViewMode);
+  const [internalViewMode, setInternalViewMode] = useState<CameraViewMode>(effectiveDefaultViewMode);
   const cameraViewMode = cameraViewModeControlled ?? internalViewMode;
+  const setCameraViewMode = useCallback(
+    (mode: CameraViewMode) => {
+      onCameraViewModeChange?.(mode);
+      if (cameraViewModeControlled === undefined) setInternalViewMode(mode);
+    },
+    [cameraViewModeControlled, onCameraViewModeChange],
+  );
 
   const [internalPremiumMode, setInternalPremiumMode] = useState<PremiumHouse3DViewMode>("presentation");
   const premiumMode = premiumViewModeControlled ?? internalPremiumMode;
@@ -3254,6 +2441,18 @@ export function SolarScene3DViewer({
   );
 
   const geometryBox = useMemo(() => computeSolarSceneBoundingBox(scene), [scene]);
+  const effectiveReliabilityState = useMemo(
+    () =>
+      reliabilityState ??
+      resolveViewerReliabilityState({
+        scene,
+        source: "OFFICIAL",
+        generation: 0,
+        renderedGeneration: 0,
+        officialBuildStatus: "SUCCESS",
+      }),
+    [reliabilityState, scene],
+  );
 
   const groundPlaneConfig = useMemo(() => {
     if (!groundImage?.dataUrl || !groundImage.widthPx || !groundImage.heightPx) return null;
@@ -3919,37 +3118,45 @@ export function SolarScene3DViewer({
   }, [calpinageRuntimeForPv, pvLayout3DInteractionMode, pvPlaceProbe]);
 
   const [pv3dOverlayEpoch, setPv3dOverlayEpoch] = useState(0);
-  const pv3dOverlayRefreshTimerRef = useRef<number | null>(null);
+  const pv3dOverlayRefreshFrameRef = useRef<number | null>(null);
+  const pv3dOverlayLifecycleGenerationRef = useRef(0);
   const refreshPv3dOverlay = useCallback(() => {
     setPv3dOverlayEpoch((n) => n + 1);
   }, []);
   const refreshPv3dOverlayThrottled = useCallback(() => {
-    if (pv3dOverlayRefreshTimerRef.current != null) return;
-    pv3dOverlayRefreshTimerRef.current = window.setTimeout(() => {
-      pv3dOverlayRefreshTimerRef.current = null;
+    if (pv3dOverlayRefreshFrameRef.current != null) return;
+    pv3dOverlayRefreshFrameRef.current = window.requestAnimationFrame(() => {
+      pv3dOverlayRefreshFrameRef.current = null;
       refreshPv3dOverlay();
-    }, 16);
+    });
   }, [refreshPv3dOverlay]);
 
   useEffect(() => {
     return () => {
-      if (pv3dOverlayRefreshTimerRef.current != null) {
-        window.clearTimeout(pv3dOverlayRefreshTimerRef.current);
-        pv3dOverlayRefreshTimerRef.current = null;
+      if (pv3dOverlayRefreshFrameRef.current != null) {
+        window.cancelAnimationFrame(pv3dOverlayRefreshFrameRef.current);
+        pv3dOverlayRefreshFrameRef.current = null;
       }
     };
   }, []);
 
   useEffect(() => {
     if (!pvLayout3DInteractionMode) return;
-    const onOverlayChange = () => refreshPv3dOverlay();
+    const onOverlayChange = (event: Event) => {
+      const generation = (event as CustomEvent<{ generation?: number }>).detail?.generation;
+      if (typeof generation === "number") {
+        if (generation < pv3dOverlayLifecycleGenerationRef.current) return;
+        pv3dOverlayLifecycleGenerationRef.current = generation;
+      }
+      refreshPv3dOverlayThrottled();
+    };
     window.addEventListener("calpinage:pv3d-overlay-changed", onOverlayChange);
     window.addEventListener("calpinage:ph3-handles-changed", onOverlayChange);
     return () => {
       window.removeEventListener("calpinage:pv3d-overlay-changed", onOverlayChange);
       window.removeEventListener("calpinage:ph3-handles-changed", onOverlayChange);
     };
-  }, [pvLayout3DInteractionMode, refreshPv3dOverlay]);
+  }, [pvLayout3DInteractionMode, refreshPv3dOverlayThrottled]);
 
   // LOT3-C7 : refresh automatique de l'overlay après chaque rebuild de scène en mode PV layout.
   // Avant ce fix, buildScene() appelait setScene() mais n'incrémentait pas pv3dOverlayEpoch
@@ -3960,8 +3167,8 @@ export function SolarScene3DViewer({
   // ce useEffect séparé assure la resync sans causer de flash overlay au render du useMemo.
   useEffect(() => {
     if (!pvLayout3DInteractionMode) return;
-    refreshPv3dOverlay();
-    // `scene` est la seule dep qui peut changer ici ; pvLayout3DInteractionMode et refreshPv3dOverlay sont stables.
+    refreshPv3dOverlayThrottled();
+    // `scene` est la seule dep qui peut changer ici ; pvLayout3DInteractionMode et refreshPv3dOverlayThrottled sont stables.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
 
@@ -4048,17 +3255,15 @@ export function SolarScene3DViewer({
     return new THREE.Vector3(c.x, c.y, c.z);
   }, [hoveredPanel]);
 
-  /** Puissance totale installée (Wc) + nombre de panneaux — pour PowerIndicator3D. */
-  const { totalPowerWc, pvPanelCount } = useMemo(() => {
-    const panels = scene.pvPanels;
-    const count = panels.length;
-    // Estimation mono-Si : 227 Wc/m²
-    const totalWc = panels.reduce(
-      (sum, p) => sum + Math.round(p.widthM * p.heightM * 227),
-      0,
-    );
-    return { totalPowerWc: totalWc, pvPanelCount: count };
-  }, [scene.pvPanels]);
+  /** Puissance totale installée (Wc) + nombre de panneaux valides — pour PowerIndicator3D. */
+  const pvPowerSummary = useMemo(
+    () =>
+      computeInstalledPvPower({
+        panels: scene.pvPanels,
+        modulePowerWc: selectedPvModulePower.unitPowerWc,
+      }),
+    [scene.pvPanels, selectedPvModulePower.unitPowerWc],
+  );
 
   /**
    * Pan de toit actif en mode placement PV.
@@ -4120,6 +3325,15 @@ export function SolarScene3DViewer({
     }
     return points;
   }, [pvLayout3DInteractionMode, pvLayoutActivePanId, scene.roofModel.roofPlanePatches]);
+
+  const projectPvLayoutImagePolygonToWorld = useCallback(
+    (
+      points: readonly { readonly x: number; readonly y: number }[],
+      panId: string | null | undefined,
+      offsetM: number,
+    ) => imagePolygonToRoofWorldPoints(scene, points, panId, offsetM),
+    [scene],
+  );
 
   const onPv3dLiveOffsetImg = useCallback((dxImg: number, dyImg: number, rotationDeg = 0) => {
     if (pvPanelDrag.sessionRef.current?.mode === "rotate") {
@@ -4525,6 +3739,26 @@ export function SolarScene3DViewer({
         })
       : null;
 
+  useEffect(() => {
+    exposeViewerDebugFacade({
+      scene,
+      reliability: effectiveReliabilityState,
+      qualityMode,
+      effectiveQualityTier,
+      selectedHit,
+      inspectionSelection,
+      pvLayoutSelectedCount: pv3dSelectedCount,
+    });
+  }, [
+    scene,
+    effectiveReliabilityState,
+    qualityMode,
+    effectiveQualityTier,
+    selectedHit,
+    inspectionSelection,
+    pv3dSelectedCount,
+  ]);
+
   const sceneStableKey = `${scene.metadata.schemaVersion}|${scene.metadata.createdAtIso}|${scene.metadata.integrationNotes ?? ""}`;
 
   const pvLayout3dA11yDescId = useId();
@@ -4558,7 +3792,13 @@ export function SolarScene3DViewer({
       data-roof-vertex-xy-edit={enableRoofVertexXYEdit ? "on" : "off"}
       data-structural-ridge-height-edit={enableStructuralRidgeHeightEdit ? "on" : "off"}
       data-pv-layout-3d={pvLayout3DInteractionMode ? "on" : "off"}
+      data-viewer-reliability={effectiveReliabilityState.kind}
+      data-viewer-scene-source={effectiveReliabilityState.source}
+      data-geometry-truth-status={effectiveReliabilityState.geometryTruthStatus}
+      data-quality-mode={qualityMode}
+      data-quality-tier={effectiveQualityTier}
     >
+      <ViewerReliabilityOverlay reliability={effectiveReliabilityState} />
       {pvLayout3DInteractionMode ? (
         <div
           id={pvLayout3dA11yDescId}
@@ -4602,7 +3842,10 @@ export function SolarScene3DViewer({
       />
       <RoofTruthBadgesOverlay badges={roofTruthBadges} visible={showRoof && showRoofTruthBadges} />
       {/* PowerIndicator3D - puissance totale installée, temps réel */}
-      <PowerIndicator3D totalPowerWc={totalPowerWc} panelCount={pvPanelCount} />
+      <PowerIndicator3D
+        totalPowerWc={pvPowerSummary.totalPowerWc}
+        panelCount={pvPowerSummary.countablePanelCount}
+      />
       {pvLayout3DInteractionMode && pv3dHasSelectedPanel ? (
         <div
           role="toolbar"
@@ -4731,6 +3974,59 @@ export function SolarScene3DViewer({
           ))}
         </div>
       )}
+      {showCameraViewModeToggle && (
+        <div
+          role="toolbar"
+          aria-label="Mode caméra"
+          style={{
+            position: "absolute",
+            top: showPremiumViewModeToolbar ? 52 : 8,
+            right: 8,
+            zIndex: 6,
+            display: "flex",
+            gap: 4,
+            background: "rgba(15,18,24,0.82)",
+            borderRadius: 6,
+            padding: 4,
+            border: "1px solid rgba(255,255,255,0.12)",
+          }}
+        >
+          <button
+            type="button"
+            data-testid="calpinage-viewer-mode-3d"
+            aria-pressed={cameraViewMode === "SCENE_3D"}
+            onClick={() => setCameraViewMode("SCENE_3D")}
+            style={{
+              fontSize: 10,
+              padding: "5px 8px",
+              borderRadius: 4,
+              border: "none",
+              cursor: "pointer",
+              background: cameraViewMode === "SCENE_3D" ? "rgba(99,102,241,0.35)" : "transparent",
+              color: "rgba(248,250,252,0.92)",
+            }}
+          >
+            3D
+          </button>
+          <button
+            type="button"
+            data-testid="calpinage-viewer-mode-plan"
+            aria-pressed={cameraViewMode === "PLAN_2D"}
+            onClick={() => setCameraViewMode("PLAN_2D")}
+            style={{
+              fontSize: 10,
+              padding: "5px 8px",
+              borderRadius: 4,
+              border: "none",
+              cursor: "pointer",
+              background: cameraViewMode === "PLAN_2D" ? "rgba(99,102,241,0.35)" : "transparent",
+              color: "rgba(248,250,252,0.92)",
+            }}
+          >
+            Plan
+          </button>
+        </div>
+      )}
       {roofPickHover != null && panelHover == null && (
         <div
           role="tooltip"
@@ -4758,10 +4054,11 @@ export function SolarScene3DViewer({
       )}
       <Canvas
         orthographic={cameraViewMode === "PLAN_2D"}
-        shadows
-        dpr={[1, 2]}
+        shadows={qualityProfile.shadows}
+        dpr={[qualityProfile.dprMin, qualityProfile.dprMax]}
+        frameloop={qualityProfile.frameloop}
         gl={{
-          antialias: true,
+          antialias: qualityProfile.nativeAntialias,
           powerPreference: "high-performance",
           // ACESFilmic + exposure aussi dans applyCanonicalViewerGlOutput (onCreated) — doublon
           // intentionnel pour que R3F initialise le renderer avec les bons paramètres dès la création.
@@ -4840,12 +4137,20 @@ export function SolarScene3DViewer({
         }}
       >
         <color attach="background" args={[premiumAssembly.backgroundHex]} />
+        <CanvasQualityApplier profile={qualityProfile} dpr={effectiveDpr} />
+        <ViewerPerformanceMonitor
+          mode={qualityMode}
+          effectiveTier={effectiveQualityTier}
+          profile={qualityProfile}
+          setMode={setQualityMode}
+          onWindowStats={onViewerPerformanceWindow}
+        />
         <GlCursorBinder cursor={glCursor} />
         <LineRaycastThreshold maxDim={maxDim} enabled={enableStructuralRidgeHeightEdit} />
         <PvLayout3dScreenOverlayProjector
-          scene={scene}
           overlay={pvLayout3dOverlayState}
           enabled={pvLayout3DInteractionMode}
+          projectImagePolygonToWorld={projectPvLayoutImagePolygonToWorld}
           onProjected={setPvLayout3dScreenOverlay}
         />
         <RoofTruthBadgesProjector
@@ -4912,6 +4217,7 @@ export function SolarScene3DViewer({
           satelliteTexture={satelliteTexture}
           satelliteUvMapper={satelliteUvMapper}
           extensionVolDebugLevel={extensionVolDebugLevel}
+          qualityProfile={qualityProfile}
         />
         {/* PanelTooltip3D - label Html drei sur le panneau survole */}
         {inspectMode ? (
@@ -4919,6 +4225,7 @@ export function SolarScene3DViewer({
             panelId={panelHover?.panelId ?? null}
             panel={hoveredPanel}
             worldPosition={hoveredPanelWorldPos}
+            modulePowerWc={pvPowerSummary.unitPowerWc}
           />
         ) : null}
         {/* LOT3-C5 : MagneticGrid3D — garde triple pour éviter l'état interdit "grille seule sans panneaux".
@@ -4978,32 +4285,8 @@ export function SolarScene3DViewer({
         {/* IBL — overcast sky, background=false, chargement lazy (Suspense).
             environmentIntensity=0.52 : reflections IBL visibles sur zinc, bacs acier, panneaux PV.
             Valeur calibrée pour que les panneaux "brillent" sans surexposer les surfaces mates (ardoise). */}
-        <Suspense fallback={null}>
-          <Environment
-            files="/assets/hdri/overcast_sky_1k.hdr"
-            background={false}
-            environmentIntensity={0.52}
-          />
-        </Suspense>
-        {enablePostProcessing && (
-          isCanonical3DEnabled() ? (
-            <EffectComposer multisampling={0}>
-              <SMAA />
-              <Bloom
-                intensity={0.35}
-                luminanceThreshold={0.92}
-                luminanceSmoothing={0.88}
-                mipmapBlur
-              />
-              <Vignette offset={0.25} darkness={0.45} />
-            </EffectComposer>
-          ) : (
-            <EffectComposer multisampling={0}>
-              <SMAA />
-              <Vignette offset={0.25} darkness={0.45} />
-            </EffectComposer>
-          )
-        )}
+        <ViewerEnvironment profile={qualityProfile} />
+        <ViewerPostProcessing enabled={enablePostProcessing} profile={qualityProfile} />
       </Canvas>
       {/* LOT3-C4 : <PvLayout3dSvgOverlay> monté ici (hors Canvas, position:absolute sur le container).
        * Avant ce fix, pvLayout3dScreenOverlay était calculé par PvLayout3dScreenOverlayProjector

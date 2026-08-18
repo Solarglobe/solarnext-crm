@@ -24,6 +24,7 @@ import { readOfficialRoofPanRecordsForCanonical3D } from "./readOfficialCalpinag
 import { resolvePanPolygonFor3D } from "./resolvePanPolygonFor3D";
 import { recordAutopsyLegacyRoofPath } from "../canonical3d/dev/runtime3DAutopsy";
 import { zOnPlaneEquationAtFixedXY } from "../canonical3d/volumes/planeAnchor";
+import { projectPointToPatchUv } from "../canonical3d/validation/geometricTruthStatus";
 
 const DEFAULT_MODULE_W_M = 1;
 const DEFAULT_MODULE_H_M = 1.7;
@@ -497,10 +498,22 @@ export function mapPanelsToPvPlacementInputs(
       inferPanelRotationDegInPatchPlane(poly, patch, metersPerPixel, northAngleDeg, w) ??
       normalizeRotationDegInPlane(p.rotationDeg ?? 0, p.localRotationDeg ?? 0);
 
+    const zForCurrentPatchUv =
+      zFromPatch !== null && Number.isFinite(zFromPatch)
+        ? zFromPatch
+        : z - zPatchOffset;
+    const centerWorldOnCurrentPatch =
+      patch && Number.isFinite(zForCurrentPatchUv)
+        ? { x: xy.x, y: xy.y, z: zForCurrentPatchUv }
+        : null;
+    const centerUv = patch && centerWorldOnCurrentPatch ? projectPointToPatchUv(centerWorldOnCurrentPatch, patch) : null;
+
     out.push({
       id: p.id != null ? String(p.id) : `pv-${i}`,
       roofPlanePatchId: patchId,
-      center: { mode: "world", position: { x: xy.x, y: xy.y, z } },
+      center: centerUv
+        ? { mode: "plane_uv", uv: centerUv }
+        : { mode: "world", position: { x: xy.x, y: xy.y, z } },
       widthM: w,
       heightM: h,
       orientation: "portrait",

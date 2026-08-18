@@ -4,38 +4,34 @@
  * Composant HTML pur (pas de R3F) positionné en CSS absolute sur le wrapper du viewer.
  * Masqué automatiquement quand aucun panneau n'est posé (panelCount === 0).
  *
- * `totalPowerWc` et `panelCount` sont calculés dans SolarScene3DViewer via useMemo
- * sur `scene.pvPanels` — mis à jour en temps réel à chaque ajout / suppression.
+ * `totalPowerWc` et `panelCount` sont calculés dans SolarScene3DViewer depuis
+ * la puissance catalogue/snapshot du module sélectionné, sans estimation locale.
  */
+
+import { formatKwcFr } from "../../../power/installedPvPower";
 
 // ── Types publics ─────────────────────────────────────────────────────────────
 
 export interface PowerIndicatorProps {
-  readonly totalPowerWc: number;
+  readonly totalPowerWc: number | null;
   readonly panelCount: number;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Formate la puissance en kWc avec une décimale, séparateur FR ("," + espace insécable). */
-function formatKwc(totalWc: number): string {
-  const kWc = totalWc / 1000;
-  return kWc.toLocaleString("fr-FR", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
 }
 
 // ── Composant ─────────────────────────────────────────────────────────────────
 
 export function PowerIndicator3D({ totalPowerWc, panelCount }: PowerIndicatorProps) {
   if (panelCount === 0) return null;
+  const hasPower = totalPowerWc != null;
 
   return (
     <div
       role="status"
       aria-live="polite"
-      aria-label={`Puissance installée : ${formatKwc(totalPowerWc)} kilowatts-crête pour ${panelCount} panneau${panelCount > 1 ? "x" : ""}`}
+      aria-label={
+        hasPower
+          ? `Puissance installée : ${formatKwcFr(totalPowerWc)} kilowatts-crête pour ${panelCount} panneau${panelCount > 1 ? "x" : ""}`
+          : `Puissance installée indisponible pour ${panelCount} panneau${panelCount > 1 ? "x" : ""}`
+      }
       style={{
         position: "absolute",
         top: 12,
@@ -60,8 +56,8 @@ export function PowerIndicator3D({ totalPowerWc, panelCount }: PowerIndicatorPro
       }}
     >
       {/* Puissance kWc */}
-      <span style={{ color: "#93c5fd" }}>
-        {formatKwc(totalPowerWc)}&nbsp;kWc
+      <span style={{ color: hasPower ? "#93c5fd" : "#fbbf24" }}>
+        {hasPower ? `${formatKwcFr(totalPowerWc)}\u00a0kWc` : "Puissance indisponible"}
       </span>
 
       {/* Séparateur */}

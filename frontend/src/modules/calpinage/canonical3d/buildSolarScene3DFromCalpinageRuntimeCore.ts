@@ -994,6 +994,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       extensionVolumes: extensionVolumesForScene,
       volumesQuality,
       pvPanels: pvRes.panels,
+      pvPanelPlacementRequestedCount: filteredPanels.length,
       ...(panelVisualShadingByPanelId != null && { panelVisualShadingByPanelId }),
       ...(panelVisualShadingSummary != null && { panelVisualShadingSummary }),
       generator: "manual",

@@ -3,8 +3,8 @@ import { buildDemoSolarScene3D } from "../../demoSolarScene3d";
 import { getEffectivePanelVisualShading } from "../effectivePanelVisualShading";
 
 describe("getEffectivePanelVisualShading", () => {
-  it("priorité runtime AVAILABLE sur near", () => {
-    const base = buildDemoSolarScene3D();
+  it("priorité runtime AVAILABLE sur near", async () => {
+    const base = await buildDemoSolarScene3D();
     const scene = {
       ...base,
       panelVisualShadingByPanelId: {
@@ -22,8 +22,8 @@ describe("getEffectivePanelVisualShading", () => {
     expect(v.provenance).toBe("runtime_per_panel");
   });
 
-  it("runtime MISSING → secours near snapshot", () => {
-    const base = buildDemoSolarScene3D();
+  it("runtime MISSING → secours near snapshot", async () => {
+    const base = await buildDemoSolarScene3D();
     const scene = {
       ...base,
       panelVisualShadingByPanelId: {

@@ -3,8 +3,8 @@ import { buildDemoSolarScene3D } from "../demoSolarScene3d";
 import { resolveRoofMissingHeightAlerts, resolveRoofTruthBadge } from "../roofTruthBadges";
 
 describe("roofTruthBadges", () => {
-  it("traduit la vérité géométrique Phase A en libellés produit par pan", () => {
-    const base = buildDemoSolarScene3D();
+  it("traduit la vérité géométrique Phase A en libellés produit par pan", async () => {
+    const base = await buildDemoSolarScene3D();
     const patch = base.roofModel.roofPlanePatches[0]!;
     const panId = String(patch.id);
 
@@ -36,8 +36,8 @@ describe("roofTruthBadges", () => {
     }
   });
 
-  it("dégrade en générique depuis les diagnostics du patch si le metadata Phase A/B est absent", () => {
-    const scene = buildDemoSolarScene3D();
+  it("dégrade en générique depuis les diagnostics du patch si le metadata Phase A/B est absent", async () => {
+    const scene = await buildDemoSolarScene3D();
     const patch = {
       ...scene.roofModel.roofPlanePatches[0]!,
       quality: {
@@ -57,8 +57,8 @@ describe("roofTruthBadges", () => {
     expect(badge.label).toBe("Générique");
   });
 
-  it("liste les pans qui utilisent une hauteur moyenne ou par défaut", () => {
-    const base = buildDemoSolarScene3D();
+  it("liste les pans qui utilisent une hauteur moyenne ou par défaut", async () => {
+    const base = await buildDemoSolarScene3D();
     const patchDefault = {
       ...base.roofModel.roofPlanePatches[0]!,
       id: "pan-default",

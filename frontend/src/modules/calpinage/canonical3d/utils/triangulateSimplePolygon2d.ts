@@ -6,6 +6,7 @@
 export type Point2 = { readonly x: number; readonly y: number };
 
 const EPS = 1e-10;
+const EDGE_EPS = 1e-9;
 
 export function signedArea2d(pts: readonly Point2[]): number {
   const n = pts.length;
@@ -19,6 +20,50 @@ export function signedArea2d(pts: readonly Point2[]): number {
 
 function cross2(ax: number, ay: number, bx: number, by: number): number {
   return ax * by - ay * bx;
+}
+
+function dist2(a: Point2, b: Point2): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function orient2(a: Point2, b: Point2, c: Point2): number {
+  return cross2(b.x - a.x, b.y - a.y, c.x - a.x, c.y - a.y);
+}
+
+function segmentsIntersectStrict(a: Point2, b: Point2, c: Point2, d: Point2): boolean {
+  const o1 = orient2(a, b, c);
+  const o2 = orient2(a, b, d);
+  const o3 = orient2(c, d, a);
+  const o4 = orient2(c, d, b);
+  return o1 * o2 < -EPS && o3 * o4 < -EPS;
+}
+
+function isValidSimplePolygonInput(vertices: readonly Point2[]): boolean {
+  const n = vertices.length;
+  if (n < 3) return false;
+  const seen = new Set<string>();
+  for (let i = 0; i < n; i++) {
+    const p = vertices[i]!;
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+    const key = `${p.x.toFixed(10)}:${p.y.toFixed(10)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    if (dist2(p, vertices[(i + 1) % n]!) <= EDGE_EPS) return false;
+  }
+  if (seen.size < 3) return false;
+  if (Math.abs(signedArea2d(vertices)) <= EPS) return false;
+
+  for (let i = 0; i < n; i++) {
+    const a = vertices[i]!;
+    const b = vertices[(i + 1) % n]!;
+    for (let j = i + 1; j < n; j++) {
+      if (Math.abs(i - j) <= 1 || (i === 0 && j === n - 1)) continue;
+      const c = vertices[j]!;
+      const d = vertices[(j + 1) % n]!;
+      if (segmentsIntersectStrict(a, b, c, d)) return false;
+    }
+  }
+  return true;
 }
 
 function pointInTriangle2(
@@ -55,7 +100,7 @@ function pointInTriangle2(
  */
 export function triangulateSimplePolygon2dCcW(vertices: readonly Point2[]): number[] | null {
   const n = vertices.length;
-  if (n < 3) return null;
+  if (!isValidSimplePolygonInput(vertices)) return null;
 
   const pts = vertices;
   let V = pts.map((_, i) => i);

@@ -6,7 +6,7 @@ import type { PlaneFrameUv2D, WorldPosition3D } from "./coordinates";
 import type { LocalFrame3D } from "./frame";
 import type { PlaneEquation } from "./plane";
 import type { GeometryProvenance } from "./provenance";
-import type { QualityBlock } from "./quality";
+import type { PvPanelPlacementValidityStatus, QualityBlock } from "./quality";
 import type { StableEntityId, Vector3 } from "./primitives";
 import type { PvPanelSpatialContext3D } from "./pv-panel-context-3d";
 
@@ -60,6 +60,24 @@ export interface PvPanelAttachment3D {
   readonly signedDistanceCenterToPlaneM: number;
 }
 
+export type PvPanelInvalidPlacementReason =
+  | "roof_patch_not_found"
+  | "non_finite_coordinates"
+  | "invalid_dimensions"
+  | "center_off_plane"
+  | "corner_off_plane"
+  | "outside_roof_surface"
+  | "intersects_keepout_volume"
+  | "orientation_mismatch"
+  | "duplicate_panel_id";
+
+export interface PvPanelPlacementValidity3D {
+  readonly status: PvPanelPlacementValidityStatus;
+  readonly reasons: readonly PvPanelInvalidPlacementReason[];
+  readonly distanceCenterToPlaneM: number;
+  readonly maxCornerDistanceToPlaneM: number;
+}
+
 /** Métadonnées de pose (traçabilité, pas de logique runtime legacy). */
 export interface PvPanelPoseMetadata {
   readonly orientation: PvPanelOrientation2D;
@@ -88,6 +106,7 @@ export interface PvPanelSurface3D {
   readonly heightM: number;
   readonly surfaceAreaM2: number;
   readonly attachment: PvPanelAttachment3D;
+  readonly placementValidity: PvPanelPlacementValidity3D;
   readonly pose: PvPanelPoseMetadata;
   readonly samplingGrid: PvPanelGrid3D;
   /** Contexte géométrique local (bord de pan, lignes structurantes, volumes) — toujours renseigné par le builder. */

@@ -55,28 +55,11 @@ function Phase3ModeSegment() {
   const { activeTool } = usePhase3Data();
 
   const setPhase3Tool = (tool: "panels" | "select") => {
-    const win = window as unknown as {
-      setPhase3ActiveTool?: (
-        toolName: "panels" | "select",
-        options?: { render?: boolean; notify?: boolean; dirty?: boolean },
-      ) => "panels" | "select";
-      syncPhase3ToolbarActiveTool?: () => void;
-      notifyPhase3SidebarUpdate?: () => void;
-    };
+    const win = getCalpinageWindow();
     if (typeof win.setPhase3ActiveTool === "function") {
       win.setPhase3ActiveTool(tool);
-      return;
-    }
-    if (tool === "panels") {
-      document.getElementById("pv-tool-panels")?.click();
-    } else {
-      document.getElementById("calpinage-tool-select")?.click();
-      if (typeof win.syncPhase3ToolbarActiveTool === "function") {
-        win.syncPhase3ToolbarActiveTool();
-      }
-      if (typeof win.notifyPhase3SidebarUpdate === "function") {
-        win.notifyPhase3SidebarUpdate();
-      }
+    } else if (import.meta.env.DEV) {
+      console.error("[Phase3ModeSegment] setPhase3ActiveTool indisponible.");
     }
   };
 
@@ -591,21 +574,24 @@ function Phase3AutofillSection() {
   const { hasActiveBlockWithPanels, autofillActive, autofillText, autofillValidCount } = usePhase3Data();
 
   const handleAutofill = () => {
-    const run = (window as unknown as { runCalpinageAutofillPreview?: () => void })
-      .runCalpinageAutofillPreview;
+    const run = getCalpinageWindow().runCalpinageAutofillPreview;
     if (typeof run === "function") {
       run();
       return;
     }
-    document.getElementById("pv-tool-autofill")?.click();
+    if (import.meta.env.DEV) console.error("[Phase3AutofillSection] runCalpinageAutofillPreview indisponible.");
   };
 
   const handleConfirm = () => {
-    document.getElementById("pv-autofill-confirm")?.click();
+    const confirm = getCalpinageWindow().confirmCalpinageAutofill;
+    if (typeof confirm === "function") confirm();
+    else if (import.meta.env.DEV) console.error("[Phase3AutofillSection] confirmCalpinageAutofill indisponible.");
   };
 
   const handleCancel = () => {
-    document.getElementById("pv-autofill-cancel")?.click();
+    const cancel = getCalpinageWindow().cancelCalpinageAutofill;
+    if (typeof cancel === "function") cancel();
+    else if (import.meta.env.DEV) console.error("[Phase3AutofillSection] cancelCalpinageAutofill indisponible.");
   };
 
   if (!hasActiveBlockWithPanels && !autofillActive) return null;
@@ -743,11 +729,19 @@ function Phase3Actions({
   const handleValidateClick = () => {
     if (!canValidate || isValidating) return;
     setIsValidating(true);
-    document.getElementById("btn-validate-calpinage")?.click();
+    const validate = getCalpinageWindow().validateCalpinageAction;
+    if (typeof validate === "function") {
+      void validate();
+      return;
+    }
+    setIsValidating(false);
+    if (import.meta.env.DEV) console.error("[Phase3Actions] validateCalpinageAction indisponible.");
   };
 
   const handleBack = () => {
-    document.getElementById("btn-back-roof")?.click();
+    const requestBack = getCalpinageWindow().requestBackToRoofAction;
+    if (typeof requestBack === "function") requestBack();
+    else if (import.meta.env.DEV) console.error("[Phase3Actions] requestBackToRoofAction indisponible.");
   };
 
   return (

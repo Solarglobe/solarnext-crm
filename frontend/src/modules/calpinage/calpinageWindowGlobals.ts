@@ -106,6 +106,19 @@ export interface CalpinageWindow extends Window {
   showCalpinageUxToast: ((msg: string) => void) | undefined;
   /** Définit l'orientation globale des modules PV (portrait / landscape). */
   setPvOrientation: ((value: "portrait" | "landscape") => void) | undefined;
+  /** Actions métier explicites exposées par le legacy pour éviter les clics DOM cachés depuis React. */
+  validateRoofSurveyAction: (() => void) | undefined;
+  validateCalpinageAction: (() => void | Promise<void>) | undefined;
+  requestBackToRoofAction: (() => void) | undefined;
+  setPhase3ActiveTool:
+    | ((
+        toolName: "panels" | "select",
+        options?: { render?: boolean; notify?: boolean; dirty?: boolean },
+      ) => "panels" | "select")
+    | undefined;
+  runCalpinageAutofillPreview: (() => void) | undefined;
+  confirmCalpinageAutofill: (() => void) | undefined;
+  cancelCalpinageAutofill: (() => void) | undefined;
 }
 
 // ── Accessor ─────────────────────────────────────────────────────────────────

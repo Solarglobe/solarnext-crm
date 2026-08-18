@@ -20,6 +20,7 @@ import {
   panelSurfaceAreaM2,
   resolveCenterOnPlaneWorld,
 } from "./panelOnPlaneGeometry";
+import { mergePvPlacementQuality, validatePvPanelPlacementOnPatch } from "./pvPanelPlacementValidation";
 
 const DEG = Math.PI / 180;
 // ── Debug runtime [PV3D-MATRIX] ───────────────────────────────────────────────
@@ -185,7 +186,7 @@ function buildOnePanel(
     signedDistanceCenterToPlaneM: signedDistanceBeforeProjectionM,
   };
 
-  return {
+  const surface: PvPanelSurface3D = {
     id: input.id,
     corners3D: corners,
     center3D: { ...centerWorld },
@@ -196,6 +197,12 @@ function buildOnePanel(
     heightM,
     surfaceAreaM2: panelSurfaceAreaM2(widthM, heightM),
     attachment,
+    placementValidity: {
+      status: "VALID",
+      reasons: [],
+      distanceCenterToPlaneM: 0,
+      maxCornerDistanceToPlaneM: 0,
+    },
     pose: {
       orientation: input.orientation,
       rotationDegInPlane: input.rotationDegInPlane,
@@ -210,6 +217,12 @@ function buildOnePanel(
       confidence: panelConfidence,
       diagnostics: diag,
     },
+  };
+  const placementValidity = validatePvPanelPlacementOnPatch(surface, patch);
+  return {
+    ...surface,
+    placementValidity,
+    quality: mergePvPlacementQuality(surface.quality, placementValidity),
   };
 }
 

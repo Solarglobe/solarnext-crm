@@ -55,6 +55,18 @@ import {
   type RoofHeightAssistantCommand,
 } from "../runtime/applyRoofHeightAssistant";
 import { emitRoofVertexZTelemetry } from "../runtime/roofVertexZEditTelemetry";
+import {
+  createViewerLifecycleRebuildScheduler,
+  exposeViewerLifecycleDiagnostics,
+  type ViewerLifecycleExecution,
+  type ViewerLifecycleRebuildScheduler,
+} from "../canonical3d/viewer/lifecycleRebuildScheduler";
+import {
+  exposeViewerReliabilityDiagnostics,
+  normalizeViewerOfficialBuildError,
+  resolveViewerReliabilityState,
+  type ViewerReliabilityState,
+} from "../canonical3d/viewer/viewerReliabilityState";
 
 const MOUNT_ID = "zone-c-3d";
 
@@ -331,7 +343,9 @@ function Inline3DViewer({
     CalpinagePanProvenanceEntry[] | undefined
   >(undefined);
   const [error, setError] = useState<string | null>(null);
+  const [reliabilityState, setReliabilityState] = useState<ViewerReliabilityState | null>(null);
   const lastDisplayedStructuralSignatureRef = useRef<string | null>(null);
+  const lastKnownGoodSceneRef = useRef<{ readonly scene: SolarScene3D; readonly generation: number } | null>(null);
   const pendingStructuralEventRef = useRef<OfficialRuntimeStructuralChangePayload | null>(null);
   const forceNextSceneRebuildRef = useRef(false);
   /**
@@ -339,20 +353,20 @@ function Inline3DViewer({
    * Levé juste avant `emitOfficialRuntimeStructuralChange()` dans les handlers de commit
    * (handleRoofVertexHeightCommit, handleRoofVertexXYCommit, handleStructuralRidgeHeightCommit,
    * handleRoofHeightAssistantApply). Permet à `onStructuralChange` de ne pas re-déclencher
-   * `buildScene()` pour cet event : le handler appelle `buildScene()` lui-même juste après.
+   * un rebuild pour cet event : le handler planifie lui-même la reconstruction juste après.
    */
   const isBridgeInternalEditRef = useRef(false);
   /**
    * FIX-2 — Suppression du rebuild par prop-change après `notifyParentState()`.
    * Levé dans `notifyParentState()` avant `setCalpinageState` — consommé et vidé dans
-   * l'useEffect dépendant de `calpinageStateProp` pour éviter le 3e `buildScene()` déclenché
+   * l'useEffect dépendant de `calpinageStateProp` pour éviter le 3e rebuild déclenché
    * par le re-render parent qui suit la notification.
    */
   const skipNextPropChangeBuildRef = useRef(false);
   /**
    * FIX-5 — Suppression du rebuild `PV_MOVE_SYNC` déclenché par `pvSyncSaveRender` (RAF).
-   * `handlePanelMoveCommit` fait déjà un `buildScene()` immédiat avec force ; le RAF ultérieur
-   * déclencherait un 2e `buildScene()` avec force qui évicterait le cache frais inutilement.
+   * `handlePanelMoveCommit` planifie déjà un rebuild avec force ; le RAF ultérieur
+   * déclencherait un 2e rebuild avec force qui évicterait le cache frais inutilement.
    */
   const suppressNextPvMoveSyncBuildRef = useRef(false);
 
@@ -373,12 +387,49 @@ function Inline3DViewer({
     [pvLayoutMode],
   );
 
-  const buildScene = useCallback(() => {
+  const lifecycleSchedulerRef = useRef<ViewerLifecycleRebuildScheduler | null>(null);
+
+  const buildScene = useCallback((requestedGeneration?: number) => {
+    const scheduler = lifecycleSchedulerRef.current;
+    const buildGeneration = requestedGeneration ?? scheduler?.snapshot().currentGeneration ?? 0;
+    const canPublish = (): boolean => {
+      if (!scheduler || requestedGeneration == null) return true;
+      if (scheduler.isCurrentGeneration(requestedGeneration)) return true;
+      scheduler.markObsoleteBuildIgnored();
+      return false;
+    };
+    const publishUnavailable = (message: string, officialError = normalizeViewerOfficialBuildError(message)) => {
+      const lastGood = lastKnownGoodSceneRef.current;
+      if (lastGood) {
+        setScene(lastGood.scene);
+        setReliabilityState(resolveViewerReliabilityState({
+          scene: lastGood.scene,
+          source: "OFFICIAL",
+          generation: buildGeneration,
+          renderedGeneration: lastGood.generation,
+          officialBuildStatus: "FAILED",
+          officialBuildError: officialError,
+          lastKnownGoodGeneration: lastGood.generation,
+          stale: true,
+        }));
+        setError(null);
+        return;
+      }
+      setScene(null);
+      setCalpinagePansForProvenance(undefined);
+      setReliabilityState(resolveViewerReliabilityState({
+        scene: null,
+        source: "UNAVAILABLE",
+        generation: buildGeneration,
+        officialBuildStatus: "FAILED",
+        officialBuildError: officialError,
+      }));
+      setError(message);
+    };
     try {
       const state = resolveCalpinageRuntime(calpinageStateProp);
       if (!state) {
-        setCalpinagePansForProvenance(undefined);
-        setError("Données calpinage non disponibles");
+        if (canPublish()) publishUnavailable("Données calpinage non disponibles");
         return;
       }
       const structuralChangeEventDetail = pendingStructuralEventRef.current;
@@ -399,8 +450,6 @@ function Inline3DViewer({
         ...(displayReconstruction ? { roofGeometryFidelityMode: "reconstruction" as const } : {}),
         ...(optimalSingleBuilding ? { legacyRoofMapOptions: optimalSingleBuildingLegacyRoofMapOptions() } : {}),
         ...(forceStructuralRebuild ? { forceStructuralRebuild: true } : {}),
-        // T13 : accès typé via façade runtime — cohérent avec L.117 du même fichier.
-        // getAllPanelsForRuntime() exclut le bloc actif non figé (panneau fantôme flottant).
         getAllPanels: getAllPanelsForRuntime,
       });
       if (import.meta.env.DEV) {
@@ -437,52 +486,105 @@ function Inline3DViewer({
             autopsyLegacyPath: result.autopsyLegacyPath ?? "unknown",
           });
         }
-        setScene(result.scene);
-        setGroundImage(extractGroundImage(state));
-        setCalpinagePansForProvenance(extractCalpinagePansForProvenance(state));
-        setError(null);
-      } else {
-        reportOfficialSolarPipelineFailure({
-          where: "Inline3DViewerBridge.buildScene",
-          stage: "gateway_ready_but_scene_missing_or_ok_false_before_emergency",
-          diagnostics: result.diagnostics,
-          extra: {
-            officialOk: result.ok,
-            hasScene: result.scene != null,
-            sceneSyncStatus: result.sceneSyncDiagnostics.sceneSyncStatus,
-            usedSceneCache: result.sceneSyncDiagnostics.usedSceneCache,
-            signature: result.sceneStructuralSignatures.sceneRuntimeSignature,
-          },
-        });
-        const emergency = buildEmergencySolarScene3DFromRuntime(state);
-        if (emergency) {
-          lastDisplayedStructuralSignatureRef.current = "emergency-fallback";
-          if (import.meta.env.DEV) {
-            (window as unknown as { __LAST_3D_BRIDGE__?: Record<string, unknown> }).__LAST_3D_BRIDGE__ = {
-              mode: "emergency",
-              officialOk: false,
-              usedSceneCache: false,
-              autopsyLegacyPath: "emergency",
-              afterOfficialFail: true,
-            };
-            console.log("[3D-RUNTIME][MODE]", { bridge: "emergency", reason: "official_ok_false_or_no_scene" });
+        scheduler?.markOfficialBuildSucceeded();
+        if (canPublish()) {
+          const nextReliability = resolveViewerReliabilityState({
+            scene: result.scene,
+            source: "OFFICIAL",
+            generation: buildGeneration,
+            renderedGeneration: buildGeneration,
+            officialBuildStatus: "SUCCESS",
+            lastKnownGoodGeneration: lastKnownGoodSceneRef.current?.generation ?? null,
+          });
+          if (nextReliability.kind === "ready") {
+            lastKnownGoodSceneRef.current = { scene: result.scene, generation: buildGeneration };
           }
-          setScene(emergency);
+          if (nextReliability.kind === "invalid" && lastKnownGoodSceneRef.current) {
+            const lastGood = lastKnownGoodSceneRef.current;
+            setScene(lastGood.scene);
+            setReliabilityState(resolveViewerReliabilityState({
+              scene: lastGood.scene,
+              source: "OFFICIAL",
+              generation: buildGeneration,
+              renderedGeneration: lastGood.generation,
+              officialBuildStatus: "SUCCESS",
+              lastKnownGoodGeneration: lastGood.generation,
+              stale: true,
+            }));
+          } else {
+            setScene(result.scene);
+            setReliabilityState(nextReliability);
+          }
           setGroundImage(extractGroundImage(state));
           setCalpinagePansForProvenance(extractCalpinagePansForProvenance(state));
           setError(null);
-          if (import.meta.env.DEV) {
-            console.info("[3D-EMERGENCY][SUCCESS]", { mode: "bridge_fallback_after_official_fail" });
-          }
-        } else {
-          setCalpinagePansForProvenance(undefined);
-          setError("Scène 3D non éligible — relevé toiture incomplet");
-          if (import.meta.env.DEV) {
-            console.warn("[3D-EMERGENCY][FAIL]", { mode: "bridge_fallback_exhausted" });
-          }
         }
+        return;
+      }
+
+      scheduler?.markOfficialBuildFailed();
+      const officialError = normalizeViewerOfficialBuildError(
+        "Le pipeline 3D officiel n'a pas pu produire une scène fiable.",
+        result.diagnostics,
+      );
+      reportOfficialSolarPipelineFailure({
+        where: "Inline3DViewerBridge.buildScene",
+        stage: "gateway_ready_but_scene_missing_or_ok_false_before_emergency",
+        diagnostics: result.diagnostics,
+        extra: {
+          officialOk: result.ok,
+          hasScene: result.scene != null,
+          sceneSyncStatus: result.sceneSyncDiagnostics.sceneSyncStatus,
+          usedSceneCache: result.sceneSyncDiagnostics.usedSceneCache,
+          signature: result.sceneStructuralSignatures.sceneRuntimeSignature,
+        },
+      });
+      const emergency = buildEmergencySolarScene3DFromRuntime(state);
+      if (emergency) {
+        scheduler?.markFallbackEmergencyUsed();
+        lastDisplayedStructuralSignatureRef.current = "emergency-fallback";
+        if (import.meta.env.DEV) {
+          (window as unknown as { __LAST_3D_BRIDGE__?: Record<string, unknown> }).__LAST_3D_BRIDGE__ = {
+            mode: "emergency",
+            officialOk: false,
+            officialError,
+            usedSceneCache: false,
+            autopsyLegacyPath: "emergency",
+            afterOfficialFail: true,
+          };
+          console.log("[3D-RUNTIME][MODE]", { bridge: "emergency", reason: "official_ok_false_or_no_scene" });
+        }
+        if (canPublish()) {
+          setScene(emergency);
+          setGroundImage(extractGroundImage(state));
+          setCalpinagePansForProvenance(extractCalpinagePansForProvenance(state));
+          setReliabilityState(resolveViewerReliabilityState({
+            scene: emergency,
+            source: "EMERGENCY_FALLBACK",
+            generation: buildGeneration,
+            renderedGeneration: buildGeneration,
+            officialBuildStatus: "FAILED",
+            officialBuildError: officialError,
+            fallbackAttempted: true,
+            fallbackSucceeded: true,
+            lastKnownGoodGeneration: lastKnownGoodSceneRef.current?.generation ?? null,
+          }));
+          setError(null);
+        }
+        if (import.meta.env.DEV) {
+          console.info("[3D-EMERGENCY][SUCCESS]", { mode: "bridge_fallback_after_official_fail" });
+        }
+        return;
+      }
+      if (canPublish()) {
+        publishUnavailable("Scène 3D non éligible — relevé toiture incomplet", officialError);
+      }
+      if (import.meta.env.DEV) {
+        console.warn("[3D-EMERGENCY][FAIL]", { mode: "bridge_fallback_exhausted" });
       }
     } catch (e) {
+      const officialError = normalizeViewerOfficialBuildError(e);
+      scheduler?.markOfficialBuildFailed();
       if (import.meta.env.DEV) {
         console.error("[Inline3DViewer] buildScene error:", e);
       }
@@ -495,21 +597,36 @@ function Inline3DViewer({
         const state = resolveCalpinageRuntime(calpinageStateProp);
         const emergency = state ? buildEmergencySolarScene3DFromRuntime(state) : null;
         if (emergency) {
+          scheduler?.markFallbackEmergencyUsed();
           lastDisplayedStructuralSignatureRef.current = "emergency-fallback";
           if (import.meta.env.DEV) {
             (window as unknown as { __LAST_3D_BRIDGE__?: Record<string, unknown> }).__LAST_3D_BRIDGE__ = {
               mode: "emergency",
               officialOk: false,
+              officialError,
               usedSceneCache: false,
               autopsyLegacyPath: "emergency",
               afterOfficialThrow: true,
             };
             console.log("[3D-RUNTIME][MODE]", { bridge: "emergency", reason: "throw" });
           }
-          setScene(emergency);
-          setGroundImage(extractGroundImage(state));
-          setCalpinagePansForProvenance(extractCalpinagePansForProvenance(state));
-          setError(null);
+          if (canPublish()) {
+            setScene(emergency);
+            setGroundImage(extractGroundImage(state));
+            setCalpinagePansForProvenance(extractCalpinagePansForProvenance(state));
+            setReliabilityState(resolveViewerReliabilityState({
+              scene: emergency,
+              source: "EMERGENCY_FALLBACK",
+              generation: buildGeneration,
+              renderedGeneration: buildGeneration,
+              officialBuildStatus: "FAILED",
+              officialBuildError: officialError,
+              fallbackAttempted: true,
+              fallbackSucceeded: true,
+              lastKnownGoodGeneration: lastKnownGoodSceneRef.current?.generation ?? null,
+            }));
+            setError(null);
+          }
           if (import.meta.env.DEV) {
             console.info("[3D-EMERGENCY][SUCCESS]", { mode: "bridge_fallback_after_official_throw" });
           }
@@ -519,8 +636,9 @@ function Inline3DViewer({
         /* ignore */
       }
       const msg = e instanceof Error ? e.message : String(e);
-      setCalpinagePansForProvenance(undefined);
-      setError(msg);
+      if (canPublish()) {
+        publishUnavailable(msg, officialError);
+      }
       if (import.meta.env.DEV) {
         console.warn("[3D-EMERGENCY][FAIL]", { mode: "bridge_throw_and_emergency_exhausted" });
       }
@@ -538,23 +656,69 @@ function Inline3DViewer({
   const buildSceneRef = useRef(buildScene);
   buildSceneRef.current = buildScene;
 
+  if (lifecycleSchedulerRef.current == null) {
+    lifecycleSchedulerRef.current = createViewerLifecycleRebuildScheduler({
+      executeSceneBuild: (ctx: ViewerLifecycleExecution) => {
+        buildSceneRef.current(ctx.generation);
+      },
+      executePvOverlayBuild: (ctx: ViewerLifecycleExecution) => {
+        window.dispatchEvent(
+          new CustomEvent("calpinage:pv3d-overlay-changed", {
+            detail: { generation: ctx.generation, actionId: ctx.actionId },
+          }),
+        );
+      },
+      debugEnabled: () =>
+        import.meta.env.DEV &&
+        ((window as unknown as Record<string, unknown>)["__CALPINAGE_3D_LIFECYCLE_DEBUG__"] === true ||
+          (window as unknown as Record<string, unknown>)["__CALPINAGE_3D_DEBUG__"] === true),
+    });
+  }
+
+  useEffect(() => {
+    const scheduler = lifecycleSchedulerRef.current;
+    if (!scheduler) return;
+    exposeViewerLifecycleDiagnostics(scheduler);
+    return () => scheduler.cancel();
+  }, []);
+
+  useEffect(() => {
+    if (reliabilityState) exposeViewerReliabilityDiagnostics(reliabilityState);
+  }, [reliabilityState]);
+
+  const requestSceneBuild = useCallback(
+    (
+      action: string,
+      kind: "scene" | "roof" | "pv" | "obstacle" | "fallback" | "pv_overlay",
+      options?: { readonly reason?: string; readonly forceSceneRebuild?: boolean },
+    ) => {
+      lifecycleSchedulerRef.current?.request({
+        action,
+        kind,
+        reason: options?.reason,
+        forceSceneRebuild: options?.forceSceneRebuild,
+      });
+    },
+    [],
+  );
+
   useEffect(() => {
     if (calpinageStateProp !== undefined) {
       // FIX-2 : si ce changement de prop provient de notifyParentState() interne, le handler
-      // a déjà appelé buildScene() directement — ne pas déclencher un 2e rebuild.
+      // a déjà planifié le rebuild — ne pas déclencher un 2e rebuild.
       if (skipNextPropChangeBuildRef.current) {
         skipNextPropChangeBuildRef.current = false;
         return;
       }
-      buildScene();
+      requestSceneBuild("prop-change", "scene", { reason: "PROP_CHANGE" });
     }
-  }, [calpinageStateProp, buildScene]);
+  }, [calpinageStateProp, requestSceneBuild]);
 
   useEffect(() => {
     if (runtimeNotifyEpoch > 0) {
-      buildScene();
+      requestSceneBuild("runtime-notify", "scene", { reason: "RUNTIME_NOTIFY_EPOCH" });
     }
-  }, [runtimeNotifyEpoch, buildScene]);
+  }, [runtimeNotifyEpoch, requestSceneBuild]);
 
   /**
    * Verrouille la manipulation PV sur le canvas 2D quand le modeleur 3D toiture est actif (vue 3D).
@@ -583,7 +747,7 @@ function Inline3DViewer({
     function onViewMode(e: Event) {
       const detail = (e as CustomEvent).detail;
       if (detail?.mode === "3D") {
-        buildSceneRef.current();
+        lifecycleSchedulerRef.current?.request({ action: "enter-3d-view", kind: "scene", reason: "VIEW_MODE_3D" });
       }
     }
     function onStructuralChange(e: Event) {
@@ -591,7 +755,7 @@ function Inline3DViewer({
       const detail = (e as CustomEvent<OfficialRuntimeStructuralChangePayload>).detail;
       if (is3d && detail && typeof detail === "object" && typeof detail.reason === "string") {
         // FIX-5 : PV_MOVE_SYNC / PV_PLACEMENT_SYNC émis par pvSyncSaveRender (RAF) après un
-        // handlePanelMoveCommit — buildScene() a déjà été appelé immédiatement avec force rebuild.
+        // handlePanelMoveCommit — le rebuild a déjà été planifié avec force rebuild.
         // Consommer le flag et sortir sans rebuild : le cache frais doit être préservé.
         if (
           suppressNextPvMoveSyncBuildRef.current &&
@@ -603,7 +767,7 @@ function Inline3DViewer({
         pendingStructuralEventRef.current = detail;
         /**
          * Les actions PV (pose, déplacement, suppression panneau) ne changent pas la géométrie
-         * structurelle du toit, donc la signature de cache scène reste identique → buildScene()
+         * structurelle du toit, donc la signature de cache scène reste identique → rebuild
          * renverrait la scène cachée sans les nouveaux panneaux.
          * On invalide le cache explicitement pour forcer un rebuild complet avec les panneaux à jour.
          */
@@ -623,16 +787,20 @@ function Inline3DViewer({
       }
       if (is3d) {
         // FIX-1 : un handler interne bridge a levé ce flag avant d'émettre l'event structurel.
-        // Il appelle buildScene() lui-même — ne pas déclencher un rebuild redondant ici.
+        // Il planifie lui-même le rebuild — ne pas déclencher un rebuild redondant ici.
         if (isBridgeInternalEditRef.current) return;
-        buildSceneRef.current();
-        // LOT3-C7 (Bridge) : après chaque buildScene() structurel, déclencher un refresh overlay
-        // dans le viewer via RAF. Le RAF garantit que React a commité le setScene() avant que
-        // l'overlay lise readPvLayout3dOverlayState() → pas de race overlay/scene.
-        // Sans ce dispatch, pvLayout3dOverlayState restait stale après validation / autofill
-        // → selectedPanels contenait des panneaux supprimés → handles dans le vide.
-        requestAnimationFrame(() => {
-          window.dispatchEvent(new Event("calpinage:pv3d-overlay-changed"));
+        const pvOnly =
+          detail?.reason === "PV_PLACEMENT_SYNC" ||
+          detail?.reason === "PV_MOVE_SYNC" ||
+          detail?.reason === "PV_DELETE_SYNC" ||
+          (Array.isArray(detail?.changedDomains) &&
+            detail.changedDomains.includes("pv") &&
+            !detail.changedDomains.some((d: string) => ["contours", "ridges", "traits", "pans"].includes(d)));
+        lifecycleSchedulerRef.current?.request({
+          action: detail?.reason ?? "runtime-structural-change",
+          kind: pvOnly ? "pv" : "roof",
+          reason: detail?.reason ?? "STRUCTURAL_CHANGE",
+          forceSceneRebuild: forceNextSceneRebuildRef.current,
         });
       }
     }
@@ -640,7 +808,7 @@ function Inline3DViewer({
     window.addEventListener(CALPINAGE_OFFICIAL_RUNTIME_STRUCTURAL_CHANGE, onStructuralChange);
 
     if (getCalpinageWindow().__CALPINAGE_VIEW_MODE__ === "3D") {
-      buildSceneRef.current();
+      lifecycleSchedulerRef.current?.request({ action: "mount-while-3d", kind: "scene", reason: "MOUNT_3D" });
     }
 
     return () => {
@@ -650,8 +818,8 @@ function Inline3DViewer({
   }, []);
 
   const handleRebuild = useCallback(() => {
-    buildScene();
-  }, [buildScene]);
+    requestSceneBuild("manual-rebuild", "scene", { reason: "MANUAL_REBUILD", forceSceneRebuild: true });
+  }, [requestSceneBuild]);
 
   /**
    * Appelé immédiatement après `finalizePvMoveFrom3d` dans SolarScene3DViewer.
@@ -662,12 +830,12 @@ function Inline3DViewer({
   const handlePanelMoveCommit = useCallback(() => {
     lastDisplayedStructuralSignatureRef.current = null;
     forceNextSceneRebuildRef.current = true;
-    // FIX-5 : pvSyncSaveRender (RAF) va émettre PV_MOVE_SYNC après ce buildScene() immédiat.
+    // FIX-5 : pvSyncSaveRender (RAF) va émettre PV_MOVE_SYNC après ce rebuild immédiat.
     // Marquer le flag pour que onStructuralChange ignore cet event redondant et préserve le
     // cache frais construit ici avec force rebuild.
     suppressNextPvMoveSyncBuildRef.current = true;
-    buildScene();
-  }, [buildScene]);
+    requestSceneBuild("pv-move-commit", "pv", { reason: "PV_MOVE_COMMIT", forceSceneRebuild: true });
+  }, [requestSceneBuild]);
 
   const [roofHistSeq, setRoofHistSeq] = useState(0);
   const bumpRoofHist = useCallback(() => setRoofHistSeq((n) => n + 1), []);
@@ -712,7 +880,7 @@ function Inline3DViewer({
 
   const notifyParentState = useCallback(
     (root: Record<string, unknown>) => {
-      // FIX-2 : le handler appelant notifyParentState va appeler buildScene() lui-même.
+      // FIX-2 : le handler appelant notifyParentState va planifier le rebuild lui-même.
       // Supprimer le rebuild déclenché par la propagation prop-change qui suivra ce setCalpinageState.
       skipNextPropChangeBuildRef.current = true;
       setCalpinageState?.(JSON.parse(JSON.stringify(root)) as unknown);
@@ -865,12 +1033,12 @@ function Inline3DViewer({
         isBridgeInternalEditRef.current = false;
         if (enableModelingHistory) bumpRoofHist();
         if (import.meta.env.DEV) {
-          console.log("[3D DRAG] commit calling buildScene()");
+          console.log("[3D DRAG] commit scheduling scene rebuild");
         }
-        buildScene();
-        if (import.meta.env.DEV) {
-          console.log("[3D DRAG] commit buildScene() invoked (async rebuild)");
-        }
+        requestSceneBuild("roof-vertex-height-commit", "roof", {
+          reason: "ROOF_VERTEX_HEIGHT_EDIT",
+          forceSceneRebuild: true,
+        });
       };
 
       const legacy = tryCommitRoofVertexHeightLike2D(edit.panId, edit.vertexIndex, edit.heightM, root);
@@ -1029,7 +1197,7 @@ function Inline3DViewer({
           : "applyRoofVertexHeightEdit+rebuildPanPlanarHeightsAfterZEdit",
       );
     },
-    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState],
+    [bumpRoofHist, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState, requestSceneBuild],
   );
 
   const handleRoofVertexXYCommit = useCallback(
@@ -1067,9 +1235,12 @@ function Inline3DViewer({
       });
       isBridgeInternalEditRef.current = false;
       if (enableModelingHistory) bumpRoofHist();
-      buildScene();
+      requestSceneBuild("roof-vertex-xy-commit", "roof", {
+        reason: "ROOF_VERTEX_XY_EDIT",
+        forceSceneRebuild: true,
+      });
     },
-    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState],
+    [bumpRoofHist, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState, requestSceneBuild],
   );
 
   const handleStructuralRidgeHeightCommit = useCallback(
@@ -1108,9 +1279,12 @@ function Inline3DViewer({
       });
       isBridgeInternalEditRef.current = false;
       if (enableModelingHistory) bumpRoofHist();
-      buildScene();
+      requestSceneBuild("structural-height-commit", "roof", {
+        reason: "STRUCTURAL_HEIGHT_EDIT",
+        forceSceneRebuild: true,
+      });
     },
-    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState],
+    [bumpRoofHist, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState, requestSceneBuild],
   );
 
   const handleRoofHeightAssistantApply = useCallback(
@@ -1151,9 +1325,12 @@ function Inline3DViewer({
       });
       isBridgeInternalEditRef.current = false;
       if (enableModelingHistory) bumpRoofHist();
-      buildScene();
+      requestSceneBuild("roof-height-assistant", "roof", {
+        reason: "ROOF_HEIGHT_ASSISTANT",
+        forceSceneRebuild: true,
+      });
     },
-    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState],
+    [bumpRoofHist, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState, requestSceneBuild],
   );
 
   const roofHeightAssistant = useMemo(() => {
@@ -1188,7 +1365,10 @@ function Inline3DViewer({
           // deux états ont la même signature → toiture affichée reste figée après undo.
           lastDisplayedStructuralSignatureRef.current = null;
           forceNextSceneRebuildRef.current = true;
-          buildScene();
+          requestSceneBuild("roof-history-undo", "roof", {
+            reason: "ROOF_HISTORY_UNDO",
+            forceSceneRebuild: true,
+          });
         }
       },
       onRedo: () => {
@@ -1200,11 +1380,14 @@ function Inline3DViewer({
           // C3-FIX — Idem undo : forcer rebuild pour éviter cache stale sur même signature.
           lastDisplayedStructuralSignatureRef.current = null;
           forceNextSceneRebuildRef.current = true;
-          buildScene();
+          requestSceneBuild("roof-history-redo", "roof", {
+            reason: "ROOF_HISTORY_REDO",
+            forceSceneRebuild: true,
+          });
         }
       },
     };
-  }, [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, notifyParentState, roofHistSeq]);
+  }, [bumpRoofHist, calpinageStateProp, enableModelingHistory, notifyParentState, requestSceneBuild, roofHistSeq]);
 
   if (error) {
     return (
@@ -1266,6 +1449,7 @@ function Inline3DViewer({
       <SolarScene3DViewer
         scene={scene}
         runtimeScene={scene}
+        reliabilityState={reliabilityState ?? undefined}
         height="100%"
         showRoof
         showRoofEdges

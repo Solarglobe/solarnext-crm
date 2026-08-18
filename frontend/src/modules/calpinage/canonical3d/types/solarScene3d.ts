@@ -11,7 +11,7 @@ import type { RoofObstacleVolume3D } from "./roof-obstacle-volume";
 import type { RoofExtensionVolume3D } from "./roof-extension-volume";
 import type { PvPanelSurface3D } from "./pv-panel-3d";
 import type { NearShadingSeriesResult } from "./near-shading-3d";
-import type { QualityBlock } from "./quality";
+import type { GeometryTruthStatus, PvPanelPlacementValidityStatus, QualityBlock } from "./quality";
 import type { Scene2DSourceTrace, Validate2DTo3DCoherenceResult } from "./scene2d3dCoherence";
 import type { PanelVisualShading, PanelVisualShadingSummary } from "./panelVisualShading";
 import type { BuildingShell3D } from "./building-shell-3d";
@@ -180,6 +180,12 @@ export interface SolarScene3DMetadata {
   readonly roofQualityPhaseB?: SolarSceneRoofQualityPhaseB;
   /** Diagnostic produit des jonctions multi-pans avant pose PV. */
   readonly roofMultiPanDiagnostics?: SolarSceneRoofMultiPanDiagnostics;
+  readonly geometryTruthStatus?: GeometryTruthStatus;
+  readonly geometryTruthInvalidPatchCount?: number;
+  readonly geometryTruthDegradedPatchCount?: number;
+  readonly pvPlacementValidityStatus?: PvPanelPlacementValidityStatus;
+  readonly pvPlacementInvalidPanelCount?: number;
+  readonly pvPlacementDroppedPanelCount?: number;
 }
 
 /**
