@@ -11,7 +11,7 @@
  */
 
 import * as THREE from "three";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { Outlines } from "@react-three/drei";
 import { PvPanelInstanced } from "../pvPanels/PvPanelInstanced";
@@ -19,7 +19,7 @@ import { getDepthOffset } from "./DepthRegistry";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import type { SceneInspectionSelection } from "./inspection/sceneInspectionTypes";
 import { isInspectSelected, roofModelingSkipOccluderRaycast } from "./viewerHelpers";
-import { SOLARNEXT_3D_PREMIUM_THEME, VIEWER_INSPECT_OUTLINE_HEX } from "./viewerVisualTokens";
+import { SOLARNEXT_3D_PREMIUM_THEME, VIEWER_INSPECT_OUTLINE_HEX, VIEWER_PV_OUTLINE_IDLE_HEX } from "./viewerVisualTokens";
 
 // ── Debug runtime [PV3D-RENDER] ─────────────────────────────────────────────
 const _pv3dDbg = (): boolean =>
@@ -31,6 +31,9 @@ const _pv3dDbg = (): boolean =>
 // Light multiplier: the Canvas texture already carries the dark PV cell color.
 const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#d8e8f8").getHex();
 const PREMIUM_PV_EMISSIVE_HEX = new THREE.Color(SOLARNEXT_3D_PREMIUM_THEME.pv.liveEmissive).getHex();
+const IDLE_PV_VISIBILITY_FILL = "#1f4f7a";
+const IDLE_PV_RENDER_ORDER = 26;
+const IDLE_PV_OUTLINE_RENDER_ORDER = 27;
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -92,6 +95,17 @@ export function PvPanelsLayer({
   inspectionSelection,
   outlineThickness,
 }: PvPanelsLayerProps) {
+  const idlePanelOutlineGeos = useMemo(
+    () => panelGeos.map(({ id, geo }) => ({ id, geo: new THREE.EdgesGeometry(geo, 1) })),
+    [panelGeos],
+  );
+
+  useEffect(() => {
+    return () => {
+      idlePanelOutlineGeos.forEach(({ geo }) => geo.dispose());
+    };
+  }, [idlePanelOutlineGeos]);
+
   // ── [PV3D-RENDER] Log render-level state ──────────────────────────────
   useEffect(() => {
     if (!_pv3dDbg()) return;
@@ -164,6 +178,34 @@ export function PvPanelsLayer({
         }
         onPanelHover={onPanelHover}
       />
+      {/* Surface de lecture permanente : évite les PV invisibles hors sélection si le PBR instancié est masqué par lumière/depth. */}
+      {panelGeos.map(({ id, geo }) => (
+        <mesh key={`pv-idle-fill-${id}`} geometry={geo} renderOrder={IDLE_PV_RENDER_ORDER}>
+          <meshBasicMaterial
+            color={IDLE_PV_VISIBILITY_FILL}
+            transparent
+            opacity={0.34}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+            depthTest
+            toneMapped={false}
+            polygonOffset
+            {...getDepthOffset("PV_PANEL")}
+          />
+        </mesh>
+      ))}
+      {idlePanelOutlineGeos.map(({ id, geo }) => (
+        <lineSegments key={`pv-idle-outline-${id}`} geometry={geo} renderOrder={IDLE_PV_OUTLINE_RENDER_ORDER}>
+          <lineBasicMaterial
+            color={VIEWER_PV_OUTLINE_IDLE_HEX}
+            transparent
+            opacity={0.78}
+            depthWrite={false}
+            depthTest
+            toneMapped={false}
+          />
+        </lineSegments>
+      ))}
       {/* Outline inspection : rendu individuel pour les panneaux sélectionnés en inspect mode */}
       {inspectMode &&
         panelGeos.map(({ id, geo }) => {
