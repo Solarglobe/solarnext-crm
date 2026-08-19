@@ -1828,6 +1828,18 @@ function ViewerSceneContent({
     });
   }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
 
+  const pv3dOverlayPanelGeos = useMemo(() => {
+    if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
+    return pvLayout3dOverlayState.panels.flatMap((p) => {
+      if (p.enabled === false) return [];
+      const fill = imagePolygonToRoofMeshGeometry(scene, p.points, p.panId, PV_PANEL_LIVE_FILL_LIFT_M);
+      const line = imagePolygonToRoofLineGeometry(scene, p.points, p.panId, PV_PANEL_LIVE_LINE_LIFT_M);
+      return fill || line
+        ? [{ id: p.id, fill, line, selected: !!p.selected, invalid: !!p.invalid }]
+        : [];
+    });
+  }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
+
   const pv3dSelectedPanelGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState || pvLayout3dOverlayState.isManipulating) return [];
     return pvLayout3dOverlayState.panels.flatMap((p) => {
@@ -1892,6 +1904,7 @@ function ViewerSceneContent({
       ...panelGeos.map((x) => x.geo),
       ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...pv3dOverlayPanelGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dSelectedPanelGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dSafeZoneGeos.flatMap((x) => [x.ribbon, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dExtensionSafeZoneGeos.flatMap((x) => [x.ribbon, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
@@ -1908,6 +1921,7 @@ function ViewerSceneContent({
       panelGeos,
       pv3dLivePanelGeos,
       pv3dGhostGeos,
+      pv3dOverlayPanelGeos,
       pv3dSelectedPanelGeos,
       pv3dSafeZoneGeos,
       pv3dExtensionSafeZoneGeos,
@@ -2308,6 +2322,50 @@ function ViewerSceneContent({
           </group>
         ))}
       {pvLayout3DInteractionMode &&
+        pv3dOverlayPanelGeos.map(({ id, fill, line, selected, invalid }) => (
+          <group key={`pv3d-overlay-panel-${id}`}>
+            {fill ? (
+              <mesh geometry={fill} renderOrder={26}>
+                <meshBasicMaterial
+                  color={
+                    invalid
+                      ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidFill
+                      : selected
+                        ? SOLARNEXT_3D_PREMIUM_THEME.pv.selectedFill
+                        : SOLARNEXT_3D_PREMIUM_THEME.pv.liveFill
+                  }
+                  transparent
+                  opacity={invalid ? 0.62 : selected ? 0.48 : 0.58}
+                  side={THREE.DoubleSide}
+                  depthWrite={false}
+                  depthTest
+                  toneMapped={false}
+                  polygonOffset
+                  {...getDepthOffset("PV_PANEL")}
+                />
+              </mesh>
+            ) : null}
+            {line ? (
+              <lineSegments geometry={line} renderOrder={27}>
+                <lineBasicMaterial
+                  color={
+                    invalid
+                      ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidLine
+                      : selected
+                        ? SOLARNEXT_3D_PREMIUM_THEME.pv.selectedLine
+                        : SOLARNEXT_3D_PREMIUM_THEME.pv.cellLine
+                  }
+                  transparent
+                  opacity={invalid ? 1 : selected ? 0.92 : 0.86}
+                  depthWrite={false}
+                  toneMapped={false}
+                  depthTest
+                />
+              </lineSegments>
+            ) : null}
+          </group>
+        ))}
+      {pvLayout3DInteractionMode &&
         pv3dSelectedPanelGeos.map(({ id, fill, line, invalid }) => (
           <group key={`pv3d-selected-${id}`}>
             {fill ? (
@@ -2362,7 +2420,7 @@ function ViewerSceneContent({
                   // La profondeur de la scène opaque (toiture, bâtiment) est déjà dans
                   // le depth buffer au moment du rendu overlay.
                   depthWrite={false}
-                  side={THREE.FrontSide}
+                  side={THREE.DoubleSide}
                   polygonOffset
                   {...getDepthOffset("PV_PANEL")}
                   depthTest
