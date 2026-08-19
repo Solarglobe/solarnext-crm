@@ -13,6 +13,7 @@ const __dirname = dirname(__filename);
 
 import { pool } from "../config/db.js";
 import { createCalpinageSnapshot } from "../services/calpinage/calpinageSnapshot.service.js";
+import { sanitizeCalpinageGeometryForPersistence } from "../services/calpinage/calpinageCommercialIntegrity.js";
 import { computeCalpinageGeometryHash } from "../services/calpinage/calpinageGeometryHash.js";
 import { persistGeometryHashForStudyVersion } from "../services/calpinage/calpinageGeometryHash.js";
 
@@ -194,7 +195,7 @@ async function run() {
 
     const snap2 = await pool.query(`SELECT snapshot_json FROM calpinage_snapshots WHERE id = $1`, [resultLegacy.snapshotId]);
     const storedPayload = snap2.rows[0]?.snapshot_json?.payload;
-    const expectedRoundTrip = JSON.parse(JSON.stringify(committedB));
+    const expectedRoundTrip = JSON.parse(JSON.stringify(sanitizeCalpinageGeometryForPersistence(committedB)));
     if (JSON.stringify(storedPayload) !== JSON.stringify(expectedRoundTrip)) {
       fail("Test4: payload stocké = copie profonde attendue", new Error());
     } else {
