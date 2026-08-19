@@ -630,9 +630,10 @@ export function PvPanelInstanced({
         metalness={metalness}
         roughness={roughness}
         envMapIntensity={envMapIntensity}
-        // FrontSide : les panneaux ont toujours la normale orientee vers l'observateur.
-        // DoubleSide causait des artefacts depth en vue rasante (backfaces dans depth buffer).
-        side={THREE.FrontSide}
+        // DoubleSide : les panneaux peuvent venir de pans dont la normale est orientee
+        // a l'oppose de la camera. L'overlay de selection etait deja DoubleSide, ce
+        // qui rendait les panneaux visibles seulement une fois selectionnes.
+        side={THREE.DoubleSide}
         polygonOffset
         polygonOffsetFactor={polygonOffsetFactor}
         polygonOffsetUnits={polygonOffsetUnits}
