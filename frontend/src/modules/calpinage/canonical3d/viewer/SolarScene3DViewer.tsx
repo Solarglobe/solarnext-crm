@@ -552,6 +552,9 @@ const PREMIUM_PV_EMISSIVE_HEX = new THREE.Color(SOLARNEXT_3D_PREMIUM_THEME.pv.li
 const PREMIUM_PV_SELECTED_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.selectedFill;
 const PREMIUM_PV_LIVE_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.liveFill;
 const PREMIUM_PV_INVALID_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.invalidFill;
+const PV3D_OVERLAY_PANEL_FILL = "#0d1726";
+const PV3D_OVERLAY_PANEL_EDGE = "#526b7d";
+const PV3D_OVERLAY_PANEL_EMISSIVE = "#07101d";
 const PV3D_SAFE_ZONE_LINE = SOLARNEXT_3D_PREMIUM_THEME.safeZone.line;
 const PV3D_GHOST_VALID_FILL = SOLARNEXT_3D_PREMIUM_THEME.ghost.validFill;
 const PV3D_GHOST_VALID_LINE = SOLARNEXT_3D_PREMIUM_THEME.ghost.validLine;
@@ -2323,23 +2326,21 @@ function ViewerSceneContent({
         ))}
       {pvLayout3DInteractionMode &&
         pv3dOverlayPanelGeos.map(({ id, fill, line, selected, invalid }) => (
-          <group key={`pv3d-overlay-panel-${id}`}>
+          <group key={`pv3d-overlay-panel-solid-${id}`}>
             {fill ? (
               <mesh geometry={fill} renderOrder={26}>
-                <meshBasicMaterial
-                  color={
-                    invalid
-                      ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidFill
-                      : selected
-                        ? SOLARNEXT_3D_PREMIUM_THEME.pv.selectedFill
-                        : SOLARNEXT_3D_PREMIUM_THEME.pv.liveFill
-                  }
-                  transparent
-                  opacity={invalid ? 0.62 : selected ? 0.48 : 0.58}
+                <meshStandardMaterial
+                  color={invalid ? PREMIUM_PV_INVALID_FILL : PV3D_OVERLAY_PANEL_FILL}
+                  emissive={invalid ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidEmissive : PV3D_OVERLAY_PANEL_EMISSIVE}
+                  emissiveIntensity={invalid ? 0.2 : selected ? 0.14 : 0.1}
+                  metalness={0.18}
+                  roughness={0.38}
+                  envMapIntensity={0.85}
+                  transparent={invalid}
+                  opacity={invalid ? 0.78 : 1}
                   side={THREE.DoubleSide}
                   depthWrite={false}
                   depthTest
-                  toneMapped={false}
                   polygonOffset
                   {...getDepthOffset("PV_PANEL")}
                 />
@@ -2353,10 +2354,10 @@ function ViewerSceneContent({
                       ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidLine
                       : selected
                         ? SOLARNEXT_3D_PREMIUM_THEME.pv.selectedLine
-                        : SOLARNEXT_3D_PREMIUM_THEME.pv.cellLine
+                        : PV3D_OVERLAY_PANEL_EDGE
                   }
                   transparent
-                  opacity={invalid ? 1 : selected ? 0.92 : 0.86}
+                  opacity={invalid ? 1 : selected ? 0.92 : 0.58}
                   depthWrite={false}
                   toneMapped={false}
                   depthTest

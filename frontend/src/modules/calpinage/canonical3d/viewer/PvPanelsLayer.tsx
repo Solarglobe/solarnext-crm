@@ -95,6 +95,7 @@ export function PvPanelsLayer({
   inspectionSelection,
   outlineThickness,
 }: PvPanelsLayerProps) {
+  const showIdleReadabilityLayer = !pvLayout3DInteractionMode;
   const idlePanelOutlineGeos = useMemo(
     () => panelGeos.map(({ id, geo }) => ({ id, geo: new THREE.EdgesGeometry(geo, 1) })),
     [panelGeos],
@@ -179,33 +180,35 @@ export function PvPanelsLayer({
         onPanelHover={onPanelHover}
       />
       {/* Surface de lecture permanente : évite les PV invisibles hors sélection si le PBR instancié est masqué par lumière/depth. */}
-      {panelGeos.map(({ id, geo }) => (
-        <mesh key={`pv-idle-fill-${id}`} geometry={geo} renderOrder={IDLE_PV_RENDER_ORDER}>
-          <meshBasicMaterial
-            color={IDLE_PV_VISIBILITY_FILL}
-            transparent
-            opacity={0.34}
-            side={THREE.DoubleSide}
-            depthWrite={false}
-            depthTest
-            toneMapped={false}
-            polygonOffset
-            {...getDepthOffset("PV_PANEL")}
-          />
-        </mesh>
-      ))}
-      {idlePanelOutlineGeos.map(({ id, geo }) => (
-        <lineSegments key={`pv-idle-outline-${id}`} geometry={geo} renderOrder={IDLE_PV_OUTLINE_RENDER_ORDER}>
-          <lineBasicMaterial
-            color={VIEWER_PV_OUTLINE_IDLE_HEX}
-            transparent
-            opacity={0.78}
-            depthWrite={false}
-            depthTest
-            toneMapped={false}
-          />
-        </lineSegments>
-      ))}
+      {showIdleReadabilityLayer &&
+        panelGeos.map(({ id, geo }) => (
+          <mesh key={`pv-idle-fill-${id}`} geometry={geo} renderOrder={IDLE_PV_RENDER_ORDER}>
+            <meshBasicMaterial
+              color={IDLE_PV_VISIBILITY_FILL}
+              transparent
+              opacity={0.34}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+              depthTest
+              toneMapped={false}
+              polygonOffset
+              {...getDepthOffset("PV_PANEL")}
+            />
+          </mesh>
+        ))}
+      {showIdleReadabilityLayer &&
+        idlePanelOutlineGeos.map(({ id, geo }) => (
+          <lineSegments key={`pv-idle-outline-${id}`} geometry={geo} renderOrder={IDLE_PV_OUTLINE_RENDER_ORDER}>
+            <lineBasicMaterial
+              color={VIEWER_PV_OUTLINE_IDLE_HEX}
+              transparent
+              opacity={0.78}
+              depthWrite={false}
+              depthTest
+              toneMapped={false}
+            />
+          </lineSegments>
+        ))}
       {/* Outline inspection : rendu individuel pour les panneaux sélectionnés en inspect mode */}
       {inspectMode &&
         panelGeos.map(({ id, geo }) => {
