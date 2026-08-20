@@ -612,6 +612,21 @@ async function getRecentLocalUidsForFlagRefresh(pg, mailAccountId, folderId, lim
   return r.rows.map((row) => Number(row.uid)).filter((uid) => Number.isFinite(uid));
 }
 
+async function getLocalUnreadCountForFolder(pg, mailAccountId, folderId) {
+  const r = await pg.query(
+    `SELECT COUNT(*)::int AS c
+     FROM mail_messages
+     WHERE mail_account_id = $1
+       AND folder_id = $2
+       AND direction = 'INBOUND'::mail_message_direction
+       AND is_read = false
+       AND remote_missing_at IS NULL
+       AND remote_deleted_at IS NULL`,
+    [mailAccountId, folderId]
+  );
+  return Number(r.rows[0]?.c) || 0;
+}
+
 /**
  * @param {import('imapflow').ImapFlow} imapClient
  * @param {string} range
@@ -664,6 +679,13 @@ export async function reconcileExistingFlagsForFolder(pg, imapClient, mailAccoun
   const canUseModseq =
     sameRemoteCursor(mailbox.uidValidity, previousUidValidity || mailbox.uidValidity) &&
     remoteModseqIncreased(folder.highest_modseq, mailbox.highestModseq);
+  const remoteUnreadCount =
+    Number.isFinite(Number(mailbox.remoteUnreadCount)) ? Number(mailbox.remoteUnreadCount) : null;
+  const localUnreadCount = remoteUnreadCount == null
+    ? null
+    : await getLocalUnreadCountForFolder(pg, mailAccount.id, folder.id);
+  const hasUnreadMismatch =
+    remoteUnreadCount != null && localUnreadCount != null && remoteUnreadCount !== localUnreadCount;
 
   let snapshots = [];
   let strategy = "fallback_recent_window";
@@ -671,10 +693,18 @@ export async function reconcileExistingFlagsForFolder(pg, imapClient, mailAccoun
     snapshots = await fetchFlagSnapshots(imapClient, "1:*", { changedSince: folder.highest_modseq });
     strategy = "condstore_changed_since";
   } else {
-    const limit = Math.min(Math.max(Number(process.env.MAIL_FLAG_RECONCILE_RECENT_LIMIT) || 200, 25), 1000);
+    const recentLimit = Math.min(Math.max(Number(process.env.MAIL_FLAG_RECONCILE_RECENT_LIMIT) || 200, 25), 1000);
+    const mismatchLimit = Math.min(
+      Math.max(Number(process.env.MAIL_FLAG_RECONCILE_MISMATCH_LIMIT) || 5000, recentLimit),
+      20000
+    );
+    const limit = hasUnreadMismatch ? mismatchLimit : recentLimit;
     const uids = await getRecentLocalUidsForFlagRefresh(pg, mailAccount.id, folder.id, limit);
     if (uids.length > 0) {
       snapshots = await fetchFlagSnapshots(imapClient, uids.join(","), {});
+    }
+    if (hasUnreadMismatch) {
+      strategy = "fallback_unread_mismatch_window";
     }
   }
 
@@ -821,6 +851,9 @@ export async function syncFolderForAccount(imapClient, pg, mailAccount, folder, 
     const mailbox = {
       uidValidity: mailboxRaw?.uidValidity != null ? String(mailboxRaw.uidValidity) : null,
       highestModseq: mailboxRaw?.highestModseq != null ? String(mailboxRaw.highestModseq) : null,
+      remoteUnreadCount: Number.isFinite(Number(mailboxRaw?.unseen))
+        ? Number(mailboxRaw.unseen)
+        : (Number.isFinite(Number(folder.remote_unread_count)) ? Number(folder.remote_unread_count) : null),
     };
 
     const flagSummary = await reconcileExistingFlagsForFolder(pg, imapClient, mailAccount, folder, mailbox);
@@ -1031,7 +1064,7 @@ export async function syncMailAccount(p) {
     folderParams.push(DEFAULT_FOLDER_SYNC_LIMIT);
     const limitIdx = folderParams.length;
     const foldersRes = await pool.query(
-      `SELECT id, type, external_id, name, uid_validity, highest_modseq,
+      `SELECT id, type, external_id, name, uid_validity, highest_modseq, remote_unread_count,
               selectable, is_active, sync_priority, last_message_sync_at
        FROM mail_folders
        WHERE organization_id = $1 AND mail_account_id = $2

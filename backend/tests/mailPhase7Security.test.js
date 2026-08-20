@@ -46,6 +46,7 @@ test("7 frontend mail message renders HTML in sandbox iframe and blocks remote i
   const src = fs.readFileSync(new URL("../../frontend/src/pages/mail/MailThreadMessage.tsx", import.meta.url), "utf8");
   assert.match(src, /<iframe/);
   assert.match(src, /sandbox="allow-popups"/);
+  assert.match(src, /h1\{font-size:22px!important/);
   assert.match(src, /Les images distantes ont été bloquées/);
 });
 

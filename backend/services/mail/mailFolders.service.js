@@ -12,6 +12,10 @@ function intOrZero(n) {
   return Number.isFinite(v) ? v : 0;
 }
 
+function displayedUnreadCount(row) {
+  return row.remote_unread_count == null ? intOrZero(row.unread_local) : intOrZero(row.remote_unread_count);
+}
+
 /**
  * @param {import('pg').Pool|import('pg').PoolClient} db
  * @param {{ organizationId: string, accessibleAccountIds: Set<string> }}
@@ -103,9 +107,11 @@ export async function listAccessibleMailFolders(db, p) {
       selectable: row.selectable === true,
       subscribed: row.subscribed,
       canOpen: row.selectable === true,
-      unreadCount: intOrZero(row.unread_local),
+      unreadCount: displayedUnreadCount(row),
       totalLocal: intOrZero(row.total_local),
+      localUnreadCount: intOrZero(row.unread_local),
       remoteUnreadCount: row.remote_unread_count == null ? null : intOrZero(row.remote_unread_count),
+      unreadCountSource: row.remote_unread_count == null ? "local" : "remote",
       remoteMessageCount: row.remote_message_count == null ? null : intOrZero(row.remote_message_count),
       syncStatus: row.message_sync_status,
       historySyncStatus: row.history_sync_status,

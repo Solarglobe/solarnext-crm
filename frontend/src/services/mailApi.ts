@@ -307,7 +307,9 @@ export interface MailFolderRow {
   canOpen: boolean;
   unreadCount: number;
   totalLocal: number;
+  localUnreadCount?: number;
   remoteUnreadCount: number | null;
+  unreadCountSource?: "local" | "remote";
   remoteMessageCount: number | null;
   syncStatus: string | null;
   historySyncStatus: string | null;

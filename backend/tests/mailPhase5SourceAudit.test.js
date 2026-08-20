@@ -25,11 +25,18 @@ test("mail phase 5 backend keeps indexed FTS search and server sort", () => {
 
 test("mail phase 5B unread badge is scoped to canonical inbox, active accounts and permissions", () => {
   const service = read("services/mail/mailApi.service.js");
+  const folders = read("services/mail/mailFolders.service.js");
+  const sync = read("services/mail/mailSync.service.js");
   const store = read("../frontend/src/pages/mail/mailUnreadStore.tsx");
   const layout = read("../frontend/src/layout/AppLayout.tsx");
   assert.match(store, /getInboxUnreadSummary\(\{ mailbox: "inbox" \}\)/);
   assert.match(layout, /formatMailUnreadBadge/);
   assert.match(service, /mf\.type = 'INBOX'::mail_folder_type/);
+  assert.match(service, /remoteUnreadFolderType/);
+  assert.match(service, /f\.remote_unread_count/);
+  assert.match(folders, /row\.remote_unread_count == null \? intOrZero\(row\.unread_local\) : intOrZero\(row\.remote_unread_count\)/);
+  assert.match(sync, /fallback_unread_mismatch_window/);
+  assert.match(sync, /MAIL_FLAG_RECONCILE_MISMATCH_LIMIT/);
   assert.match(service, /t\.has_unread = true/);
   assert.match(service, /COALESCE\(lifecycle_state::text, 'CONNECTED'\) IN \('CONNECTED', 'DEGRADED'\)/);
   assert.match(service, /COALESCE\(sync_enabled, true\) = true/);

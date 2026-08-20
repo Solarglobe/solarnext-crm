@@ -218,6 +218,11 @@ export const MailThreadMessage = React.memo(function MailThreadMessage({
     if (!sanitizedHtml) return "";
     return `<!doctype html><html><head><base target="_blank"><meta charset="utf-8"><style>
       html,body{margin:0;padding:0;background:transparent;color:#111827;font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;overflow-wrap:anywhere}
+      body{max-width:100%;font-size:14px!important}
+      h1{font-size:22px!important;line-height:1.2!important;margin:0 0 12px!important}
+      h2{font-size:19px!important;line-height:1.25!important;margin:0 0 10px!important}
+      h3{font-size:16px!important;line-height:1.3!important;margin:0 0 8px!important}
+      p,div,span,li,td,th{max-width:100%;font-size:min(1em,16px)!important}
       a{color:#1d4ed8;text-decoration:underline} img{max-width:100%;height:auto} table{max-width:100%;border-collapse:collapse} td,th{border:1px solid #d1d5db;padding:4px 6px}
       [data-remote-src-blocked]{display:inline-block;min-width:120px;min-height:24px;border:1px dashed #cbd5e1;background:#f8fafc;color:#64748b}
     </style></head><body>${sanitizedHtml}</body></html>`;

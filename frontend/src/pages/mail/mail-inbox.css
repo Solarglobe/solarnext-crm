@@ -5,6 +5,13 @@
   padding: var(--spacing-16, 16px);
 }
 
+@media (min-width: 769px) {
+  .mail-standard-page,
+  .mail-outbox-page {
+    zoom: 0.8;
+  }
+}
+
 .mail-outbox-page {
   display: grid;
   gap: 14px;
