@@ -19,7 +19,10 @@ export function startMailAttachmentScanProcessor() {
         logger.info({ evt: "MAIL_ATTACHMENT_SCAN_BATCH", processed: res.processed }, "Scan pièces jointes traité");
       }
     } catch (e) {
-      logger.error({ evt: "MAIL_ATTACHMENT_SCAN_WORKER_ERR" }, e?.message || String(e));
+      logger.error(
+        { evt: "MAIL_ATTACHMENT_SCAN_WORKER_ERR", err: e, message: e?.message || String(e) },
+        "Erreur worker scan pièces jointes"
+      );
     } finally {
       running = false;
     }
@@ -27,4 +30,3 @@ export function startMailAttachmentScanProcessor() {
   setInterval(tick, INTERVAL_MS).unref?.();
   void tick();
 }
-
