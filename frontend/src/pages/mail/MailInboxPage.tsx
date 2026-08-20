@@ -10,6 +10,7 @@ import { MailComposer } from "./MailComposer";
 import { MailThreadOverlay } from "./MailThreadOverlay";
 import { MailDraftsList } from "./MailDraftsList";
 import { invalidateMailUnreadSummary } from "./mailUnreadStore";
+import { formatMailAccountLabel, formatMailFolderLabel } from "./mailFolderLabels";
 import {
   parseMailInboxUrlState,
   serializeMailInboxUrlState,
@@ -969,7 +970,7 @@ export default function MailInboxPage() {
     <div className="mail-standard-page" ref={mailRootRef}>
       <PageHeader
         eyebrow="Mail"
-        title={draftsView ? "Brouillons CRM" : legacyArchiveView ? "Archives CRM anciennes" : selectedFolder?.name ?? "Mail"}
+        title={draftsView ? "Brouillons internes" : legacyArchiveView ? "Archives internes" : formatMailFolderLabel(selectedFolder)}
         actions={
           <button type="button" className="mail-inbox__new-btn" onClick={openNewMessage}>
             + Nouveau message
@@ -1007,7 +1008,9 @@ export default function MailInboxPage() {
                     <span className="mail-inbox__account-chevron" aria-hidden>
                       {collapsedAccountIds.has(account.id) ? "›" : "⌄"}
                     </span>
-                    <span className="mail-inbox__account-heading-label">{account.displayName || account.email}</span>
+                    <span className="mail-inbox__account-heading-label">
+                      {formatMailAccountLabel(account.displayName, account.email)}
+                    </span>
                   </span>
                   <span className="mail-inbox__account-health" title={accountStatusLabel(account.id)}>
                     {accountStatusLabel(account.id)}
@@ -1025,7 +1028,7 @@ export default function MailInboxPage() {
                         title={folder.isHistoryPartial ? "Historique local partiel" : undefined}
                         style={{ paddingLeft: `${12 + Math.min(folder.depth, 6) * 14}px` }}
                       >
-                        <span className="mail-inbox__nav-item-label">{folder.name}</span>
+                        <span className="mail-inbox__nav-item-label">{formatMailFolderLabel(folder)}</span>
                         {folder.unreadCount > 0 ? (
                           <span className="sn-badge sn-badge-info mail-inbox__account-sn-tweak">
                             {folder.unreadCount > 99 ? "99+" : folder.unreadCount}
@@ -1044,7 +1047,7 @@ export default function MailInboxPage() {
               onClick={openDraftsView}
               aria-current={draftsView ? "page" : undefined}
             >
-              <span className="mail-inbox__nav-item-label">Brouillons CRM</span>
+              <span className="mail-inbox__nav-item-label">Brouillons internes</span>
               {drafts.length > 0 ? (
                 <span className="sn-badge sn-badge-neutral mail-inbox__account-sn-tweak">
                   {drafts.length > 99 ? "99+" : drafts.length}
@@ -1057,7 +1060,7 @@ export default function MailInboxPage() {
               onClick={openLegacyArchiveView}
               aria-current={legacyArchiveView ? "page" : undefined}
             >
-              <span className="mail-inbox__nav-item-label">Archives CRM anciennes</span>
+              <span className="mail-inbox__nav-item-label">Archives internes</span>
             </button>
             <NavLink
               to="/mail/outbox"
@@ -1065,7 +1068,7 @@ export default function MailInboxPage() {
                 `mail-inbox__nav-item mail-inbox__nav-link${isActive ? " mail-inbox__nav-item--active" : ""}`
               }
             >
-              <span className="mail-inbox__nav-item-label">Envois (file d’attente)</span>
+              <span className="mail-inbox__nav-item-label">Boîte d’envoi</span>
             </NavLink>
           </nav>
 
@@ -1214,7 +1217,7 @@ export default function MailInboxPage() {
                     {moveTargets.map((folder) => (
                       <option key={folder.id} value={folder.id}>
                         {" ".repeat(Math.min(folder.depth, 6) * 2)}
-                        {folder.name}
+                        {formatMailFolderLabel(folder)}
                       </option>
                     ))}
                   </select>

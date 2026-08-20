@@ -2,10 +2,10 @@ import "./mail-inbox.css";
 import { PageHeader } from "../../components/ui";
 
 const folders = [
-  { name: "Inbox", count: 128, depth: 0, active: true },
-  { name: "Sent", count: 0, depth: 0 },
-  { name: "Archive", count: 0, depth: 0 },
-  { name: "Trash", count: 7, depth: 0 },
+  { name: "Boîte de réception", count: 128, depth: 0, active: true },
+  { name: "Envoyés", count: 0, depth: 0 },
+  { name: "Archives", count: 0, depth: 0 },
+  { name: "Corbeille", count: 7, depth: 0 },
   { name: "Chantiers / très long dossier imbriqué avec client résidentiel", count: 14, depth: 1 },
   { name: "SAV", count: 2, depth: 2 },
   { name: "Secteur nord / agence / pose / attente mairie / relance très longue", count: 103, depth: 5 },
@@ -49,7 +49,7 @@ export default function MailInboxDemoPage() {
     <div className="mail-standard-page">
       <PageHeader
         eyebrow="Mail demo"
-        title="Inbox"
+        title="Boîte de réception"
         actions={<button type="button" className="mail-inbox__new-btn">+ Nouveau message</button>}
         meta={<span className="sn-badge sn-badge-info">128 non lus</span>}
       />

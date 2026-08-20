@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from "react";
 import type { InboxThreadItem, MailFolderRow } from "../../services/mailApi";
 import { avatarLetter, formatSmartDate, getSenderLabel } from "./mailInboxDisplay";
+import { formatMailFolderLabel } from "./mailFolderLabels";
 import { excerptAroundTerms, highlightTermsInText } from "./mailSearchHighlight";
 
 function IconPaperclip({ className }: { className?: string }) {
@@ -214,7 +215,7 @@ export const MailThreadRow = React.memo(function MailThreadRow({
             {moveTargets.map((folder) => (
               <option key={folder.id} value={folder.id}>
                 {" ".repeat(Math.min(folder.depth, 6) * 2)}
-                {folder.name}
+                {formatMailFolderLabel(folder)}
               </option>
             ))}
           </select>
