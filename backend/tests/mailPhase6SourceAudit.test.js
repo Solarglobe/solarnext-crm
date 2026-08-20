@@ -5,7 +5,7 @@ import fs from "node:fs";
 const read = (p) => fs.readFileSync(new URL(p, import.meta.url), "utf8");
 
 test("phase 6 migration stores history, draft sync jobs and sent archive state", () => {
-  const src = read("../migrations/1783200000000_mail_phase6_history_drafts_sent.js");
+  const src = read("../migrations/1784200005000_mail_phase6_history_drafts_sent.js");
   for (const token of [
     "history_backfill_status",
     "history_backfill_cursor_uid",

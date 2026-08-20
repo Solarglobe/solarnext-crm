@@ -51,7 +51,7 @@ test("mail phase 5B unread badge is scoped to canonical inbox, active accounts a
 });
 
 test("mail phase 5 migration adds reversible indexes for inbox badge and lists", () => {
-  const migration = read("migrations/1783100000000_mail_outlook_ui_indexes.js");
+  const migration = read("migrations/1784200004000_mail_outlook_ui_indexes.js");
   assert.match(migration, /idx_mail_threads_org_live_unread_last/);
   assert.match(migration, /idx_mail_messages_thread_account_folder_live/);
   assert.match(migration, /idx_mail_messages_account_folder_read_live/);

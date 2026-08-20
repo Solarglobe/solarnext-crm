@@ -22,7 +22,7 @@ test("OAuth routes use HttpOnly state cookie, no bearer callback assumption, and
 });
 
 test("mail lifecycle migration defines states, live uniqueness and deletion job idempotency", () => {
-  const migration = read("migrations/1783000000000_mail_account_lifecycle.js");
+  const migration = read("migrations/1784200003000_mail_account_lifecycle.js");
   for (const state of ["CONNECTED", "DEGRADED", "AUTH_REQUIRED", "DISABLED", "DISCONNECTED", "REMOVED", "DELETION_PENDING", "DELETED"]) {
     assert.match(migration, new RegExp(`"${state}"`));
   }
