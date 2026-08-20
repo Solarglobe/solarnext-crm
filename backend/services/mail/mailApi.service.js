@@ -317,9 +317,6 @@ export async function listMailInbox(db, p) {
   let pidx = 3;
 
   let unreadClause = "";
-  if (filterUnread) {
-    unreadClause = ` AND t.has_unread = true `;
-  }
 
   let accountClause = "";
   if (accountFilter) {
@@ -572,8 +569,10 @@ export async function listMailInbox(db, p) {
 
   const mailboxClause = sqlMailboxThreadClause(p.mailbox);
   let folderClause = "";
+  let folderParamIdx = null;
   if (resolvedFolderId) {
     params.push(resolvedFolderId);
+    folderParamIdx = pidx;
     folderClause = ` AND EXISTS (
       SELECT 1 FROM mail_messages mfld
       WHERE mfld.mail_thread_id = t.id
@@ -584,6 +583,31 @@ export async function listMailInbox(db, p) {
         AND mfld.folder_id = $${pidx}::uuid
     ) `;
     pidx += 1;
+  }
+  if (filterUnread) {
+    let unreadFolderClause = "";
+    if (folderParamIdx != null) {
+      unreadFolderClause = `AND mu.folder_id = $${folderParamIdx}::uuid`;
+    } else {
+      const unreadType = remoteUnreadFolderType(p.mailbox);
+      if (unreadType) {
+        params.push(unreadType);
+        unreadFolderClause = `AND mfu.type = $${pidx}::mail_folder_type`;
+        pidx += 1;
+      }
+    }
+    unreadClause = ` AND EXISTS (
+      SELECT 1 FROM mail_messages mu
+      INNER JOIN mail_folders mfu ON mfu.id = mu.folder_id AND mfu.organization_id = mu.organization_id
+      WHERE mu.mail_thread_id = t.id
+        AND mu.organization_id = t.organization_id
+        AND mu.mail_account_id = ANY($2::uuid[])
+        AND mu.direction = 'INBOUND'::mail_message_direction
+        AND mu.is_read = false
+        AND mu.remote_missing_at IS NULL
+        AND mu.remote_deleted_at IS NULL
+        ${unreadFolderClause}
+    ) `;
   }
   const wantsLocalArchive = String(p.mailbox || "").toLowerCase() === "local_archive";
   const archivedClause = resolvedFolderId ? "" : wantsLocalArchive ? "AND t.archived_at IS NOT NULL" : "AND t.archived_at IS NULL";
@@ -780,7 +804,6 @@ export async function getInboxUnreadSummary(db, p) {
     return { totalUnread: 0, byAccount: {} };
   }
 
-  const mailboxClause = sqlMailboxThreadClause(p.mailbox);
   const resolvedFolderId = await resolveAccessibleFolderId(db, {
     organizationId,
     folderId: p.folderId,
@@ -831,52 +854,48 @@ export async function getInboxUnreadSummary(db, p) {
     }
   }
 
-  const folderClause = resolvedFolderId
-    ? ` AND EXISTS (
-        SELECT 1 FROM mail_messages mfld
-        WHERE mfld.mail_thread_id = t.id
-          AND mfld.organization_id = t.organization_id
-          AND mfld.mail_account_id = ANY($2::uuid[])
-          AND mfld.remote_missing_at IS NULL
-          AND mfld.remote_deleted_at IS NULL
-          AND mfld.folder_id = $3::uuid
-      ) `
-    : "";
-  const params = resolvedFolderId ? [organizationId, accIds, resolvedFolderId] : [organizationId, accIds];
+  const params = [organizationId, accIds];
+  let folderWhere = "";
+  if (resolvedFolderId) {
+    params.push(resolvedFolderId);
+    folderWhere = `AND m.folder_id = $${params.length}::uuid`;
+  } else if (remoteType) {
+    params.push(remoteType);
+    folderWhere = `AND mf.type = $${params.length}::mail_folder_type`;
+  }
   const wantsLocalArchive = String(p.mailbox || "").toLowerCase() === "local_archive";
   const archivedClause = resolvedFolderId ? "" : wantsLocalArchive ? "AND t.archived_at IS NOT NULL" : "AND t.archived_at IS NULL";
 
   const totalRes = await db.query(
     `SELECT COUNT(*)::int AS c
-     FROM mail_threads t
-     WHERE t.organization_id = $1
-       ${archivedClause}
-       AND t.has_unread = true
-       AND EXISTS (
-         SELECT 1 FROM mail_messages m0
-         WHERE m0.mail_thread_id = t.id
-           AND m0.mail_account_id = ANY($2::uuid[])
-           AND m0.remote_missing_at IS NULL
-           AND m0.remote_deleted_at IS NULL
-       )
-       ${mailboxClause}
-       ${folderClause}`,
+     FROM mail_messages m
+     INNER JOIN mail_threads t ON t.id = m.mail_thread_id AND t.organization_id = m.organization_id
+     INNER JOIN mail_folders mf ON mf.id = m.folder_id AND mf.organization_id = m.organization_id
+     WHERE m.organization_id = $1
+       AND m.mail_account_id = ANY($2::uuid[])
+       AND m.direction = 'INBOUND'::mail_message_direction
+       AND m.is_read = false
+       AND m.remote_missing_at IS NULL
+       AND m.remote_deleted_at IS NULL
+       ${folderWhere}
+       ${archivedClause}`,
     params
   );
   const totalUnread = totalRes.rows[0]?.c ?? 0;
 
   const byAcc = await db.query(
-    `SELECT m.mail_account_id, COUNT(DISTINCT t.id)::int AS n
-     FROM mail_threads t
-     INNER JOIN mail_messages m ON m.mail_thread_id = t.id
-     WHERE t.organization_id = $1
-       ${archivedClause}
-       AND t.has_unread = true
+    `SELECT m.mail_account_id, COUNT(*)::int AS n
+     FROM mail_messages m
+     INNER JOIN mail_threads t ON t.id = m.mail_thread_id AND t.organization_id = m.organization_id
+     INNER JOIN mail_folders mf ON mf.id = m.folder_id AND mf.organization_id = m.organization_id
+     WHERE m.organization_id = $1
        AND m.mail_account_id = ANY($2::uuid[])
+       AND m.direction = 'INBOUND'::mail_message_direction
+       AND m.is_read = false
        AND m.remote_missing_at IS NULL
        AND m.remote_deleted_at IS NULL
-       ${mailboxClause}
-       ${folderClause}
+       ${folderWhere}
+       ${archivedClause}
      GROUP BY m.mail_account_id`,
     params
   );

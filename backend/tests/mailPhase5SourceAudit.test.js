@@ -34,10 +34,16 @@ test("mail phase 5B unread badge is scoped to canonical inbox, active accounts a
   assert.match(service, /mf\.type = 'INBOX'::mail_folder_type/);
   assert.match(service, /remoteUnreadFolderType/);
   assert.match(service, /f\.remote_unread_count/);
+  assert.match(service, /FROM mail_messages m/);
+  assert.match(service, /m\.direction = 'INBOUND'::mail_message_direction/);
+  assert.match(service, /m\.is_read = false/);
+  assert.match(service, /COUNT\(\*\)::int AS n/);
+  assert.match(service, /FROM mail_messages mu/);
+  assert.match(service, /mu\.is_read = false/);
   assert.match(folders, /row\.remote_unread_count == null \? intOrZero\(row\.unread_local\) : intOrZero\(row\.remote_unread_count\)/);
   assert.match(sync, /fallback_unread_mismatch_window/);
   assert.match(sync, /MAIL_FLAG_RECONCILE_MISMATCH_LIMIT/);
-  assert.match(service, /t\.has_unread = true/);
+  assert.doesNotMatch(service, /AND t\.has_unread = true/);
   assert.match(service, /COALESCE\(lifecycle_state::text, 'CONNECTED'\) IN \('CONNECTED', 'DEGRADED'\)/);
   assert.match(service, /COALESCE\(sync_enabled, true\) = true/);
   assert.match(service, /id = ANY\(\$2::uuid\[\]\)/);
