@@ -86,7 +86,7 @@ async function markScanned(job, scan) {
        quarantine_reason = $5,
        scan_next_attempt_at = CASE
          WHEN $2 IN ('CLEAN','INFECTED') THEN scan_next_attempt_at
-         ELSE now() + ($6 * interval '1 millisecond')
+         ELSE now() + ($6::integer * interval '1 millisecond')
        END,
        updated_at = now()
      WHERE id = $1 AND organization_id = $7`,
@@ -112,7 +112,7 @@ async function markScanFailure(job, err) {
        scan_locked_at = NULL,
        scan_error_code = $3,
        quarantine_reason = $4,
-       scan_next_attempt_at = now() + ($5 * interval '1 millisecond'),
+       scan_next_attempt_at = now() + ($5::integer * interval '1 millisecond'),
        updated_at = now()
      WHERE id = $1 AND organization_id = $6`,
     [

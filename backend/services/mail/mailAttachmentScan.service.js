@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { createReadStream } from "fs";
+import { stat } from "fs/promises";
 import net from "net";
 
 export const MAIL_ATTACHMENT_SCAN_STATUSES = Object.freeze({
@@ -286,6 +287,20 @@ export async function scanMailAttachmentStream({ stream, sizeBytes, filename, mi
 }
 
 export async function scanMailAttachmentFile({ path, sizeBytes, filename, mimeType, config = getMailAttachmentScanConfig() }) {
+  try {
+    await stat(path);
+  } catch (e) {
+    if (e?.code === "ENOENT") {
+      return scanResult({
+        status: MAIL_ATTACHMENT_SCAN_STATUSES.UNAVAILABLE,
+        provider: "storage",
+        errorCode: "MAIL_ATTACHMENT_FILE_MISSING",
+        quarantineReason: "storage_missing",
+      });
+    }
+    throw e;
+  }
+
   if (config.scanner === "clamav" || config.scanner === "clamd") {
     try {
       const res = await withRetry(
