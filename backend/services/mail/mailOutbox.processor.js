@@ -15,11 +15,19 @@ import {
   markOutboundMessageFailedInTransaction,
   markOutboundMessageQueuedInTransaction,
 } from "./mailSendFinalize.service.js";
+import { SENT_ARCHIVE_STATUSES, classifyAfterSmtpFailure, normalizeStableMessageId } from "./mailSentArchive.service.js";
+import { buildSimpleRfc822Mime } from "./mailMimeBuilder.service.js";
 import { delayMsAfterFailedAttempt } from "./mailOutboxBackoff.service.js";
 import { emitEventAsync } from "../core/eventBus.service.js";
 import logger from "../../app/core/logger.js";
+import { activeSqlPredicate } from "./mailAccountState.service.js";
+import { OUTBOUND_ATTACHMENT_LIMITS } from "./mailAttachmentPolicy.service.js";
 
 const BATCH = Math.min(Math.max(Number(process.env.MAIL_OUTBOX_BATCH) || 8, 1), 32);
+const MIME_FREEZE_MAX_BYTES = Math.min(
+  Math.max(Number(process.env.MAIL_MIME_FREEZE_MAX_ATTACHMENT_BYTES) || OUTBOUND_ATTACHMENT_LIMITS.totalBytes, 1),
+  OUTBOUND_ATTACHMENT_LIMITS.totalBytes
+);
 
 /** Délai au-delà duquel un job resté en 'sending' est considéré comme bloqué (worker interrompu). */
 const STUCK_SENDING_MINUTES = Math.min(Math.max(Number(process.env.MAIL_OUTBOX_STUCK_MINUTES) || 10, 2), 120);
@@ -31,11 +39,15 @@ const STUCK_SENDING_MINUTES = Math.min(Math.max(Number(process.env.MAIL_OUTBOX_S
 async function claimOutboxJobs(client, limit) {
   const r = await client.query(
     `WITH cte AS (
-      SELECT id FROM mail_outbox
-      WHERE status IN ('queued', 'retrying')
-        AND next_attempt_at <= now()
-        AND attempt_count < max_attempts
-      ORDER BY next_attempt_at ASC
+      SELECT mo.id FROM mail_outbox mo
+      INNER JOIN mail_accounts a
+        ON a.id = mo.mail_account_id
+       AND a.organization_id = mo.organization_id
+      WHERE mo.status IN ('queued', 'retrying')
+        AND mo.next_attempt_at <= now()
+        AND mo.attempt_count < mo.max_attempts
+        AND ${activeSqlPredicate("a", "canSend")}
+      ORDER BY mo.next_attempt_at ASC
       FOR UPDATE SKIP LOCKED
       LIMIT $1
     )
@@ -76,21 +88,31 @@ async function loadParticipants(messageId) {
  */
 async function loadAttachmentBuffers(messageId, organizationId) {
   const r = await pool.query(
-    `SELECT file_name, mime_type, storage_path
+    `SELECT file_name, mime_type, storage_path, size_bytes, scan_status
      FROM mail_attachments
-     WHERE mail_message_id = $1 AND organization_id = $2 AND storage_path IS NOT NULL`,
+     WHERE mail_message_id = $1 AND organization_id = $2 AND storage_path IS NOT NULL
+       AND scan_status = 'CLEAN'`,
     [messageId, organizationId]
   );
   /** @type {import('nodemailer').SendMailOptions['attachments']} */
   const out = [];
+  let total = 0;
   for (const a of r.rows) {
     try {
       const abs = getAbsolutePath(a.storage_path);
-      const content = await fs.readFile(abs);
+      const st = await fs.stat(abs);
+      const expected = Number(a.size_bytes || st.size);
+      total += expected;
+      if (expected > OUTBOUND_ATTACHMENT_LIMITS.perFileBytes || total > MIME_FREEZE_MAX_BYTES) {
+        const err = new Error("Piece jointe trop volumineuse pour envoi mail");
+        err.code = "MAIL_ATTACHMENT_FREEZE_LIMIT";
+        throw err;
+      }
       out.push({
         filename: a.file_name || "attachment",
-        content,
+        path: abs,
         contentType: a.mime_type || undefined,
+        size: expected,
       });
     } catch (e) {
       logger.error(
@@ -99,6 +121,23 @@ async function loadAttachmentBuffers(messageId, organizationId) {
       );
       throw e;
     }
+  }
+  return out;
+}
+
+async function loadAttachmentBuffersForFrozenMime(attachments) {
+  const out = [];
+  let total = 0;
+  for (const a of attachments || []) {
+    const size = Number(a.size || 0);
+    total += size;
+    if (size > OUTBOUND_ATTACHMENT_LIMITS.perFileBytes || total > MIME_FREEZE_MAX_BYTES) {
+      const err = new Error("Piece jointe trop volumineuse pour MIME fige");
+      err.code = "MAIL_ATTACHMENT_FREEZE_LIMIT";
+      throw err;
+    }
+    const content = await fs.readFile(a.path);
+    out.push({ filename: a.filename, contentType: a.contentType, content });
   }
   return out;
 }
@@ -130,7 +169,7 @@ async function deliverOutboxJob(job) {
     ? msg.references_ids.map((x) => String(x).trim()).filter(Boolean)
     : [];
 
-  const { acc, password, smtpUser } = await loadActiveMailAccountWithSmtpCredentials(pool, {
+  const { acc, password, accessToken, smtpUser } = await loadActiveMailAccountWithSmtpCredentials(pool, {
     organizationId,
     mailAccountId,
   });
@@ -141,11 +180,28 @@ async function deliverOutboxJob(job) {
     : acc.email;
 
   const nodemailerAttachments = await loadAttachmentBuffers(messageId, organizationId);
-
   const replyTo = job.reply_to != null && String(job.reply_to).trim() ? String(job.reply_to).trim() : null;
   const inReplyTo = msg.in_reply_to != null && String(msg.in_reply_to).trim() ? String(msg.in_reply_to).trim() : null;
-
   const subj = msg.subject?.trim() || "(sans objet)";
+  const frozenAttachments = await loadAttachmentBuffersForFrozenMime(nodemailerAttachments);
+  const stableMime = buildSimpleRfc822Mime({
+    messageId: job.stable_message_id || null,
+    from: fromHeader,
+    to,
+    cc,
+    bcc,
+    subject: subj,
+    bodyText: msg.body_text,
+    bodyHtml: msg.body_html,
+    replyTo,
+    inReplyTo,
+    references: refs.length ? refs : null,
+    attachments: frozenAttachments?.map((a) => ({
+      filename: a.filename,
+      contentType: a.contentType,
+      content: a.content,
+    })),
+  });
 
   logger.info(
     {
@@ -161,6 +217,7 @@ async function deliverOutboxJob(job) {
   const { info } = await sendMailNodemailerOnly({
     acc,
     password,
+    accessToken,
     smtpAuthUser: smtpUser,
     fromHeader,
     to,
@@ -175,7 +232,7 @@ async function deliverOutboxJob(job) {
     nodemailerAttachments,
   });
 
-  const smtpMessageId = info.messageId ? String(info.messageId).trim() : null;
+  const smtpMessageId = normalizeStableMessageId(info.messageId, job.stable_message_id || null);
   const providerResponse =
     typeof info.response === "string"
       ? info.response.slice(0, 8000)
@@ -189,12 +246,17 @@ async function deliverOutboxJob(job) {
     await client.query(
       `UPDATE mail_outbox SET
         status = 'sent',
+        smtp_completed_at = COALESCE(smtp_completed_at, $5),
+        stable_message_id = COALESCE(stable_message_id, $3),
+        smtp_mime_rfc822 = COALESCE(smtp_mime_rfc822, $7),
+        sent_archive_status = $6,
+        sent_archive_next_attempt_at = CASE WHEN $6 = 'pending' THEN now() ELSE sent_archive_next_attempt_at END,
         sent_at = $2,
         provider_message_id = $3,
         last_error = NULL,
         updated_at = now()
        WHERE id = $1`,
-      [job.id, sentAt, smtpMessageId]
+      [job.id, sentAt, smtpMessageId, null, sentAt, SENT_ARCHIVE_STATUSES.PENDING, stableMime]
     );
     if (!threadId) {
       throw new Error("mail_thread_id manquant");
@@ -244,6 +306,40 @@ async function deliverOutboxJob(job) {
  * @param {unknown} err
  */
 async function handleOutboxDeliveryFailure(job, err) {
+  const classified = classifyAfterSmtpFailure(err);
+  if (classified.smtpAccepted && classified.retrySentArchive) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `UPDATE mail_outbox SET
+           status = 'sent',
+           sent_archive_status = 'retrying',
+           sent_archive_attempt_count = sent_archive_attempt_count + 1,
+           sent_archive_next_attempt_at = now() + interval '5 minutes',
+           sent_archive_error = $2,
+           last_error = NULL,
+           updated_at = now()
+         WHERE id = $1`,
+        [job.id, err instanceof Error ? err.message.slice(0, 4000) : String(err).slice(0, 4000)]
+      );
+      await client.query(
+        `UPDATE mail_messages SET
+           status = 'SENT'::mail_message_status,
+           failure_code = 'SENT_ARCHIVE_PENDING',
+           failure_reason = 'Message envoye, classement dans Envoyes en attente'
+         WHERE id = $1 AND organization_id = $2`,
+        [job.mail_message_id, job.organization_id]
+      );
+      await client.query("COMMIT");
+      return;
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
   const code = inferSmtpFailureCode(err);
   const msg = err instanceof Error ? err.message : String(err);
   const prev = Number(job.attempt_count) || 0;

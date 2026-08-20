@@ -66,17 +66,19 @@ export function parseReferencesHeader(raw) {
  *   mailAccountId: string,
  *   folderId: string,
  *   externalUid: number,
+ *   externalUidValidity?: string | null,
  *   messageId: string | null,
  * }} p
  * @returns {Promise<string | null>}
  */
 export async function findExistingMessageId(client, p) {
-  const { organizationId, mailAccountId, folderId, externalUid, messageId } = p;
+  const { organizationId, mailAccountId, folderId, externalUid, externalUidValidity, messageId } = p;
   const byUid = await client.query(
     `SELECT id FROM mail_messages
      WHERE organization_id = $1 AND mail_account_id = $2 AND folder_id = $3 AND external_uid = $4
+       AND (external_uid_validity IS NULL OR $5::text IS NULL OR external_uid_validity = $5::text)
      LIMIT 1`,
-    [organizationId, mailAccountId, folderId, externalUid]
+    [organizationId, mailAccountId, folderId, externalUid, externalUidValidity ?? null]
   );
   if (byUid.rows[0]) return byUid.rows[0].id;
 
@@ -86,14 +88,14 @@ export async function findExistingMessageId(client, p) {
       const bare = mid.replace(/^<|>$/g, "");
       const q = await client.query(
         `SELECT id FROM mail_messages
-         WHERE organization_id = $1 AND mail_account_id = $2
+         WHERE organization_id = $1 AND mail_account_id = $2 AND folder_id = $6
            AND message_id IS NOT NULL
            AND (
              message_id = $3 OR message_id = $4
              OR TRIM(BOTH '<>' FROM message_id) = $5
-           )
+         )
          LIMIT 1`,
-        [organizationId, mailAccountId, mid, `<${bare}>`, bare]
+        [organizationId, mailAccountId, mid, `<${bare}>`, bare, folderId]
       );
       if (q.rows[0]) return q.rows[0].id;
     }

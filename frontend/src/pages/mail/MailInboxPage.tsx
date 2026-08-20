@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import "./mail-inbox.css";
 import { PageHeader } from "../../components/ui";
@@ -9,21 +9,34 @@ import { MailThreadViewer } from "./MailThreadViewer";
 import { MailComposer } from "./MailComposer";
 import { MailThreadOverlay } from "./MailThreadOverlay";
 import { MailDraftsList } from "./MailDraftsList";
+import { invalidateMailUnreadSummary } from "./mailUnreadStore";
+import {
+  parseMailInboxUrlState,
+  serializeMailInboxUrlState,
+  type MailSortMode,
+} from "./mailInboxUrlState";
+import { useMailKeyboardShortcuts } from "./useMailKeyboardShortcuts";
 import type { MailComposerInitialPrefill } from "./MailComposer";
 import {
-  archiveThread,
   fetchMailAccounts,
   getInbox,
   getInboxUnreadSummary,
+  getMailFolders,
   getMailTags,
+  backfillMailFolder,
+  getThread,
   listMailDrafts,
+  markInboundMessagesUnread,
   markThreadInboundAsRead,
+  runBulkMailAction,
+  runThreadMailAction,
   runMailSync,
   searchMailInbox,
   type InboxThreadItem,
   type MailAccountRow,
+  type MailFolderRow,
+  type MailFoldersAccount,
   type MailDraftRow,
-  type MailMailbox,
   type MailThreadTagRow,
   type ThreadDetailResponse,
 } from "../../services/mailApi";
@@ -31,13 +44,6 @@ import { getUserPermissions } from "../../services/auth.service";
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 300;
-
-const FOLDER_NAV: { id: MailMailbox; label: string }[] = [
-  { id: "inbox", label: "Réception" },
-  { id: "sent", label: "Envoyés" },
-  { id: "spam", label: "Spam" },
-  { id: "trash", label: "Corbeille" },
-];
 
 function useDebouncedValue<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -48,32 +54,29 @@ function useDebouncedValue<T>(value: T, delay: number): T {
   return debounced;
 }
 
-function mailboxTitle(m: MailMailbox): string {
-  const row = FOLDER_NAV.find((x) => x.id === m);
-  return row?.label ?? "Mail";
-}
-
 export default function MailInboxPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const mailRootRef = useRef<HTMLDivElement>(null);
+  const initialUrlStateRef = useRef(parseMailInboxUrlState(location.search));
+  const skipNextUrlReadRef = useRef(false);
+  const lastWrittenSearchRef = useRef(location.search);
   const [accounts, setAccounts] = useState<MailAccountRow[]>([]);
   const [accountsError, setAccountsError] = useState<string | null>(null);
+  const [folderAccounts, setFolderAccounts] = useState<MailFoldersAccount[]>([]);
+  const [foldersError, setFoldersError] = useState<string | null>(null);
+  const [foldersLoading, setFoldersLoading] = useState(false);
+  const [collapsedAccountIds, setCollapsedAccountIds] = useState<Set<string>>(() => new Set());
   const [canManageMail, setCanManageMail] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
-  const [mailbox, setMailbox] = useState<MailMailbox>("inbox");
-  const [listMode, setListMode] = useState<InboxListMode>("all");
-  const [filters, setFilters] = useState<MailFiltersValue>({
-    tagId: "",
-    dateFrom: "",
-    dateTo: "",
-    hasReply: "all",
-    clientId: "",
-    leadId: "",
-  });
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(initialUrlStateRef.current.folderId || null);
+  const [listMode, setListMode] = useState<InboxListMode>(initialUrlStateRef.current.mode);
+  const [sortMode, setSortMode] = useState<MailSortMode>(initialUrlStateRef.current.sort);
+  const [filters, setFilters] = useState<MailFiltersValue>(initialUrlStateRef.current.filters);
   const [mailTags, setMailTags] = useState<MailThreadTagRow[]>([]);
-  const [searchInput, setSearchInput] = useState("");
+  const [searchInput, setSearchInput] = useState(initialUrlStateRef.current.q);
   const debouncedSearch = useDebouncedValue(searchInput.trim(), DEBOUNCE_MS);
   const [searchHighlightTerms, setSearchHighlightTerms] = useState<string[]>([]);
 
@@ -82,14 +85,18 @@ export default function MailInboxPage() {
   const [page, setPage] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [remoteHistoryLoading, setRemoteHistoryLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(initialUrlStateRef.current.threadId || null);
+  const [bulkSelectedThreadIds, setBulkSelectedThreadIds] = useState<Set<string>>(() => new Set());
+  const [pendingThreadActions, setPendingThreadActions] = useState<Record<string, string>>({});
   const [composeNewOpen, setComposeNewOpen] = useState(false);
   const [composeNewKey, setComposeNewKey] = useState(0);
   /** Préremplissage (ex. envoi document depuis /documents). */
   const [composePrefill, setComposePrefill] = useState<MailComposerInitialPrefill | null>(null);
   /** Vue « Brouillons » (brouillons serveur) à la place de la liste de conversations. */
-  const [draftsView, setDraftsView] = useState(false);
+  const [draftsView, setDraftsView] = useState(initialUrlStateRef.current.drafts);
+  const [legacyArchiveView, setLegacyArchiveView] = useState(initialUrlStateRef.current.legacyArchive);
   const [drafts, setDrafts] = useState<MailDraftRow[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
   const [draftsError, setDraftsError] = useState<string | null>(null);
@@ -108,14 +115,66 @@ export default function MailInboxPage() {
     byAccount: {},
   });
 
+  const hasModalDialogOpen = overlayOpen || (composeNewOpen && composePresentation === "overlay");
+
+  useEffect(() => {
+    if (skipNextUrlReadRef.current && location.search === lastWrittenSearchRef.current) {
+      skipNextUrlReadRef.current = false;
+      return;
+    }
+    const next = parseMailInboxUrlState(location.search);
+    setSelectedFolderId(next.folderId || null);
+    setSelectedThreadId(next.threadId || null);
+    setSearchInput(next.q);
+    setListMode(next.mode);
+    setSortMode(next.sort);
+    setFilters(next.filters);
+    setDraftsView(next.drafts);
+    setLegacyArchiveView(next.legacyArchive);
+  }, [location.search]);
+
+  useEffect(() => {
+    const nextSearch = serializeMailInboxUrlState({
+      folderId: selectedFolderId || "",
+      threadId: selectedThreadId || "",
+      q: searchInput,
+      mode: listMode,
+      sort: sortMode,
+      filters,
+      drafts: draftsView,
+      legacyArchive: legacyArchiveView,
+    });
+    if (nextSearch === location.search) return;
+    skipNextUrlReadRef.current = true;
+    lastWrittenSearchRef.current = nextSearch;
+    navigate(`${location.pathname}${nextSearch}`, { replace: true });
+  }, [
+    selectedFolderId,
+    selectedThreadId,
+    searchInput,
+    listMode,
+    sortMode,
+    filters,
+    draftsView,
+    legacyArchiveView,
+    location.pathname,
+    location.search,
+    navigate,
+  ]);
+
   const refreshUnreadSummary = useCallback(async () => {
     try {
-      const s = await getInboxUnreadSummary({ mailbox: "inbox" });
+      const s = await getInboxUnreadSummary({ folderId: selectedFolderId });
       setUnreadSummary(s);
     } catch {
       /* silencieux */
     }
-  }, []);
+  }, [selectedFolderId]);
+
+  const refreshUnreadCounters = useCallback(() => {
+    void refreshUnreadSummary();
+    invalidateMailUnreadSummary();
+  }, [refreshUnreadSummary]);
 
   const refreshDrafts = useCallback(async () => {
     setDraftsLoading(true);
@@ -165,6 +224,29 @@ export default function MailInboxPage() {
     void reloadAccounts();
   }, [reloadAccounts]);
 
+  const reloadFolders = useCallback(async () => {
+    setFoldersLoading(true);
+    try {
+      const rows = await getMailFolders();
+      setFolderAccounts(rows.accounts);
+      setFoldersError(null);
+      setSelectedFolderId((prev) => {
+        const all = rows.accounts.flatMap((a) => a.folders).filter((f) => f.canOpen);
+        if (prev && all.some((f) => f.id === prev)) return prev;
+        const inbox = all.find((f) => f.type === "INBOX");
+        return inbox?.id ?? all[0]?.id ?? null;
+      });
+    } catch (e) {
+      setFoldersError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFoldersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reloadFolders();
+  }, [reloadFolders]);
+
   useEffect(() => {
     refreshUnreadSummary();
   }, [refreshUnreadSummary]);
@@ -206,6 +288,13 @@ export default function MailInboxPage() {
   }, []);
 
   const preferredAccountId = useMemo(() => accounts[0]?.id ?? null, [accounts]);
+  const accountById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
+
+  useEffect(() => {
+    if (!filters.accountId) return;
+    if (accountById.has(filters.accountId)) return;
+    setFilters((prev) => ({ ...prev, accountId: "" }));
+  }, [filters.accountId, accountById]);
 
   const showRightColumn = (composeNewOpen && composePresentation !== "overlay") || selectedThreadId !== null;
 
@@ -258,30 +347,42 @@ export default function MailInboxPage() {
   const closeThreadOverlay = useCallback(() => {
     setOverlayOpen(false);
     setOverlayThread(null);
-  }, []);
+    window.requestAnimationFrame(() => {
+      const id = selectedThreadId || overlayThread?.threadId;
+      if (!id) return;
+      const el = document.querySelector<HTMLElement>(`[data-mail-thread-id="${id}"]`);
+      el?.focus();
+    });
+  }, [overlayThread?.threadId, selectedThreadId]);
 
   const inboxQueryBase = useMemo(
     () => ({
       filter: (listMode === "unread" ? "unread" : "all") as "all" | "unread",
       attachmentsFilter: (listMode === "attachments" ? "with" : "all") as "all" | "with",
-      mailbox,
+      accountId: filters.accountId || undefined,
+      sender: filters.sender.trim() || undefined,
+      recipient: filters.recipient.trim() || undefined,
+      folderId: legacyArchiveView ? null : selectedFolderId,
+      mailbox: legacyArchiveView ? "local_archive" as const : undefined,
       clientId: filters.clientId || undefined,
       leadId: filters.leadId || undefined,
       tagId: filters.tagId || undefined,
       dateFrom: filters.dateFrom ? `${filters.dateFrom}T00:00:00.000Z` : undefined,
       dateTo: filters.dateTo ? `${filters.dateTo}T23:59:59.999Z` : undefined,
       hasReply: filters.hasReply,
+      sort: sortMode,
     }),
-    [listMode, mailbox, filters]
+    [listMode, selectedFolderId, legacyArchiveView, filters, sortMode]
   );
 
   useEffect(() => {
     setPage(0);
     setThreads([]);
-  }, [listMode, mailbox, filters, debouncedSearch]);
+  }, [listMode, selectedFolderId, legacyArchiveView, filters, debouncedSearch, sortMode]);
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     (async () => {
       setLoading(true);
       setListError(null);
@@ -293,12 +394,12 @@ export default function MailInboxPage() {
               ...inboxQueryBase,
               limit: PAGE_SIZE,
               offset,
-            })
+            }, { signal: controller.signal })
           : await getInbox({
               ...inboxQueryBase,
               limit: PAGE_SIZE,
               offset,
-            });
+            }, { signal: controller.signal });
         if (cancelled) return;
         if (page === 0) setThreads(data.items);
         else setThreads((prev) => [...prev, ...data.items]);
@@ -309,6 +410,7 @@ export default function MailInboxPage() {
           setSearchHighlightTerms([]);
         }
       } catch (e) {
+        if (controller.signal.aborted) return;
         if (!cancelled) setListError(e instanceof Error ? e.message : String(e));
       } finally {
         if (!cancelled) setLoading(false);
@@ -316,11 +418,29 @@ export default function MailInboxPage() {
     })();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [page, inboxQueryBase, debouncedSearch, reloadKey]);
 
   const onFiltersChange = useCallback((next: MailFiltersValue) => {
     setFilters(next);
+  }, []);
+
+  const resetAllFilters = useCallback(() => {
+    setSearchInput("");
+    setListMode("all");
+    setSortMode("newest");
+    setFilters({
+      accountId: "",
+      tagId: "",
+      dateFrom: "",
+      dateTo: "",
+      sender: "",
+      recipient: "",
+      hasReply: "all",
+      clientId: "",
+      leadId: "",
+    });
   }, []);
 
   const handleManualSync = useCallback(async () => {
@@ -330,24 +450,33 @@ export default function MailInboxPage() {
       await runMailSync({ mailAccountId: null });
       setSyncMsg("Synchronisation lancée.");
       await reloadAccounts();
+      await reloadFolders();
       setPage(0);
       setThreads([]);
       setReloadKey((k) => k + 1);
-      void refreshUnreadSummary();
+      refreshUnreadCounters();
     } catch (e) {
       setSyncMsg(e instanceof Error ? e.message : String(e));
     } finally {
       setSyncBusy(false);
     }
-  }, [reloadAccounts, refreshUnreadSummary]);
+  }, [reloadAccounts, reloadFolders, refreshUnreadCounters]);
 
   const onArchive = useCallback(
     async (threadId: string) => {
+      if (!selectedFolderId) {
+        setListError("Selectionnez un dossier mail reel avant d'archiver.");
+        return;
+      }
       try {
-        await archiveThread(threadId);
-        setThreads((prev) => prev.filter((t) => t.threadId !== threadId));
-        setTotal((t) => Math.max(0, t - 1));
-        if (selectedThreadId === threadId) setSelectedThreadId(null);
+        await runThreadMailAction(threadId, "archive", { folderId: selectedFolderId });
+        setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Archive en attente" }));
+        setBulkSelectedThreadIds((prev) => {
+          if (!prev.has(threadId)) return prev;
+          const next = new Set(prev);
+          next.delete(threadId);
+          return next;
+        });
         if (overlayThread?.threadId === threadId) {
           setOverlayOpen(false);
           setOverlayThread(null);
@@ -358,12 +487,131 @@ export default function MailInboxPage() {
           delete next[threadId];
           return next;
         });
-        void refreshUnreadSummary();
+        refreshUnreadCounters();
       } catch (e) {
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [selectedThreadId, refreshUnreadSummary, overlayThread?.threadId]
+    [selectedFolderId, selectedThreadId, refreshUnreadCounters, overlayThread?.threadId]
+  );
+
+  const onTrash = useCallback(
+    async (threadId: string) => {
+      if (!selectedFolderId) {
+        setListError("Selectionnez un dossier mail reel avant de supprimer.");
+        return;
+      }
+      try {
+        await runThreadMailAction(threadId, "trash", { folderId: selectedFolderId });
+        setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Corbeille en attente" }));
+        setBulkSelectedThreadIds((prev) => {
+          if (!prev.has(threadId)) return prev;
+          const next = new Set(prev);
+          next.delete(threadId);
+          return next;
+        });
+        refreshUnreadCounters();
+      } catch (e) {
+        setListError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [selectedFolderId, selectedThreadId, refreshUnreadCounters]
+  );
+
+  const onRestore = useCallback(
+    async (threadId: string) => {
+      if (!selectedFolderId) {
+        setListError("Selectionnez un dossier mail reel avant de restaurer.");
+        return;
+      }
+      try {
+        await runThreadMailAction(threadId, "restore", { folderId: selectedFolderId });
+        setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Restauration en attente" }));
+        refreshUnreadCounters();
+      } catch (e) {
+        setListError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [selectedFolderId, refreshUnreadCounters]
+  );
+
+  const onToggleBulkSelect = useCallback((threadId: string) => {
+    setBulkSelectedThreadIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(threadId)) next.delete(threadId);
+      else next.add(threadId);
+      return next;
+    });
+  }, []);
+
+  const onMove = useCallback(
+    async (threadId: string, targetFolderId: string) => {
+      if (!selectedFolderId) {
+        setListError("Selectionnez un dossier mail reel avant de deplacer.");
+        return;
+      }
+      try {
+        await runThreadMailAction(threadId, "move", { folderId: selectedFolderId, targetFolderId });
+        setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Deplacement en attente" }));
+        refreshUnreadCounters();
+        void reloadFolders();
+      } catch (e) {
+        setListError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [selectedFolderId, refreshUnreadCounters, reloadFolders]
+  );
+
+  const onBulkAction = useCallback(
+    async (action: "archive" | "trash" | "restore" | "junk" | "unjunk" | "hard-delete") => {
+      if (!selectedFolderId) {
+        setListError("Selectionnez un dossier mail reel avant d'agir en lot.");
+        return;
+      }
+      const threadIds = [...bulkSelectedThreadIds];
+      if (threadIds.length === 0) return;
+      const confirm = action === "hard-delete";
+      if (confirm && !window.confirm("Supprimer definitivement les messages selectionnes de la corbeille ?")) return;
+      try {
+        await runBulkMailAction({ action, folderId: selectedFolderId, threadIds, confirm });
+        setPendingThreadActions((prev) => {
+          const next = { ...prev };
+          for (const id of threadIds) next[id] = "Operation en attente";
+          return next;
+        });
+        setBulkSelectedThreadIds(new Set());
+        refreshUnreadCounters();
+        void reloadFolders();
+      } catch (e) {
+        setListError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [bulkSelectedThreadIds, selectedFolderId, refreshUnreadCounters, reloadFolders]
+  );
+
+  const onBulkMove = useCallback(
+    async (targetFolderId: string) => {
+      if (!selectedFolderId) {
+        setListError("Selectionnez un dossier mail reel avant de deplacer.");
+        return;
+      }
+      const threadIds = [...bulkSelectedThreadIds];
+      if (threadIds.length === 0 || !targetFolderId) return;
+      try {
+        await runBulkMailAction({ action: "move", folderId: selectedFolderId, threadIds, targetFolderId });
+        setPendingThreadActions((prev) => {
+          const next = { ...prev };
+          for (const id of threadIds) next[id] = "Deplacement en attente";
+          return next;
+        });
+        setBulkSelectedThreadIds(new Set());
+        refreshUnreadCounters();
+        void reloadFolders();
+      } catch (e) {
+        setListError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [bulkSelectedThreadIds, selectedFolderId, refreshUnreadCounters, reloadFolders]
   );
 
   const onMarkThreadRead = useCallback(
@@ -371,21 +619,44 @@ export default function MailInboxPage() {
       try {
         await markThreadInboundAsRead(threadId);
         setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, hasUnread: false } : t)));
-        void refreshUnreadSummary();
+        refreshUnreadCounters();
       } catch (e) {
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [refreshUnreadSummary]
+    [refreshUnreadCounters]
   );
 
-  const loadMore = useCallback(() => {
+  const loadMore = useCallback(async () => {
     if (loading) return;
-    if (threads.length >= total) return;
-    setPage((p) => p + 1);
-  }, [loading, threads.length, total]);
+    if (threads.length < total) {
+      setPage((p) => p + 1);
+      return;
+    }
+    const folder = folderAccounts.flatMap((a) => a.folders).find((f) => f.id === selectedFolderId);
+    if (!folder || !folder.historyBackfillHasMore || remoteHistoryLoading) return;
+    setRemoteHistoryLoading(true);
+    setListError(null);
+    try {
+      const r = await backfillMailFolder({ mailAccountId: folder.accountId, folderId: folder.id });
+      await reloadFolders();
+      setReloadKey((k) => k + 1);
+      setSyncMsg(
+        r.status === "COMPLETE"
+          ? "Début réel du dossier atteint."
+          : `${r.imported} ancien message${r.imported !== 1 ? "s" : ""} importé${r.imported !== 1 ? "s" : ""}.`
+      );
+    } catch (e) {
+      setListError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRemoteHistoryLoading(false);
+    }
+  }, [loading, threads.length, total, folderAccounts, selectedFolderId, remoteHistoryLoading, reloadFolders]);
 
-  const hasMore = threads.length < total;
+  const currentFolderForHistory = folderAccounts.flatMap((a) => a.folders).find((f) => f.id === selectedFolderId) ?? null;
+  const hasMoreRemoteHistory =
+    !draftsView && !legacyArchiveView && currentFolderForHistory?.historyBackfillHasMore === true;
+  const hasMore = threads.length < total || hasMoreRemoteHistory;
   const initialLoading = loading && threads.length === 0;
 
   const selectedRow = useMemo(
@@ -396,17 +667,36 @@ export default function MailInboxPage() {
   const handleInboundMarkedRead = useCallback(
     (threadId: string) => {
       setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, hasUnread: false } : t)));
-      void refreshUnreadSummary();
+      refreshUnreadCounters();
     },
-    [refreshUnreadSummary]
+    [refreshUnreadCounters]
+  );
+
+  const onToggleThreadUnread = useCallback(
+    async (threadId: string) => {
+      const row = threads.find((t) => t.threadId === threadId);
+      if (row?.hasUnread) {
+        await onMarkThreadRead(threadId);
+        return;
+      }
+      try {
+        const detail = await getThread(threadId);
+        await markInboundMessagesUnread(detail.messages);
+        setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, hasUnread: true } : t)));
+        refreshUnreadCounters();
+      } catch (e) {
+        setListError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [threads, onMarkThreadRead, refreshUnreadCounters]
   );
 
   const handleInboundMarkedUnread = useCallback(
     (threadId: string) => {
       setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, hasUnread: true } : t)));
-      void refreshUnreadSummary();
+      refreshUnreadCounters();
     },
-    [refreshUnreadSummary]
+    [refreshUnreadCounters]
   );
 
   const openNewMessage = useCallback(() => {
@@ -435,6 +725,7 @@ export default function MailInboxPage() {
 
   const openDraftsView = useCallback(() => {
     setDraftsView(true);
+    setLegacyArchiveView(false);
     setSelectedThreadId(null);
     setComposeNewOpen(false);
     setComposePrefill(null);
@@ -445,9 +736,26 @@ export default function MailInboxPage() {
     void refreshDrafts();
   }, [refreshDrafts]);
 
-  const onDraftDeleted = useCallback((id: string) => {
-    setDrafts((prev) => prev.filter((d) => d.id !== id));
+  const openLegacyArchiveView = useCallback(() => {
+    setDraftsView(false);
+    setLegacyArchiveView(true);
+    setSelectedFolderId(null);
+    setSelectedThreadId(null);
+    setComposeNewOpen(false);
+    setComposePrefill(null);
+    setComposeDraft(null);
+    setComposePresentation("standalone");
+    setOverlayOpen(false);
+    setOverlayThread(null);
   }, []);
+
+  const onDraftDeleted = useCallback((id: string) => {
+    if (id === "__refresh__") {
+      void refreshDrafts();
+      return;
+    }
+    setDrafts((prev) => prev.filter((d) => d.id !== id));
+  }, [refreshDrafts]);
 
   const selectThread = useCallback((id: string) => {
     setComposeNewOpen(false);
@@ -464,7 +772,7 @@ export default function MailInboxPage() {
       setComposePresentation("standalone");
       setOverlayOpen(false);
       setOverlayThread(null);
-      void refreshUnreadSummary();
+      refreshUnreadCounters();
       if (info.threadId) {
         setDraftsView(false);
         setSelectedThreadId(info.threadId);
@@ -472,12 +780,12 @@ export default function MailInboxPage() {
         setThreads([]);
       }
     },
-    [refreshUnreadSummary]
+    [refreshUnreadCounters]
   );
 
   const handleMailSentFromThread = useCallback(
     (info: { threadId: string | null }) => {
-      void refreshUnreadSummary();
+      refreshUnreadCounters();
       if (info.threadId) {
         setThreads((prev) =>
           prev.map((t) =>
@@ -486,7 +794,7 @@ export default function MailInboxPage() {
         );
       }
     },
-    [refreshUnreadSummary]
+    [refreshUnreadCounters]
   );
 
   const handleThreadTagsUpdate = useCallback((threadId: string, tags: MailThreadTagRow[]) => {
@@ -500,9 +808,107 @@ export default function MailInboxPage() {
       .catch(() => {});
   }, []);
 
-  const onSelectMailbox = useCallback((m: MailMailbox) => {
-    setMailbox(m);
+  const selectedFolder = useMemo<MailFolderRow | null>(() => {
+    if (!selectedFolderId) return null;
+    for (const account of folderAccounts) {
+      const found = account.folders.find((f) => f.id === selectedFolderId);
+      if (found) return found;
+    }
+    return null;
+  }, [folderAccounts, selectedFolderId]);
+
+  const moveTargets = useMemo(() => {
+    if (!selectedFolder) return [];
+    const account = folderAccounts.find((a) => a.id === selectedFolder.accountId);
+    return (account?.folders ?? []).filter((folder) => folder.canOpen && folder.id !== selectedFolder.id);
+  }, [folderAccounts, selectedFolder]);
+
+  const moveKeyboardSelection = useCallback(
+    (delta: -1 | 1) => {
+      if (threads.length === 0) return;
+      const current = selectedThreadId ? threads.findIndex((t) => t.threadId === selectedThreadId) : -1;
+      const nextIndex =
+        current < 0 ? (delta > 0 ? 0 : threads.length - 1) : Math.min(Math.max(current + delta, 0), threads.length - 1);
+      const next = threads[nextIndex];
+      if (!next) return;
+      setSelectedThreadId(next.threadId);
+      setComposeNewOpen(false);
+      setOverlayOpen(false);
+      setOverlayThread(null);
+      window.requestAnimationFrame(() => {
+        const el = document.querySelector<HTMLElement>(`[data-mail-thread-id="${next.threadId}"]`);
+        el?.focus();
+        el?.scrollIntoView({ block: "nearest" });
+      });
+    },
+    [threads, selectedThreadId]
+  );
+
+  const openKeyboardSelected = useCallback(() => {
+    if (!selectedRow) return;
+    openThreadOverlay(selectedRow);
+  }, [selectedRow, openThreadOverlay]);
+
+  const archiveKeyboardSelected = useCallback(() => {
+    if (!selectedThreadId) return;
+    void (selectedFolder?.type === "TRASH" ? onRestore(selectedThreadId) : onArchive(selectedThreadId));
+  }, [selectedThreadId, selectedFolder?.type, onRestore, onArchive]);
+
+  const trashKeyboardSelected = useCallback(() => {
+    if (!selectedThreadId) return;
+    void onTrash(selectedThreadId);
+  }, [selectedThreadId, onTrash]);
+
+  const toggleUnreadKeyboardSelected = useCallback(() => {
+    if (!selectedThreadId) return;
+    void onToggleThreadUnread(selectedThreadId);
+  }, [selectedThreadId, onToggleThreadUnread]);
+
+  const escapeMailContext = useCallback(() => {
+    if (overlayOpen) {
+      closeThreadOverlay();
+      return;
+    }
+    if (composeNewOpen) {
+      closeCompose();
+      return;
+    }
+    if (bulkSelectedThreadIds.size > 0) {
+      setBulkSelectedThreadIds(new Set());
+      return;
+    }
+    setSelectedThreadId(null);
+  }, [overlayOpen, closeThreadOverlay, composeNewOpen, closeCompose, bulkSelectedThreadIds.size]);
+
+  useMailKeyboardShortcuts({
+    rootRef: mailRootRef,
+    enabled: !draftsView,
+    hasDialogOpen: hasModalDialogOpen,
+    hasSelectedThread: selectedThreadId != null,
+    onMoveSelection: moveKeyboardSelection,
+    onOpenSelected: openKeyboardSelected,
+    onArchiveSelected: archiveKeyboardSelected,
+    onTrashSelected: trashKeyboardSelected,
+    onToggleUnreadSelected: toggleUnreadKeyboardSelected,
+    onEscape: escapeMailContext,
+  });
+
+  const pendingThreadIds = useMemo(() => {
+    const ids = new Set(Object.keys(pendingThreadActions));
+    for (const thread of threads) {
+      const status = String(thread.moveSyncStatus || "");
+      if (status.startsWith("PENDING") || status === "RETRYING" || status === "RECONCILIATION_REQUIRED") {
+        ids.add(thread.threadId);
+      }
+    }
+    return ids;
+  }, [pendingThreadActions, threads]);
+
+  const onSelectFolder = useCallback((folder: MailFolderRow) => {
+    if (!folder.canOpen) return;
+    setSelectedFolderId(folder.id);
     setDraftsView(false);
+    setLegacyArchiveView(false);
     setSelectedThreadId(null);
     setComposeNewOpen(false);
     setComposePrefill(null);
@@ -512,11 +918,29 @@ export default function MailInboxPage() {
     setOverlayThread(null);
   }, []);
 
+  const toggleAccountCollapsed = useCallback((accountId: string) => {
+    setCollapsedAccountIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(accountId)) next.delete(accountId);
+      else next.add(accountId);
+      return next;
+    });
+  }, []);
+
+  const accountStatusLabel = useCallback((accountId: string) => {
+    const account = accountById.get(accountId);
+    if (!account) return "Compte mail";
+    if (account.capabilities?.needsReconnect || account.lifecycle_state === "AUTH_REQUIRED") return "Reconnexion requise";
+    if (account.lifecycle_state === "DEGRADED") return "Erreur temporaire";
+    if (account.sync_enabled === false || account.lifecycle_state === "DISABLED") return "Synchronisation désactivée";
+    return "Synchronisé";
+  }, [accountById]);
+
   return (
-    <div className="mail-standard-page">
+    <div className="mail-standard-page" ref={mailRootRef}>
       <PageHeader
         eyebrow="Mail"
-        title={draftsView ? "Brouillons" : mailboxTitle(mailbox)}
+        title={draftsView ? "Brouillons CRM" : legacyArchiveView ? "Archives CRM anciennes" : selectedFolder?.name ?? "Mail"}
         actions={
           <button type="button" className="mail-inbox__new-btn" onClick={openNewMessage}>
             + Nouveau message
@@ -541,38 +965,71 @@ export default function MailInboxPage() {
       <div className={`mail-inbox ${showRightColumn ? "mail-inbox--split" : "mail-inbox--list-only"}`}>
         <aside className="mail-inbox__nav-mail" aria-label="Navigation boîte mail">
           <nav className="mail-inbox__nav-list">
-            {FOLDER_NAV.map((item) => (
-              <Fragment key={item.id}>
+            {foldersLoading ? <p className="sg-helper" style={{ margin: 8 }}>Chargement dossiers…</p> : null}
+            {folderAccounts.map((account) => (
+              <Fragment key={account.id}>
                 <button
                   type="button"
-                  className={`mail-inbox__nav-item${!draftsView && mailbox === item.id ? " mail-inbox__nav-item--active" : ""}`}
-                  onClick={() => onSelectMailbox(item.id)}
-                  aria-current={!draftsView && mailbox === item.id ? "page" : undefined}
+                  className="mail-inbox__account-heading"
+                  aria-expanded={!collapsedAccountIds.has(account.id)}
+                  onClick={() => toggleAccountCollapsed(account.id)}
                 >
-                  <span className="mail-inbox__nav-item-label">{item.label}</span>
-                  {item.id === "inbox" && unreadSummary.totalUnread > 0 ? (
-                    <span className="sn-badge sn-badge-info mail-inbox__account-sn-tweak">
-                      {unreadSummary.totalUnread > 99 ? "99+" : unreadSummary.totalUnread}
+                  <span className="mail-inbox__account-heading-main">
+                    <span className="mail-inbox__account-chevron" aria-hidden>
+                      {collapsedAccountIds.has(account.id) ? "›" : "⌄"}
                     </span>
-                  ) : null}
+                    <span className="mail-inbox__account-heading-label">{account.displayName || account.email}</span>
+                  </span>
+                  <span className="mail-inbox__account-health" title={accountStatusLabel(account.id)}>
+                    {accountStatusLabel(account.id)}
+                  </span>
                 </button>
-                {item.id === "sent" ? (
-                  <button
-                    type="button"
-                    className={`mail-inbox__nav-item${draftsView ? " mail-inbox__nav-item--active" : ""}`}
-                    onClick={openDraftsView}
-                    aria-current={draftsView ? "page" : undefined}
-                  >
-                    <span className="mail-inbox__nav-item-label">Brouillons</span>
-                    {drafts.length > 0 ? (
-                      <span className="sn-badge sn-badge-neutral mail-inbox__account-sn-tweak">
-                        {drafts.length > 99 ? "99+" : drafts.length}
-                      </span>
-                    ) : null}
-                  </button>
-                ) : null}
+                {!collapsedAccountIds.has(account.id)
+                  ? account.folders.map((folder) => (
+                      <button
+                        key={folder.id}
+                        type="button"
+                        className={`mail-inbox__nav-item${!draftsView && selectedFolderId === folder.id ? " mail-inbox__nav-item--active" : ""}${!folder.canOpen ? " mail-inbox__nav-item--disabled" : ""}`}
+                        onClick={() => onSelectFolder(folder)}
+                        aria-current={!draftsView && selectedFolderId === folder.id ? "page" : undefined}
+                        disabled={!folder.canOpen}
+                        title={folder.isHistoryPartial ? "Historique local partiel" : undefined}
+                        style={{ paddingLeft: `${12 + Math.min(folder.depth, 6) * 14}px` }}
+                      >
+                        <span className="mail-inbox__nav-item-label">{folder.name}</span>
+                        {folder.unreadCount > 0 ? (
+                          <span className="sn-badge sn-badge-info mail-inbox__account-sn-tweak">
+                            {folder.unreadCount > 99 ? "99+" : folder.unreadCount}
+                          </span>
+                        ) : folder.isHistoryPartial ? (
+                          <span className="sn-badge sn-badge-neutral mail-inbox__account-sn-tweak">partiel</span>
+                        ) : null}
+                      </button>
+                    ))
+                  : null}
               </Fragment>
             ))}
+            <button
+              type="button"
+              className={`mail-inbox__nav-item${draftsView ? " mail-inbox__nav-item--active" : ""}`}
+              onClick={openDraftsView}
+              aria-current={draftsView ? "page" : undefined}
+            >
+              <span className="mail-inbox__nav-item-label">Brouillons CRM</span>
+              {drafts.length > 0 ? (
+                <span className="sn-badge sn-badge-neutral mail-inbox__account-sn-tweak">
+                  {drafts.length > 99 ? "99+" : drafts.length}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              className={`mail-inbox__nav-item${legacyArchiveView ? " mail-inbox__nav-item--active" : ""}`}
+              onClick={openLegacyArchiveView}
+              aria-current={legacyArchiveView ? "page" : undefined}
+            >
+              <span className="mail-inbox__nav-item-label">Archives CRM anciennes</span>
+            </button>
             <NavLink
               to="/mail/outbox"
               className={({ isActive }) =>
@@ -594,6 +1051,11 @@ export default function MailInboxPage() {
           {accountsError ? (
             <p className="sg-helper" style={{ marginTop: 8 }}>
               Comptes : {accountsError}
+            </p>
+          ) : null}
+          {foldersError ? (
+            <p className="sg-helper" style={{ marginTop: 8 }}>
+              Dossiers : {foldersError}
             </p>
           ) : null}
         </aside>
@@ -623,6 +1085,16 @@ export default function MailInboxPage() {
               aria-describedby="mail-search-syntax-hint"
               autoComplete="off"
             />
+            {searchInput.trim() ? (
+              <button
+                type="button"
+                className="mail-inbox__search-clear"
+                aria-label="Effacer la recherche"
+                onClick={() => setSearchInput("")}
+              >
+                ×
+              </button>
+            ) : null}
             <details className="mail-inbox__search-help" id="mail-search-syntax-hint">
               <summary>Options de recherche</summary>
               <p className="mail-inbox__search-hint">
@@ -633,10 +1105,30 @@ export default function MailInboxPage() {
           </div>
 
           <div className="mail-inbox__filter-strip">
-            <MailFilters layout="toolbar" mailTags={mailTags} value={filters} onChange={onFiltersChange} />
+            <MailFilters
+              layout="toolbar"
+              mailTags={mailTags}
+              mailAccounts={accounts}
+              value={filters}
+              onChange={onFiltersChange}
+            />
             <div className="mail-inbox__filter-strip-tabs" aria-label="Affinage liste">
               <MailInboxChips mode={listMode} onChange={setListMode} />
             </div>
+            <label className="mail-inbox__sort">
+              <span>Tri</span>
+              <select value={sortMode} onChange={(e) => setSortMode(e.target.value as MailSortMode)}>
+                <option value="newest">Plus récents</option>
+                <option value="oldest">Plus anciens</option>
+              </select>
+            </label>
+            <button type="button" className="mail-inbox__reset-filters" onClick={resetAllFilters}>
+              Réinitialiser
+            </button>
+            <details className="mail-inbox__keyboard-help">
+              <summary>Clavier</summary>
+              <p>J/K ou flèches : naviguer · Entrée : ouvrir · R : répondre · F : transférer · E : archiver · Suppr : corbeille · U : lu/non lu · Échap : fermer.</p>
+            </details>
           </div>
 
           <div className="mail-inbox__toolbar">
@@ -644,7 +1136,62 @@ export default function MailInboxPage() {
               {total} conversation{total !== 1 ? "s" : ""}
               {debouncedSearch.length >= 2 ? " · recherche" : ""}
               {loading && !initialLoading ? " · chargement…" : ""}
+              {currentFolderForHistory?.historyBackfillStatus === "BACKFILLING" || remoteHistoryLoading ? " · anciens messages…" : ""}
+              {currentFolderForHistory?.historyBackfillStatus === "COMPLETE" ? " · historique complet" : ""}
             </span>
+            {bulkSelectedThreadIds.size > 0 ? (
+              <div className="mail-inbox__bulk-actions" aria-label="Actions groupees">
+                <span>{bulkSelectedThreadIds.size} selection</span>
+                {selectedFolder?.type === "TRASH" ? (
+                  <>
+                    <button type="button" className="mail-inbox__refresh-btn" onClick={() => void onBulkAction("restore")}>
+                      Restaurer
+                    </button>
+                    <button type="button" className="mail-inbox__refresh-btn mail-inbox__refresh-btn--danger" onClick={() => void onBulkAction("hard-delete")}>
+                      Supprimer definitivement
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" className="mail-inbox__refresh-btn" onClick={() => void onBulkAction("archive")}>
+                      Archiver
+                    </button>
+                    <button type="button" className="mail-inbox__refresh-btn" onClick={() => void onBulkAction("trash")}>
+                      Corbeille
+                    </button>
+                  </>
+                )}
+                {selectedFolder?.type === "JUNK" ? (
+                  <button type="button" className="mail-inbox__refresh-btn" onClick={() => void onBulkAction("unjunk")}>
+                    Non spam
+                  </button>
+                ) : (
+                  <button type="button" className="mail-inbox__refresh-btn" onClick={() => void onBulkAction("junk")}>
+                    Spam
+                  </button>
+                )}
+                {moveTargets.length > 0 ? (
+                  <select
+                    className="mail-inbox__move-select"
+                    aria-label="Deplacer la selection vers"
+                    defaultValue=""
+                    onChange={(e) => {
+                      const target = e.target.value;
+                      e.currentTarget.value = "";
+                      if (target) void onBulkMove(target);
+                    }}
+                  >
+                    <option value="">Deplacer...</option>
+                    {moveTargets.map((folder) => (
+                      <option key={folder.id} value={folder.id}>
+                        {" ".repeat(Math.min(folder.depth, 6) * 2)}
+                        {folder.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </div>
+            ) : null}
             {canManageMail ? (
               <button
                 type="button"
@@ -656,6 +1203,27 @@ export default function MailInboxPage() {
               </button>
             ) : null}
           </div>
+          {currentFolderForHistory?.isHistoryPartial ? (
+            <div className="mail-inbox__history-state">
+              <span>
+                {currentFolderForHistory.historyBackfillLastError
+                  ? `Historique distant incomplet : ${currentFolderForHistory.historyBackfillLastError}`
+                  : currentFolderForHistory.historyBackfillHasMore
+                    ? "Historique distant encore disponible."
+                    : "Historique local partiel."}
+              </span>
+              {currentFolderForHistory.remoteTotalCount != null ? (
+                <span>
+                  {currentFolderForHistory.localImportedCount ?? currentFolderForHistory.totalLocal}/
+                  {currentFolderForHistory.remoteTotalCount}
+                </span>
+              ) : null}
+            </div>
+          ) : currentFolderForHistory ? (
+            <div className="mail-inbox__history-state mail-inbox__history-state--complete">
+              Début réel du dossier atteint.
+            </div>
+          ) : null}
           {listError && <div className="mail-inbox__error">{listError}</div>}
           <div className="mail-inbox__list-wrap">
             <MailThreadList
@@ -665,8 +1233,15 @@ export default function MailInboxPage() {
               initialLoading={initialLoading}
               listMode={listMode}
               onSelect={selectThread}
-              onArchive={onArchive}
+              onArchive={selectedFolder?.type === "TRASH" ? onRestore : onArchive}
+              archiveLabel={selectedFolder?.type === "TRASH" ? "Restaurer" : "Archiver"}
+              onTrash={onTrash}
+              onMove={onMove}
               onMarkThreadRead={onMarkThreadRead}
+              selectedForBulk={bulkSelectedThreadIds}
+              onToggleBulkSelect={onToggleBulkSelect}
+              moveTargets={moveTargets}
+              pendingThreadIds={pendingThreadIds}
               onThreadDoubleClick={openThreadOverlay}
               searchHighlightTerms={searchHighlightTerms}
             />
@@ -674,7 +1249,11 @@ export default function MailInboxPage() {
           {hasMore && !initialLoading && (
             <div className="mail-inbox__load-more">
               <button type="button" className="sg-btn sg-btn-ghost" onClick={loadMore} disabled={loading}>
-                {loading ? "Chargement…" : "Charger plus"}
+                {loading || remoteHistoryLoading
+                  ? "Chargement…"
+                  : threads.length < total
+                    ? "Charger plus"
+                    : "Charger les messages plus anciens"}
               </button>
             </div>
           )}
@@ -710,7 +1289,7 @@ export default function MailInboxPage() {
                 mailTagsCatalog={mailTags}
                 onMailTagsCatalogRefresh={handleMailTagsCatalogRefresh}
                 onThreadTagsUpdate={handleThreadTagsUpdate}
-                onArchive={onArchive}
+                onArchive={selectedFolder?.type === "TRASH" ? onRestore : onArchive}
                 onInboundMarkedRead={handleInboundMarkedRead}
                 onInboundMarkedUnread={handleInboundMarkedUnread}
                 onMailSent={handleMailSentFromThread}

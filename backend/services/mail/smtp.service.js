@@ -8,6 +8,8 @@ import path from "path";
 import { pool } from "../../config/db.js";
 import { decryptJson } from "../security/encryption.service.js";
 import { resolveSmtpCredentials } from "./mailCredentials.util.js";
+import { assertSafeMailEndpoint, createSafeMailLookup } from "./mailNetworkGuard.service.js";
+import { assertMailAccountCapability } from "./mailAccountState.service.js";
 import {
   persistOutboundInTransaction,
   getSentFolderId,
@@ -83,7 +85,8 @@ export function mapSmtpError(err) {
  *   smtp_secure?: boolean,
  *   email?: string,
  *   password?: string,
- *   auth?: { user?: string, password?: string },
+ *   accessToken?: string,
+ *   auth?: { user?: string, password?: string, accessToken?: string },
  * }} config
  */
 export function createSmtpTransport(config) {
@@ -92,9 +95,10 @@ export function createSmtpTransport(config) {
   const secure = config.smtp_secure ?? config.secure;
   const user = config.email ?? config.auth?.user;
   const pass = config.password ?? config.auth?.password;
+  const accessToken = config.accessToken ?? config.auth?.accessToken;
 
-  if (!host || port == null || !user || !pass) {
-    throwSmtp(SmtpErrorCodes.INVALID_CONFIG, "smtp_host, smtp_port, email et password requis");
+  if (!host || port == null || !user || (!pass && !accessToken)) {
+    throwSmtp(SmtpErrorCodes.INVALID_CONFIG, "smtp_host, smtp_port, email et credential requis");
   }
 
   const p = Number(port);
@@ -106,8 +110,14 @@ export function createSmtpTransport(config) {
     host: String(host).trim(),
     port: p,
     secure: secure === true,
-    auth: { user: String(user).trim(), pass: String(pass) },
+    auth: accessToken
+      ? { type: "OAuth2", user: String(user).trim(), accessToken: String(accessToken) }
+      : { user: String(user).trim(), pass: String(pass) },
     connectionTimeout: 25_000,
+    greetingTimeout: 25_000,
+    socketTimeout: 60_000,
+    tls: { rejectUnauthorized: true, servername: String(host).trim() },
+    lookup: createSafeMailLookup(),
   });
 }
 
@@ -118,6 +128,11 @@ export function createSmtpTransport(config) {
 export async function testSmtpConnection(config) {
   let transport;
   try {
+    await assertSafeMailEndpoint({
+      host: config.smtp_host ?? config.host,
+      port: config.smtp_port ?? config.port,
+      protocol: "smtp",
+    });
     transport = createSmtpTransport(config);
     await transport.verify();
     return { success: true };
@@ -204,6 +219,7 @@ export async function loadActiveMailAccountWithSmtpCredentials(db, p) {
   const { organizationId, mailAccountId } = p;
   const accRes = await db.query(
     `SELECT id, organization_id, email, display_name, is_active,
+            lifecycle_state, sync_enabled, reconnect_required,
             smtp_host, smtp_port, smtp_secure, encrypted_credentials
      FROM mail_accounts
      WHERE id = $1 AND organization_id = $2`,
@@ -215,35 +231,36 @@ export async function loadActiveMailAccountWithSmtpCredentials(db, p) {
   }
 
   const acc = accRes.rows[0];
-  if (!acc.is_active) {
-    throwSmtp(SmtpErrorCodes.INVALID_CONFIG, "Compte mail inactif");
-  }
+  assertMailAccountCapability(acc, "canSend");
   if (!acc.smtp_host || acc.smtp_port == null) {
     throwSmtp(SmtpErrorCodes.INVALID_CONFIG, "Configuration SMTP incomplète (smtp_host / smtp_port)");
   }
 
   let password;
+  let accessToken;
   let smtpUser;
   try {
     const cred = decryptJson(acc.encrypted_credentials);
     const resolved = resolveSmtpCredentials(acc.email, cred);
     smtpUser = resolved.user;
     password = resolved.password;
+    accessToken = resolved.accessToken;
   } catch {
     throwSmtp(SmtpErrorCodes.INVALID_CONFIG, "Impossible de déchiffrer les credentials du compte");
   }
-  if (!password) {
-    throwSmtp(SmtpErrorCodes.INVALID_CONFIG, "Mot de passe SMTP manquant dans les credentials");
+  if (!password && !accessToken) {
+    throwSmtp(SmtpErrorCodes.INVALID_CONFIG, "Credential SMTP manquant dans les credentials");
   }
 
-  return { acc, password, smtpUser };
+  return { acc, password, accessToken, smtpUser };
 }
 
 /**
  * Envoie un message préparé (sans persistance CRM) — utilisé par le worker outbox.
  * @param {{
  *   acc: Record<string, unknown>,
- *   password: string,
+ *   password?: string,
+ *   accessToken?: string,
  *   fromHeader: string,
  *   to: string[],
  *   cc?: string[],
@@ -261,6 +278,7 @@ export async function sendMailNodemailerOnly(opts) {
   const {
     acc,
     password,
+    accessToken,
     smtpAuthUser,
     fromHeader,
     to,
@@ -275,12 +293,14 @@ export async function sendMailNodemailerOnly(opts) {
     nodemailerAttachments,
   } = opts;
 
+  await assertSafeMailEndpoint({ host: acc.smtp_host, port: acc.smtp_port, protocol: "smtp" });
   const transport = createSmtpTransport({
     smtp_host: acc.smtp_host,
     smtp_port: acc.smtp_port,
     smtp_secure: acc.smtp_secure === true,
     email: smtpAuthUser ?? acc.email,
     password,
+    accessToken,
   });
 
   const mailOpts = {
@@ -334,17 +354,19 @@ export async function sendMailViaSmtp(params) {
     throwSmtp(SmtpErrorCodes.INVALID_CONFIG, "bodyText ou bodyHtml requis");
   }
 
-  const { acc, password, smtpUser } = await loadActiveMailAccountWithSmtpCredentials(pool, {
+  const { acc, password, accessToken, smtpUser } = await loadActiveMailAccountWithSmtpCredentials(pool, {
     organizationId,
     mailAccountId,
   });
 
+  await assertSafeMailEndpoint({ host: acc.smtp_host, port: acc.smtp_port, protocol: "smtp" });
   const transport = createSmtpTransport({
     smtp_host: acc.smtp_host,
     smtp_port: acc.smtp_port,
     smtp_secure: acc.smtp_secure === true,
     email: smtpUser,
     password,
+    accessToken,
   });
 
   const nodemailerAtt = await toNodemailerAttachments(attachments);

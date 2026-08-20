@@ -6,6 +6,7 @@ import { createHash } from "crypto";
 import { uploadMailAttachmentFile } from "../localStorage.service.js";
 import { normalizeMultipartFilename } from "../../utils/multipartFilenameUtf8.js";
 import { resolveSystemDocumentMetadata } from "../documentMetadata.service.js";
+import { scanMailAttachmentBuffer } from "./mailAttachmentScan.service.js";
 
 /** ~20 Mo — au-delà : ignoré (log), pas de stockage. */
 export const MAX_MAIL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
@@ -272,6 +273,11 @@ export async function processAttachmentItemsInTransaction(client, p) {
     }
 
     try {
+      const scan = await scanMailAttachmentBuffer({
+        buffer: buf,
+        filename: item.fileName,
+        mimeType: item.mimeType || "application/octet-stream",
+      });
       const { storage_path } = await storeAttachmentFile({
         buffer: buf,
         fileName: item.fileName,
@@ -294,8 +300,9 @@ export async function processAttachmentItemsInTransaction(client, p) {
       const attIns = await client.query(
         `INSERT INTO mail_attachments (
           organization_id, mail_message_id, file_name, mime_type, size_bytes, storage_path,
-          is_inline, content_id, document_id, content_sha256
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          is_inline, content_id, document_id, content_sha256,
+          scan_status, scan_checked_at, scan_provider, scan_error_code, quarantine_reason
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), $12, $13, $14)
         RETURNING id`,
         [
           organizationId,
@@ -308,6 +315,10 @@ export async function processAttachmentItemsInTransaction(client, p) {
           item.contentId,
           documentId,
           sha256,
+          scan.status,
+          scan.provider,
+          scan.errorCode,
+          scan.quarantineReason,
         ]
       );
 

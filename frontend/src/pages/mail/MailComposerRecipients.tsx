@@ -14,6 +14,7 @@ export interface MailComposerRecipientsProps {
   disabled?: boolean;
   /** Sauvegarde immédiate du brouillon au blur (sans debounce). */
   onFieldBlur?: () => void;
+  recipientSuggestions?: string[];
 }
 
 export const MailComposerRecipients = React.memo(function MailComposerRecipients({
@@ -29,9 +30,16 @@ export const MailComposerRecipients = React.memo(function MailComposerRecipients
   onToggleBcc,
   disabled,
   onFieldBlur,
+  recipientSuggestions = [],
 }: MailComposerRecipientsProps) {
+  const datalistId = React.useId();
   return (
     <div className="mail-composer-rcpt">
+      <datalist id={datalistId}>
+        {recipientSuggestions.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
       <label className="mail-composer-field">
         <span className="mail-composer-field__label">À</span>
         <input
@@ -43,6 +51,7 @@ export const MailComposerRecipients = React.memo(function MailComposerRecipients
           onBlur={() => onFieldBlur?.()}
           disabled={disabled}
           autoComplete="off"
+          list={datalistId}
         />
       </label>
       <div className="mail-composer-rcpt__extra">
@@ -68,6 +77,7 @@ export const MailComposerRecipients = React.memo(function MailComposerRecipients
             onBlur={() => onFieldBlur?.()}
             disabled={disabled}
             autoComplete="off"
+            list={datalistId}
           />
         </label>
       )}
@@ -82,6 +92,7 @@ export const MailComposerRecipients = React.memo(function MailComposerRecipients
             onBlur={() => onFieldBlur?.()}
             disabled={disabled}
             autoComplete="off"
+            list={datalistId}
           />
         </label>
       )}

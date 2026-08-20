@@ -10,6 +10,7 @@
 
 import { pool } from "../config/db.js";
 import { getUserPermissions } from "../rbac/rbac.service.js";
+import { deriveMailAccountCapabilities, activeSqlPredicate } from "./mail/mailAccountState.service.js";
 
 export const MAIL_PERMISSIONS = {
   USE: "mail.use",
@@ -24,7 +25,7 @@ export const MAIL_PERMISSIONS = {
  *   hasAccountsManage: boolean,
  *   userId: string,
  *   action: 'read' | 'send' | 'manage_delegations' | 'configure_accounts',
- *   account: { user_id: string | null, is_active: boolean } | null,
+ *   account: { user_id: string | null, is_active: boolean, lifecycle_state?: string | null, sync_enabled?: boolean | null } | null,
  *   grant: { can_read: boolean, can_send: boolean, can_manage: boolean } | null
  * }} p
  * @returns {boolean}
@@ -39,7 +40,9 @@ export function resolveMailAccountAccess(p) {
 
   if (!account) return false;
 
-  if (!account.is_active) {
+  const capabilities = deriveMailAccountCapabilities(account);
+  if (!capabilities.canDisplay) return false;
+  if (!account.is_active || !capabilities.canDisplay) {
     if (hasAccountsManage && (action === "read" || action === "manage_delegations")) {
       return true;
     }
@@ -50,6 +53,7 @@ export function resolveMailAccountAccess(p) {
   }
 
   if (action === "read" || action === "send") {
+    if (action === "send" && !capabilities.canSend) return false;
     if (hasViewAll) return true;
     const isOwner = account.user_id != null && account.user_id === userId;
     if (isOwner) return true;
@@ -90,7 +94,8 @@ export async function loadMailAccountWithGrant(p) {
   const { mailAccountId, userId, organizationId } = p;
   const r = await pool.query(
     `SELECT ma.id, ma.organization_id, ma.user_id, ma.is_active, ma.is_shared,
-            map.can_read, map.can_send, map.can_manage
+            map.can_read, map.can_send, map.can_manage,
+            ma.lifecycle_state, ma.sync_enabled, ma.reconnect_required
      FROM mail_accounts ma
      LEFT JOIN mail_account_permissions map
        ON map.mail_account_id = ma.id
@@ -116,6 +121,8 @@ export async function loadMailAccountWithGrant(p) {
       organization_id: row.organization_id,
       user_id: row.user_id,
       is_active: row.is_active === true,
+      lifecycle_state: row.lifecycle_state,
+      sync_enabled: row.sync_enabled,
       is_shared: row.is_shared === true,
     },
     grant,
@@ -134,7 +141,7 @@ export async function getAccessibleMailAccountIds(ctx) {
 
   if (flags.hasViewAll) {
     const r = await pool.query(
-      `SELECT id FROM mail_accounts WHERE organization_id = $1 AND is_active = true`,
+      `SELECT id FROM mail_accounts ma WHERE organization_id = $1 AND ${activeSqlPredicate("ma", "canDisplay")}`,
       [organizationId]
     );
     return new Set(r.rows.map((x) => x.id));
@@ -143,7 +150,7 @@ export async function getAccessibleMailAccountIds(ctx) {
   const ids = new Set();
   const owned = await pool.query(
     `SELECT id FROM mail_accounts
-     WHERE organization_id = $1 AND is_active = true AND user_id = $2`,
+     WHERE organization_id = $1 AND ${activeSqlPredicate("mail_accounts", "canDisplay")} AND user_id = $2`,
     [organizationId, userId]
   );
   owned.rows.forEach((x) => ids.add(x.id));
@@ -155,7 +162,7 @@ export async function getAccessibleMailAccountIds(ctx) {
      WHERE map.organization_id = $1
        AND map.user_id = $2
        AND map.can_read = true
-       AND ma.is_active = true`,
+       AND ${activeSqlPredicate("ma", "canDisplay")}`,
     [organizationId, userId]
   );
   delegated.rows.forEach((x) => ids.add(x.mail_account_id));

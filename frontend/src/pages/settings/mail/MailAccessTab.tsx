@@ -7,6 +7,7 @@ import {
   type MailPermissionsUserRow,
 } from "../../../services/mailApi";
 import { getUserPermissions } from "../../../services/auth.service";
+import { invalidateMailUnreadSummary } from "../../mail/mailUnreadStore";
 import "../mail-permissions-page.css";
 
 function cellKey(mailAccountId: string, userId: string) {
@@ -130,6 +131,7 @@ export function MailAccessTab() {
           canManage: next.canManage,
         });
         setPermissions((prev) => mergePermission(prev, mailAccountId, userId, next));
+        invalidateMailUnreadSummary();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {

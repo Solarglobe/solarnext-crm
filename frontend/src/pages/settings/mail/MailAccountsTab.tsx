@@ -2,17 +2,24 @@ import { useCallback, useEffect, useState } from "react";
 import {
   fetchMailAccountsList,
   fetchMailAccountDetail,
+  fetchMailHealth,
   createMailAccount,
   updateMailAccountApi,
   deleteMailAccountApi,
+  requestMailAccountLocalPurge,
+  setDefaultSendMailAccount,
+  startMicrosoftMailOAuth,
   testMailAccountStored,
   testMailImapDraft,
+  updateMailAccountLifecycle,
   runMailSync,
   type MailAccountRow,
   type MailAccountDetail,
+  type MailHealthOverview,
 } from "../../../services/mailApi";
 import { getUserPermissions } from "../../../services/auth.service";
 import { ConfirmModal } from "../../../components/ui/ConfirmModal";
+import { invalidateMailUnreadSummary } from "../../mail/mailUnreadStore";
 import "../../mail/mail-accounts-page.css";
 
 type FormShape = {
@@ -68,6 +75,15 @@ function detailToForm(d: MailAccountDetail): FormShape {
 }
 
 function statusLabel(s: MailAccountRow["connection_status"], row: MailAccountRow): string {
+  if (row.lifecycle_state && row.lifecycle_state !== "CONNECTED") {
+    if (row.lifecycle_state === "DEGRADED") return row.health?.lastErrorMessage || "Dégradé";
+    if (row.lifecycle_state === "AUTH_REQUIRED") return "Reconnexion requise";
+    if (row.lifecycle_state === "DISABLED") return "Synchronisation désactivée";
+    if (row.lifecycle_state === "DISCONNECTED") return "Compte déconnecté";
+    if (row.lifecycle_state === "REMOVED") return "Compte retiré";
+    if (row.lifecycle_state === "DELETION_PENDING") return "Purge locale en cours";
+    if (row.lifecycle_state === "DELETED") return "Données locales purgées";
+  }
   if (s === "ok") return "Synchronisé";
   if (s === "error") return row.last_imap_error_message?.slice(0, 80) || "Erreur de connexion / sync";
   return "Jamais synchronisé";
@@ -80,10 +96,23 @@ function mailAcctConnectionBadgeVariant(s: MailAccountRow["connection_status"]):
   return "sn-badge-neutral";
 }
 
+function lifecycleShortLabel(row: MailAccountRow): string {
+  const state = row.lifecycle_state || row.capabilities?.state || "CONNECTED";
+  if (state === "CONNECTED") return row.is_default_send_account ? "Par défaut" : "Actif";
+  if (state === "DEGRADED") return "Dégradé";
+  if (state === "AUTH_REQUIRED") return "À reconnecter";
+  if (state === "DISABLED") return "Sync off";
+  if (state === "DISCONNECTED") return "Déconnecté";
+  if (state === "REMOVED") return "Retiré";
+  if (state === "DELETION_PENDING") return "Purge";
+  return state;
+}
+
 export function MailAccountsTab() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<MailAccountRow[]>([]);
+  const [health, setHealth] = useState<MailHealthOverview | null>(null);
   const [listError, setListError] = useState<string | null>(null);
 
   const [addOpen, setAddOpen] = useState(false);
@@ -99,12 +128,15 @@ export function MailAccountsTab() {
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [rowErr, setRowErr] = useState<string | null>(null);
   const [deleteAccountId, setDeleteAccountId] = useState<string | null>(null);
+  const [purgeAccountId, setPurgeAccountId] = useState<string | null>(null);
+  const [purgeEmail, setPurgeEmail] = useState("");
 
   const loadList = useCallback(async () => {
     setListError(null);
     try {
       const rows = await fetchMailAccountsList();
       setAccounts(rows);
+      await fetchMailHealth().then(setHealth).catch(() => setHealth(null));
     } catch (e) {
       setListError(e instanceof Error ? e.message : String(e));
     }
@@ -206,6 +238,7 @@ export function MailAccountsTab() {
       setAddForm(emptyForm());
       setAddOpen(false);
       await loadList();
+      invalidateMailUnreadSummary();
     } catch (e) {
       setAddErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -240,6 +273,7 @@ export function MailAccountsTab() {
       const d = await fetchMailAccountDetail(id);
       setDetail(d);
       setEditForm(detailToForm(d));
+      invalidateMailUnreadSummary();
     } catch (e) {
       setRowErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -254,11 +288,74 @@ export function MailAccountsTab() {
       await deleteMailAccountApi(id);
       setExpandedId(null);
       await loadList();
+      invalidateMailUnreadSummary();
     } catch (e) {
       setRowErr(e instanceof Error ? e.message : String(e));
     } finally {
       setRowBusy(null);
       setDeleteAccountId(null);
+    }
+  };
+
+  const onLifecycle = async (id: string, action: "enable_sync" | "disable_sync" | "disconnect" | "remove") => {
+    setRowBusy(id);
+    setRowErr(null);
+    try {
+      await updateMailAccountLifecycle(id, action);
+      await loadList();
+      if (expandedId === id) setDetail(await fetchMailAccountDetail(id));
+      invalidateMailUnreadSummary();
+    } catch (e) {
+      setRowErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
+  const onDefaultSend = async (id: string) => {
+    setRowBusy(id);
+    setRowErr(null);
+    try {
+      await setDefaultSendMailAccount(id);
+      await loadList();
+      invalidateMailUnreadSummary();
+    } catch (e) {
+      setRowErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
+  const onPurge = async () => {
+    if (!purgeAccountId) return;
+    setRowBusy(purgeAccountId);
+    setRowErr(null);
+    try {
+      await requestMailAccountLocalPurge(purgeAccountId, purgeEmail);
+      setPurgeAccountId(null);
+      setPurgeEmail("");
+      setExpandedId(null);
+      await loadList();
+      invalidateMailUnreadSummary();
+    } catch (e) {
+      setRowErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
+  const onMicrosoftOAuth = async () => {
+    setAddBusy(true);
+    setAddErr(null);
+    try {
+      const out = await startMicrosoftMailOAuth({
+        requestedEmail: addForm.email.trim() || undefined,
+      });
+      window.location.assign(out.authorizationUrl);
+    } catch (e) {
+      setAddErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAddBusy(false);
     }
   };
 
@@ -268,6 +365,7 @@ export function MailAccountsTab() {
     try {
       await testMailAccountStored(id);
       await loadList();
+      invalidateMailUnreadSummary();
     } catch (e) {
       setRowErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -281,6 +379,7 @@ export function MailAccountsTab() {
     try {
       await runMailSync({ mailAccountId: id });
       await loadList();
+      invalidateMailUnreadSummary();
     } catch (e) {
       setRowErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -320,6 +419,23 @@ export function MailAccountsTab() {
       </header>
 
       {listError ? <div className="mail-accts__error">{listError}</div> : null}
+
+      {health ? (
+        <section className="mail-accts__panel" aria-label="Santé Mail">
+          <h2 className="mail-accts__panel-title">Santé Mail</h2>
+          <div className="mail-accts__health-grid">
+            <span>Outbox: {health.queues.outboxDepth}</span>
+            <span>Sent en attente: {health.queues.sentArchivePending}</span>
+            <span>Draft jobs: {health.queues.draftJobsDepth}</span>
+            <span>Flags: {health.queues.flagJobsDepth}</span>
+            <span>Moves: {health.queues.moveJobsDepth}</span>
+            <span>Scans en attente: {health.queues.scanPending}</span>
+            <span>Infectés: {health.queues.scanInfected}</span>
+            <span>Conflits Draft: {health.queues.draftConflicts}</span>
+          </div>
+          <p className="mail-accts__hint">Vue supervisée, sans secrets ni payloads d’emails.</p>
+        </section>
+      ) : null}
 
       {addOpen ? (
         <section className="mail-accts__panel mail-accts__panel--add" aria-label="Nouveau compte">
@@ -446,6 +562,9 @@ export function MailAccountsTab() {
           </details>
 
           <div className="mail-accts__actions">
+            <button type="button" className="mail-accts__btn" disabled={addBusy} onClick={() => void onMicrosoftOAuth()}>
+              Connecter Microsoft
+            </button>
             <button type="button" className="mail-accts__btn" disabled={addBusy} onClick={() => void onTestDraft("add")}>
               Tester la réception
             </button>
@@ -477,11 +596,7 @@ export function MailAccountsTab() {
                     className={`sn-badge ${mailAcctConnectionBadgeVariant(acc.connection_status)}`}
                     title={statusLabel(acc.connection_status, acc)}
                   >
-                    {acc.connection_status === "ok"
-                      ? "OK"
-                      : acc.connection_status === "error"
-                        ? "Erreur"
-                        : "Jamais testé"}
+                    {lifecycleShortLabel(acc)}
                   </span>
                   <span className="mail-accts__chev" aria-hidden>
                     {open ? "▲" : "▼"}
@@ -651,16 +766,40 @@ export function MailAccountsTab() {
                             <dd>{detail.smtp_host ? (detail.has_smtp_password ? "••••••••" : "—") : "—"}</dd>
                             <dt>Statut</dt>
                             <dd>{statusLabel(detail.connection_status, detail)}</dd>
+                            <dt>Compte d'envoi</dt>
+                            <dd>{detail.is_default_send_account ? "Par défaut" : "Non"}</dd>
+                            <dt>Provider</dt>
+                            <dd>{detail.provider === "MICROSOFT" ? "Microsoft OAuth" : "IMAP / SMTP"}</dd>
                           </dl>
                           <div className="mail-accts__actions">
                             <button type="button" className="mail-accts__btn" disabled={busy} onClick={() => setEditMode(true)}>
                               Modifier
                             </button>
+                            <button
+                              type="button"
+                              className="mail-accts__btn"
+                              disabled={busy || detail.is_default_send_account || detail.capabilities?.canSend === false}
+                              onClick={() => void onDefaultSend(acc.id)}
+                            >
+                              Définir par défaut
+                            </button>
                             <button type="button" className="mail-accts__btn" disabled={busy} onClick={() => void onTestStored(acc.id)}>
                               Tester connexion
                             </button>
-                            <button type="button" className="mail-accts__btn" disabled={busy} onClick={() => void onSync(acc.id)}>
+                            <button type="button" className="mail-accts__btn" disabled={busy || detail.capabilities?.canSync === false} onClick={() => void onSync(acc.id)}>
                               Synchroniser
+                            </button>
+                            {detail.sync_enabled === false || detail.lifecycle_state === "DISABLED" ? (
+                              <button type="button" className="mail-accts__btn" disabled={busy} onClick={() => void onLifecycle(acc.id, "enable_sync")}>
+                                Réactiver sync
+                              </button>
+                            ) : (
+                              <button type="button" className="mail-accts__btn" disabled={busy} onClick={() => void onLifecycle(acc.id, "disable_sync")}>
+                                Désactiver sync
+                              </button>
+                            )}
+                            <button type="button" className="mail-accts__btn" disabled={busy} onClick={() => void onLifecycle(acc.id, "disconnect")}>
+                              Déconnecter
                             </button>
                             <button
                               type="button"
@@ -668,7 +807,18 @@ export function MailAccountsTab() {
                               disabled={busy}
                               onClick={() => setDeleteAccountId(acc.id)}
                             >
-                              Supprimer
+                              Retirer
+                            </button>
+                            <button
+                              type="button"
+                              className="mail-accts__btn mail-accts__btn--danger"
+                              disabled={busy}
+                              onClick={() => {
+                                setPurgeAccountId(acc.id);
+                                setPurgeEmail("");
+                              }}
+                            >
+                              Purger local
                             </button>
                           </div>
                         </>
@@ -695,6 +845,29 @@ export function MailAccountsTab() {
           if (deleteAccountId) void onDelete(deleteAccountId);
         }}
       />
+      <ConfirmModal
+        open={purgeAccountId !== null}
+        title="Purger les données locales ?"
+        message="Cette action supprime uniquement les données du compte dans le CRM. Elle ne supprime pas la boîte ni les messages chez Outlook ou votre fournisseur. Saisissez l’adresse complète du compte pour confirmer."
+        confirmLabel="Purger localement"
+        cancelLabel="Retour"
+        variant="danger"
+        confirmDisabled={rowBusy !== null || purgeEmail.trim().length === 0}
+        cancelDisabled={rowBusy !== null}
+        onCancel={() => {
+          setPurgeAccountId(null);
+          setPurgeEmail("");
+        }}
+        onConfirm={() => void onPurge()}
+      >
+        <input
+          className="mail-accts__confirm-input"
+          value={purgeEmail}
+          onChange={(e) => setPurgeEmail(e.target.value)}
+          placeholder="adresse@domaine.fr"
+          autoComplete="off"
+        />
+      </ConfirmModal>
     </div>
   );
 }

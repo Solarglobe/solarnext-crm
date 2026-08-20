@@ -3,9 +3,12 @@ import type { MailHasReplyFilter, MailThreadTagRow } from "../../services/mailAp
 import { quickSearchClients, quickSearchLeads, type QuickEntityItem } from "../../services/mailApi";
 
 export interface MailFiltersValue {
+  accountId: string;
   tagId: string;
   dateFrom: string;
   dateTo: string;
+  sender: string;
+  recipient: string;
   hasReply: MailHasReplyFilter;
   clientId: string;
   leadId: string;
@@ -13,6 +16,7 @@ export interface MailFiltersValue {
 
 interface MailFiltersProps {
   mailTags: MailThreadTagRow[];
+  mailAccounts?: Array<{ id: string; email: string; display_name?: string | null }>;
   value: MailFiltersValue;
   onChange: (next: MailFiltersValue) => void;
   /** `toolbar` = barre horizontale compacte (au-dessus de la liste) */
@@ -147,6 +151,7 @@ function EntityPicker({
 
 export const MailFilters = React.memo(function MailFilters({
   mailTags,
+  mailAccounts = [],
   value,
   onChange,
   layout = "sidebar",
@@ -188,6 +193,27 @@ export const MailFilters = React.memo(function MailFilters({
     <div className={toolbar ? "mail-filters mail-filters--toolbar" : "mail-filters"}>
       {!toolbar ? <p className="mail-inbox__sidebar-title">Filtres</p> : null}
 
+      {mailAccounts.length > 0 ? (
+        <div className={toolbar ? "mail-filters__cell" : undefined}>
+          <label className={lbl} htmlFor="mail-account-filter">
+            Compte
+          </label>
+          <select
+            id="mail-account-filter"
+            className="mail-filters__select"
+            value={value.accountId}
+            onChange={(e) => onChange({ ...value, accountId: e.target.value })}
+          >
+            <option value="">Tous les comptes</option>
+            {mailAccounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.display_name?.trim() || account.email}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
       <div className={toolbar ? "mail-filters__cell" : undefined}>
         <label className={lbl} htmlFor="mail-tag-filter">
           Tags
@@ -223,6 +249,36 @@ export const MailFilters = React.memo(function MailFilters({
           type="date"
           value={value.dateTo}
           onChange={(e) => onChange({ ...value, dateTo: e.target.value })}
+        />
+      </div>
+
+      <div className={toolbar ? "mail-filters__cell" : undefined}>
+        <label className={lbl} htmlFor="mail-sender-filter">
+          Expéditeur
+        </label>
+        <input
+          id="mail-sender-filter"
+          type="search"
+          className="mail-filters__select"
+          placeholder="Nom ou email…"
+          value={value.sender}
+          onChange={(e) => onChange({ ...value, sender: e.target.value })}
+          autoComplete="off"
+        />
+      </div>
+
+      <div className={toolbar ? "mail-filters__cell" : undefined}>
+        <label className={lbl} htmlFor="mail-recipient-filter">
+          Destinataire
+        </label>
+        <input
+          id="mail-recipient-filter"
+          type="search"
+          className="mail-filters__select"
+          placeholder="Nom ou email…"
+          value={value.recipient}
+          onChange={(e) => onChange({ ...value, recipient: e.target.value })}
+          autoComplete="off"
         />
       </div>
 

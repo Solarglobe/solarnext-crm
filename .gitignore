@@ -55,6 +55,7 @@ coverage/
 playwright/.cache/
 .vitest/
 *.tsbuildinfo
+shared/schemas/.tmp-current/
 
 # --- Caches & logs ---
 .cache/

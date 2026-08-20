@@ -14,6 +14,7 @@ import { GlobalSearchBar } from "../components/layout/GlobalSearchBar";
 import { ImpersonationBanner, type ImpersonationMetaState } from "../components/layout/ImpersonationBanner";
 import { useOrganization, useSuperAdminReadOnly } from "../contexts/OrganizationContext";
 import { applyTheme, persistTheme, readStoredTheme, type ThemeMode } from "../theme/themeApply";
+import { MailUnreadSummaryProvider, formatMailUnreadBadge, useMailUnreadSummary } from "../pages/mail/mailUnreadStore";
 
 /* ImpersonationMetaState est défini et exporté depuis ImpersonationBanner.tsx */
 export type { ImpersonationMetaState };
@@ -552,6 +553,21 @@ function SidebarSectionChevron({ expanded }: { expanded: boolean }) {
   );
 }
 
+function MailSidebarUnreadBadge({ navLabel }: { navLabel: string }) {
+  const { totalUnread } = useMailUnreadSummary();
+  const label = formatMailUnreadBadge(totalUnread);
+  if (navLabel !== "Boite mail" || !label) return null;
+  return (
+    <span
+      className="sn-sidebar-mail-unread-badge"
+      aria-label={`${totalUnread} conversation${totalUnread > 1 ? "s" : ""} non lue${totalUnread > 1 ? "s" : ""} dans les boîtes de réception`}
+      title={`${totalUnread} conversation${totalUnread > 1 ? "s" : ""} non lue${totalUnread > 1 ? "s" : ""}`}
+    >
+      {label}
+    </span>
+  );
+}
+
 function SidebarCollapsibleSection({
   sectionId,
   title,
@@ -608,7 +624,8 @@ function SidebarCollapsibleSection({
             <span className="sn-sidebar-link-icon">
               <Icon />
             </span>
-            {label}
+            <span className="sn-sidebar-link-label">{label}</span>
+            <MailSidebarUnreadBadge navLabel={label} />
           </NavLink>
         ))}
       </div>
@@ -753,6 +770,7 @@ export function AppLayout() {
   }, []);
 
   return (
+    <MailUnreadSummaryProvider>
     <div className="sn-app-root sn-app-bg" style={{ flexDirection: "column" }}>
       {impersonationMeta && (
         <ImpersonationBanner meta={impersonationMeta} />
@@ -945,5 +963,6 @@ export function AppLayout() {
       )}
       </div>
     </div>
+    </MailUnreadSummaryProvider>
   );
 }

@@ -142,6 +142,27 @@ const AttachmentRow = React.memo(function AttachmentRow({
   const mime = att.document?.mimeType ?? att.mimeType;
   const size = formatAttachmentSize(att.document?.fileSize ?? att.sizeBytes ?? null);
   const isImg = isImageMime(mime);
+  const scanStatus = att.scanStatus || "UNAVAILABLE";
+
+  if (scanStatus !== "CLEAN") {
+    const label =
+      scanStatus === "INFECTED"
+        ? "Pièce jointe bloquée"
+        : scanStatus === "PENDING" || scanStatus === "SCANNING"
+          ? "Scan en attente"
+          : "Scan indisponible";
+    return (
+      <button type="button" className="mail-att mail-att--file" disabled title={att.scanErrorCode || att.quarantineReason || label}>
+        <span className="mail-att__icon" aria-hidden>
+          <IconFile />
+        </span>
+        <span className="mail-att__meta">
+          <span className="mail-att__name">{name}</span>
+          <span className="mail-att__size">{label}{size ? ` · ${size}` : ""}</span>
+        </span>
+      </button>
+    );
+  }
 
   if (docId && isImg) {
     return <AttachmentImagePreview documentId={docId} name={name} mimeType={mime} />;
@@ -180,12 +201,27 @@ export const MailThreadMessage = React.memo(function MailThreadMessage({
   const outbound = m.direction === "OUTBOUND";
   const label = getMessageSenderLabel(m);
   const letter = avatarLetter(label);
+  const [allowRemoteImages, setAllowRemoteImages] = useState(false);
 
   const sanitizedHtml = useMemo(() => {
     const raw = m.bodyHtml?.trim();
     if (!raw) return null;
-    return sanitizeMailHtml(raw);
+    return sanitizeMailHtml(raw, { allowRemoteImages });
+  }, [m.bodyHtml, allowRemoteImages]);
+
+  const hasBlockedRemoteImages = useMemo(() => {
+    const raw = m.bodyHtml || "";
+    return /<(img|source|picture)\b[^>]+\b(src|srcset)=["']https?:\/\//i.test(raw);
   }, [m.bodyHtml]);
+
+  const iframeDoc = useMemo(() => {
+    if (!sanitizedHtml) return "";
+    return `<!doctype html><html><head><base target="_blank"><meta charset="utf-8"><style>
+      html,body{margin:0;padding:0;background:transparent;color:#111827;font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;overflow-wrap:anywhere}
+      a{color:#1d4ed8;text-decoration:underline} img{max-width:100%;height:auto} table{max-width:100%;border-collapse:collapse} td,th{border:1px solid #d1d5db;padding:4px 6px}
+      [data-remote-src-blocked]{display:inline-block;min-width:120px;min-height:24px;border:1px dashed #cbd5e1;background:#f8fafc;color:#64748b}
+    </style></head><body>${sanitizedHtml}</body></html>`;
+  }, [sanitizedHtml]);
 
   const atts = m.attachments?.length ? m.attachments : [];
 
@@ -224,7 +260,23 @@ export const MailThreadMessage = React.memo(function MailThreadMessage({
           {showSubject && m.subject ? <p className="mail-msg__subject-line">{m.subject}</p> : null}
           <div className={`mail-msg__bubble mail-msg__bubble--${outbound ? "out" : "in"}`}>
             {sanitizedHtml ? (
-              <div className="mail-msg__html" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+              <div className="mail-msg__html-shell">
+                {hasBlockedRemoteImages && !allowRemoteImages ? (
+                  <div className="mail-msg__privacy-banner">
+                    <span>Les images distantes ont été bloquées pour protéger votre confidentialité.</span>
+                    <button type="button" onClick={() => setAllowRemoteImages(true)}>
+                      Charger pour ce message
+                    </button>
+                  </div>
+                ) : null}
+                <iframe
+                  className="mail-msg__html-frame"
+                  title={`Contenu du message ${m.id}`}
+                  sandbox="allow-popups"
+                  referrerPolicy="no-referrer"
+                  srcDoc={iframeDoc}
+                />
+              </div>
             ) : m.bodyText?.trim() ? (
               <div className="mail-msg__text">{m.bodyText}</div>
             ) : (

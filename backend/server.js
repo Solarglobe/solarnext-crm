@@ -23,7 +23,13 @@ import { pool } from "./config/db.js";
 import { getRateLimitStore } from "./middleware/security/rateLimitStore.factory.js";
 import { buildHttpApp } from "./httpApp.js";
 import { startMailOutboxProcessor } from "./workers/mailOutbox.worker.js";
+import { startMailFlagMutationProcessor } from "./workers/mailFlagMutation.worker.js";
+import { startMailMoveMutationProcessor } from "./workers/mailMoveMutation.worker.js";
+import { startMailAccountDeletionProcessor } from "./workers/mailAccountDeletion.worker.js";
 import { startMailSyncScheduler } from "./workers/mailSyncScheduler.worker.js";
+import { startMailDraftSyncProcessor } from "./workers/mailDraftSync.worker.js";
+import { startMailSentArchiveProcessor } from "./workers/mailSentArchive.worker.js";
+import { startMailAttachmentScanProcessor } from "./workers/mailAttachmentScan.worker.js";
 import { captureBackendException, flushBackendSentry } from "./services/sentry.service.js";
 
 process.on("uncaughtException", (error) => {
@@ -104,5 +110,11 @@ app.listen(PORT, () => {
   // Démarre le scheduler de recalcul quotidien de l'inactivité des leads
   startInactivityScheduler();
   startMailOutboxProcessor();
+  startMailFlagMutationProcessor();
+  startMailMoveMutationProcessor();
+  startMailAccountDeletionProcessor();
+  startMailDraftSyncProcessor();
+  startMailSentArchiveProcessor();
+  startMailAttachmentScanProcessor();
   startMailSyncScheduler();
 });

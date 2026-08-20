@@ -5,8 +5,11 @@
 import { ImapFlow } from "imapflow";
 import { pool } from "../../config/db.js";
 import { encryptJson, decryptJson } from "../security/encryption.service.js";
-import { collectMailboxesFromList } from "./imap.mailbox-map.js";
-import { resolveImapCredentials } from "./mailCredentials.util.js";
+import { discoverImapFoldersWithStatus } from "./mailFolderDiscovery.service.js";
+import { resolveImapCredentials, resolveSmtpCredentials } from "./mailCredentials.util.js";
+import { assertSafeMailEndpoint, createSafeMailLookup } from "./mailNetworkGuard.service.js";
+import { testSmtpConnection } from "./smtp.service.js";
+import { assertMailAccountCapability } from "./mailAccountState.service.js";
 
 export const ImapErrorCodes = {
   AUTH_FAILED: "AUTH_FAILED",
@@ -63,7 +66,7 @@ export function mapImapError(err) {
  * @property {string} host
  * @property {number} port
  * @property {boolean} [secure]
- * @property {{ user: string, password: string }} auth
+ * @property {{ user: string, password?: string, pass?: string, accessToken?: string }} auth
  * @property {number} [connectionTimeoutMs]
  */
 
@@ -80,17 +83,21 @@ export function buildImapFlowOptions(config) {
   }
   const user = config.auth?.user ?? config.auth?.username;
   const pass = config.auth?.password ?? config.auth?.pass;
-  if (!user || !pass) {
-    throwImapError(ImapErrorCodes.INVALID_CONFIG, "auth.user et auth.password requis");
+  const accessToken = config.auth?.accessToken;
+  if (!user || (!pass && !accessToken)) {
+    throwImapError(ImapErrorCodes.INVALID_CONFIG, "auth.user et credential requis");
   }
 
   return {
     host: config.host.trim(),
     port,
     secure: config.secure !== false,
-    auth: { user: String(user), pass: String(pass) },
+    auth: accessToken
+      ? { user: String(user), accessToken: String(accessToken) }
+      : { user: String(user), pass: String(pass) },
     logger: false,
     connectionTimeout: config.connectionTimeoutMs ?? 25_000,
+    lookup: createSafeMailLookup(),
   };
 }
 
@@ -100,6 +107,7 @@ export function buildImapFlowOptions(config) {
  */
 export async function createImapClient(config) {
   const opts = buildImapFlowOptions(config);
+  await assertSafeMailEndpoint({ host: opts.host, port: opts.port, protocol: "imap" });
   const client = new ImapFlow(opts);
   try {
     await client.connect();
@@ -144,8 +152,8 @@ export async function testImapConnection(config) {
 export async function getMailboxes(config) {
   const client = await createImapClient(config);
   try {
-    const raw = await client.list();
-    return collectMailboxesFromList(raw);
+    const discovered = await discoverImapFoldersWithStatus(client);
+    return discovered.folders;
   } catch (e) {
     if (e?.code && Object.values(ImapErrorCodes).includes(e.code)) {
       throw e;
@@ -161,12 +169,136 @@ export async function getMailboxes(config) {
 }
 
 /**
+ * @param {import('pg').PoolClient} db
+ * @param {{ organizationId: string, mailAccountId: string, folders: Array<Record<string, unknown>> }} p
+ */
+export async function persistDiscoveredMailFolders(db, p) {
+  const { organizationId, mailAccountId, folders } = p;
+  const seenPaths = [];
+
+  for (const box of folders) {
+    const path = String(box.external_id || box.path || "").trim();
+    if (!path) continue;
+    seenPaths.push(path);
+
+    const attributesJson = JSON.stringify(Array.isArray(box.attributes) ? box.attributes : []);
+    const status =
+      box.selectable === false
+        ? "NOSELECT"
+        : box.statusError
+          ? "ERROR"
+          : "DISCOVERED";
+
+    await db.query(
+      `INSERT INTO mail_folders (
+         organization_id, mail_account_id, name, type, external_id,
+         parent_path, delimiter, depth, attributes_json, special_use,
+         selectable, subscribed, is_active, last_discovered_at,
+         uid_validity, highest_modseq, remote_message_count, remote_unread_count,
+         message_sync_status, history_sync_status, sync_priority,
+         last_message_sync_error_at, last_message_sync_error_code, last_message_sync_error_message,
+         updated_at
+       ) VALUES (
+         $1, $2, $3, $4::mail_folder_type, $5,
+         $6, $7, $8, $9::jsonb, $10,
+         $11, $12, true, now(),
+         $13, $14, $15, $16,
+         $17, 'PARTIAL', $18,
+         CASE WHEN $19::text IS NULL THEN NULL ELSE now() END, CASE WHEN $19::text IS NULL THEN NULL ELSE 'STATUS_FAILED' END, $19,
+         now()
+       )
+       ON CONFLICT (mail_account_id, external_id) WHERE external_id IS NOT NULL
+       DO UPDATE SET
+         name = EXCLUDED.name,
+         type = EXCLUDED.type,
+         parent_path = EXCLUDED.parent_path,
+         delimiter = EXCLUDED.delimiter,
+         depth = EXCLUDED.depth,
+         attributes_json = EXCLUDED.attributes_json,
+         special_use = EXCLUDED.special_use,
+         selectable = EXCLUDED.selectable,
+         subscribed = EXCLUDED.subscribed,
+         is_active = true,
+         last_discovered_at = now(),
+         uid_validity = COALESCE(EXCLUDED.uid_validity, mail_folders.uid_validity),
+         highest_modseq = COALESCE(EXCLUDED.highest_modseq, mail_folders.highest_modseq),
+         remote_message_count = EXCLUDED.remote_message_count,
+         remote_unread_count = EXCLUDED.remote_unread_count,
+         message_sync_status = CASE
+           WHEN EXCLUDED.selectable = false THEN 'NOSELECT'
+           WHEN EXCLUDED.last_message_sync_error_message IS NOT NULL THEN 'ERROR'
+           WHEN mail_folders.message_sync_status = 'NEVER_SYNCED' THEN 'DISCOVERED'
+           ELSE mail_folders.message_sync_status
+         END,
+         history_sync_status = 'PARTIAL',
+         sync_priority = EXCLUDED.sync_priority,
+         last_message_sync_error_at = EXCLUDED.last_message_sync_error_at,
+         last_message_sync_error_code = EXCLUDED.last_message_sync_error_code,
+         last_message_sync_error_message = EXCLUDED.last_message_sync_error_message,
+         updated_at = now()`,
+      [
+        organizationId,
+        mailAccountId,
+        box.name,
+        box.type || "CUSTOM",
+        path,
+        box.parent_path ?? null,
+        box.delimiter ?? null,
+        Number.isFinite(Number(box.depth)) ? Number(box.depth) : 0,
+        attributesJson,
+        box.special_use ?? null,
+        box.selectable !== false,
+        typeof box.subscribed === "boolean" ? box.subscribed : null,
+        box.uidValidity ?? null,
+        box.highestModseq ?? null,
+        Number.isFinite(Number(box.remoteMessageCount)) ? Number(box.remoteMessageCount) : null,
+        Number.isFinite(Number(box.remoteUnreadCount)) ? Number(box.remoteUnreadCount) : null,
+        status,
+        Number.isFinite(Number(box.sync_priority)) ? Number(box.sync_priority) : 50,
+        box.statusError ?? null,
+      ]
+    );
+  }
+
+  if (seenPaths.length > 0) {
+    await db.query(
+      `UPDATE mail_folders SET
+         is_active = false,
+         message_sync_status = 'INACTIVE',
+         updated_at = now()
+       WHERE organization_id = $1
+         AND mail_account_id = $2
+         AND is_active = true
+         AND NOT (external_id = ANY($3::text[]))`,
+      [organizationId, mailAccountId, seenPaths]
+    );
+  }
+
+  await db.query(
+    `UPDATE mail_folders child
+     SET parent_id = parent.id,
+         updated_at = now()
+     FROM mail_folders parent
+     WHERE child.organization_id = $1
+       AND child.mail_account_id = $2
+       AND child.parent_path IS NOT NULL
+       AND parent.organization_id = child.organization_id
+       AND parent.mail_account_id = child.mail_account_id
+       AND parent.external_id = child.parent_path`,
+    [organizationId, mailAccountId]
+  );
+
+  return { upserted: seenPaths.length };
+}
+
+/**
  * @param {{ mailAccountId: string, organizationId: string }} p
  */
 export async function syncFoldersFromImap(p) {
   const { mailAccountId, organizationId } = p;
   const row = await pool.query(
-    `SELECT email, imap_host, imap_port, imap_secure, encrypted_credentials
+    `SELECT email, imap_host, imap_port, imap_secure, encrypted_credentials,
+            is_active, lifecycle_state, sync_enabled, reconnect_required
      FROM mail_accounts
      WHERE id = $1 AND organization_id = $2`,
     [mailAccountId, organizationId]
@@ -175,9 +307,10 @@ export async function syncFoldersFromImap(p) {
     throwImapError(ImapErrorCodes.INVALID_CONFIG, "Compte mail introuvable");
   }
   const acc = row.rows[0];
+  assertMailAccountCapability(acc, "canSync");
   const cred = decryptJson(acc.encrypted_credentials);
-  const { user: imapUser, password } = resolveImapCredentials(acc.email, cred);
-  if (!password) {
+  const { user: imapUser, password, accessToken } = resolveImapCredentials(acc.email, cred);
+  if (!password && !accessToken) {
     throwImapError(ImapErrorCodes.INVALID_CONFIG, "Credentials invalides");
   }
 
@@ -185,28 +318,27 @@ export async function syncFoldersFromImap(p) {
     host: acc.imap_host,
     port: acc.imap_port,
     secure: acc.imap_secure !== false,
-    auth: { user: imapUser, password },
+    auth: { user: imapUser, password, accessToken },
   };
 
-  const folders = await getMailboxes(cfg);
+  const client = await createImapClient(cfg);
   const db = await pool.connect();
   try {
-    for (const box of folders) {
-      const ext = box.external_id || box.path;
-      await db.query(
-        `INSERT INTO mail_folders (organization_id, mail_account_id, name, type, external_id)
-         SELECT $1, $2, $3, $4::mail_folder_type, $5
-         WHERE NOT EXISTS (
-           SELECT 1 FROM mail_folders mf
-           WHERE mf.organization_id = $1 AND mf.mail_account_id = $2 AND mf.external_id = $5
-         )`,
-        [organizationId, mailAccountId, box.name, box.type, ext]
-      );
-    }
+    const discovered = await discoverImapFoldersWithStatus(client);
+    await persistDiscoveredMailFolders(db, {
+      organizationId,
+      mailAccountId,
+      folders: discovered.folders,
+    });
+    return { synced: discovered.folders.length, statusChecked: discovered.statusChecked };
   } finally {
     db.release();
+    try {
+      await client.logout();
+    } catch {
+      // ignore
+    }
   }
-  return { synced: folders.length };
 }
 
 /**
@@ -270,6 +402,16 @@ export async function saveMailAccount(input) {
   };
 
   await testImapConnection(cfg);
+  if (smtp?.host && smtp.port != null) {
+    const { user: smtpAuthUser, password: smtpAuthPass } = resolveSmtpCredentials(emailTrim, credDraft);
+    await testSmtpConnection({
+      smtp_host: smtp.host,
+      smtp_port: Number(smtp.port),
+      smtp_secure: smtp.secure === true,
+      email: smtpAuthUser,
+      password: smtpAuthPass,
+    });
+  }
   const folders = await getMailboxes(cfg);
 
   const encrypted = encryptJson({
@@ -292,12 +434,12 @@ export async function saveMailAccount(input) {
           organization_id, user_id, email, display_name,
           imap_host, imap_port, imap_secure,
           smtp_host, smtp_port, smtp_secure,
-          encrypted_credentials, is_shared, is_active
+          encrypted_credentials, is_shared, is_active, lifecycle_state, sync_enabled, provider, auth_method, connected_at
         ) VALUES (
           $1, $2, $3, $4,
           $5, $6, $7,
           $8, $9, $10,
-          $11::jsonb, $12, true
+          $11::jsonb, $12, true, 'CONNECTED', true, 'IMAP_SMTP', 'PASSWORD', now()
         )
         RETURNING id`,
         [
@@ -327,18 +469,11 @@ export async function saveMailAccount(input) {
 
     const mailAccountId = ins.rows[0].id;
 
-    for (const box of folders) {
-      const ext = box.external_id || box.path;
-      await dbClient.query(
-        `INSERT INTO mail_folders (organization_id, mail_account_id, name, type, external_id)
-         SELECT $1, $2, $3, $4::mail_folder_type, $5
-         WHERE NOT EXISTS (
-           SELECT 1 FROM mail_folders mf
-           WHERE mf.organization_id = $1 AND mf.mail_account_id = $2 AND mf.external_id = $5
-         )`,
-        [organizationId, mailAccountId, box.name, box.type, ext]
-      );
-    }
+    await persistDiscoveredMailFolders(dbClient, {
+      organizationId,
+      mailAccountId,
+      folders,
+    });
 
     await dbClient.query("COMMIT");
     return { id: mailAccountId, folderCount: folders.length };
@@ -378,7 +513,7 @@ export async function updateMailAccount(patch) {
     `SELECT id, email, display_name, is_shared, is_active,
             imap_host, imap_port, imap_secure,
             smtp_host, smtp_port, smtp_secure,
-            encrypted_credentials
+            encrypted_credentials, lifecycle_state, provider, auth_method
      FROM mail_accounts
      WHERE id = $1 AND organization_id = $2`,
     [mailAccountId, organizationId]
@@ -467,6 +602,17 @@ export async function updateMailAccount(patch) {
     auth: { user: imapAuthUser, pass: imapAuthPass },
   };
   await testImapConnection(testCfg);
+  if (nextSmtpHost && nextSmtpPort != null) {
+    const smtpResolved = resolveSmtpCredentials(nextEmail, credMerged);
+    await testSmtpConnection({
+      smtp_host: nextSmtpHost,
+      smtp_port: nextSmtpPort,
+      smtp_secure: nextSmtpSecure === true,
+      email: smtpResolved.user,
+      password: smtpResolved.password,
+      accessToken: smtpResolved.accessToken,
+    });
+  }
 
   const encrypted = encryptJson(credMerged);
 
@@ -484,6 +630,11 @@ export async function updateMailAccount(patch) {
          smtp_port = $11,
          smtp_secure = $12,
          encrypted_credentials = $13::jsonb,
+         lifecycle_state = CASE WHEN $6 = true THEN 'CONNECTED'::mail_account_lifecycle_state ELSE 'DISABLED'::mail_account_lifecycle_state END,
+         sync_enabled = $6,
+         reconnect_required = false,
+         connected_at = CASE WHEN $6 = true THEN COALESCE(connected_at, now()) ELSE connected_at END,
+         disconnected_at = CASE WHEN $6 = false THEN now() ELSE NULL END,
          user_id = CASE
            WHEN $5 = true THEN NULL
            WHEN $5 = false AND user_id IS NULL AND $14 IS NOT NULL THEN $14::uuid

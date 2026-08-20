@@ -2,7 +2,7 @@
  * CP-076 — Requêtes API mail (inbox, fil, lecture, archive) — sans N+1 sur la liste.
  */
 
-import { rebuildThreadMetadata } from "./mailThreading.service.js";
+import { enqueueReadFlagMutationInTransaction } from "./mailFlagMutation.service.js";
 
 const PIVOT_EXPR = `COALESCE(m.received_at, m.sent_at, m.external_internal_date, m.created_at)`;
 const MSG_PIVOT_QUAL = `COALESCE(m.received_at, m.sent_at, m.external_internal_date, m.created_at)`;
@@ -130,6 +130,8 @@ export function sqlMailboxThreadClause(mailbox) {
       INNER JOIN mail_folders mf ON mf.id = mm.folder_id AND mf.organization_id = t.organization_id
       WHERE mm.mail_thread_id = t.id
         AND mm.mail_account_id = ANY($2::uuid[])
+        AND mm.remote_missing_at IS NULL
+        AND mm.remote_deleted_at IS NULL
         AND mf.type = 'INBOX'::mail_folder_type
     ) `;
   }
@@ -139,6 +141,8 @@ export function sqlMailboxThreadClause(mailbox) {
       INNER JOIN mail_folders mf ON mf.id = mm.folder_id AND mf.organization_id = t.organization_id
       WHERE mm.mail_thread_id = t.id
         AND mm.mail_account_id = ANY($2::uuid[])
+        AND mm.remote_missing_at IS NULL
+        AND mm.remote_deleted_at IS NULL
         AND mf.type = 'SENT'::mail_folder_type
     ) `;
   }
@@ -148,7 +152,20 @@ export function sqlMailboxThreadClause(mailbox) {
       INNER JOIN mail_folders mf ON mf.id = mm.folder_id AND mf.organization_id = t.organization_id
       WHERE mm.mail_thread_id = t.id
         AND mm.mail_account_id = ANY($2::uuid[])
+        AND mm.remote_missing_at IS NULL
+        AND mm.remote_deleted_at IS NULL
         AND mf.type = 'DRAFT'::mail_folder_type
+    ) `;
+  }
+  if (m === "archive") {
+    return ` AND EXISTS (
+      SELECT 1 FROM mail_messages mm
+      INNER JOIN mail_folders mf ON mf.id = mm.folder_id AND mf.organization_id = t.organization_id
+      WHERE mm.mail_thread_id = t.id
+        AND mm.mail_account_id = ANY($2::uuid[])
+        AND mm.remote_missing_at IS NULL
+        AND mm.remote_deleted_at IS NULL
+        AND mf.type = 'ARCHIVE'::mail_folder_type
     ) `;
   }
   if (m === "trash") {
@@ -157,21 +174,30 @@ export function sqlMailboxThreadClause(mailbox) {
       INNER JOIN mail_folders mf ON mf.id = mm.folder_id AND mf.organization_id = t.organization_id
       WHERE mm.mail_thread_id = t.id
         AND mm.mail_account_id = ANY($2::uuid[])
+        AND mm.remote_missing_at IS NULL
+        AND mm.remote_deleted_at IS NULL
         AND mf.type = 'TRASH'::mail_folder_type
     ) `;
   }
-  if (m === "spam") {
+  if (m === "spam" || m === "junk") {
     return ` AND EXISTS (
       SELECT 1 FROM mail_messages mm
       INNER JOIN mail_folders mf ON mf.id = mm.folder_id AND mf.organization_id = t.organization_id
       WHERE mm.mail_thread_id = t.id
         AND mm.mail_account_id = ANY($2::uuid[])
-        AND mf.type = 'CUSTOM'::mail_folder_type
+        AND mm.remote_missing_at IS NULL
+        AND mm.remote_deleted_at IS NULL
         AND (
-          LOWER(COALESCE(mf.name, '')) LIKE '%spam%'
-          OR LOWER(COALESCE(mf.name, '')) LIKE '%junk%'
-          OR LOWER(COALESCE(mf.external_id, '')) LIKE '%spam%'
-          OR LOWER(COALESCE(mf.external_id, '')) LIKE '%junk%'
+          mf.type = 'JUNK'::mail_folder_type
+          OR (
+            mf.type = 'CUSTOM'::mail_folder_type
+            AND (
+              LOWER(COALESCE(mf.name, '')) LIKE '%spam%'
+              OR LOWER(COALESCE(mf.name, '')) LIKE '%junk%'
+              OR LOWER(COALESCE(mf.external_id, '')) LIKE '%spam%'
+              OR LOWER(COALESCE(mf.external_id, '')) LIKE '%junk%'
+            )
+          )
         )
     ) `;
   }
@@ -189,10 +215,38 @@ export async function getAccessibleAccountIdArray(db, organizationId, accessible
   if (ids.length === 0) return [];
   const r = await db.query(
     `SELECT id FROM mail_accounts
-     WHERE organization_id = $1 AND is_active = true AND id = ANY($2::uuid[])`,
+     WHERE organization_id = $1
+       AND is_active = true
+       AND COALESCE(lifecycle_state::text, 'CONNECTED') IN ('CONNECTED', 'DEGRADED')
+       AND COALESCE(sync_enabled, true) = true
+       AND id = ANY($2::uuid[])`,
     [organizationId, ids]
   );
   return r.rows.map((x) => x.id);
+}
+
+/**
+ * @param {import('pg').Pool|import('pg').PoolClient} db
+ * @param {{ organizationId: string, folderId?: string | null, accessibleAccountIds: string[] }}
+ */
+async function resolveAccessibleFolderId(db, p) {
+  if (!p.folderId) return null;
+  const r = await db.query(
+    `SELECT f.id
+     FROM mail_folders f
+     INNER JOIN mail_accounts a ON a.id = f.mail_account_id AND a.organization_id = f.organization_id
+      WHERE f.id = $1
+        AND f.organization_id = $2
+        AND f.is_active = true
+        AND f.selectable = true
+        AND a.is_active = true
+        AND COALESCE(a.lifecycle_state::text, 'CONNECTED') IN ('CONNECTED', 'DEGRADED')
+        AND COALESCE(a.sync_enabled, true) = true
+        AND f.mail_account_id = ANY($3::uuid[])
+     LIMIT 1`,
+    [p.folderId, p.organizationId, p.accessibleAccountIds]
+  );
+  return r.rows[0]?.id ?? "__DENIED__";
 }
 
 /**
@@ -205,6 +259,8 @@ export async function getAccessibleAccountIdArray(db, organizationId, accessible
  *   filter?: 'unread' | 'all',
  *   attachmentsFilter?: 'all' | 'with',
  *   accountId?: string | null,
+ *   sender?: string | null,
+ *   recipient?: string | null,
  *   clientId?: string | null,
  *   leadId?: string | null,
  *   tagId?: string | null,
@@ -213,6 +269,8 @@ export async function getAccessibleAccountIdArray(db, organizationId, accessible
  *   hasOutboundReply?: boolean | null,
  *   searchQuery?: string | null,
  *   mailbox?: string | null,
+ *   folderId?: string | null,
+ *   sort?: 'newest' | 'oldest' | null,
  * }} p
  */
 export async function listMailInbox(db, p) {
@@ -232,6 +290,14 @@ export async function listMailInbox(db, p) {
   const attachmentsOnly = p.attachmentsFilter === "with";
   const effectiveAttachments = attachmentsOnly || (parsedSearch?.hasAttachment === true);
   const accountFilter = p.accountId && p.accessibleAccountIds.has(p.accountId) ? p.accountId : null;
+  const resolvedFolderId = await resolveAccessibleFolderId(db, {
+    organizationId,
+    folderId: p.folderId,
+    accessibleAccountIds: accIds,
+  });
+  if (resolvedFolderId === "__DENIED__") {
+    return { items: [], total: 0, searchMeta: null };
+  }
   const clientId = p.clientId?.trim() || null;
   const leadId = p.leadId?.trim() || null;
   const tagId = p.tagId?.trim() || null;
@@ -249,9 +315,54 @@ export async function listMailInbox(db, p) {
     params.push(accountFilter);
     accountClause = ` AND EXISTS (
       SELECT 1 FROM mail_messages mx
-      WHERE mx.mail_thread_id = t.id AND mx.mail_account_id = $${pidx}::uuid
+      WHERE mx.mail_thread_id = t.id
+        AND mx.mail_account_id = $${pidx}::uuid
+        AND mx.remote_missing_at IS NULL
+        AND mx.remote_deleted_at IS NULL
     ) `;
     pidx += 1;
+  }
+
+  let senderClause = "";
+  const senderPat = p.sender ? sqlLikeEscapePattern(p.sender) : null;
+  if (senderPat) {
+    params.push(senderPat, senderPat);
+    const a = pidx;
+    const b = pidx + 1;
+    pidx += 2;
+    senderClause = ` AND EXISTS (
+      SELECT 1 FROM mail_messages msender
+      INNER JOIN mail_participants psender
+        ON psender.mail_message_id = msender.id
+       AND psender.type = 'FROM'::mail_participant_type
+      WHERE msender.mail_thread_id = t.id
+        AND msender.organization_id = $1
+        AND msender.mail_account_id = ANY($2::uuid[])
+        AND msender.remote_missing_at IS NULL
+        AND msender.remote_deleted_at IS NULL
+        AND (psender.email ILIKE $${a} ESCAPE '!' OR COALESCE(psender.name, '') ILIKE $${b} ESCAPE '!')
+    ) `;
+  }
+
+  let recipientClause = "";
+  const recipientPat = p.recipient ? sqlLikeEscapePattern(p.recipient) : null;
+  if (recipientPat) {
+    params.push(recipientPat, recipientPat);
+    const a = pidx;
+    const b = pidx + 1;
+    pidx += 2;
+    recipientClause = ` AND EXISTS (
+      SELECT 1 FROM mail_messages mrecipient
+      INNER JOIN mail_participants precipient
+        ON precipient.mail_message_id = mrecipient.id
+       AND precipient.type IN ('TO'::mail_participant_type, 'CC'::mail_participant_type, 'BCC'::mail_participant_type)
+      WHERE mrecipient.mail_thread_id = t.id
+        AND mrecipient.organization_id = $1
+        AND mrecipient.mail_account_id = ANY($2::uuid[])
+        AND mrecipient.remote_missing_at IS NULL
+        AND mrecipient.remote_deleted_at IS NULL
+        AND (precipient.email ILIKE $${a} ESCAPE '!' OR COALESCE(precipient.name, '') ILIKE $${b} ESCAPE '!')
+    ) `;
   }
 
   let clientClause = "";
@@ -283,7 +394,10 @@ export async function listMailInbox(db, p) {
   if (effectiveAttachments) {
     attachClause = ` AND EXISTS (
       SELECT 1 FROM mail_messages mj
-      WHERE mj.mail_thread_id = t.id AND mj.has_attachments = true
+      WHERE mj.mail_thread_id = t.id
+        AND mj.has_attachments = true
+        AND mj.remote_missing_at IS NULL
+        AND mj.remote_deleted_at IS NULL
     ) `;
   }
 
@@ -303,18 +417,25 @@ export async function listMailInbox(db, p) {
   if (p.hasOutboundReply === true) {
     outboundClause = ` AND EXISTS (
       SELECT 1 FROM mail_messages mor
-      WHERE mor.mail_thread_id = t.id AND mor.direction = 'OUTBOUND'::mail_message_direction
+      WHERE mor.mail_thread_id = t.id
+        AND mor.direction = 'OUTBOUND'::mail_message_direction
+        AND mor.remote_missing_at IS NULL
+        AND mor.remote_deleted_at IS NULL
     ) `;
   } else if (p.hasOutboundReply === false) {
     outboundClause = ` AND NOT EXISTS (
       SELECT 1 FROM mail_messages mor
-      WHERE mor.mail_thread_id = t.id AND mor.direction = 'OUTBOUND'::mail_message_direction
+      WHERE mor.mail_thread_id = t.id
+        AND mor.direction = 'OUTBOUND'::mail_message_direction
+        AND mor.remote_missing_at IS NULL
+        AND mor.remote_deleted_at IS NULL
     ) `;
   }
 
   let searchClause = "";
   let selectRankSql = "";
-  let orderByMain = "t.last_message_at DESC NULLS LAST";
+  const sort = String(p.sort || "newest").toLowerCase() === "oldest" ? "oldest" : "newest";
+  let orderByMain = sort === "oldest" ? "t.last_message_at ASC NULLS LAST" : "t.last_message_at DESC NULLS LAST";
   /** @type {{ highlightTerms: string[] } | null} */
   let searchMeta = null;
 
@@ -339,6 +460,8 @@ export async function listMailInbox(db, p) {
           WHERE ms_fts.mail_thread_id = t.id
             AND ms_fts.organization_id = $1
             AND ms_fts.mail_account_id = ANY($2::uuid[])
+            AND ms_fts.remote_missing_at IS NULL
+            AND ms_fts.remote_deleted_at IS NULL
             AND ms_fts.search_vector @@ plainto_tsquery('simple', $${ftIdx})
         ) `;
         selectRankSql = `, COALESCE((
@@ -347,9 +470,14 @@ export async function listMailInbox(db, p) {
           WHERE msrk.mail_thread_id = t.id
             AND msrk.organization_id = $1
             AND msrk.mail_account_id = ANY($2::uuid[])
+            AND msrk.remote_missing_at IS NULL
+            AND msrk.remote_deleted_at IS NULL
             AND msrk.search_vector @@ plainto_tsquery('simple', $${ftIdx})
         ), 0)::real AS search_rank`;
-        orderByMain = "search_rank DESC NULLS LAST, t.last_message_at DESC NULLS LAST";
+        orderByMain =
+          sort === "oldest"
+            ? "search_rank DESC NULLS LAST, t.last_message_at ASC NULLS LAST"
+            : "search_rank DESC NULLS LAST, t.last_message_at DESC NULLS LAST";
       }
 
       const fromPat = parsedSearch.fromPattern ? sqlLikeEscapePattern(parsedSearch.fromPattern) : null;
@@ -363,6 +491,8 @@ export async function listMailInbox(db, p) {
           INNER JOIN mail_participants pf ON pf.mail_message_id = mf.id AND pf.type = 'FROM'::mail_participant_type
           WHERE mf.mail_thread_id = t.id
             AND mf.organization_id = $1
+            AND mf.remote_missing_at IS NULL
+            AND mf.remote_deleted_at IS NULL
             AND (pf.email ILIKE $${a} ESCAPE '!' OR COALESCE(pf.name, '') ILIKE $${b} ESCAPE '!')
         ) `;
       }
@@ -379,6 +509,8 @@ export async function listMailInbox(db, p) {
             AND pt.type IN ('TO'::mail_participant_type, 'CC'::mail_participant_type, 'BCC'::mail_participant_type)
           WHERE mt.mail_thread_id = t.id
             AND mt.organization_id = $1
+            AND mt.remote_missing_at IS NULL
+            AND mt.remote_deleted_at IS NULL
             AND (pt.email ILIKE $${a} ESCAPE '!' OR COALESCE(pt.name, '') ILIKE $${b} ESCAPE '!')
         ) `;
       }
@@ -428,18 +560,39 @@ export async function listMailInbox(db, p) {
   }
 
   const mailboxClause = sqlMailboxThreadClause(p.mailbox);
+  let folderClause = "";
+  if (resolvedFolderId) {
+    params.push(resolvedFolderId);
+    folderClause = ` AND EXISTS (
+      SELECT 1 FROM mail_messages mfld
+      WHERE mfld.mail_thread_id = t.id
+        AND mfld.organization_id = t.organization_id
+        AND mfld.mail_account_id = ANY($2::uuid[])
+        AND mfld.remote_missing_at IS NULL
+        AND mfld.remote_deleted_at IS NULL
+        AND mfld.folder_id = $${pidx}::uuid
+    ) `;
+    pidx += 1;
+  }
+  const wantsLocalArchive = String(p.mailbox || "").toLowerCase() === "local_archive";
+  const archivedClause = resolvedFolderId ? "" : wantsLocalArchive ? "AND t.archived_at IS NOT NULL" : "AND t.archived_at IS NULL";
 
   const baseWhere = `
     t.organization_id = $1
-    AND t.archived_at IS NULL
+    ${archivedClause}
     AND EXISTS (
       SELECT 1 FROM mail_messages m0
       WHERE m0.mail_thread_id = t.id
         AND m0.mail_account_id = ANY($2::uuid[])
+        AND m0.remote_missing_at IS NULL
+        AND m0.remote_deleted_at IS NULL
     )
     ${mailboxClause}
+    ${folderClause}
     ${unreadClause}
     ${accountClause}
+    ${senderClause}
+    ${recipientClause}
     ${clientClause}
     ${leadClause}
     ${tagClause}
@@ -470,11 +623,16 @@ export async function listMailInbox(db, p) {
       lm.id AS last_msg_id,
       lm.direction AS last_direction,
       lm.mail_account_id AS last_mail_account_id,
+      ma.email AS last_mail_account_email,
       lm.has_attachments AS last_has_attachments,
+      lm.move_sync_status AS last_move_sync_status,
+      lm.move_sync_error AS last_move_sync_error,
       (SELECT EXISTS (
         SELECT 1 FROM mail_messages mo
         WHERE mo.mail_thread_id = t.id
           AND mo.direction = 'OUTBOUND'::mail_message_direction
+          AND mo.remote_missing_at IS NULL
+          AND mo.remote_deleted_at IS NULL
       )) AS has_outbound_reply,
       CASE WHEN c.id IS NOT NULL THEN
         COALESCE(
@@ -494,14 +652,17 @@ export async function listMailInbox(db, p) {
     LEFT JOIN clients c ON c.id = t.client_id AND c.organization_id = t.organization_id AND (c.archived_at IS NULL)
     LEFT JOIN leads le ON le.id = t.lead_id AND le.organization_id = t.organization_id AND (le.archived_at IS NULL)
     INNER JOIN LATERAL (
-      SELECT m.id, m.direction, m.mail_account_id, m.has_attachments
+      SELECT m.id, m.direction, m.mail_account_id, m.has_attachments, m.move_sync_status, m.move_sync_error
       FROM mail_messages m
       WHERE m.mail_thread_id = t.id
         AND m.organization_id = t.organization_id
         AND m.mail_account_id = ANY($2::uuid[])
+        AND m.remote_missing_at IS NULL
+        AND m.remote_deleted_at IS NULL
       ORDER BY ${PIVOT_EXPR} DESC NULLS LAST
       LIMIT 1
     ) lm ON true
+    LEFT JOIN mail_accounts ma ON ma.id = lm.mail_account_id AND ma.organization_id = t.organization_id
     WHERE ${baseWhere}
     ORDER BY ${orderByMain}
     LIMIT $${limIdx} OFFSET $${offIdx}
@@ -570,6 +731,8 @@ export async function listMailInbox(db, p) {
       lastMessageAt: row.last_message_at ? new Date(row.last_message_at).toISOString() : null,
       messageCount: row.message_count,
       hasUnread: row.has_unread === true,
+      mailAccountId: row.last_mail_account_id ?? null,
+      mailAccountEmail: row.last_mail_account_email ?? null,
       clientId: row.client_id,
       leadId: row.lead_id,
       clientDisplayName: row.client_display_name ?? null,
@@ -585,6 +748,8 @@ export async function listMailInbox(db, p) {
         preview: row.snippet || "",
         hasAttachments: row.last_has_attachments === true,
       },
+      moveSyncStatus: row.last_move_sync_status ?? null,
+      moveSyncError: row.last_move_sync_error ?? null,
     };
   });
 
@@ -594,7 +759,7 @@ export async function listMailInbox(db, p) {
 /**
  * Compteurs fils non lus (badges sidebar), sans N requêtes côté client.
  * @param {import('pg').Pool|import('pg').PoolClient} db
- * @param {{ organizationId: string, accessibleAccountIds: Set<string>, mailbox?: string | null }} p
+ * @param {{ organizationId: string, accessibleAccountIds: Set<string>, mailbox?: string | null, folderId?: string | null }} p
  * @returns {Promise<{ totalUnread: number, byAccount: Record<string, number> }>}
  */
 export async function getInboxUnreadSummary(db, p) {
@@ -605,20 +770,45 @@ export async function getInboxUnreadSummary(db, p) {
   }
 
   const mailboxClause = sqlMailboxThreadClause(p.mailbox);
+  const resolvedFolderId = await resolveAccessibleFolderId(db, {
+    organizationId,
+    folderId: p.folderId,
+    accessibleAccountIds: accIds,
+  });
+  if (resolvedFolderId === "__DENIED__") {
+    return { totalUnread: 0, byAccount: {} };
+  }
+  const folderClause = resolvedFolderId
+    ? ` AND EXISTS (
+        SELECT 1 FROM mail_messages mfld
+        WHERE mfld.mail_thread_id = t.id
+          AND mfld.organization_id = t.organization_id
+          AND mfld.mail_account_id = ANY($2::uuid[])
+          AND mfld.remote_missing_at IS NULL
+          AND mfld.remote_deleted_at IS NULL
+          AND mfld.folder_id = $3::uuid
+      ) `
+    : "";
+  const params = resolvedFolderId ? [organizationId, accIds, resolvedFolderId] : [organizationId, accIds];
+  const wantsLocalArchive = String(p.mailbox || "").toLowerCase() === "local_archive";
+  const archivedClause = resolvedFolderId ? "" : wantsLocalArchive ? "AND t.archived_at IS NOT NULL" : "AND t.archived_at IS NULL";
 
   const totalRes = await db.query(
     `SELECT COUNT(*)::int AS c
      FROM mail_threads t
      WHERE t.organization_id = $1
-       AND t.archived_at IS NULL
+       ${archivedClause}
        AND t.has_unread = true
        AND EXISTS (
          SELECT 1 FROM mail_messages m0
          WHERE m0.mail_thread_id = t.id
            AND m0.mail_account_id = ANY($2::uuid[])
+           AND m0.remote_missing_at IS NULL
+           AND m0.remote_deleted_at IS NULL
        )
-       ${mailboxClause}`,
-    [organizationId, accIds]
+       ${mailboxClause}
+       ${folderClause}`,
+    params
   );
   const totalUnread = totalRes.rows[0]?.c ?? 0;
 
@@ -627,12 +817,15 @@ export async function getInboxUnreadSummary(db, p) {
      FROM mail_threads t
      INNER JOIN mail_messages m ON m.mail_thread_id = t.id
      WHERE t.organization_id = $1
-       AND t.archived_at IS NULL
+       ${archivedClause}
        AND t.has_unread = true
        AND m.mail_account_id = ANY($2::uuid[])
+       AND m.remote_missing_at IS NULL
+       AND m.remote_deleted_at IS NULL
        ${mailboxClause}
+       ${folderClause}
      GROUP BY m.mail_account_id`,
-    [organizationId, accIds]
+    params
   );
 
   /** @type {Record<string, number>} */
@@ -736,6 +929,9 @@ export async function getMailThreadDetail(db, p) {
               ma.mime_type,
               ma.size_bytes,
               ma.is_inline,
+              ma.scan_status,
+              ma.scan_error_code,
+              ma.quarantine_reason,
               ma.document_id,
               ed.id AS doc_row_id,
               ed.file_name AS doc_file_name,
@@ -768,6 +964,9 @@ export async function getMailThreadDetail(db, p) {
         mimeType: row.mime_type,
         sizeBytes: row.size_bytes,
         isInline: row.is_inline === true,
+        scanStatus: row.scan_status || "UNAVAILABLE",
+        scanErrorCode: row.scan_error_code || null,
+        quarantineReason: row.quarantine_reason || null,
         documentId: row.document_id,
         document: doc,
       });
@@ -830,20 +1029,12 @@ export async function getMailThreadDetail(db, p) {
 export async function markMessageReadInTransaction(client, p) {
   const accIds = await getAccessibleAccountIdArray(client, p.organizationId, p.accessibleAccountIds);
   if (accIds.length === 0) return { ok: false, code: "MAIL_ACCESS_DENIED" };
-
-  const u = await client.query(
-    `UPDATE mail_messages m
-     SET is_read = $3
-     WHERE m.id = $1 AND m.organization_id = $2
-       AND m.mail_account_id = ANY($4::uuid[])
-     RETURNING m.mail_thread_id`,
-    [p.messageId, p.organizationId, p.isRead, accIds]
-  );
-  if (u.rows.length === 0) return { ok: false, code: "MESSAGE_NOT_FOUND" };
-
-  const threadId = u.rows[0].mail_thread_id;
-  await rebuildThreadMetadata({ client, threadId });
-  return { ok: true };
+  return enqueueReadFlagMutationInTransaction(client, {
+    organizationId: p.organizationId,
+    messageId: p.messageId,
+    desiredIsRead: p.isRead,
+    accessibleAccountIds: accIds,
+  });
 }
 
 /**

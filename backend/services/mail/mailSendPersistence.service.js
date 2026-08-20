@@ -12,6 +12,7 @@ import {
 } from "./mailThreading.service.js";
 import { syncCrmLinkForNewMessage } from "./mailSyncPersistence.service.js";
 import { processAttachmentsFromBufferRows } from "./mailAttachments.service.js";
+import { sanitizeAttachmentFileName, validateOutboundAttachmentBatch } from "./mailAttachmentPolicy.service.js";
 /**
  * @param {import('pg').PoolClient} client
  */
@@ -271,9 +272,16 @@ export async function persistQueuedOutboundInTransaction(client, p) {
  */
 export async function buildAttachmentRows(attachments) {
   if (!attachments?.length) return [];
+  const planned = validateOutboundAttachmentBatch(
+    attachments.map((a) => ({
+      ...a,
+      filename: a.filename || path.basename(a.path || "attachment"),
+      sizeBytes: a.sizeBytes ?? a.size_bytes ?? a.size ?? (Buffer.isBuffer(a.content) ? a.content.length : 0),
+    }))
+  );
   const rows = [];
-  for (const a of attachments) {
-    const file_name = a.filename || path.basename(a.path || "attachment");
+  for (const a of planned) {
+    const file_name = sanitizeAttachmentFileName(a.filename || path.basename(a.path || "attachment"));
     let buf;
     if (a.contentBase64 != null && String(a.contentBase64).trim() !== "") {
       buf = Buffer.from(String(a.contentBase64).replace(/\s/g, ""), "base64");

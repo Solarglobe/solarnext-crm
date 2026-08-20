@@ -12,10 +12,15 @@ import type {
 import {
   createMailDraft,
   deleteMailDraft,
+  deleteMailDraftAttachment,
+  downloadMailDraftAttachment,
+  getMailRecipientSuggestions,
   getSignatures,
   getTemplates,
+  listMailDraftAttachments,
   renderMailTemplate,
   sendMail,
+  uploadMailDraftAttachment,
   updateMailDraft,
 } from "../../services/mailApi";
 import { buildMailComposerRenderContext } from "./mailComposerTemplateContext";
@@ -43,6 +48,7 @@ import {
 import { apiFetch } from "../../services/api";
 import { getCrmApiBase } from "../../config/crmApiBase";
 import { assertDocumentDownloadOk, DOCUMENT_DOWNLOAD_UNAVAILABLE } from "../../utils/documentDownload";
+import { resolveInitialAccountId } from "./mailComposerAccountSelection";
 
 type TemplateConflictChoice = {
   templateName: string;
@@ -82,13 +88,12 @@ function isBodyEmpty(html: string): boolean {
   return plain.length === 0;
 }
 
-function resolveInitialAccountId(accounts: MailAccountRow[], preferred: string | null | undefined): string {
-  if (preferred && accounts.some((a) => a.id === preferred)) return preferred;
-  return accounts[0]?.id ?? "";
-}
-
 function randomId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function activeRecipientSearchTerm(value: string): string {
+  return value.split(/[;,]/).pop()?.trim() ?? "";
 }
 
 function createEditorInstanceId(): string {
@@ -407,6 +412,8 @@ export const MailComposer = React.memo(function MailComposer({
   const [showCc, setShowCc] = useState(snapshot.showCc);
   const [showBcc, setShowBcc] = useState(snapshot.showBcc);
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const [recipientSearchTerm, setRecipientSearchTerm] = useState("");
+  const [recipientSuggestions, setRecipientSuggestions] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [sendQueueNotice, setSendQueueNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -436,6 +443,7 @@ export const MailComposer = React.memo(function MailComposer({
   // réessaie après une erreur (le back dédoublonne), remise à zéro après un envoi réussi.
   const idempotencyKeyRef = useRef<string | null>(null);
   const draftSaveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const uploadedDraftAttachmentKeysRef = useRef<Set<string>>(new Set());
   const composerValuesRef = useRef({ to: "", cc: "", bcc: "", subject: "", fromAccountId: "" });
 
   useEffect(() => {
@@ -470,13 +478,33 @@ export const MailComposer = React.memo(function MailComposer({
           cc: vals.cc,
           bcc: vals.bcc,
           subject: vals.subject,
+          bodyText: htmlToPlainText(html),
           bodyHtml: html,
+          attachments: attachments.map((a) => ({
+            filename: a.file.name,
+            size: a.file.size,
+            contentType: a.file.type || "application/octet-stream",
+          })),
         };
+        let savedDraftId = existingId;
         if (existingId) {
-          await updateMailDraft(existingId, payload);
+          const updated = await updateMailDraft(existingId, payload);
+          savedDraftId = updated.id;
         } else {
           const created = await createMailDraft(payload);
           serverDraftIdRef.current = created.id;
+          savedDraftId = created.id;
+        }
+        if (savedDraftId) {
+          for (const att of attachments) {
+            const key = `${att.file.name}:${att.file.size}:${att.file.lastModified}`;
+            if (att.uploaded || uploadedDraftAttachmentKeysRef.current.has(key)) continue;
+            const uploaded = await uploadMailDraftAttachment(savedDraftId, att.file);
+            uploadedDraftAttachmentKeysRef.current.add(key);
+            setAttachments((prev) =>
+              prev.map((x) => (x.id === att.id ? { ...x, serverId: uploaded.id, uploaded: true } : x))
+            );
+          }
         }
         onDraftsChanged?.();
       } catch {
@@ -486,7 +514,7 @@ export const MailComposer = React.memo(function MailComposer({
     const p = draftSaveChainRef.current.then(exec, exec);
     draftSaveChainRef.current = p;
     return p;
-  }, [onDraftsChanged]);
+  }, [attachments, onDraftsChanged]);
 
   /** Sauvegarde silencieuse à la fermeture (X, clic hors panneau, navigation) — sauf après envoi. */
   const runServerDraftSaveRef = useRef(runServerDraftSave);
@@ -556,6 +584,7 @@ export const MailComposer = React.memo(function MailComposer({
     (v: string) => {
       markDirty();
       setTo(v);
+      setRecipientSearchTerm(activeRecipientSearchTerm(v));
     },
     [markDirty]
   );
@@ -563,6 +592,7 @@ export const MailComposer = React.memo(function MailComposer({
     (v: string) => {
       markDirty();
       setCc(v);
+      setRecipientSearchTerm(activeRecipientSearchTerm(v));
     },
     [markDirty]
   );
@@ -570,9 +600,35 @@ export const MailComposer = React.memo(function MailComposer({
     (v: string) => {
       markDirty();
       setBcc(v);
+      setRecipientSearchTerm(activeRecipientSearchTerm(v));
     },
     [markDirty]
   );
+
+  useEffect(() => {
+    const q = recipientSearchTerm.trim();
+    if (q.length < 2) {
+      setRecipientSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void getMailRecipientSuggestions(q)
+        .then((rows) => {
+          if (cancelled) return;
+          setRecipientSuggestions(
+            rows.map((r) => (r.name?.trim() ? `${r.name.trim()} <${r.email}>` : r.email)).filter(Boolean)
+          );
+        })
+        .catch(() => {
+          if (!cancelled) setRecipientSuggestions([]);
+        });
+    }, 180);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [recipientSearchTerm]);
 
   const [sigList, setSigList] = useState<MailSignatureRow[]>([]);
   const [selectedSigId, setSelectedSigId] = useState<string | null>(null);
@@ -629,6 +685,20 @@ export const MailComposer = React.memo(function MailComposer({
         const html = initialDraft.body_html || "<p></p>";
         setComposerInitialHtml(html);
         latestHtmlRef.current = html;
+        void (async () => {
+          const serverAttachments = await listMailDraftAttachments(initialDraft.id);
+          const restored: LocalAttachment[] = [];
+          for (const a of serverAttachments) {
+            const blob = await downloadMailDraftAttachment(initialDraft.id, a.id);
+            const file = new File([blob], a.fileName, {
+              type: a.mimeType || "application/octet-stream",
+              lastModified: new Date(a.createdAt).getTime() || Date.now(),
+            });
+            restored.push({ id: a.id, serverId: a.id, uploaded: true, file });
+            uploadedDraftAttachmentKeysRef.current.add(`${file.name}:${file.size}:${file.lastModified}`);
+          }
+          if (restored.length) setAttachments(restored);
+        })().catch((e) => setError(e instanceof Error ? e.message : String(e)));
         setComposerBodyKey(`${stableHydrateId}-${Date.now()}`);
         setIsDirty(false);
         setRestoredNotice(false);
@@ -991,9 +1061,13 @@ export const MailComposer = React.memo(function MailComposer({
   const removeFile = useCallback(
     (id: string) => {
       markDirty();
+      const found = attachments.find((x) => x.id === id);
+      if (found?.serverId && serverDraftIdRef.current) {
+        void deleteMailDraftAttachment(serverDraftIdRef.current, found.serverId).catch(() => {});
+      }
       setAttachments((prev) => prev.filter((x) => x.id !== id));
     },
-    [markDirty]
+    [attachments, markDirty]
   );
 
   const validate = useCallback((): string | null => {
@@ -1028,6 +1102,9 @@ export const MailComposer = React.memo(function MailComposer({
       );
       return;
     }
+    if (isServerDraftMode || serverDraftIdRef.current) {
+      await runServerDraftSave();
+    }
 
     const htmlRaw = mailBodyRef.current?.getHTML() || "";
     const bodyHtml = sanitizeComposerHtml(htmlRaw);
@@ -1039,7 +1116,7 @@ export const MailComposer = React.memo(function MailComposer({
     let attPayload: SendMailAttachmentPayload[] = [];
     try {
       attPayload = await Promise.all(
-        attachments.map(async (a) => ({
+        attachments.filter((a) => !a.uploaded).map(async (a) => ({
           filename: a.file.name,
           contentBase64: await readFileAsBase64(a.file),
           contentType: a.file.type || "application/octet-stream",
@@ -1065,6 +1142,7 @@ export const MailComposer = React.memo(function MailComposer({
       references:
         (mode === "reply" || mode === "replyAll") && meta.references.length ? meta.references : undefined,
       idempotencyKey: idempotencyKeyRef.current,
+      draftId: serverDraftIdRef.current || undefined,
     };
 
     setSending(true);
@@ -1110,7 +1188,7 @@ export const MailComposer = React.memo(function MailComposer({
     } finally {
       setSending(false);
     }
-  }, [validate, fromAccountId, to, cc, bcc, subject, attachments, mode, threadId, onSent, onDraftsChanged]);
+  }, [validate, isServerDraftMode, runServerDraftSave, fromAccountId, to, cc, bcc, subject, attachments, mode, threadId, onSent, onDraftsChanged]);
 
   if (!accounts.length) {
     return (
@@ -1231,7 +1309,7 @@ export const MailComposer = React.memo(function MailComposer({
             onChange={(e) => setFromAccountId(e.target.value)}
             disabled={sending}
           >
-            {accounts.map((a) => (
+            {accounts.filter((a) => a.capabilities?.canSend !== false).map((a) => (
               <option key={a.id} value={a.id}>
                 {(a.display_name?.trim() || a.email) + " — " + a.email}
               </option>
@@ -1253,6 +1331,7 @@ export const MailComposer = React.memo(function MailComposer({
         onToggleBcc={() => setShowBcc(true)}
         disabled={sending}
         onFieldBlur={persistDraftNow}
+        recipientSuggestions={recipientSuggestions}
       />
 
       <label className="mail-composer-field">

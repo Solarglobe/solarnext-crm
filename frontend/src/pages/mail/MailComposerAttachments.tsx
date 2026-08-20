@@ -3,6 +3,8 @@ import React, { useCallback, useRef } from "react";
 export interface LocalAttachment {
   id: string;
   file: File;
+  serverId?: string;
+  uploaded?: boolean;
 }
 
 export function readFileAsBase64(file: File): Promise<string> {
@@ -79,6 +81,7 @@ export const MailComposerAttachments = React.memo(function MailComposerAttachmen
                 {it.file.name}
               </span>
               <span className="mail-composer-att__size">{formatSize(it.file.size)}</span>
+              {it.uploaded ? <span className="mail-composer-att__size">stockée</span> : null}
               <button type="button" className="mail-composer-att__rm" disabled={disabled} onClick={() => onRemove(it.id)} title="Retirer">
                 ×
               </button>

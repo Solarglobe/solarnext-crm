@@ -5,7 +5,7 @@ import "./design-system/tokens.css";
 import "./design-system/primitives.css";
 import "./design-system/sidebar-crm.css";
 import "ol/ol.css";
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { applyTheme, readStoredTheme } from "./theme/themeApply";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, RouterProvider, useNavigate, useParams, Outlet } from "react-router-dom";
@@ -128,6 +128,10 @@ import "./styles/theme-overrides.css";
 initFrontendSentry();
 applyTheme(readStoredTheme());
 
+const MailInboxDemoPage = import.meta.env.DEV
+  ? React.lazy(() => import("./pages/mail/MailInboxDemoPage"))
+  : null;
+
 const router = createBrowserRouter(
   [
     {
@@ -188,6 +192,17 @@ const router = createBrowserRouter(
     {
       path: "/dev/calpinage-visual-qa",
       element: import.meta.env.DEV ? <CalpinageVisualQaPage /> : <Navigate to="/" replace />
+    },
+    {
+      path: "/dev/mail-ui",
+      element:
+        import.meta.env.DEV && MailInboxDemoPage ? (
+          <Suspense fallback={<div className="sn-page">Chargement…</div>}>
+            <MailInboxDemoPage />
+          </Suspense>
+        ) : (
+          <Navigate to="/" replace />
+        )
     },
     {
       path: "/",

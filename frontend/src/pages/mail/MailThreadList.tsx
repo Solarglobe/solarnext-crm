@@ -1,5 +1,5 @@
 import React from "react";
-import type { InboxThreadItem } from "../../services/mailApi";
+import type { InboxThreadItem, MailFolderRow } from "../../services/mailApi";
 import { EmptyState } from "../../components/ui";
 import type { InboxListMode } from "./MailInboxChips";
 import { MailInboxSkeleton } from "./MailInboxSkeleton";
@@ -15,7 +15,14 @@ export interface MailThreadListProps {
   listMode: InboxListMode;
   onSelect: (threadId: string) => void;
   onArchive: (threadId: string) => void;
+  archiveLabel?: string;
+  onTrash: (threadId: string) => void;
+  onMove: (threadId: string, targetFolderId: string) => void;
   onMarkThreadRead: (threadId: string) => void;
+  selectedForBulk: Set<string>;
+  onToggleBulkSelect: (threadId: string) => void;
+  moveTargets: MailFolderRow[];
+  pendingThreadIds?: Set<string>;
   onThreadDoubleClick?: (thread: InboxThreadItem) => void;
   searchHighlightTerms?: string[];
 }
@@ -38,7 +45,14 @@ export const MailThreadList = React.memo(function MailThreadList({
   listMode,
   onSelect,
   onArchive,
+  archiveLabel,
+  onTrash,
+  onMove,
   onMarkThreadRead,
+  selectedForBulk,
+  onToggleBulkSelect,
+  moveTargets,
+  pendingThreadIds = new Set(),
   onThreadDoubleClick,
   searchHighlightTerms = [],
 }: MailThreadListProps) {
@@ -60,7 +74,14 @@ export const MailThreadList = React.memo(function MailThreadList({
             selected={selectedThreadId === t.threadId}
             onSelect={onSelect}
             onArchive={onArchive}
+            archiveLabel={archiveLabel}
+            onTrash={onTrash}
+            onMove={onMove}
             onMarkThreadRead={onMarkThreadRead}
+            bulkSelected={selectedForBulk.has(t.threadId)}
+            onToggleBulkSelect={onToggleBulkSelect}
+            moveTargets={moveTargets}
+            pending={pendingThreadIds.has(t.threadId)}
             onOpenInOverlay={onThreadDoubleClick}
             searchHighlightTerms={searchHighlightTerms}
           />

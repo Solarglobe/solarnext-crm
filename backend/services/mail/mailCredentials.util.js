@@ -6,25 +6,27 @@
 /**
  * @param {string} accountEmail
  * @param {Record<string, unknown> | null | undefined} cred
- * @returns {{ user: string, password: string }}
+ * @returns {{ user: string, password: string, accessToken: string, authMethod: string }}
  */
 export function resolveImapCredentials(accountEmail, cred) {
   const c = cred && typeof cred === "object" ? cred : {};
   const password = String(c.imap_password ?? c.password ?? "").trim();
+  const accessToken = String(c.oauth_access_token ?? c.imap_access_token ?? "").trim();
   const rawUser = c.imap_user != null ? String(c.imap_user).trim() : "";
   const user = rawUser || String(accountEmail || "").trim();
-  return { user, password };
+  return { user, password, accessToken, authMethod: accessToken ? "OAUTH2" : "PASSWORD" };
 }
 
 /**
  * @param {string} accountEmail
  * @param {Record<string, unknown> | null | undefined} cred
- * @returns {{ user: string, password: string }}
+ * @returns {{ user: string, password: string, accessToken: string, authMethod: string }}
  */
 export function resolveSmtpCredentials(accountEmail, cred) {
   const c = cred && typeof cred === "object" ? cred : {};
   const password = String(c.smtp_password ?? c.password ?? "").trim();
+  const accessToken = String(c.oauth_access_token ?? c.smtp_access_token ?? "").trim();
   const rawUser = c.smtp_user != null ? String(c.smtp_user).trim() : "";
   const user = rawUser || String(accountEmail || "").trim();
-  return { user, password };
+  return { user, password, accessToken, authMethod: accessToken ? "OAUTH2" : "PASSWORD" };
 }

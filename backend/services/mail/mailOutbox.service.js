@@ -10,6 +10,7 @@ import {
 } from "./mailSendPersistence.service.js";
 import { applyTrackingToHtml, generateTrackingId, isMailTrackingEnabled } from "./mailTracking.service.js";
 import { parseAddressList, SmtpErrorCodes } from "./smtp.service.js";
+import { assertMailAccountCapability } from "./mailAccountState.service.js";
 
 const DEFAULT_MAX_ATTEMPTS = () => {
   const n = Number(process.env.MAIL_OUTBOX_MAX_ATTEMPTS);
@@ -49,6 +50,7 @@ export async function enqueueOutboundMail(p) {
     inReplyTo,
     references,
     attachments,
+    draftId,
     fromName,
     max_attempts: maxAttemptsRaw,
     idempotency_key: idempotencyKeyRaw,
@@ -139,6 +141,23 @@ export async function enqueueOutboundMail(p) {
   }
 
   const attachmentRows = await buildAttachmentRows(attachments);
+  let allAttachmentRows = attachmentRows;
+  if (draftId && typeof draftId === "string") {
+    const { loadDraftAttachmentBuffers } = await import("./mailDraftAttachments.service.js");
+    const draftBuffers = await loadDraftAttachmentBuffers({ organizationId, draftId, expectedUserId: userId });
+    allAttachmentRows = [
+      ...attachmentRows,
+      ...draftBuffers.map((a) => ({
+        file_name: a.file_name,
+        mime_type: a.mime_type,
+        size_bytes: a.sizeBytes,
+        storage_path: null,
+        buffer: a.buffer,
+        is_inline: a.is_inline,
+        content_id: a.content_id,
+      })),
+    ];
+  }
 
   const maxAttempts = (() => {
     const n = Number(maxAttemptsRaw);
@@ -157,7 +176,8 @@ export async function enqueueOutboundMail(p) {
     await client.query("BEGIN");
 
     const accRow = await client.query(
-      `SELECT email, display_name FROM mail_accounts WHERE id = $1 AND organization_id = $2`,
+      `SELECT email, display_name, is_active, lifecycle_state, sync_enabled, reconnect_required
+       FROM mail_accounts WHERE id = $1 AND organization_id = $2`,
       [mailAccountId, organizationId]
     );
     if (accRow.rows.length === 0) {
@@ -165,6 +185,7 @@ export async function enqueueOutboundMail(p) {
       err.code = SmtpErrorCodes.INVALID_CONFIG;
       throw err;
     }
+    assertMailAccountCapability(accRow.rows[0], "canSend");
     const { email: accountEmail, display_name: accountDisplayName } = accRow.rows[0];
 
     const { threadId, messageId } = await persistQueuedOutboundInTransaction(client, {
@@ -182,8 +203,8 @@ export async function enqueueOutboundMail(p) {
       replyTo: replyToStr,
       inReplyTo: inReplyToStr,
       referencesIds: refs,
-      hasAttachments: attachmentRows.length > 0,
-      attachmentRows,
+      hasAttachments: allAttachmentRows.length > 0,
+      attachmentRows: allAttachmentRows,
       trackingId,
     });
 

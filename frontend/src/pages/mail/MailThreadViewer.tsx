@@ -25,6 +25,7 @@ import { DOCUMENT_DOWNLOAD_UNAVAILABLE } from "../../utils/documentDownload";
 import { MailComposer } from "./MailComposer";
 import type { ComposerMode } from "./mailComposerLogic";
 import { MailThreadMessage } from "./MailThreadMessage";
+import { MAIL_COMPOSER_COMMAND_EVENT, type MailKeyboardComposerMode } from "./useMailKeyboardShortcuts";
 
 export function MailThreadViewerSkeleton() {
   return (
@@ -225,6 +226,7 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
     }
 
     let cancelled = false;
+    const controller = new AbortController();
     setComposeMode(null);
     setLoading(true);
     setError(null);
@@ -232,7 +234,7 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
 
     (async () => {
       try {
-        const data = await getThread(threadId);
+        const data = await getThread(threadId, { signal: controller.signal });
         if (cancelled) return;
         await markInboundMessagesAsRead(data.messages);
         const messages = data.messages.map((m) =>
@@ -244,6 +246,7 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
         onThreadDetailLoaded?.(threadId, next);
         onReadRef.current(threadId);
       } catch (e) {
+        if (controller.signal.aborted) return;
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
         if (!cancelled) setLoading(false);
@@ -252,6 +255,7 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [threadId, onThreadDetailLoaded]);
 
@@ -295,6 +299,17 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
   const subject = inboxRow?.subject ?? detail?.thread.subject ?? "(Sans objet)";
 
   const threadUnread = inboxRow?.hasUnread ?? detail?.thread.hasUnread ?? false;
+
+  useEffect(() => {
+    if (!threadId || !detail) return;
+    const onCommand = (event: Event) => {
+      const mode = (event as CustomEvent<{ mode?: MailKeyboardComposerMode }>).detail?.mode;
+      if (mode === "reply") setComposeMode("reply");
+      if (mode === "forward") setComposeMode("forward");
+    };
+    window.addEventListener(MAIL_COMPOSER_COMMAND_EVENT, onCommand);
+    return () => window.removeEventListener(MAIL_COMPOSER_COMMAND_EVENT, onCommand);
+  }, [threadId, detail]);
 
   const openDocument = useCallback(async (documentId: string, fileName: string) => {
     try {

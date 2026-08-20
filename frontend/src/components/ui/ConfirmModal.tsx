@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import "./confirm-modal.css";
 
@@ -24,6 +24,7 @@ export interface ConfirmModalProps {
   elevation?: "base" | "stacked";
   confirmDisabled?: boolean;
   cancelDisabled?: boolean;
+  children?: ReactNode;
 }
 
 function confirmClass(variant: ConfirmModalVariant): string {
@@ -78,6 +79,7 @@ export function ConfirmModal({
   elevation = "base",
   confirmDisabled = false,
   cancelDisabled = false,
+  children,
 }: ConfirmModalProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -163,6 +165,7 @@ export function ConfirmModal({
               {title}
             </h2>
             <p className="sn-confirm-modal-message">{message}</p>
+            {children}
           </div>
         </div>
         <div className="sn-confirm-modal-actions">

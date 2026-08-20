@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from "react";
-import type { InboxThreadItem } from "../../services/mailApi";
+import type { InboxThreadItem, MailFolderRow } from "../../services/mailApi";
 import { avatarLetter, formatSmartDate, getSenderLabel } from "./mailInboxDisplay";
 import { excerptAroundTerms, highlightTermsInText } from "./mailSearchHighlight";
 
@@ -35,7 +35,14 @@ export interface MailThreadRowProps {
   selected: boolean;
   onSelect: (threadId: string) => void;
   onArchive: (threadId: string) => void;
+  archiveLabel?: string;
+  onTrash: (threadId: string) => void;
+  onMove: (threadId: string, targetFolderId: string) => void;
   onMarkThreadRead: (threadId: string) => void;
+  bulkSelected: boolean;
+  onToggleBulkSelect: (threadId: string) => void;
+  moveTargets: MailFolderRow[];
+  pending: boolean;
   /** Double-clic : lecture plein écran (overlay) */
   onOpenInOverlay?: (thread: InboxThreadItem) => void;
   /** Termes issus de la recherche (surlignage) */
@@ -47,7 +54,14 @@ export const MailThreadRow = React.memo(function MailThreadRow({
   selected,
   onSelect,
   onArchive,
+  archiveLabel = "Archiver",
+  onTrash,
+  onMove,
   onMarkThreadRead,
+  bulkSelected,
+  onToggleBulkSelect,
+  moveTargets,
+  pending,
   onOpenInOverlay,
   searchHighlightTerms = [],
 }: MailThreadRowProps) {
@@ -79,6 +93,17 @@ export const MailThreadRow = React.memo(function MailThreadRow({
     (t.clientDisplayName && t.clientDisplayName.trim()) ||
     (t.leadDisplayName && t.leadDisplayName.trim()) ||
     null;
+  const moveStatus = t.moveSyncStatus || null;
+  const failedMove = moveStatus === "FAILED";
+  const statusLabel = pending
+    ? moveStatus === "RETRYING"
+      ? "Retry"
+      : moveStatus === "RECONCILIATION_REQUIRED"
+        ? "A verifier"
+        : "En attente"
+    : failedMove
+      ? "Echec"
+      : null;
 
   const onKey = useCallback(
     (e: React.KeyboardEvent) => {
@@ -92,9 +117,11 @@ export const MailThreadRow = React.memo(function MailThreadRow({
 
   return (
     <div
-      className={`mail-thread-row${selected ? " mail-thread-row--selected" : ""}${unread ? " mail-thread-row--unread" : " mail-thread-row--read"}`}
+      className={`mail-thread-row${selected ? " mail-thread-row--selected" : ""}${unread ? " mail-thread-row--unread" : " mail-thread-row--read"}${pending ? " mail-thread-row--pending" : ""}${failedMove ? " mail-thread-row--failed" : ""}`}
       data-mail-thread-id={t.threadId}
       role="button"
+      aria-pressed={selected}
+      aria-label={`${unread ? "Non lu" : "Lu"} · ${sender} · ${subjectDisplay}`}
       tabIndex={0}
       onClick={() => onSelect(t.threadId)}
       onDoubleClick={(e) => {
@@ -103,6 +130,15 @@ export const MailThreadRow = React.memo(function MailThreadRow({
       }}
       onKeyDown={onKey}
     >
+      <label className="mail-thread-row__check" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={bulkSelected}
+          aria-label={`Selectionner ${subjectDisplay}`}
+          onChange={() => onToggleBulkSelect(t.threadId)}
+        />
+      </label>
+
       <div className="mail-thread-row__unread-slot" aria-hidden={!unread}>
         {unread ? <span className="mail-thread-row__dot" /> : <span className="mail-thread-row__dot mail-thread-row__dot--empty" />}
       </div>
@@ -120,6 +156,11 @@ export const MailThreadRow = React.memo(function MailThreadRow({
             {crmName ? (
               <span className="sn-badge sn-badge-info" title="Contact CRM">
                 {crmName}
+              </span>
+            ) : null}
+            {t.mailAccountEmail ? (
+              <span className="sn-badge sn-badge-neutral" title={`Compte : ${t.mailAccountEmail}`}>
+                {t.mailAccountEmail}
               </span>
             ) : null}
           </span>
@@ -148,12 +189,41 @@ export const MailThreadRow = React.memo(function MailThreadRow({
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        <button type="button" className="mail-thread-row__qbtn" title="Marquer comme lu" onClick={() => onMarkThreadRead(t.threadId)}>
+        <button type="button" className="mail-thread-row__qbtn" title="Marquer comme lu" aria-label={`Marquer comme lu : ${subjectDisplay}`} onClick={() => onMarkThreadRead(t.threadId)}>
           Lu
         </button>
-        <button type="button" className="mail-thread-row__qbtn" title="Archiver" onClick={() => onArchive(t.threadId)}>
-          Archiver
+        <button type="button" className="mail-thread-row__qbtn" title={archiveLabel} aria-label={`${archiveLabel} : ${subjectDisplay}`} disabled={pending} onClick={() => onArchive(t.threadId)}>
+          {archiveLabel}
         </button>
+        <button type="button" className="mail-thread-row__qbtn" title="Mettre a la corbeille" aria-label={`Mettre a la corbeille : ${subjectDisplay}`} disabled={pending} onClick={() => onTrash(t.threadId)}>
+          Corbeille
+        </button>
+        {moveTargets.length > 0 ? (
+          <select
+            className="mail-thread-row__move-select"
+            aria-label="Deplacer vers"
+            disabled={pending}
+            defaultValue=""
+            onChange={(e) => {
+              const target = e.target.value;
+              e.currentTarget.value = "";
+              if (target) onMove(t.threadId, target);
+            }}
+          >
+            <option value="">Deplacer...</option>
+            {moveTargets.map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {" ".repeat(Math.min(folder.depth, 6) * 2)}
+                {folder.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        {statusLabel ? (
+          <span className="mail-thread-row__pending" title={t.moveSyncError || undefined}>
+            {statusLabel}
+          </span>
+        ) : null}
       </div>
     </div>
   );

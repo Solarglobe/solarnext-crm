@@ -41,6 +41,32 @@ export interface MailAccountRow {
   smtp_host?: string | null;
   smtp_port?: number | null;
   smtp_secure?: boolean | null;
+  lifecycle_state?: "CONNECTED" | "DEGRADED" | "AUTH_REQUIRED" | "DISABLED" | "DISCONNECTED" | "REMOVED" | "DELETION_PENDING" | "DELETED";
+  provider?: "IMAP_SMTP" | "MICROSOFT";
+  auth_method?: "PASSWORD" | "MICROSOFT_OAUTH";
+  sync_enabled?: boolean;
+  is_default_send_account?: boolean;
+  reconnect_required?: boolean;
+  capabilities?: {
+    state: string;
+    canDisplay: boolean;
+    canSync: boolean;
+    canSend: boolean;
+    canMutate: boolean;
+    canModify: boolean;
+    readOnly: boolean;
+    needsReconnect: boolean;
+  };
+  health?: {
+    state: string;
+    imap: string | null;
+    smtp: string | null;
+    lastErrorCode: string | null;
+    lastErrorMessage: string | null;
+    lastSuccessfulSyncAt: string | null;
+    nextSyncAttemptAt: string | null;
+    reconnectRequired: boolean;
+  };
   last_imap_sync_at?: string | null;
   sync_status?: string | null;
   last_imap_error_at?: string | null;
@@ -66,10 +92,14 @@ export interface InboxThreadItem {
   messageCount: number;
   hasUnread: boolean;
   hasOutboundReply?: boolean;
+  mailAccountId?: string | null;
+  mailAccountEmail?: string | null;
   clientId: string | null;
   leadId: string | null;
   clientDisplayName?: string | null;
   leadDisplayName?: string | null;
+  moveSyncStatus?: string | null;
+  moveSyncError?: string | null;
   /** Tags métier (internes, jamais envoyés au client). */
   tags?: Array<{ id: string; name: string; color: string | null }>;
   participants: Array<{ type: string; email: string; name: string | null }>;
@@ -86,8 +116,8 @@ export interface InboxThreadItem {
 /** Filtre « une réponse sortante existe sur le fil ». */
 export type MailHasReplyFilter = "all" | "yes" | "no";
 
-/** Boîte de navigation type webmail (filtre côté dossiers IMAP typés). */
-export type MailMailbox = "inbox" | "sent" | "spam" | "trash";
+/** Ancien filtre logique conservé pour compatibilité API. La navigation principale utilise désormais folderId. */
+export type MailMailbox = "inbox" | "sent" | "draft" | "archive" | "spam" | "trash" | "junk" | "local_archive";
 
 export interface GetInboxParams {
   limit?: number;
@@ -96,6 +126,8 @@ export interface GetInboxParams {
   /** `with` = fils dont au moins un message a une PJ */
   attachmentsFilter?: "all" | "with";
   accountId?: string | null;
+  sender?: string | null;
+  recipient?: string | null;
   clientId?: string | null;
   leadId?: string | null;
   /** Filtre par tag métier (UUID). */
@@ -108,6 +140,10 @@ export interface GetInboxParams {
   hasReply?: MailHasReplyFilter;
   /** Dossier logique (inbox, sent, spam, trash) */
   mailbox?: MailMailbox | null;
+  /** Dossier IMAP réel. Prioritaire sur mailbox. */
+  folderId?: string | null;
+  /** Tri serveur. */
+  sort?: "newest" | "oldest";
 }
 
 /** Retourné par GET /mail/search pour surlignage liste. */
@@ -127,6 +163,8 @@ function appendInboxQueryParams(sp: URLSearchParams, params: GetInboxParams) {
   if (params.filter === "unread") sp.set("filter", "unread");
   if (params.attachmentsFilter === "with") sp.set("attachments", "with");
   if (params.accountId) sp.set("accountId", params.accountId);
+  if (params.sender?.trim()) sp.set("sender", params.sender.trim());
+  if (params.recipient?.trim()) sp.set("recipient", params.recipient.trim());
   if (params.clientId?.trim()) sp.set("clientId", params.clientId.trim());
   if (params.leadId?.trim()) sp.set("leadId", params.leadId.trim());
   if (params.tagId?.trim()) sp.set("tagId", params.tagId.trim());
@@ -134,13 +172,15 @@ function appendInboxQueryParams(sp: URLSearchParams, params: GetInboxParams) {
   if (params.dateTo?.trim()) sp.set("dateTo", params.dateTo.trim());
   if (params.hasReply === "yes" || params.hasReply === "no") sp.set("hasReply", params.hasReply);
   if (params.mailbox) sp.set("mailbox", params.mailbox);
+  if (params.folderId) sp.set("folderId", params.folderId);
+  if (params.sort === "oldest") sp.set("sort", "oldest");
 }
 
-export async function getInbox(params: GetInboxParams = {}): Promise<InboxResponse> {
+export async function getInbox(params: GetInboxParams = {}, opts?: { signal?: AbortSignal }): Promise<InboxResponse> {
   const sp = new URLSearchParams();
   appendInboxQueryParams(sp, params);
 
-  const res = await apiFetch(`${apiUrl("/inbox")}?${sp.toString()}`);
+  const res = await apiFetch(`${apiUrl("/inbox")}?${sp.toString()}`, { signal: opts?.signal });
   if (!res.ok) {
     const t = await res.text();
     throw new Error(t || `Inbox ${res.status}`);
@@ -149,7 +189,7 @@ export async function getInbox(params: GetInboxParams = {}): Promise<InboxRespon
 }
 
 /** Recherche plein texte (sujet, corps, expéditeurs). */
-export async function searchMailInbox(q: string, params: GetInboxParams = {}): Promise<InboxResponse> {
+export async function searchMailInbox(q: string, params: GetInboxParams = {}, opts?: { signal?: AbortSignal }): Promise<InboxResponse> {
   const query = q.trim();
   if (query.length < 2) {
     return { items: [], total: 0 };
@@ -158,7 +198,7 @@ export async function searchMailInbox(q: string, params: GetInboxParams = {}): P
   appendInboxQueryParams(sp, params);
   sp.set("q", query);
 
-  const res = await apiFetch(`${apiUrl("/search")}?${sp.toString()}`);
+  const res = await apiFetch(`${apiUrl("/search")}?${sp.toString()}`, { signal: opts?.signal });
   if (!res.ok) {
     const t = await res.text();
     throw new Error(t || `search ${res.status}`);
@@ -166,11 +206,12 @@ export async function searchMailInbox(q: string, params: GetInboxParams = {}): P
   return res.json() as Promise<InboxResponse>;
 }
 
-export async function runMailSync(opts?: { mailAccountId?: string | null }): Promise<{ success: boolean }> {
+export async function runMailSync(opts?: { mailAccountId?: string | null; folderId?: string | null }): Promise<{ success: boolean }> {
   const res = await apiFetch(apiUrl("/sync/run"), {
     method: "POST",
     body: JSON.stringify({
       mailAccountId: opts?.mailAccountId ?? undefined,
+      folderId: opts?.folderId ?? undefined,
     }),
   });
   const text = await res.text();
@@ -237,9 +278,10 @@ export interface InboxUnreadSummary {
   byAccount: Record<string, number>;
 }
 
-export async function getInboxUnreadSummary(opts?: { mailbox?: MailMailbox | null }): Promise<InboxUnreadSummary> {
+export async function getInboxUnreadSummary(opts?: { mailbox?: MailMailbox | null; folderId?: string | null }): Promise<InboxUnreadSummary> {
   const sp = new URLSearchParams();
   if (opts?.mailbox) sp.set("mailbox", opts.mailbox);
+  if (opts?.folderId) sp.set("folderId", opts.folderId);
   const q = sp.toString();
   const res = await apiFetch(`${apiUrl("/inbox/unread-summary")}${q ? `?${q}` : ""}`);
   if (!res.ok) {
@@ -247,6 +289,83 @@ export async function getInboxUnreadSummary(opts?: { mailbox?: MailMailbox | nul
     throw new Error(t || `unread-summary ${res.status}`);
   }
   return res.json() as Promise<InboxUnreadSummary>;
+}
+
+export interface MailFolderRow {
+  id: string;
+  accountId: string;
+  name: string;
+  type: "INBOX" | "SENT" | "DRAFT" | "ARCHIVE" | "TRASH" | "JUNK" | "CUSTOM";
+  externalId: string | null;
+  parentId: string | null;
+  parentPath: string | null;
+  delimiter: string | null;
+  depth: number;
+  specialUse: string | null;
+  selectable: boolean;
+  subscribed: boolean | null;
+  canOpen: boolean;
+  unreadCount: number;
+  totalLocal: number;
+  remoteUnreadCount: number | null;
+  remoteMessageCount: number | null;
+  syncStatus: string | null;
+  historySyncStatus: string | null;
+  historyBackfillStatus?: string | null;
+  historyBackfillCursorUid?: number | null;
+  oldestImportedUid?: number | null;
+  remoteTotalCount?: number | null;
+  localImportedCount?: number | null;
+  oldestImportedAt?: string | null;
+  historyBackfillLastSuccessAt?: string | null;
+  historyBackfillLastError?: string | null;
+  historyBackfillHasMore?: boolean;
+  isHistoryPartial: boolean;
+  lastDiscoveredAt: string | null;
+  lastMessageSyncAt: string | null;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+}
+
+export interface MailFoldersAccount {
+  id: string;
+  email: string;
+  displayName: string | null;
+  folders: MailFolderRow[];
+}
+
+export async function getMailFolders(): Promise<{ accounts: MailFoldersAccount[] }> {
+  const res = await apiFetch(apiUrl("/folders"));
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `folders ${res.status}`);
+  }
+  const data = (await res.json()) as { accounts?: MailFoldersAccount[] };
+  return { accounts: data.accounts ?? [] };
+}
+
+export async function backfillMailFolder(payload: {
+  mailAccountId: string;
+  folderId: string;
+  batchSize?: number;
+}): Promise<{ imported: number; skipped: number; status: string; hasMore?: boolean }> {
+  const res = await apiFetch(apiUrl("/sync/backfill"), {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = text;
+    try {
+      const j = JSON.parse(text) as { message?: string; code?: string };
+      msg = j.message || j.code || msg;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg || `backfill ${res.status}`);
+  }
+  const j = JSON.parse(text) as { backfill?: { imported: number; skipped: number; status: string; hasMore?: boolean } };
+  return j.backfill ?? { imported: 0, skipped: 0, status: "UNKNOWN" };
 }
 
 export interface ThreadParticipant {
@@ -262,6 +381,9 @@ export interface MailMessageAttachment {
   mimeType: string | null;
   sizeBytes: number | null;
   isInline: boolean;
+  scanStatus?: "PENDING" | "SCANNING" | "CLEAN" | "INFECTED" | "FAILED" | "UNAVAILABLE";
+  scanErrorCode?: string | null;
+  quarantineReason?: string | null;
   documentId: string | null;
   document: {
     id: string;
@@ -321,11 +443,11 @@ export interface ThreadDetailResponse {
   messages: ThreadMessage[];
 }
 
-export async function getThread(threadId: string, opts?: { includeArchived?: boolean }): Promise<ThreadDetailResponse> {
+export async function getThread(threadId: string, opts?: { includeArchived?: boolean; signal?: AbortSignal }): Promise<ThreadDetailResponse> {
   const sp = new URLSearchParams();
   if (opts?.includeArchived) sp.set("includeArchived", "1");
   const q = sp.toString();
-  const res = await apiFetch(`${apiUrl(`/threads/${encodeURIComponent(threadId)}`)}${q ? `?${q}` : ""}`);
+  const res = await apiFetch(`${apiUrl(`/threads/${encodeURIComponent(threadId)}`)}${q ? `?${q}` : ""}`, { signal: opts?.signal });
   if (!res.ok) {
     const t = await res.text();
     throw new Error(t || `Thread ${res.status}`);
@@ -333,25 +455,118 @@ export async function getThread(threadId: string, opts?: { includeArchived?: boo
   return res.json() as Promise<ThreadDetailResponse>;
 }
 
-export async function markAsRead(messageId: string, isRead: boolean): Promise<void> {
-  const res = await apiFetch(apiUrl(`/messages/${encodeURIComponent(messageId)}/read`), {
-    method: "PATCH",
-    body: JSON.stringify({ isRead }),
-  });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(t || `markAsRead ${res.status}`);
+export interface MarkReadResponse {
+  success: boolean;
+  messageId: string;
+  threadId: string | null;
+  requestedIsRead: boolean;
+  syncStatus: string;
+  mutationId: string | null;
+}
+
+const readMutationInFlight = new Map<string, Promise<MarkReadResponse>>();
+
+export async function markAsRead(messageId: string, isRead: boolean): Promise<MarkReadResponse> {
+  const key = `${messageId}:${isRead ? "read" : "unread"}`;
+  const existing = readMutationInFlight.get(key);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    const res = await apiFetch(apiUrl(`/messages/${encodeURIComponent(messageId)}/read`), {
+      method: "PATCH",
+      body: JSON.stringify({ isRead }),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || `markAsRead ${res.status}`);
+    }
+    return res.json() as Promise<MarkReadResponse>;
+  })();
+  readMutationInFlight.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    readMutationInFlight.delete(key);
   }
 }
 
 export async function archiveThread(threadId: string): Promise<void> {
-  const res = await apiFetch(apiUrl(`/threads/${encodeURIComponent(threadId)}`), {
-    method: "DELETE",
-  });
+  const res = await apiFetch(apiUrl(`/threads/${encodeURIComponent(threadId)}`), { method: "DELETE" });
   if (!res.ok) {
     const t = await res.text();
     throw new Error(t || `archive ${res.status}`);
   }
+}
+
+export type MailMoveAction = "move" | "archive" | "trash" | "restore" | "junk" | "unjunk" | "hard-delete";
+
+export interface MailMoveActionResult {
+  ok: boolean;
+  messageId: string;
+  threadId?: string | null;
+  mutationId?: string | null;
+  syncStatus?: string | null;
+  code?: string;
+}
+
+export interface MailMoveActionResponse {
+  success: boolean;
+  queued: number;
+  batchId: string;
+  results: MailMoveActionResult[];
+}
+
+async function postMailAction(path: string, body: Record<string, unknown>): Promise<MailMoveActionResponse> {
+  const res = await apiFetch(apiUrl(path), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `mail action ${res.status}`);
+  }
+  return res.json() as Promise<MailMoveActionResponse>;
+}
+
+export async function runThreadMailAction(
+  threadId: string,
+  action: Exclude<MailMoveAction, "hard-delete">,
+  opts: { folderId: string; targetFolderId?: string | null }
+  & { idempotencyKey?: string | null }
+): Promise<MailMoveActionResponse> {
+  return postMailAction(`/threads/${encodeURIComponent(threadId)}/actions/${action}`, {
+    folderId: opts.folderId,
+    targetFolderId: opts.targetFolderId ?? undefined,
+    idempotencyKey: opts.idempotencyKey ?? undefined,
+  });
+}
+
+export async function runBulkMailAction(opts: {
+  action: MailMoveAction;
+  folderId: string;
+  threadIds?: string[];
+  messageIds?: string[];
+  targetFolderId?: string | null;
+  confirm?: boolean;
+  idempotencyKey?: string | null;
+}): Promise<MailMoveActionResponse> {
+  return postMailAction("/bulk/actions", {
+    action: opts.action,
+    folderId: opts.folderId,
+    threadIds: opts.threadIds ?? [],
+    messageIds: opts.messageIds ?? [],
+    targetFolderId: opts.targetFolderId ?? undefined,
+    confirm: opts.confirm === true,
+    idempotencyKey: opts.idempotencyKey ?? undefined,
+  });
+}
+
+export async function hardDeleteMessage(messageId: string, opts: { folderId: string; confirm: true; idempotencyKey?: string | null }): Promise<MailMoveActionResponse> {
+  return postMailAction(`/messages/${encodeURIComponent(messageId)}/actions/hard-delete`, {
+    folderId: opts.folderId,
+    confirm: opts.confirm,
+    idempotencyKey: opts.idempotencyKey ?? undefined,
+  });
 }
 
 export async function fetchMailAccounts(): Promise<MailAccountRow[]> {
@@ -362,6 +577,44 @@ export async function fetchMailAccounts(): Promise<MailAccountRow[]> {
   }
   const data = (await res.json()) as { success?: boolean; accounts?: MailAccountRow[] };
   return data.accounts ?? [];
+}
+
+export interface MailHealthOverview {
+  generatedAt: string;
+  accounts: Array<{
+    id: string;
+    email: string;
+    displayName: string | null;
+    lifecycle: string | null;
+    imapStatus: string | null;
+    smtpStatus: string | null;
+    lastSuccessfulSyncAt: string | null;
+    nextSyncAttemptAt: string | null;
+    lastErrorCode: string | null;
+    lastErrorMessage: string | null;
+    reconnectRequired: boolean;
+  }>;
+  queues: {
+    outboxDepth: number;
+    outboxOldestAgeSeconds: number;
+    draftJobsDepth: number;
+    sentArchivePending: number;
+    flagJobsDepth: number;
+    moveJobsDepth: number;
+    scanPending: number;
+    scanInfected: number;
+    draftConflicts: number;
+  };
+}
+
+export async function fetchMailHealth(): Promise<MailHealthOverview> {
+  const res = await apiFetch(apiUrl("/sync/health"));
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `sync/health ${res.status}`);
+  }
+  const data = (await res.json()) as { health: MailHealthOverview };
+  return data.health;
 }
 
 /** Alias explicite pour le composer (comptes accessibles + actifs). */
@@ -388,6 +641,7 @@ export interface SendMailPayload {
   references?: string[] | null;
   attachments?: SendMailAttachmentPayload[];
   fromName?: string | null;
+  draftId?: string | null;
   /** Clé d'idempotence (uuid) : évite les doublons d'envoi (double-clic / retry réseau). */
   idempotencyKey?: string | null;
 }
@@ -417,6 +671,7 @@ export async function sendMail(payload: SendMailPayload): Promise<SendMailRespon
       references: payload.references?.length ? payload.references : undefined,
       attachments: payload.attachments,
       fromName: payload.fromName,
+      draftId: payload.draftId ?? undefined,
       idempotency_key: payload.idempotencyKey ?? undefined,
     }),
   });
@@ -986,6 +1241,49 @@ export async function deleteMailAccountApi(id: string): Promise<void> {
   }
 }
 
+export async function updateMailAccountLifecycle(
+  id: string,
+  action: "enable_sync" | "disable_sync" | "disconnect" | "remove"
+): Promise<MailAccountRow> {
+  const res = await apiFetch(apiUrl(`/accounts/${encodeURIComponent(id)}/lifecycle`), {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || `account lifecycle ${res.status}`);
+  const data = JSON.parse(text) as { account?: MailAccountRow };
+  if (!data.account) throw new Error("Réponse lifecycle invalide");
+  return data.account;
+}
+
+export async function setDefaultSendMailAccount(id: string): Promise<void> {
+  const res = await apiFetch(apiUrl(`/accounts/${encodeURIComponent(id)}/default-send`), {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error((await res.text()) || `default account ${res.status}`);
+}
+
+export async function requestMailAccountLocalPurge(id: string, confirmationEmail: string): Promise<{ jobId: string | null }> {
+  const res = await apiFetch(apiUrl(`/accounts/${encodeURIComponent(id)}/purge-local`), {
+    method: "POST",
+    body: JSON.stringify({ confirmationEmail }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || `purge account ${res.status}`);
+  return JSON.parse(text) as { jobId: string | null };
+}
+
+export async function startMicrosoftMailOAuth(opts?: { requestedEmail?: string; mailAccountId?: string | null }): Promise<{ authorizationUrl: string }> {
+  const res = await apiFetch(apiUrl("/accounts/oauth/microsoft/start"), {
+    method: "POST",
+    body: JSON.stringify(opts ?? {}),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || `microsoft oauth ${res.status}`);
+  return JSON.parse(text) as { authorizationUrl: string };
+}
+
 export async function testMailAccountStored(id: string): Promise<{
   imap: { ok: boolean; code?: string; message?: string };
   smtp: { ok: boolean; skipped?: boolean; code?: string; message?: string };
@@ -1067,7 +1365,23 @@ export interface MailDraftRow {
   cc: string;
   bcc: string;
   subject: string;
+  body_text?: string | null;
   body_html: string;
+  attachments_json?: unknown[];
+  message_id?: string | null;
+  remote_folder_id?: string | null;
+  remote_uid?: number | null;
+  remote_uid_validity?: string | null;
+  remote_modseq?: string | null;
+  local_version?: number;
+  remote_version?: string | null;
+  sync_status?: string | null;
+  local_dirty?: boolean;
+  last_local_saved_at?: string | null;
+  last_remote_saved_at?: string | null;
+  sync_error?: string | null;
+  conflict_of_draft_id?: string | null;
+  conflict_reason?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1078,7 +1392,9 @@ export interface SaveMailDraftPayload {
   cc: string;
   bcc: string;
   subject: string;
+  bodyText?: string;
   bodyHtml: string;
+  attachments?: unknown[];
 }
 
 async function parseDraftResponse(res: Response, label: string): Promise<{ draft: MailDraftRow }> {
@@ -1124,4 +1440,82 @@ export async function updateMailDraft(id: string, payload: SaveMailDraftPayload)
 export async function deleteMailDraft(id: string): Promise<void> {
   const res = await apiFetch(apiUrl(`/drafts/${encodeURIComponent(id)}`), { method: "DELETE" });
   if (!res.ok && res.status !== 404) throw new Error(`draft delete ${res.status}`);
+}
+
+export async function resolveMailDraftConflict(
+  id: string,
+  resolution: "use_local" | "use_remote" | "keep_both"
+): Promise<MailDraftRow> {
+  const res = await apiFetch(apiUrl(`/drafts/${encodeURIComponent(id)}/resolve-conflict`), {
+    method: "POST",
+    body: JSON.stringify({ resolution }),
+  });
+  const j = await parseDraftResponse(res, "draft conflict");
+  return j.draft;
+}
+
+export interface MailDraftAttachmentRow {
+  id: string;
+  draftId: string;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number;
+  contentSha256: string;
+  uploadStatus: string;
+  isInline: boolean;
+  contentId: string | null;
+  createdAt: string;
+}
+
+export async function listMailDraftAttachments(draftId: string): Promise<MailDraftAttachmentRow[]> {
+  const res = await apiFetch(apiUrl(`/drafts/${encodeURIComponent(draftId)}/attachments`));
+  if (!res.ok) throw new Error(`draft attachments ${res.status}`);
+  const j = (await res.json()) as { attachments?: MailDraftAttachmentRow[] };
+  return j.attachments ?? [];
+}
+
+export async function uploadMailDraftAttachment(draftId: string, file: File): Promise<MailDraftAttachmentRow> {
+  const fd = new FormData();
+  fd.set("file", file);
+  const res = await apiFetch(apiUrl(`/drafts/${encodeURIComponent(draftId)}/attachments`), {
+    method: "POST",
+    body: fd,
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || `draft attachment upload ${res.status}`);
+  const j = JSON.parse(text) as { attachment: MailDraftAttachmentRow };
+  return j.attachment;
+}
+
+export async function deleteMailDraftAttachment(draftId: string, attachmentId: string): Promise<void> {
+  const res = await apiFetch(apiUrl(`/drafts/${encodeURIComponent(draftId)}/attachments/${encodeURIComponent(attachmentId)}`), {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 404) throw new Error(`draft attachment delete ${res.status}`);
+}
+
+export async function downloadMailDraftAttachment(draftId: string, attachmentId: string): Promise<Blob> {
+  const res = await apiFetch(apiUrl(`/drafts/${encodeURIComponent(draftId)}/attachments/${encodeURIComponent(attachmentId)}/download`));
+  if (!res.ok) throw new Error(`draft attachment download ${res.status}`);
+  return res.blob();
+}
+
+export interface MailRecipientSuggestion {
+  email: string;
+  name: string | null;
+  source?: "client" | "lead" | "contact" | "mail_participant";
+  crmId?: string | null;
+  score?: number;
+  lastUsedAt?: string | null;
+  usageCount?: number;
+}
+
+export async function getMailRecipientSuggestions(q: string): Promise<MailRecipientSuggestion[]> {
+  const query = q.trim();
+  if (query.length < 2) return [];
+  const params = new URLSearchParams({ q: query, limit: "8" });
+  const res = await apiFetch(apiUrl(`/recipient-suggestions?${params}`));
+  if (!res.ok) throw new Error(`recipient suggestions ${res.status}`);
+  const j = (await res.json()) as { suggestions?: MailRecipientSuggestion[] };
+  return j.suggestions ?? [];
 }

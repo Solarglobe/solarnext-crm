@@ -85,6 +85,8 @@
     "test:critical-calculators": "node scripts/check-critical-coverage.mjs",
     "test:unit": "node tests/run-unit-tests.mjs",
     "test:integration": "node tests/run-integration-tests.mjs",
+    "test:mail-postgres": "node scripts/mail-postgres-integration-check.mjs",
+    "bench:mail": "node scripts/mail-performance-benchmark.mjs",
     "test-economics-patch": "node scripts/test-economics-patch.js",
     "test-cp-lead-client-split-06": "node scripts/test-cp-lead-client-split-06.js",
     "test-cp-lead-client-split-06-lock": "node scripts/test-cp-lead-client-split-06-lock.js",

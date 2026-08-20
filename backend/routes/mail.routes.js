@@ -11,14 +11,16 @@ import {
   listMailInbox,
   getMailThreadDetail,
   markMessageReadInTransaction,
-  archiveThreadInTransaction,
   getInboxUnreadSummary,
 } from "../services/mail/mailApi.service.js";
+import { listAccessibleMailFolders } from "../services/mail/mailFolders.service.js";
+import { enqueueMailMoveActionInTransaction } from "../services/mail/mailMoveMutation.service.js";
 import { SmtpErrorCodes, mapSmtpError } from "../services/mail/smtp.service.js";
 import { enqueueOutboundMail } from "../services/mail/mailOutbox.service.js";
+import { listMailRecipientSuggestions } from "../services/mail/mailRecipientSuggestions.service.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
-import { sensitiveUserRateLimiter } from "../middleware/security/rateLimit.presets.js";
+import { heavyUserRateLimiter, sensitiveUserRateLimiter } from "../middleware/security/rateLimit.presets.js";
 
 const router = express.Router();
 
@@ -79,9 +81,52 @@ function parseHasOutboundReply(q) {
 /** @param {unknown} q */
 function parseMailbox(q) {
   const v = typeof q === "string" ? q.trim().toLowerCase() : "";
-  if (["inbox", "sent", "draft", "trash", "spam"].includes(v)) return v;
+  if (["inbox", "sent", "draft", "archive", "trash", "spam", "junk", "local_archive"].includes(v)) return v;
   return null;
 }
+
+function parseMailSort(q) {
+  const v = typeof q === "string" ? q.trim().toLowerCase() : "";
+  return v === "oldest" ? "oldest" : "newest";
+}
+
+function parseOptionalUuid(q) {
+  const v = typeof q === "string" ? q.trim() : "";
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) ? v : null;
+}
+
+function parseUuidArray(v) {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => parseOptionalUuid(String(x))).filter(Boolean).slice(0, 100);
+}
+
+function moveHttpStatus(code) {
+  if (code === "MAIL_ACCESS_DENIED") return 403;
+  if (code === "MESSAGE_OCCURRENCE_NOT_FOUND" || code === "THREAD_NOT_FOUND") return 404;
+  if (code === "HARD_DELETE_CONFIRMATION_REQUIRED") return 409;
+  return 400;
+}
+
+/**
+ * GET /folders — arborescences IMAP reelles par compte accessible.
+ */
+router.get("/folders", verifyJWT, requireMailUseStrict(), async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId ?? req.user.organization_id;
+    if (!organizationId) {
+      return res.status(400).json({ success: false, code: "ORG_REQUIRED" });
+    }
+    const accessible = await resolveAccessibleAccountIds(req);
+    const folders = await listAccessibleMailFolders(pool, {
+      organizationId,
+      accessibleAccountIds: accessible,
+    });
+    return res.json({ success: true, ...folders });
+  } catch (err) {
+    console.error("GET /mail/folders", err);
+    return res.status(500).json({ success: false, code: "SERVER_ERROR" });
+  }
+});
 
 /**
  * GET /inbox — liste des fils (paginée).
@@ -99,6 +144,8 @@ router.get("/inbox", verifyJWT, requireMailUseStrict(), async (req, res) => {
     const filter = req.query.filter === "unread" ? "unread" : "all";
     const attachmentsFilter = req.query.attachments === "with" ? "with" : "all";
     const accountId = typeof req.query.accountId === "string" ? req.query.accountId.trim() : null;
+    const sender = typeof req.query.sender === "string" && req.query.sender.trim() ? req.query.sender.trim() : null;
+    const recipient = typeof req.query.recipient === "string" && req.query.recipient.trim() ? req.query.recipient.trim() : null;
     const clientId = typeof req.query.clientId === "string" ? req.query.clientId.trim() : null;
     const leadId = typeof req.query.leadId === "string" ? req.query.leadId.trim() : null;
     const tagId = typeof req.query.tagId === "string" ? req.query.tagId.trim() : null;
@@ -106,6 +153,8 @@ router.get("/inbox", verifyJWT, requireMailUseStrict(), async (req, res) => {
     const dateTo = typeof req.query.dateTo === "string" && req.query.dateTo.trim() ? req.query.dateTo.trim() : null;
     const hasOutboundReply = parseHasOutboundReply(req.query.hasReply);
     const mailbox = parseMailbox(req.query.mailbox);
+    const folderId = parseOptionalUuid(req.query.folderId);
+    const sort = parseMailSort(req.query.sort);
 
     if (accountId && !accessible.has(accountId)) {
       return res.status(403).json({ success: false, code: "MAIL_ACCOUNT_ACCESS_DENIED" });
@@ -119,6 +168,8 @@ router.get("/inbox", verifyJWT, requireMailUseStrict(), async (req, res) => {
       filter,
       attachmentsFilter,
       accountId: accountId || null,
+      sender: sender || null,
+      recipient: recipient || null,
       clientId: clientId || null,
       leadId: leadId || null,
       tagId: tagId || null,
@@ -127,6 +178,8 @@ router.get("/inbox", verifyJWT, requireMailUseStrict(), async (req, res) => {
       hasOutboundReply,
       searchQuery: null,
       mailbox,
+      folderId,
+      sort,
     });
 
     return res.json({ items, total });
@@ -157,6 +210,8 @@ router.get("/search", verifyJWT, requireMailUseStrict(), async (req, res) => {
     const filter = req.query.filter === "unread" ? "unread" : "all";
     const attachmentsFilter = req.query.attachments === "with" ? "with" : "all";
     const accountId = typeof req.query.accountId === "string" ? req.query.accountId.trim() : null;
+    const sender = typeof req.query.sender === "string" && req.query.sender.trim() ? req.query.sender.trim() : null;
+    const recipient = typeof req.query.recipient === "string" && req.query.recipient.trim() ? req.query.recipient.trim() : null;
     const clientId = typeof req.query.clientId === "string" ? req.query.clientId.trim() : null;
     const leadId = typeof req.query.leadId === "string" ? req.query.leadId.trim() : null;
     const tagId = typeof req.query.tagId === "string" ? req.query.tagId.trim() : null;
@@ -164,6 +219,8 @@ router.get("/search", verifyJWT, requireMailUseStrict(), async (req, res) => {
     const dateTo = typeof req.query.dateTo === "string" && req.query.dateTo.trim() ? req.query.dateTo.trim() : null;
     const hasOutboundReply = parseHasOutboundReply(req.query.hasReply);
     const mailbox = parseMailbox(req.query.mailbox);
+    const folderId = parseOptionalUuid(req.query.folderId);
+    const sort = parseMailSort(req.query.sort);
 
     if (accountId && !accessible.has(accountId)) {
       return res.status(403).json({ success: false, code: "MAIL_ACCOUNT_ACCESS_DENIED" });
@@ -177,6 +234,8 @@ router.get("/search", verifyJWT, requireMailUseStrict(), async (req, res) => {
       filter,
       attachmentsFilter,
       accountId: accountId || null,
+      sender: sender || null,
+      recipient: recipient || null,
       clientId: clientId || null,
       leadId: leadId || null,
       tagId: tagId || null,
@@ -185,6 +244,8 @@ router.get("/search", verifyJWT, requireMailUseStrict(), async (req, res) => {
       hasOutboundReply,
       searchQuery: q,
       mailbox,
+      folderId,
+      sort,
     });
 
     return res.json({ items, total, searchMeta: searchMeta ?? null });
@@ -205,14 +266,45 @@ router.get("/inbox/unread-summary", verifyJWT, requireMailUseStrict(), async (re
     }
     const accessible = await resolveAccessibleAccountIds(req);
     const mailbox = parseMailbox(req.query.mailbox);
+    const folderId = parseOptionalUuid(req.query.folderId);
     const summary = await getInboxUnreadSummary(pool, {
       organizationId,
       accessibleAccountIds: accessible,
       mailbox,
+      folderId,
     });
     return res.json(summary);
   } catch (err) {
     console.error("GET /mail/inbox/unread-summary", err);
+    return res.status(500).json({ success: false, code: "SERVER_ERROR" });
+  }
+});
+
+router.get("/recipient-suggestions", verifyJWT, requireMailUseStrict(), heavyUserRateLimiter, async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId ?? req.user.organization_id;
+    if (!organizationId) {
+      return res.status(400).json({ success: false, code: "ORG_REQUIRED" });
+    }
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    if (q.length < 2) {
+      return res.json({ suggestions: [] });
+    }
+    const accessible = await resolveAccessibleAccountIds(req);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 20);
+    const userId = req.user.userId ?? req.user.id;
+    const suggestions = await listMailRecipientSuggestions({
+      organizationId,
+      userId,
+      query: q,
+      accessibleMailAccountIds: accessible,
+      limit,
+    });
+    return res.json({
+      suggestions,
+    });
+  } catch (err) {
+    console.error("GET /mail/recipient-suggestions", err);
     return res.status(500).json({ success: false, code: "SERVER_ERROR" });
   }
 });
@@ -333,7 +425,14 @@ router.patch("/messages/:messageId/read", verifyJWT, requireMailUseStrict(), asy
       return res.status(code).json({ success: false, code: r.code });
     }
     await client.query("COMMIT");
-    return res.json({ success: true });
+    return res.json({
+      success: true,
+      messageId: r.messageId ?? messageId,
+      threadId: r.threadId ?? null,
+      requestedIsRead: isRead,
+      syncStatus: r.syncStatus ?? "PENDING",
+      mutationId: r.mutationId ?? null,
+    });
   } catch (err) {
     try {
       await client.query("ROLLBACK");
@@ -347,44 +446,98 @@ router.patch("/messages/:messageId/read", verifyJWT, requireMailUseStrict(), asy
   }
 });
 
-/**
- * DELETE /threads/:threadId — archivage logique (archived_at).
- */
-router.delete("/threads/:threadId", verifyJWT, requireMailUseStrict(), async (req, res) => {
+async function enqueueMoveRoute(req, res, payload) {
   const client = await pool.connect();
   try {
     const organizationId = req.user.organizationId ?? req.user.organization_id;
-    const { threadId } = req.params;
     if (!organizationId) {
       return res.status(400).json({ success: false, code: "ORG_REQUIRED" });
     }
 
     const accessible = await resolveAccessibleAccountIds(req);
-
     await client.query("BEGIN");
-    const r = await archiveThreadInTransaction(client, {
+    const r = await enqueueMailMoveActionInTransaction(client, {
       organizationId,
-      threadId,
+      initiatedBy: req.user.userId ?? req.user.id ?? null,
       accessibleAccountIds: accessible,
+      ...payload,
     });
     if (!r.ok) {
       await client.query("ROLLBACK");
-      const code = r.code === "THREAD_NOT_FOUND" ? 404 : 403;
-      return res.status(code).json({ success: false, code: r.code });
+      return res.status(moveHttpStatus(r.code)).json({ success: false, code: r.code, results: r.results ?? [] });
     }
     await client.query("COMMIT");
-    return res.json({ success: true, archived: true });
+    const failed = (r.results ?? []).filter((x) => !x.ok).length;
+    return res.status(failed > 0 ? 207 : 202).json({
+      success: failed === 0,
+      partial: failed > 0,
+      queued: r.queued,
+      failed,
+      batchId: r.batchId,
+      results: r.results,
+    });
   } catch (err) {
     try {
       await client.query("ROLLBACK");
     } catch {
       // ignore
     }
-    console.error("DELETE /mail/threads/:threadId", err);
+    console.error("POST /mail action", err);
     return res.status(500).json({ success: false, code: "SERVER_ERROR" });
   } finally {
     client.release();
   }
+}
+
+router.post("/threads/:threadId/actions/:action", verifyJWT, requireMailUseStrict(), async (req, res) => {
+  const folderId = parseOptionalUuid(req.body?.folderId);
+  if (!folderId) return res.status(400).json({ success: false, code: "FOLDER_ID_REQUIRED" });
+  const targetFolderId = parseOptionalUuid(req.body?.targetFolderId);
+  return enqueueMoveRoute(req, res, {
+    threadId: req.params.threadId,
+    folderId,
+    targetFolderId,
+    operation: req.params.action,
+    idempotencyKey: typeof req.body?.idempotencyKey === "string" ? req.body.idempotencyKey.slice(0, 160) : null,
+    confirm: req.body?.confirm === true,
+  });
+});
+
+router.post("/messages/:messageId/actions/hard-delete", verifyJWT, requireMailUseStrict(), async (req, res) => {
+  const folderId = parseOptionalUuid(req.body?.folderId);
+  if (!folderId) return res.status(400).json({ success: false, code: "FOLDER_ID_REQUIRED" });
+  return enqueueMoveRoute(req, res, {
+    messageId: req.params.messageId,
+    folderId,
+    operation: "HARD_DELETE",
+    idempotencyKey: typeof req.body?.idempotencyKey === "string" ? req.body.idempotencyKey.slice(0, 160) : null,
+    confirm: req.body?.confirm === true,
+  });
+});
+
+router.post("/bulk/actions", verifyJWT, requireMailUseStrict(), async (req, res) => {
+  const folderId = parseOptionalUuid(req.body?.folderId);
+  if (!folderId) return res.status(400).json({ success: false, code: "FOLDER_ID_REQUIRED" });
+  return enqueueMoveRoute(req, res, {
+    folderId,
+    targetFolderId: parseOptionalUuid(req.body?.targetFolderId),
+    threadIds: parseUuidArray(req.body?.threadIds),
+    messageIds: parseUuidArray(req.body?.messageIds),
+    operation: req.body?.action,
+    idempotencyKey: typeof req.body?.idempotencyKey === "string" ? req.body.idempotencyKey.slice(0, 160) : null,
+    confirm: req.body?.confirm === true,
+  });
+});
+
+/**
+ * DELETE /threads/:threadId — ancienne archive locale, remplacee par les actions IMAP durables.
+ */
+router.delete("/threads/:threadId", verifyJWT, requireMailUseStrict(), async (_req, res) => {
+  return res.status(410).json({
+    success: false,
+    code: "LOCAL_ARCHIVE_DEPRECATED",
+    message: "Utiliser POST /mail/threads/:threadId/actions/archive avec folderId.",
+  });
 });
 
 export default router;

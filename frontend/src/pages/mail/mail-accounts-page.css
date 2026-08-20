@@ -168,11 +168,22 @@
   grid-column: 1 / -1;
 }
 
-.mail-accts__field--check {
+.mail-accts__field--check,
+.mail-accts__check {
   flex-direction: row;
   align-items: center;
   gap: 0.5rem;
   padding-top: 1.4rem;
+}
+
+.mail-accts__confirm-input {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--sn-border, var(--border));
+  border-radius: 8px;
+  background: var(--sn-surface, var(--bg-card));
+  color: inherit;
 }
 
 .mail-accts__actions {
@@ -272,4 +283,19 @@
 
 .mail-accts__dl dd {
   margin: 0;
+}
+
+.mail-accts__health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem;
+}
+
+.mail-accts__health-grid span {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--sn-border, var(--border));
+  border-radius: 8px;
+  background: var(--sn-surface-elevated, var(--surface-elevated));
+  font-size: 0.85rem;
+  font-weight: 600;
 }
