@@ -5,6 +5,7 @@
  */
 
 import "../config/register-local-env.js";
+import assert from "node:assert/strict";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 
@@ -196,10 +197,11 @@ async function run() {
     const snap2 = await pool.query(`SELECT snapshot_json FROM calpinage_snapshots WHERE id = $1`, [resultLegacy.snapshotId]);
     const storedPayload = snap2.rows[0]?.snapshot_json?.payload;
     const expectedRoundTrip = JSON.parse(JSON.stringify(sanitizeCalpinageGeometryForPersistence(committedB)));
-    if (JSON.stringify(storedPayload) !== JSON.stringify(expectedRoundTrip)) {
-      fail("Test4: payload stocké = copie profonde attendue", new Error());
-    } else {
+    try {
+      assert.deepStrictEqual(storedPayload, expectedRoundTrip);
       ok("Test4: payload snapshot_json aligné sur geometry_json lu en base (legacy)");
+    } catch (e) {
+      fail("Test4: payload stocké = copie profonde attendue", e);
     }
   } catch (e) {
     console.error(e);
