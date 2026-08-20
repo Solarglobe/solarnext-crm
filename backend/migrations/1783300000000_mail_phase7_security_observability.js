@@ -44,18 +44,18 @@ export const up = (pgm) => {
     CREATE INDEX IF NOT EXISTS idx_mail_draft_sync_jobs_queue_age
       ON mail_draft_sync_jobs (organization_id, status, next_attempt_at, created_at);
 
-    CREATE INDEX IF NOT EXISTS idx_mail_move_mutation_jobs_queue_age
-      ON mail_move_mutation_jobs (organization_id, status, next_attempt_at, created_at);
+    CREATE INDEX IF NOT EXISTS idx_mail_move_mutations_queue_age
+      ON mail_move_mutations (organization_id, status, next_attempt_at, created_at);
 
-    CREATE INDEX IF NOT EXISTS idx_mail_flag_mutation_jobs_queue_age
-      ON mail_flag_mutation_jobs (organization_id, status, next_attempt_at, created_at);
+    CREATE INDEX IF NOT EXISTS idx_mail_flag_mutations_queue_age
+      ON mail_flag_mutations (organization_id, status, next_attempt_at, created_at);
   `);
 };
 
 export const down = (pgm) => {
   pgm.sql(`
-    DROP INDEX IF EXISTS idx_mail_flag_mutation_jobs_queue_age;
-    DROP INDEX IF EXISTS idx_mail_move_mutation_jobs_queue_age;
+    DROP INDEX IF EXISTS idx_mail_flag_mutations_queue_age;
+    DROP INDEX IF EXISTS idx_mail_move_mutations_queue_age;
     DROP INDEX IF EXISTS idx_mail_draft_sync_jobs_queue_age;
     DROP INDEX IF EXISTS idx_mail_outbox_queue_age;
     DROP INDEX IF EXISTS idx_mail_participants_org_email_recent;

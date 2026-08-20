@@ -11,8 +11,8 @@ const requiredTables = [
   "mail_draft_attachments",
   "mail_draft_sync_jobs",
   "mail_outbox",
-  "mail_flag_mutation_jobs",
-  "mail_move_mutation_jobs",
+  "mail_flag_mutations",
+  "mail_move_mutations",
 ];
 
 const requiredIndexes = [
@@ -20,8 +20,8 @@ const requiredIndexes = [
   "idx_mail_draft_attachments_scan_pending",
   "idx_mail_outbox_queue_age",
   "idx_mail_draft_sync_jobs_queue_age",
-  "idx_mail_move_mutation_jobs_queue_age",
-  "idx_mail_flag_mutation_jobs_queue_age",
+  "idx_mail_move_mutations_queue_age",
+  "idx_mail_flag_mutations_queue_age",
   "idx_mail_participants_org_email_recent",
 ];
 
@@ -108,4 +108,3 @@ main().catch((e) => {
   console.error(e.message || e);
   process.exit(1);
 });
-
