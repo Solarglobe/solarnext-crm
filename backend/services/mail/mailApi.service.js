@@ -813,49 +813,9 @@ export async function getInboxUnreadSummary(db, p) {
     return { totalUnread: 0, byAccount: {} };
   }
 
-  const remoteType = resolvedFolderId ? null : remoteUnreadFolderType(p.mailbox);
-  if (resolvedFolderId || remoteType) {
-    const remoteParams = resolvedFolderId
-      ? [organizationId, accIds, resolvedFolderId]
-      : [organizationId, accIds, remoteType];
-    const remoteFilter = resolvedFolderId
-      ? "AND f.id = $3::uuid"
-      : "AND f.type = $3::mail_folder_type";
-    const remoteRes = await db.query(
-      `SELECT
-         f.mail_account_id,
-         SUM(COALESCE(f.remote_unread_count, 0))::int AS n,
-         COUNT(*) FILTER (WHERE f.remote_unread_count IS NULL)::int AS missing_remote
-       FROM mail_folders f
-       INNER JOIN mail_accounts a ON a.id = f.mail_account_id AND a.organization_id = f.organization_id
-       WHERE f.organization_id = $1
-         AND f.mail_account_id = ANY($2::uuid[])
-         AND f.is_active = true
-         AND f.selectable = true
-         AND a.is_active = true
-         AND COALESCE(a.lifecycle_state::text, 'CONNECTED') IN ('CONNECTED', 'DEGRADED')
-         AND COALESCE(a.sync_enabled, true) = true
-         ${remoteFilter}
-       GROUP BY f.mail_account_id`,
-      remoteParams
-    );
-    const hasCompleteRemoteCounts =
-      remoteRes.rows.length > 0 && remoteRes.rows.every((row) => Number(row.missing_remote) === 0);
-    if (hasCompleteRemoteCounts) {
-      /** @type {Record<string, number>} */
-      const byAccount = {};
-      let totalUnread = 0;
-      for (const row of remoteRes.rows) {
-        const n = Number(row.n) || 0;
-        byAccount[row.mail_account_id] = n;
-        totalUnread += n;
-      }
-      return { totalUnread, byAccount };
-    }
-  }
-
   const params = [organizationId, accIds];
   let folderWhere = "";
+  const remoteType = resolvedFolderId ? null : remoteUnreadFolderType(p.mailbox);
   if (resolvedFolderId) {
     params.push(resolvedFolderId);
     folderWhere = `AND m.folder_id = $${params.length}::uuid`;

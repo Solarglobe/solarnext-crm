@@ -33,14 +33,15 @@ test("mail phase 5B unread badge is scoped to canonical inbox, active accounts a
   assert.match(layout, /formatMailUnreadBadge/);
   assert.match(service, /mf\.type = 'INBOX'::mail_folder_type/);
   assert.match(service, /remoteUnreadFolderType/);
-  assert.match(service, /f\.remote_unread_count/);
   assert.match(service, /FROM mail_messages m/);
   assert.match(service, /m\.direction = 'INBOUND'::mail_message_direction/);
   assert.match(service, /m\.is_read = false/);
   assert.match(service, /COUNT\(\*\)::int AS n/);
   assert.match(service, /FROM mail_messages mu/);
   assert.match(service, /mu\.is_read = false/);
-  assert.match(folders, /row\.remote_unread_count == null \? intOrZero\(row\.unread_local\) : intOrZero\(row\.remote_unread_count\)/);
+  assert.match(folders, /return intOrZero\(row\.unread_local\)/);
+  assert.match(folders, /remoteUnreadCount: row\.remote_unread_count == null \? null : intOrZero\(row\.remote_unread_count\)/);
+  assert.match(folders, /unreadCountSource: "local"/);
   assert.match(sync, /fallback_unread_mismatch_window/);
   assert.match(sync, /MAIL_FLAG_RECONCILE_MISMATCH_LIMIT/);
   assert.doesNotMatch(service, /AND t\.has_unread = true/);

@@ -13,7 +13,7 @@ function intOrZero(n) {
 }
 
 function displayedUnreadCount(row) {
-  return row.remote_unread_count == null ? intOrZero(row.unread_local) : intOrZero(row.remote_unread_count);
+  return intOrZero(row.unread_local);
 }
 
 /**
@@ -111,7 +111,7 @@ export async function listAccessibleMailFolders(db, p) {
       totalLocal: intOrZero(row.total_local),
       localUnreadCount: intOrZero(row.unread_local),
       remoteUnreadCount: row.remote_unread_count == null ? null : intOrZero(row.remote_unread_count),
-      unreadCountSource: row.remote_unread_count == null ? "local" : "remote",
+      unreadCountSource: "local",
       remoteMessageCount: row.remote_message_count == null ? null : intOrZero(row.remote_message_count),
       syncStatus: row.message_sync_status,
       historySyncStatus: row.history_sync_status,

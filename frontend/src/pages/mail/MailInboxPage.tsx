@@ -46,6 +46,14 @@ import { getUserPermissions } from "../../services/auth.service";
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 300;
 
+function clampCount(n: number): number {
+  return Math.max(0, Number.isFinite(n) ? n : 0);
+}
+
+function countUnreadThreads(rows: InboxThreadItem[]): number {
+  return rows.filter((t) => t.hasUnread).length;
+}
+
 function useDebouncedValue<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -391,6 +399,59 @@ export default function MailInboxPage() {
     return null;
   }, [folderAccounts, selectedFolderId]);
 
+  const applyUnreadDelta = useCallback((accountId: string | null | undefined, delta: number) => {
+    if (!Number.isFinite(delta) || delta === 0) return;
+    setUnreadSummary((prev) => {
+      const byAccount = { ...prev.byAccount };
+      if (accountId) {
+        byAccount[accountId] = clampCount((byAccount[accountId] ?? 0) + delta);
+      }
+      return { totalUnread: clampCount(prev.totalUnread + delta), byAccount };
+    });
+    invalidateMailUnreadSummary({ totalDelta: delta, refresh: false });
+  }, []);
+
+  const applyFolderDelta = useCallback(
+    (folderId: string | null | undefined, accountId: string | null | undefined, totalDelta: number, unreadDelta: number) => {
+      if (!folderId || (totalDelta === 0 && unreadDelta === 0)) return;
+      setFolderAccounts((prev) =>
+        prev.map((account) => ({
+          ...account,
+          folders: account.folders.map((folder) => {
+            if (folder.id !== folderId) return folder;
+            return {
+              ...folder,
+              unreadCount: clampCount(folder.unreadCount + unreadDelta),
+              localUnreadCount: clampCount((folder.localUnreadCount ?? folder.unreadCount) + unreadDelta),
+              totalLocal: clampCount(folder.totalLocal + totalDelta),
+              localImportedCount: folder.localImportedCount == null ? folder.localImportedCount : clampCount(folder.localImportedCount + totalDelta),
+              unreadCountSource: "local",
+            };
+          }),
+        }))
+      );
+      applyUnreadDelta(accountId, unreadDelta);
+    },
+    [applyUnreadDelta]
+  );
+
+  const applyCurrentFolderRowsDelta = useCallback(
+    (rows: InboxThreadItem[], direction: -1 | 1) => {
+      if (!selectedFolderId || rows.length === 0) return;
+      const unreadDelta = countUnreadThreads(rows) * direction;
+      applyFolderDelta(selectedFolderId, selectedFolder?.accountId, rows.length * direction, unreadDelta);
+    },
+    [applyFolderDelta, selectedFolder?.accountId, selectedFolderId]
+  );
+
+  const applyCurrentFolderUnreadDelta = useCallback(
+    (thread: InboxThreadItem | null | undefined, delta: number) => {
+      if (!selectedFolderId || !thread || !Number.isFinite(delta) || delta === 0) return;
+      applyFolderDelta(selectedFolderId, thread.mailAccountId ?? selectedFolder?.accountId, 0, delta);
+    },
+    [applyFolderDelta, selectedFolder?.accountId, selectedFolderId]
+  );
+
   const removeThreadsFromCurrentList = useCallback((threadIds: string[]) => {
     const ids = new Set(threadIds);
     if (ids.size === 0) return;
@@ -421,6 +482,17 @@ export default function MailInboxPage() {
       return changed ? next : prev;
     });
   }, [overlayThread]);
+
+  const restoreThreadsToCurrentList = useCallback((rows: InboxThreadItem[]) => {
+    if (rows.length === 0) return;
+    setThreads((prev) => {
+      const existing = new Set(prev.map((t) => t.threadId));
+      const toRestore = rows.filter((t) => !existing.has(t.threadId));
+      if (toRestore.length === 0) return prev;
+      setTotal((n) => n + toRestore.length);
+      return [...toRestore, ...prev];
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -506,31 +578,30 @@ export default function MailInboxPage() {
 
   const onArchive = useCallback(
     async (threadId: string) => {
+      const removedThreads = threads.filter((t) => t.threadId === threadId);
+      setListError(null);
+      setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Archive en attente" }));
+      removeThreadsFromCurrentList([threadId]);
+      applyCurrentFolderRowsDelta(removedThreads, -1);
       try {
         await runThreadMailAction(threadId, "archive", { folderId: selectedFolderId || undefined });
-        setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Archive en attente" }));
-        setBulkSelectedThreadIds((prev) => {
-          if (!prev.has(threadId)) return prev;
-          const next = new Set(prev);
-          next.delete(threadId);
-          return next;
-        });
-        if (overlayThread?.threadId === threadId) {
-          setOverlayOpen(false);
-          setOverlayThread(null);
-        }
-        setThreadDetailById((prev) => {
-          if (!prev[threadId]) return prev;
+        setPendingThreadActions((prev) => {
           const next = { ...prev };
           delete next[threadId];
           return next;
         });
-        refreshUnreadCounters();
       } catch (e) {
+        restoreThreadsToCurrentList(removedThreads);
+        applyCurrentFolderRowsDelta(removedThreads, 1);
+        setPendingThreadActions((prev) => {
+          const next = { ...prev };
+          delete next[threadId];
+          return next;
+        });
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [selectedFolderId, selectedThreadId, refreshUnreadCounters, overlayThread?.threadId]
+    [threads, selectedFolderId, removeThreadsFromCurrentList, applyCurrentFolderRowsDelta, restoreThreadsToCurrentList]
   );
 
   const onTrash = useCallback(
@@ -543,6 +614,7 @@ export default function MailInboxPage() {
       setListError(null);
       setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Corbeille en attente" }));
       removeThreadsFromCurrentList([threadId]);
+      applyCurrentFolderRowsDelta(removedThreads, -1);
       try {
         await runThreadMailAction(threadId, "trash", { folderId: selectedFolderId || undefined });
         setPendingThreadActions((prev) => {
@@ -550,18 +622,9 @@ export default function MailInboxPage() {
           delete next[threadId];
           return next;
         });
-        refreshUnreadCounters();
-        void reloadFolders();
       } catch (e) {
-        if (removedThreads.length > 0) {
-          setThreads((prev) => {
-            const existing = new Set(prev.map((t) => t.threadId));
-            const toRestore = removedThreads.filter((t) => !existing.has(t.threadId));
-            if (toRestore.length === 0) return prev;
-            setTotal((n) => n + toRestore.length);
-            return [...toRestore, ...prev];
-          });
-        }
+        restoreThreadsToCurrentList(removedThreads);
+        applyCurrentFolderRowsDelta(removedThreads, 1);
         setPendingThreadActions((prev) => {
           const next = { ...prev };
           delete next[threadId];
@@ -570,20 +633,35 @@ export default function MailInboxPage() {
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [selectedFolder?.type, selectedFolderId, threads, removeThreadsFromCurrentList, refreshUnreadCounters, reloadFolders]
+    [selectedFolder?.type, selectedFolderId, threads, removeThreadsFromCurrentList, applyCurrentFolderRowsDelta, restoreThreadsToCurrentList]
   );
 
   const onRestore = useCallback(
     async (threadId: string) => {
+      const removedThreads = threads.filter((t) => t.threadId === threadId);
+      setListError(null);
+      setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Restauration en attente" }));
+      removeThreadsFromCurrentList([threadId]);
+      applyCurrentFolderRowsDelta(removedThreads, -1);
       try {
         await runThreadMailAction(threadId, "restore", { folderId: selectedFolderId || undefined });
-        setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Restauration en attente" }));
-        refreshUnreadCounters();
+        setPendingThreadActions((prev) => {
+          const next = { ...prev };
+          delete next[threadId];
+          return next;
+        });
       } catch (e) {
+        restoreThreadsToCurrentList(removedThreads);
+        applyCurrentFolderRowsDelta(removedThreads, 1);
+        setPendingThreadActions((prev) => {
+          const next = { ...prev };
+          delete next[threadId];
+          return next;
+        });
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [selectedFolderId, refreshUnreadCounters]
+    [threads, selectedFolderId, removeThreadsFromCurrentList, applyCurrentFolderRowsDelta, restoreThreadsToCurrentList]
   );
 
   const onToggleBulkSelect = useCallback((threadId: string) => {
@@ -597,16 +675,30 @@ export default function MailInboxPage() {
 
   const onMove = useCallback(
     async (threadId: string, targetFolderId: string) => {
+      const removedThreads = threads.filter((t) => t.threadId === threadId);
+      setListError(null);
+      setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Deplacement en attente" }));
+      removeThreadsFromCurrentList([threadId]);
+      applyCurrentFolderRowsDelta(removedThreads, -1);
       try {
         await runThreadMailAction(threadId, "move", { folderId: selectedFolderId || undefined, targetFolderId });
-        setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Deplacement en attente" }));
-        refreshUnreadCounters();
-        void reloadFolders();
+        setPendingThreadActions((prev) => {
+          const next = { ...prev };
+          delete next[threadId];
+          return next;
+        });
       } catch (e) {
+        restoreThreadsToCurrentList(removedThreads);
+        applyCurrentFolderRowsDelta(removedThreads, 1);
+        setPendingThreadActions((prev) => {
+          const next = { ...prev };
+          delete next[threadId];
+          return next;
+        });
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [selectedFolderId, refreshUnreadCounters, reloadFolders]
+    [threads, selectedFolderId, removeThreadsFromCurrentList, applyCurrentFolderRowsDelta, restoreThreadsToCurrentList]
   );
 
   const onBulkAction = useCallback(
@@ -615,55 +707,96 @@ export default function MailInboxPage() {
       if (threadIds.length === 0) return;
       const confirm = action === "hard-delete";
       if (confirm && !window.confirm("Supprimer definitivement les messages selectionnes de la corbeille ?")) return;
+      const removedThreads = threads.filter((t) => bulkSelectedThreadIds.has(t.threadId));
+      setListError(null);
+      setPendingThreadActions((prev) => {
+        const next = { ...prev };
+        for (const id of threadIds) next[id] = "Operation en attente";
+        return next;
+      });
+      removeThreadsFromCurrentList(threadIds);
+      applyCurrentFolderRowsDelta(removedThreads, -1);
       try {
         await runBulkMailAction({ action, folderId: selectedFolderId || undefined, threadIds, confirm });
         setPendingThreadActions((prev) => {
           const next = { ...prev };
-          for (const id of threadIds) next[id] = "Operation en attente";
+          for (const id of threadIds) delete next[id];
           return next;
         });
         setBulkSelectedThreadIds(new Set());
-        refreshUnreadCounters();
-        void reloadFolders();
       } catch (e) {
+        restoreThreadsToCurrentList(removedThreads);
+        applyCurrentFolderRowsDelta(removedThreads, 1);
+        setPendingThreadActions((prev) => {
+          const next = { ...prev };
+          for (const id of threadIds) delete next[id];
+          return next;
+        });
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [bulkSelectedThreadIds, selectedFolderId, refreshUnreadCounters, reloadFolders]
+    [bulkSelectedThreadIds, threads, selectedFolderId, removeThreadsFromCurrentList, applyCurrentFolderRowsDelta, restoreThreadsToCurrentList]
   );
 
   const onBulkMove = useCallback(
     async (targetFolderId: string) => {
       const threadIds = [...bulkSelectedThreadIds];
       if (threadIds.length === 0 || !targetFolderId) return;
+      const removedThreads = threads.filter((t) => bulkSelectedThreadIds.has(t.threadId));
+      setListError(null);
+      setPendingThreadActions((prev) => {
+        const next = { ...prev };
+        for (const id of threadIds) next[id] = "Deplacement en attente";
+        return next;
+      });
+      removeThreadsFromCurrentList(threadIds);
+      applyCurrentFolderRowsDelta(removedThreads, -1);
       try {
         await runBulkMailAction({ action: "move", folderId: selectedFolderId || undefined, threadIds, targetFolderId });
         setPendingThreadActions((prev) => {
           const next = { ...prev };
-          for (const id of threadIds) next[id] = "Deplacement en attente";
+          for (const id of threadIds) delete next[id];
           return next;
         });
         setBulkSelectedThreadIds(new Set());
-        refreshUnreadCounters();
-        void reloadFolders();
       } catch (e) {
+        restoreThreadsToCurrentList(removedThreads);
+        applyCurrentFolderRowsDelta(removedThreads, 1);
+        setPendingThreadActions((prev) => {
+          const next = { ...prev };
+          for (const id of threadIds) delete next[id];
+          return next;
+        });
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [bulkSelectedThreadIds, selectedFolderId, refreshUnreadCounters, reloadFolders]
+    [bulkSelectedThreadIds, threads, selectedFolderId, removeThreadsFromCurrentList, applyCurrentFolderRowsDelta, restoreThreadsToCurrentList]
   );
 
   const onMarkThreadRead = useCallback(
     async (threadId: string) => {
+      const row = threads.find((t) => t.threadId === threadId);
+      if (!row?.hasUnread) return;
+      setListError(null);
+      if (listMode === "unread") {
+        removeThreadsFromCurrentList([threadId]);
+      } else {
+        setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, hasUnread: false } : t)));
+      }
+      applyCurrentFolderUnreadDelta(row, -1);
       try {
         await markThreadInboundAsRead(threadId);
-        setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, hasUnread: false } : t)));
-        refreshUnreadCounters();
       } catch (e) {
+        if (listMode === "unread") {
+          restoreThreadsToCurrentList([row]);
+        } else {
+          setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, hasUnread: true } : t)));
+        }
+        applyCurrentFolderUnreadDelta(row, 1);
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [refreshUnreadCounters]
+    [threads, listMode, removeThreadsFromCurrentList, restoreThreadsToCurrentList, applyCurrentFolderUnreadDelta]
   );
 
   const loadMore = useCallback(async () => {
@@ -705,10 +838,16 @@ export default function MailInboxPage() {
 
   const handleInboundMarkedRead = useCallback(
     (threadId: string) => {
-      setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, hasUnread: false } : t)));
-      refreshUnreadCounters();
+      const row = threads.find((t) => t.threadId === threadId);
+      if (!row?.hasUnread) return;
+      if (listMode === "unread") {
+        removeThreadsFromCurrentList([threadId]);
+      } else {
+        setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, hasUnread: false } : t)));
+      }
+      applyCurrentFolderUnreadDelta(row, -1);
     },
-    [refreshUnreadCounters]
+    [threads, listMode, removeThreadsFromCurrentList, applyCurrentFolderUnreadDelta]
   );
 
   const onToggleThreadUnread = useCallback(
@@ -722,20 +861,22 @@ export default function MailInboxPage() {
         const detail = await getThread(threadId);
         await markInboundMessagesUnread(detail.messages);
         setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, hasUnread: true } : t)));
-        refreshUnreadCounters();
+        if (row) applyCurrentFolderUnreadDelta(row, 1);
       } catch (e) {
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [threads, onMarkThreadRead, refreshUnreadCounters]
+    [threads, onMarkThreadRead, applyCurrentFolderUnreadDelta]
   );
 
   const handleInboundMarkedUnread = useCallback(
     (threadId: string) => {
+      const row = threads.find((t) => t.threadId === threadId);
+      if (row?.hasUnread) return;
       setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, hasUnread: true } : t)));
-      refreshUnreadCounters();
+      if (row) applyCurrentFolderUnreadDelta(row, 1);
     },
-    [refreshUnreadCounters]
+    [threads, applyCurrentFolderUnreadDelta]
   );
 
   const openNewMessage = useCallback(() => {
@@ -824,8 +965,9 @@ export default function MailInboxPage() {
 
   const handleMailSentFromThread = useCallback(
     (info: { threadId: string | null }) => {
-      refreshUnreadCounters();
       if (info.threadId) {
+        const row = threads.find((t) => t.threadId === info.threadId);
+        if (row?.hasUnread) applyCurrentFolderUnreadDelta(row, -1);
         setThreads((prev) =>
           prev.map((t) =>
             t.threadId === info.threadId ? { ...t, hasOutboundReply: true, hasUnread: false } : t
@@ -833,7 +975,7 @@ export default function MailInboxPage() {
         );
       }
     },
-    [refreshUnreadCounters]
+    [threads, applyCurrentFolderUnreadDelta]
   );
 
   const handleThreadTagsUpdate = useCallback((threadId: string, tags: MailThreadTagRow[]) => {
