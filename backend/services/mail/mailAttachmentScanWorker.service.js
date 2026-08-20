@@ -78,14 +78,14 @@ export async function claimMailAttachmentScanJobs({ limit = DEFAULT_BATCH } = {}
 async function markScanned(job, scan) {
   await pool.query(
     `UPDATE ${job.table} SET
-       scan_status = $2,
+       scan_status = $2::mail_attachment_scan_status,
        scan_checked_at = now(),
        scan_locked_at = NULL,
        scan_provider = $3,
        scan_error_code = $4,
        quarantine_reason = $5,
        scan_next_attempt_at = CASE
-         WHEN $2 IN ('CLEAN','INFECTED') THEN scan_next_attempt_at
+         WHEN $2::mail_attachment_scan_status IN ('CLEAN','INFECTED') THEN scan_next_attempt_at
          ELSE now() + ($6::integer * interval '1 millisecond')
        END,
        updated_at = now()
@@ -107,7 +107,7 @@ async function markScanFailure(job, err) {
   const exhausted = attempts >= MAX_ATTEMPTS;
   await pool.query(
     `UPDATE ${job.table} SET
-       scan_status = $2,
+       scan_status = $2::mail_attachment_scan_status,
        scan_checked_at = now(),
        scan_locked_at = NULL,
        scan_error_code = $3,
