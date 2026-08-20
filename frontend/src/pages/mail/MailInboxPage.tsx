@@ -538,14 +538,29 @@ export default function MailInboxPage() {
         setListError("Ce message est deja dans la corbeille.");
         return;
       }
+      const removedThreads = threads.filter((t) => t.threadId === threadId);
       setListError(null);
       setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Corbeille en attente" }));
+      removeThreadsFromCurrentList([threadId]);
       try {
         await runThreadMailAction(threadId, "trash", { folderId: selectedFolderId || undefined });
-        removeThreadsFromCurrentList([threadId]);
+        setPendingThreadActions((prev) => {
+          const next = { ...prev };
+          delete next[threadId];
+          return next;
+        });
         refreshUnreadCounters();
         void reloadFolders();
       } catch (e) {
+        if (removedThreads.length > 0) {
+          setThreads((prev) => {
+            const existing = new Set(prev.map((t) => t.threadId));
+            const toRestore = removedThreads.filter((t) => !existing.has(t.threadId));
+            if (toRestore.length === 0) return prev;
+            setTotal((n) => n + toRestore.length);
+            return [...toRestore, ...prev];
+          });
+        }
         setPendingThreadActions((prev) => {
           const next = { ...prev };
           delete next[threadId];
@@ -554,7 +569,7 @@ export default function MailInboxPage() {
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [selectedFolder?.type, selectedFolderId, removeThreadsFromCurrentList, refreshUnreadCounters, reloadFolders]
+    [selectedFolder?.type, selectedFolderId, threads, removeThreadsFromCurrentList, refreshUnreadCounters, reloadFolders]
   );
 
   const onRestore = useCallback(
