@@ -20,14 +20,14 @@ function tableConfig(kind) {
     return {
       kind,
       table: "mail_draft_attachments",
-      idSelect: "id, organization_id, file_name, mime_type, size_bytes, storage_path, scan_attempt_count",
+      idSelect: "a.id, a.organization_id, a.file_name, a.mime_type, a.size_bytes, a.storage_path, a.scan_attempt_count",
       extraWhere: "cleanup_status <> 'deleted' AND upload_status = 'uploaded'",
     };
   }
   return {
     kind: "message",
     table: "mail_attachments",
-    idSelect: "id, organization_id, file_name, mime_type, size_bytes, storage_path, scan_attempt_count",
+    idSelect: "a.id, a.organization_id, a.file_name, a.mime_type, a.size_bytes, a.storage_path, a.scan_attempt_count",
     extraWhere: "storage_path IS NOT NULL",
   };
 }
@@ -194,4 +194,3 @@ export async function reapStuckAttachmentScans(maxMinutes = STUCK_MINUTES) {
   );
   return { reaped: message.rowCount + draft.rowCount };
 }
-
