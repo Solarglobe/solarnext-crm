@@ -381,6 +381,46 @@ export default function MailInboxPage() {
     setThreads([]);
   }, [listMode, selectedFolderId, legacyArchiveView, filters, debouncedSearch, sortMode]);
 
+  const selectedFolder = useMemo<MailFolderRow | null>(() => {
+    if (!selectedFolderId) return null;
+    for (const account of folderAccounts) {
+      const found = account.folders.find((f) => f.id === selectedFolderId);
+      if (found) return found;
+    }
+    return null;
+  }, [folderAccounts, selectedFolderId]);
+
+  const removeThreadsFromCurrentList = useCallback((threadIds: string[]) => {
+    const ids = new Set(threadIds);
+    if (ids.size === 0) return;
+    setThreads((prev) => {
+      const removed = prev.filter((t) => ids.has(t.threadId)).length;
+      if (removed > 0) setTotal((n) => Math.max(0, n - removed));
+      return prev.filter((t) => !ids.has(t.threadId));
+    });
+    setBulkSelectedThreadIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
+    setSelectedThreadId((current) => (current && ids.has(current) ? null : current));
+    if (overlayThread && ids.has(overlayThread.threadId)) {
+      setOverlayOpen(false);
+      setOverlayThread(null);
+    }
+    setThreadDetailById((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const id of ids) {
+        if (next[id]) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [overlayThread]);
+
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
@@ -494,21 +534,27 @@ export default function MailInboxPage() {
 
   const onTrash = useCallback(
     async (threadId: string) => {
+      if (selectedFolder?.type === "TRASH") {
+        setListError("Ce message est deja dans la corbeille.");
+        return;
+      }
+      setListError(null);
+      setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Corbeille en attente" }));
       try {
         await runThreadMailAction(threadId, "trash", { folderId: selectedFolderId || undefined });
-        setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Corbeille en attente" }));
-        setBulkSelectedThreadIds((prev) => {
-          if (!prev.has(threadId)) return prev;
-          const next = new Set(prev);
-          next.delete(threadId);
+        removeThreadsFromCurrentList([threadId]);
+        refreshUnreadCounters();
+        void reloadFolders();
+      } catch (e) {
+        setPendingThreadActions((prev) => {
+          const next = { ...prev };
+          delete next[threadId];
           return next;
         });
-        refreshUnreadCounters();
-      } catch (e) {
         setListError(e instanceof Error ? e.message : String(e));
       }
     },
-    [selectedFolderId, selectedThreadId, refreshUnreadCounters]
+    [selectedFolder?.type, selectedFolderId, removeThreadsFromCurrentList, refreshUnreadCounters, reloadFolders]
   );
 
   const onRestore = useCallback(
@@ -784,15 +830,6 @@ export default function MailInboxPage() {
       .then(({ tags }) => setMailTags(tags))
       .catch(() => {});
   }, []);
-
-  const selectedFolder = useMemo<MailFolderRow | null>(() => {
-    if (!selectedFolderId) return null;
-    for (const account of folderAccounts) {
-      const found = account.folders.find((f) => f.id === selectedFolderId);
-      if (found) return found;
-    }
-    return null;
-  }, [folderAccounts, selectedFolderId]);
 
   const moveTargets = useMemo(() => {
     if (!selectedFolder) return [];
