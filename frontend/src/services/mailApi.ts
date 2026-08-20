@@ -533,7 +533,7 @@ async function postMailAction(path: string, body: Record<string, unknown>): Prom
 export async function runThreadMailAction(
   threadId: string,
   action: Exclude<MailMoveAction, "hard-delete">,
-  opts: { folderId: string; targetFolderId?: string | null }
+  opts: { folderId?: string | null; targetFolderId?: string | null }
   & { idempotencyKey?: string | null }
 ): Promise<MailMoveActionResponse> {
   return postMailAction(`/threads/${encodeURIComponent(threadId)}/actions/${action}`, {
@@ -545,7 +545,7 @@ export async function runThreadMailAction(
 
 export async function runBulkMailAction(opts: {
   action: MailMoveAction;
-  folderId: string;
+  folderId?: string | null;
   threadIds?: string[];
   messageIds?: string[];
   targetFolderId?: string | null;
@@ -563,7 +563,7 @@ export async function runBulkMailAction(opts: {
   });
 }
 
-export async function hardDeleteMessage(messageId: string, opts: { folderId: string; confirm: true; idempotencyKey?: string | null }): Promise<MailMoveActionResponse> {
+export async function hardDeleteMessage(messageId: string, opts: { folderId?: string | null; confirm: true; idempotencyKey?: string | null }): Promise<MailMoveActionResponse> {
   return postMailAction(`/messages/${encodeURIComponent(messageId)}/actions/hard-delete`, {
     folderId: opts.folderId,
     confirm: opts.confirm,

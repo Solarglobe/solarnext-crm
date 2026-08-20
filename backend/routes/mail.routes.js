@@ -14,6 +14,7 @@ import {
   getInboxUnreadSummary,
 } from "../services/mail/mailApi.service.js";
 import { listAccessibleMailFolders } from "../services/mail/mailFolders.service.js";
+import { syncFoldersFromImap } from "../services/mail/imap.service.js";
 import { enqueueMailMoveActionInTransaction } from "../services/mail/mailMoveMutation.service.js";
 import { SmtpErrorCodes, mapSmtpError } from "../services/mail/smtp.service.js";
 import { enqueueOutboundMail } from "../services/mail/mailOutbox.service.js";
@@ -117,10 +118,19 @@ router.get("/folders", verifyJWT, requireMailUseStrict(), async (req, res) => {
       return res.status(400).json({ success: false, code: "ORG_REQUIRED" });
     }
     const accessible = await resolveAccessibleAccountIds(req);
-    const folders = await listAccessibleMailFolders(pool, {
+    let folders = await listAccessibleMailFolders(pool, {
       organizationId,
       accessibleAccountIds: accessible,
     });
+    if ((folders.accounts ?? []).length === 0 && accessible.size > 0) {
+      await Promise.allSettled(
+        [...accessible].slice(0, 10).map((mailAccountId) => syncFoldersFromImap({ organizationId, mailAccountId }))
+      );
+      folders = await listAccessibleMailFolders(pool, {
+        organizationId,
+        accessibleAccountIds: accessible,
+      });
+    }
     return res.json({ success: true, ...folders });
   } catch (err) {
     console.error("GET /mail/folders", err);
@@ -491,7 +501,6 @@ async function enqueueMoveRoute(req, res, payload) {
 
 router.post("/threads/:threadId/actions/:action", verifyJWT, requireMailUseStrict(), async (req, res) => {
   const folderId = parseOptionalUuid(req.body?.folderId);
-  if (!folderId) return res.status(400).json({ success: false, code: "FOLDER_ID_REQUIRED" });
   const targetFolderId = parseOptionalUuid(req.body?.targetFolderId);
   return enqueueMoveRoute(req, res, {
     threadId: req.params.threadId,
@@ -505,7 +514,6 @@ router.post("/threads/:threadId/actions/:action", verifyJWT, requireMailUseStric
 
 router.post("/messages/:messageId/actions/hard-delete", verifyJWT, requireMailUseStrict(), async (req, res) => {
   const folderId = parseOptionalUuid(req.body?.folderId);
-  if (!folderId) return res.status(400).json({ success: false, code: "FOLDER_ID_REQUIRED" });
   return enqueueMoveRoute(req, res, {
     messageId: req.params.messageId,
     folderId,
@@ -517,7 +525,6 @@ router.post("/messages/:messageId/actions/hard-delete", verifyJWT, requireMailUs
 
 router.post("/bulk/actions", verifyJWT, requireMailUseStrict(), async (req, res) => {
   const folderId = parseOptionalUuid(req.body?.folderId);
-  if (!folderId) return res.status(400).json({ success: false, code: "FOLDER_ID_REQUIRED" });
   return enqueueMoveRoute(req, res, {
     folderId,
     targetFolderId: parseOptionalUuid(req.body?.targetFolderId),

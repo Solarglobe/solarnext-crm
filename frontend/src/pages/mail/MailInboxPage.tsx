@@ -236,12 +236,13 @@ export default function MailInboxPage() {
         const inbox = all.find((f) => f.type === "INBOX");
         return inbox?.id ?? all[0]?.id ?? null;
       });
+      refreshUnreadCounters();
     } catch (e) {
       setFoldersError(e instanceof Error ? e.message : String(e));
     } finally {
       setFoldersLoading(false);
     }
-  }, []);
+  }, [refreshUnreadCounters]);
 
   useEffect(() => {
     void reloadFolders();
@@ -464,12 +465,8 @@ export default function MailInboxPage() {
 
   const onArchive = useCallback(
     async (threadId: string) => {
-      if (!selectedFolderId) {
-        setListError("Selectionnez un dossier mail reel avant d'archiver.");
-        return;
-      }
       try {
-        await runThreadMailAction(threadId, "archive", { folderId: selectedFolderId });
+        await runThreadMailAction(threadId, "archive", { folderId: selectedFolderId || undefined });
         setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Archive en attente" }));
         setBulkSelectedThreadIds((prev) => {
           if (!prev.has(threadId)) return prev;
@@ -497,12 +494,8 @@ export default function MailInboxPage() {
 
   const onTrash = useCallback(
     async (threadId: string) => {
-      if (!selectedFolderId) {
-        setListError("Selectionnez un dossier mail reel avant de supprimer.");
-        return;
-      }
       try {
-        await runThreadMailAction(threadId, "trash", { folderId: selectedFolderId });
+        await runThreadMailAction(threadId, "trash", { folderId: selectedFolderId || undefined });
         setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Corbeille en attente" }));
         setBulkSelectedThreadIds((prev) => {
           if (!prev.has(threadId)) return prev;
@@ -520,12 +513,8 @@ export default function MailInboxPage() {
 
   const onRestore = useCallback(
     async (threadId: string) => {
-      if (!selectedFolderId) {
-        setListError("Selectionnez un dossier mail reel avant de restaurer.");
-        return;
-      }
       try {
-        await runThreadMailAction(threadId, "restore", { folderId: selectedFolderId });
+        await runThreadMailAction(threadId, "restore", { folderId: selectedFolderId || undefined });
         setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Restauration en attente" }));
         refreshUnreadCounters();
       } catch (e) {
@@ -546,12 +535,8 @@ export default function MailInboxPage() {
 
   const onMove = useCallback(
     async (threadId: string, targetFolderId: string) => {
-      if (!selectedFolderId) {
-        setListError("Selectionnez un dossier mail reel avant de deplacer.");
-        return;
-      }
       try {
-        await runThreadMailAction(threadId, "move", { folderId: selectedFolderId, targetFolderId });
+        await runThreadMailAction(threadId, "move", { folderId: selectedFolderId || undefined, targetFolderId });
         setPendingThreadActions((prev) => ({ ...prev, [threadId]: "Deplacement en attente" }));
         refreshUnreadCounters();
         void reloadFolders();
@@ -564,16 +549,12 @@ export default function MailInboxPage() {
 
   const onBulkAction = useCallback(
     async (action: "archive" | "trash" | "restore" | "junk" | "unjunk" | "hard-delete") => {
-      if (!selectedFolderId) {
-        setListError("Selectionnez un dossier mail reel avant d'agir en lot.");
-        return;
-      }
       const threadIds = [...bulkSelectedThreadIds];
       if (threadIds.length === 0) return;
       const confirm = action === "hard-delete";
       if (confirm && !window.confirm("Supprimer definitivement les messages selectionnes de la corbeille ?")) return;
       try {
-        await runBulkMailAction({ action, folderId: selectedFolderId, threadIds, confirm });
+        await runBulkMailAction({ action, folderId: selectedFolderId || undefined, threadIds, confirm });
         setPendingThreadActions((prev) => {
           const next = { ...prev };
           for (const id of threadIds) next[id] = "Operation en attente";
@@ -591,14 +572,10 @@ export default function MailInboxPage() {
 
   const onBulkMove = useCallback(
     async (targetFolderId: string) => {
-      if (!selectedFolderId) {
-        setListError("Selectionnez un dossier mail reel avant de deplacer.");
-        return;
-      }
       const threadIds = [...bulkSelectedThreadIds];
       if (threadIds.length === 0 || !targetFolderId) return;
       try {
-        await runBulkMailAction({ action: "move", folderId: selectedFolderId, threadIds, targetFolderId });
+        await runBulkMailAction({ action: "move", folderId: selectedFolderId || undefined, threadIds, targetFolderId });
         setPendingThreadActions((prev) => {
           const next = { ...prev };
           for (const id of threadIds) next[id] = "Deplacement en attente";

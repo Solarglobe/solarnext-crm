@@ -58,3 +58,15 @@ test("mail phase 5 migration adds reversible indexes for inbox badge and lists",
   assert.match(migration, /DROP INDEX IF EXISTS idx_mail_messages_account_folder_read_live/);
   assert.match(migration, /DROP INDEX IF EXISTS idx_mail_threads_org_live_unread_last/);
 });
+
+test("mail folder list self-heals IMAP folders and actions do not require selected source folder", () => {
+  const routes = read("routes/mail.routes.js");
+  const page = read("../frontend/src/pages/mail/MailInboxPage.tsx");
+  const api = read("../frontend/src/services/mailApi.ts");
+  assert.match(routes, /syncFoldersFromImap/);
+  assert.match(routes, /Promise\.allSettled/);
+  assert.doesNotMatch(routes, /if \(!folderId\) return res\.status\(400\)\.json\(\{ success: false, code: "FOLDER_ID_REQUIRED" \}\)/);
+  assert.doesNotMatch(page, /Selectionnez un dossier mail reel avant de supprimer/);
+  assert.match(page, /folderId: selectedFolderId \|\| undefined/);
+  assert.match(api, /folderId\?: string \| null/);
+});
