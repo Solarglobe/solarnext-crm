@@ -184,6 +184,7 @@ jobs:
     steps:
       - name: Production HTTP and Calpinage assets
         run: |
+          FRONTEND_PRODUCTION_URL="${FRONTEND_PRODUCTION_URL:-https://solarnext-crm.fr}"
           test -n "$FRONTEND_PRODUCTION_URL"
           urls=(
             "$FRONTEND_PRODUCTION_URL/"
