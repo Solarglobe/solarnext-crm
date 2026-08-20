@@ -185,10 +185,26 @@ jobs:
       - name: Production HTTP and Calpinage assets
         run: |
           test -n "$FRONTEND_PRODUCTION_URL"
-          curl --fail --silent --show-error "$FRONTEND_PRODUCTION_URL/"
-          curl --fail --silent --show-error "$FRONTEND_PRODUCTION_URL/config/vite-public-runtime.js"
-          curl --fail --silent --show-error "$FRONTEND_PRODUCTION_URL/calpinage/canvas-bundle.js"
-          curl --fail --silent --show-error "$FRONTEND_PRODUCTION_URL/calpinage/shading/nearShadingCore.cjs"
+          urls=(
+            "$FRONTEND_PRODUCTION_URL/"
+            "$FRONTEND_PRODUCTION_URL/config/vite-public-runtime.js"
+            "$FRONTEND_PRODUCTION_URL/calpinage/canvas-bundle.js"
+            "$FRONTEND_PRODUCTION_URL/calpinage/shading/nearShadingCore.cjs"
+          )
+
+          for url in "${urls[@]}"; do
+            for attempt in {1..12}; do
+              if curl --fail --silent --show-error "$url" > /dev/null; then
+                break
+              fi
+
+              if [ "$attempt" -eq 12 ]; then
+                curl --fail --silent --show-error "$url"
+              fi
+
+              sleep 5
+            done
+          done
 
   deploy-disabled:
     name: Deploy Disabled Notice
