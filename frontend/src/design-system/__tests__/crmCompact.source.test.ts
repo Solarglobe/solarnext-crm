@@ -36,8 +36,10 @@ describe("crm compact source audit", () => {
     expect(css).toContain("--spacing-24: 19px");
     expect(css).toContain("--sn-ui-control-h-md: 26px");
     expect(css).toContain("--sn-ui-table-row-min-h: 36px");
-    expect(css).toContain("width: 176px");
-    expect(css).toContain("font-size: 11px");
+    expect(css).not.toContain("width: 176px");
+    expect(css).toContain("--sn-kanban-col-w: clamp(164px");
+    expect(css).toContain(".sn-leads-card-v3__name");
+    expect(css).toContain("font-size: 12.5px");
     expect(css).not.toContain("transform: scale");
   });
 });

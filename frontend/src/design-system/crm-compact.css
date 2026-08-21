@@ -9,12 +9,6 @@ html.sn-app-page .sn-main--compact-crm {
   --font-size-body: 12px;
   --font-size-body-lg: 13px;
   --font-size-label: 11px;
-  --sb-space-4: 3px;
-  --sb-space-6: 5px;
-  --sb-space-8: 6px;
-  --sb-space-12: 9px;
-  --sb-space-16: 13px;
-  --sb-space-20: 16px;
   --spacing-8: 6px;
   --spacing-12: 10px;
   --spacing-16: 13px;
@@ -36,63 +30,6 @@ html.sn-app-page .sn-main--compact-crm {
   --sn-saas-input-h: 26px;
 }
 
-html.sn-app-page.sn-crm-compact-route .sn-app-shell {
-  font-size: 12px;
-}
-
-html.sn-app-page.sn-crm-compact-route aside.sn-sidebar {
-  padding: 12px;
-  width: 176px;
-  min-width: 176px;
-  max-width: 176px;
-}
-
-html.sn-app-page.sn-crm-compact-route .sn-sidebar-header {
-  margin-bottom: 10px;
-}
-
-html.sn-app-page.sn-crm-compact-route .sn-sidebar-brand {
-  width: 142px;
-  min-height: 34px;
-}
-
-html.sn-app-page.sn-crm-compact-route .sn-sidebar-header-toolbar {
-  gap: 7px;
-}
-
-html.sn-app-page.sn-crm-compact-route .sn-sidebar-action-btn {
-  width: 26px;
-  height: 26px;
-  min-height: 26px;
-}
-
-html.sn-app-page.sn-crm-compact-route .sn-sidebar-section-toggle {
-  min-height: 23px;
-  padding-inline: 6px;
-  font-size: 10.5px;
-}
-
-html.sn-app-page.sn-crm-compact-route .sn-sidebar-link {
-  min-height: 23px;
-  height: 23px;
-  gap: 6px;
-  padding-inline: 6px;
-  font-size: 11px;
-}
-
-html.sn-app-page.sn-crm-compact-route .sn-sidebar-link-icon,
-html.sn-app-page.sn-crm-compact-route .sn-sidebar-link-icon svg {
-  width: 13px;
-  height: 13px;
-  flex-basis: 13px;
-}
-
-html.sn-app-page.sn-crm-compact-route .sn-sidebar-mail-unread-badge {
-  min-width: 20px;
-  height: 20px;
-  font-size: 10.5px;
-}
-
 html.sn-app-page.sn-crm-compact-route .sn-global-search {
   min-height: 42px;
   padding-block: 8px;
@@ -104,23 +41,24 @@ html.sn-app-page.sn-crm-compact-route .sn-global-search__input {
 }
 
 html.sn-app-page .sn-main--compact-crm {
-  padding: 22px;
+  padding: 18px;
 }
 
 html.sn-app-page .sn-main--compact-crm :where(.sn-page, .sn-saas-page) {
-  gap: 13px;
+  padding: 14px;
+  gap: 10px;
 }
 
 html.sn-app-page .sn-main--compact-crm :where(.sn-card, .sg-card, .sn-saas-surface, .sn-saas-form-section) {
-  padding: 10px 12px;
+  padding: 9px 11px;
 }
 
 html.sn-app-page .sn-main--compact-crm :where(.sn-saas-hero, .sn-page-header, .sn-section-header) {
-  margin-bottom: 13px;
+  margin-bottom: 10px;
 }
 
 html.sn-app-page .sn-main--compact-crm :where(.sn-saas-hero__title, .sn-page-header__title, h1) {
-  font-size: clamp(18px, 1.7vw, 26px);
+  font-size: clamp(17px, 1.45vw, 23px);
   line-height: 1.2;
 }
 
@@ -156,4 +94,105 @@ html.sn-app-page .sn-main--compact-crm :where(.sn-badge, .sg-badge) {
   min-height: 20px;
   padding: 2px 7px;
   font-size: 11px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-leads-page) {
+  gap: 10px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-leads-page__header) {
+  min-height: 0;
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-leads-page__title) {
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-leads-page__subtitle-inline) {
+  font-size: 11px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-leads-page__data-pane, .sn-leads-page__view-root) {
+  min-height: 0;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-kanban {
+  --sn-kanban-col-w: clamp(164px, 2.8vw + 132px, 208px);
+  gap: 6px;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-kanban-col {
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 5px 18px rgba(0, 0, 0, 0.14);
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-kanban-col__head {
+  gap: 5px;
+  padding: 5px 6px;
+  border-radius: 12px 12px 0 0;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-kanban-col .sn-leads-kanban-col__title {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-kanban-col__count {
+  min-width: 18px;
+  height: 17px;
+  padding-inline: 5px;
+  font-size: 9.5px;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-kanban-col__body {
+  gap: 5px;
+  padding: 5px;
+  border-radius: 0 0 12px 12px;
+}
+
+html.sn-app-page .sn-main--compact-crm .lead-card.sn-leads-card-v3 {
+  border-radius: 10px;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-card-v3 .lead-card-body,
+html.sn-app-page .sn-main--compact-crm .sn-leads-card-v3__body {
+  padding: 7px 8px 8px;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-card-v3__head {
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-card-v3__head-main {
+  gap: 3px;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-card-v3__name {
+  font-size: 12.5px;
+  line-height: 1.2;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-card-v3__source {
+  margin-bottom: 3px;
+  font-size: 9.5px;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-card-v3__line {
+  margin-bottom: 2px;
+  font-size: 9.5px;
+  line-height: 1.3;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-card-v3__line--tel {
+  margin-bottom: 4px;
+}
+
+html.sn-app-page .sn-main--compact-crm .sn-leads-card-v3__foot {
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 4px;
 }
