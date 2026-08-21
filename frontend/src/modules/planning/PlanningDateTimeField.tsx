@@ -1,10 +1,10 @@
 /**
  * Champ date/heure mission — input natif (datetime-local).
  * Snap automatique au quart d'heure le plus proche au blur.
- * Format interne : YYYY-MM-DDTHH:mm (identique à la valeur ISO slice).
+ * Format interne : YYYY-MM-DDTHH:mm en heure locale.
  */
 
-import { snapToQuarter } from "./planningDateTime.utils";
+import { snapDateTimeLocal } from "./planningDateTime.utils";
 
 export interface PlanningDateTimeFieldProps {
   label: string;
@@ -23,16 +23,14 @@ export default function PlanningDateTimeField({
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value; // YYYY-MM-DDTHH:mm
     if (!raw) return;
-    const snapped = snapToQuarter(new Date(raw));
-    onChange(snapped.toISOString().slice(0, 16));
+    onChange(snapDateTimeLocal(raw));
   }
 
   /** Snap supplémentaire au blur pour capturer la saisie clavier libre */
   function handleBlur(e: React.FocusEvent<HTMLInputElement>) {
     const raw = e.target.value;
     if (!raw) return;
-    const snapped = snapToQuarter(new Date(raw));
-    const snappedSlice = snapped.toISOString().slice(0, 16);
+    const snappedSlice = snapDateTimeLocal(raw);
     if (snappedSlice !== value) onChange(snappedSlice);
   }
 

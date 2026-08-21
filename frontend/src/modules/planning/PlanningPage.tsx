@@ -21,6 +21,7 @@ import DayView from "./DayView";
 import MonthView from "./MonthView";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { getCrmApiBase } from "@/config/crmApiBase";
+import { dateTimeLocalToServerIso } from "./planningDateTime.utils";
 
 const API_BASE = getCrmApiBase();
 
@@ -124,8 +125,8 @@ export default function PlanningPage() {
     try {
       const list = await fetchMissions({
         ...filters,
-        from: `${from}T00:00:00`,
-        to: `${to}T23:59:59`,
+        from: dateTimeLocalToServerIso(`${from}T00:00`),
+        to: dateTimeLocalToServerIso(`${to}T23:59`),
       });
       setMissions(list);
     } catch (e) {

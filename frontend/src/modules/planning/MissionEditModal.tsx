@@ -22,6 +22,10 @@ import { apiFetch } from "../../services/api";
 import UserMultiSelect from "./UserMultiSelect";
 import SearchableDropdown, { type DropdownOption } from "./SearchableDropdown";
 import PlanningDateTimeField from "./PlanningDateTimeField";
+import {
+  dateTimeLocalToServerIso,
+  formatDateTimeLocal,
+} from "./planningDateTime.utils";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { getCrmApiBase } from "@/config/crmApiBase";
 
@@ -111,8 +115,8 @@ export default function MissionEditModal({
         setTitle(m.title);
         setDescription(m.description || "");
         setMissionTypeId(m.mission_type_id || "");
-        setStartAt(m.start_at.slice(0, 16));
-        setEndAt(m.end_at.slice(0, 16));
+        setStartAt(formatDateTimeLocal(m.start_at));
+        setEndAt(formatDateTimeLocal(m.end_at));
         setSelectedClientId(m.client_id || "");
         setProjectId(m.project_id || "");
         setIsPrivateBlock(m.is_private_block ?? false);
@@ -202,8 +206,8 @@ export default function MissionEditModal({
         title,
         description: description || undefined,
         mission_type_id: missionTypeId || undefined,
-        start_at: new Date(startAt).toISOString(),
-        end_at: new Date(endAt).toISOString(),
+        start_at: dateTimeLocalToServerIso(startAt),
+        end_at: dateTimeLocalToServerIso(endAt),
         status,
         client_id: selectedClientId || undefined,
         project_id: projectId || undefined,

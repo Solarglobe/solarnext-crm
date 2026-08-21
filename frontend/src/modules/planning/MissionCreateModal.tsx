@@ -21,7 +21,11 @@ import { getCurrentUser } from "../../services/auth.service";
 import UserMultiSelect from "./UserMultiSelect";
 import SearchableDropdown, { type DropdownOption } from "./SearchableDropdown";
 import PlanningDateTimeField from "./PlanningDateTimeField";
-import { snapToQuarter } from "./planningDateTime.utils";
+import {
+  dateTimeLocalToServerIso,
+  formatDateTimeLocal,
+  snapToQuarter,
+} from "./planningDateTime.utils";
 import { getCrmApiBase } from "@/config/crmApiBase";
 
 const API_BASE = getCrmApiBase();
@@ -86,8 +90,8 @@ export default function MissionCreateModal({
     const start = snapToQuarter(now);
     const end = new Date(start);
     end.setHours(end.getHours() + 1, 0, 0, 0);
-    setStartAt(start.toISOString().slice(0, 16));
-    setEndAt(end.toISOString().slice(0, 16));
+    setStartAt(formatDateTimeLocal(start));
+    setEndAt(formatDateTimeLocal(end));
   }, []);
 
   useEffect(() => {
@@ -161,8 +165,8 @@ export default function MissionCreateModal({
       title,
       description: description || undefined,
       mission_type_id: missionTypeId || undefined,
-      start_at: new Date(startAt).toISOString(),
-      end_at: new Date(endAt).toISOString(),
+      start_at: dateTimeLocalToServerIso(startAt),
+      end_at: dateTimeLocalToServerIso(endAt),
       client_id: selectedClientId || undefined,
       project_id: projectId || undefined,
       is_private_block: isPrivateBlock,
