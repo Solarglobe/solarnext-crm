@@ -54,4 +54,15 @@ describe("mail phase 5 source audit", () => {
       expect(css).toContain(`max-width: ${bp}`);
     }
   });
+
+  it("la lecture mail affiche le HTML sans mini iframe scrollable", () => {
+    const message = read("src/pages/mail/MailThreadMessage.tsx");
+    const css = read("src/pages/mail/mail-inbox.css");
+    expect(message).not.toContain("<iframe");
+    expect(message).not.toContain("srcDoc");
+    expect(message).toContain('className="mail-msg__html"');
+    expect(message).toContain('role="document"');
+    expect(css).not.toContain("mail-msg__html-frame");
+    expect(css).toContain(".mail-msg__html :where(table)");
+  });
 });

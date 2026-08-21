@@ -1667,7 +1667,8 @@ button.mail-inbox-sn-tab:focus-visible {
 }
 
 .mail-viewer__timeline {
-  max-width: 720px;
+  width: min(100%, 1040px);
+  max-width: none;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -1684,7 +1685,7 @@ button.mail-inbox-sn-tab:focus-visible {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  max-width: 680px;
+  max-width: min(100%, 980px);
 }
 
 .mail-msg--out .mail-msg__inner {
@@ -1756,7 +1757,8 @@ button.mail-inbox-sn-tab:focus-visible {
   border-radius: 14px;
   padding: 14px 16px;
   border: 1px solid transparent;
-  max-width: 680px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .mail-msg__bubble--in {
@@ -1776,16 +1778,53 @@ button.mail-inbox-sn-tab:focus-visible {
 }
 
 .mail-msg__html {
+  max-width: 100%;
+  min-width: 0;
   font-size: 14px;
   line-height: 1.55;
   color: #1f2937;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .mail-msg__html img {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
+}
+
+.mail-msg__html :where(*) {
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+.mail-msg__html :where(p, div, section, article, header, footer, li, td, th) {
+  overflow-wrap: anywhere;
+}
+
+.mail-msg__html :where(table) {
+  width: 100% !important;
+  max-width: 100% !important;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.mail-msg__html :where(td, th) {
+  min-width: 0 !important;
+}
+
+.mail-msg__html :where(pre) {
+  white-space: pre-wrap;
+}
+
+.mail-msg__html :where(img[data-remote-src-blocked]) {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  object-fit: contain;
 }
 
 .mail-msg__html a {
@@ -2475,13 +2514,6 @@ html.theme-dark .mail-drafts__open:hover {
   display: grid;
   gap: 8px;
   width: 100%;
-}
-
-.mail-msg__html-frame {
-  width: 100%;
-  min-height: 180px;
-  border: 0;
-  background: transparent;
 }
 
 .mail-msg__privacy-banner {
