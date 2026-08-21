@@ -41,6 +41,17 @@
   color: var(--primary);
 }
 
+.planning-modal-entity-link {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.planning-modal-entity-link:hover,
+.planning-modal-entity-link:focus-visible {
+  text-decoration: underline;
+}
+
 .planning-modal-error {
   color: var(--error);
   margin: 12px 0;

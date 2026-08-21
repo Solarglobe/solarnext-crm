@@ -4,6 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useId, useState } from "react";
+import { Link } from "react-router-dom";
 import { ModalShell } from "../../components/ui/ModalShell";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import "./planning-mission-modal.css";
@@ -453,14 +454,26 @@ export default function MissionEditModal({
             />
             {selectedClient && (
               <div className="planning-modal-id-block">
-                Client: {getClientDisplayName(selectedClient)}
+                Client:{" "}
+                <Link
+                  className="planning-modal-entity-link"
+                  to={`/clients/${encodeURIComponent(selectedClient.id)}`}
+                >
+                  {getClientDisplayName(selectedClient)}
+                </Link>
                 <br />
                 <span className="planning-modal-id">ID: {selectedClient.client_number || selectedClient.id}</span>
               </div>
             )}
             {selectedLead && (
               <div className="planning-modal-id-block">
-                Lead: {getLeadDisplayName(selectedLead)}
+                Lead:{" "}
+                <Link
+                  className="planning-modal-entity-link"
+                  to={`/leads/${encodeURIComponent(selectedLead.id)}`}
+                >
+                  {getLeadDisplayName(selectedLead)}
+                </Link>
                 <br />
                 <span className="planning-modal-id">ID: {selectedLead.id}</span>
               </div>
