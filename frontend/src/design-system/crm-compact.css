@@ -3,11 +3,18 @@
  * Mail, DP/Documents et Calpinage restent exclus via AppLayout.
  */
 
+html.sn-app-page.sn-crm-compact-route,
 html.sn-app-page .sn-main--compact-crm {
   --sn-crm-compact-scope: 1;
   --font-size-body: 12px;
   --font-size-body-lg: 13px;
   --font-size-label: 11px;
+  --sb-space-4: 3px;
+  --sb-space-6: 5px;
+  --sb-space-8: 6px;
+  --sb-space-12: 9px;
+  --sb-space-16: 13px;
+  --sb-space-20: 16px;
   --spacing-8: 6px;
   --spacing-12: 10px;
   --spacing-16: 13px;
@@ -27,6 +34,77 @@ html.sn-app-page .sn-main--compact-crm {
   --sn-saas-gap-block: 11px;
   --sn-saas-gap-section: 13px;
   --sn-saas-input-h: 26px;
+}
+
+html.sn-app-page.sn-crm-compact-route .sn-app-shell {
+  font-size: 12px;
+}
+
+html.sn-app-page.sn-crm-compact-route aside.sn-sidebar {
+  padding: 12px;
+  width: 176px;
+  min-width: 176px;
+  max-width: 176px;
+}
+
+html.sn-app-page.sn-crm-compact-route .sn-sidebar-header {
+  margin-bottom: 10px;
+}
+
+html.sn-app-page.sn-crm-compact-route .sn-sidebar-brand {
+  width: 142px;
+  min-height: 34px;
+}
+
+html.sn-app-page.sn-crm-compact-route .sn-sidebar-header-toolbar {
+  gap: 7px;
+}
+
+html.sn-app-page.sn-crm-compact-route .sn-sidebar-action-btn {
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+}
+
+html.sn-app-page.sn-crm-compact-route .sn-sidebar-section-toggle {
+  min-height: 23px;
+  padding-inline: 6px;
+  font-size: 10.5px;
+}
+
+html.sn-app-page.sn-crm-compact-route .sn-sidebar-link {
+  min-height: 23px;
+  height: 23px;
+  gap: 6px;
+  padding-inline: 6px;
+  font-size: 11px;
+}
+
+html.sn-app-page.sn-crm-compact-route .sn-sidebar-link-icon,
+html.sn-app-page.sn-crm-compact-route .sn-sidebar-link-icon svg {
+  width: 13px;
+  height: 13px;
+  flex-basis: 13px;
+}
+
+html.sn-app-page.sn-crm-compact-route .sn-sidebar-mail-unread-badge {
+  min-width: 20px;
+  height: 20px;
+  font-size: 10.5px;
+}
+
+html.sn-app-page.sn-crm-compact-route .sn-global-search {
+  min-height: 42px;
+  padding-block: 8px;
+}
+
+html.sn-app-page.sn-crm-compact-route .sn-global-search__input {
+  min-height: 34px;
+  font-size: 13px;
+}
+
+html.sn-app-page .sn-main--compact-crm {
+  padding: 22px;
 }
 
 html.sn-app-page .sn-main--compact-crm :where(.sn-page, .sn-saas-page) {

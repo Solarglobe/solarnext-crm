@@ -659,6 +659,16 @@ export function AppLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("sn-crm-compact-route", !compactExcludedPath);
+    root.dataset.crmDensity = compactExcludedPath ? "standard" : "compact";
+    return () => {
+      root.classList.remove("sn-crm-compact-route");
+      delete root.dataset.crmDensity;
+    };
+  }, [compactExcludedPath]);
+
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isCreateLeadOpen, setIsCreateLeadOpen] = useState(false);

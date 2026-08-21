@@ -9,6 +9,8 @@ describe("crm compact source audit", () => {
   it("active le compactage CRM depuis AppLayout en excluant Mail, DP/Documents et Calpinage", () => {
     const layout = read("src/layout/AppLayout.tsx");
     expect(layout).toContain("sn-main--compact-crm");
+    expect(layout).toContain("sn-crm-compact-route");
+    expect(layout).toContain("crmDensity");
     expect(layout).toContain('pathname === "/mail"');
     expect(layout).toContain('pathname.startsWith("/mail/")');
     expect(layout).toContain('pathname === "/settings/mail"');
@@ -27,12 +29,15 @@ describe("crm compact source audit", () => {
 
   it("reduit les dimensions principales autour de 20 pourcent sans transform visuel", () => {
     const css = read("src/design-system/crm-compact.css");
+    expect(css).toContain("html.sn-app-page.sn-crm-compact-route");
     expect(css).toContain(".sn-main--compact-crm");
     expect(css).toContain("--sn-crm-compact-scope: 1");
     expect(css).toContain("--spacing-32: 26px");
     expect(css).toContain("--spacing-24: 19px");
     expect(css).toContain("--sn-ui-control-h-md: 26px");
     expect(css).toContain("--sn-ui-table-row-min-h: 36px");
+    expect(css).toContain("width: 176px");
+    expect(css).toContain("font-size: 11px");
     expect(css).not.toContain("transform: scale");
   });
 });
