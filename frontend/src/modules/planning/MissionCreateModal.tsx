@@ -15,7 +15,12 @@ import {
   type MissionType,
 } from "../../services/missions.service";
 import { fetchClients, type Client } from "../../services/clients.service";
-import { fetchStudiesByClientId, type Study } from "../../services/studies.service";
+import {
+  fetchStudiesByClientId,
+  fetchStudiesByLeadId,
+  type Study,
+} from "../../services/studies.service";
+import { fetchLeads, getLeadName, type Lead } from "../../services/leads.service";
 import { apiFetch } from "../../services/api";
 import { getCurrentUser } from "../../services/auth.service";
 import UserMultiSelect from "./UserMultiSelect";
@@ -29,6 +34,19 @@ import {
 import { getCrmApiBase } from "@/config/crmApiBase";
 
 const API_BASE = getCrmApiBase();
+
+type ContactKind = "client" | "lead";
+
+function contactKey(kind: ContactKind, id: string): string {
+  return `${kind}:${id}`;
+}
+
+function parseContactKey(value: string): { kind: ContactKind; id: string } | null {
+  const [kind, ...rest] = value.split(":");
+  const id = rest.join(":");
+  if ((kind === "client" || kind === "lead") && id) return { kind, id };
+  return null;
+}
 
 interface MissionCreateModalProps {
   onClose: () => void;
@@ -46,6 +64,13 @@ function getClientDisplayName(c: Client): string {
   if (c.company_name) return c.company_name;
   const parts = [c.first_name, c.last_name].filter(Boolean);
   return parts.length ? parts.join(" ") : c.email || c.id;
+}
+
+function getLeadDisplayName(lead: Lead): string {
+  const name = getLeadName(lead);
+  const company = lead.company_name?.trim();
+  if (company && company !== name) return `${company} — ${name}`;
+  return name;
 }
 
 export default function MissionCreateModal({
@@ -75,6 +100,7 @@ export default function MissionCreateModal({
       .catch(() => {});
   }, []);
   const [selectedClientId, setSelectedClientId] = useState(clientId || "");
+  const [selectedLeadId, setSelectedLeadId] = useState(leadId || "");
   const [projectId, setProjectId] = useState("");
   const [isPrivateBlock, setIsPrivateBlock] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -83,6 +109,7 @@ export default function MissionCreateModal({
   const [_teams, setTeams] = useState(teamsProp);
   const [missionTypes, setMissionTypes] = useState(typesProp);
   const [clients, setClients] = useState<Client[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [studies, setStudies] = useState<Study[]>([]);
 
   useEffect(() => {
@@ -97,6 +124,10 @@ export default function MissionCreateModal({
   useEffect(() => {
     if (clientId) setSelectedClientId(clientId);
   }, [clientId]);
+
+  useEffect(() => {
+    if (leadId) setSelectedLeadId(leadId);
+  }, [leadId]);
 
   useEffect(() => {
     (async () => {
@@ -120,17 +151,20 @@ export default function MissionCreateModal({
   useEffect(() => {
     if (!clientId && !leadId) {
       fetchClients().then(setClients).catch(() => setClients([]));
+      fetchLeads({ limit: 500, archive_scope: "active" }).then(setLeads).catch(() => setLeads([]));
     }
   }, [clientId, leadId]);
 
   useEffect(() => {
     if (selectedClientId) {
       fetchStudiesByClientId(selectedClientId).then(setStudies).catch(() => setStudies([]));
+    } else if (selectedLeadId) {
+      fetchStudiesByLeadId(selectedLeadId).then(setStudies).catch(() => setStudies([]));
     } else {
       setStudies([]);
       setProjectId("");
     }
-  }, [selectedClientId]);
+  }, [selectedClientId, selectedLeadId]);
 
   const typeOptions: DropdownOption[] = missionTypes.map((t) => ({
     id: t.id,
@@ -138,10 +172,16 @@ export default function MissionCreateModal({
     color: t.color,
   }));
 
-  const clientOptions: DropdownOption[] = clients.map((c) => ({
-    id: c.id,
-    label: `${getClientDisplayName(c)}${c.client_number ? ` (${c.client_number})` : ""}`,
-  }));
+  const contactOptions: DropdownOption[] = [
+    ...clients.map((c) => ({
+      id: contactKey("client", c.id),
+      label: `Client — ${getClientDisplayName(c)}${c.client_number ? ` (${c.client_number})` : ""}`,
+    })),
+    ...leads.map((l) => ({
+      id: contactKey("lead", l.id),
+      label: `Lead — ${getLeadDisplayName(l)}`,
+    })),
+  ];
 
   const studyOptions: DropdownOption[] = studies.map((s) => ({
     id: s.id,
@@ -149,7 +189,13 @@ export default function MissionCreateModal({
   }));
 
   const selectedClient = clients.find((c) => c.id === selectedClientId);
+  const selectedLead = leads.find((l) => l.id === selectedLeadId);
   const selectedStudy = studies.find((s) => s.id === projectId);
+  const selectedContactValue = selectedClientId
+    ? contactKey("client", selectedClientId)
+    : selectedLeadId
+      ? contactKey("lead", selectedLeadId)
+      : "";
 
   const formId = useId().replace(/:/g, "");
   const tryClose = useCallback(() => {
@@ -168,6 +214,7 @@ export default function MissionCreateModal({
       start_at: dateTimeLocalToServerIso(startAt),
       end_at: dateTimeLocalToServerIso(endAt),
       client_id: selectedClientId || undefined,
+      lead_id: selectedLeadId || undefined,
       project_id: projectId || undefined,
       is_private_block: isPrivateBlock,
       assignments: assignments.map((user_id) => ({ user_id, team_id: undefined })),
@@ -284,21 +331,30 @@ export default function MissionCreateModal({
           </div>
           {!clientId && !leadId && (
             <div className="planning-modal-field">
-              <label>Client</label>
+              <label>Contact CRM</label>
               <SearchableDropdown
-                options={clientOptions}
-                value={selectedClientId}
-                onChange={(id) => {
-                  setSelectedClientId(id);
+                options={contactOptions}
+                value={selectedContactValue}
+                onChange={(value) => {
+                  const parsed = parseContactKey(value);
+                  setSelectedClientId(parsed?.kind === "client" ? parsed.id : "");
+                  setSelectedLeadId(parsed?.kind === "lead" ? parsed.id : "");
                   setProjectId("");
                 }}
-                placeholder="Sélectionner un client"
+                placeholder="Sélectionner un client ou un lead"
               />
               {selectedClient && (
                 <div className="planning-modal-id-block">
                   Client: {getClientDisplayName(selectedClient)}
                   <br />
                   <span className="planning-modal-id">ID: {selectedClient.client_number || selectedClient.id}</span>
+                </div>
+              )}
+              {selectedLead && (
+                <div className="planning-modal-id-block">
+                  Lead: {getLeadDisplayName(selectedLead)}
+                  <br />
+                  <span className="planning-modal-id">ID: {selectedLead.id}</span>
                 </div>
               )}
             </div>
@@ -309,8 +365,8 @@ export default function MissionCreateModal({
               options={studyOptions}
               value={projectId}
               onChange={setProjectId}
-              placeholder={selectedClientId ? "Sélectionner un projet" : "Sélectionner d'abord un client"}
-              disabled={!selectedClientId}
+              placeholder={selectedClientId || selectedLeadId ? "Sélectionner un projet" : "Sélectionner d'abord un contact CRM"}
+              disabled={!selectedClientId && !selectedLeadId}
             />
             {selectedStudy && (
               <div className="planning-modal-id-block">

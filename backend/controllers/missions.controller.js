@@ -175,6 +175,7 @@ export async function update(req, res) {
       endAt: body.end_at,
       status: body.status,
       clientId: body.client_id,
+      leadId: body.lead_id,
       projectId: body.project_id,
       agencyId: body.agency_id,
       isPrivateBlock: body.is_private_block,

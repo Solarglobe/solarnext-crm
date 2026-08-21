@@ -48,6 +48,7 @@ export async function checkScheduleConflicts({ userIds, startAt, endAt, excludeM
  * @param {string} params.endAt
  * @param {string} [params.status]
  * @param {string} [params.clientId]
+ * @param {string} [params.leadId]
  * @param {string} [params.projectId]
  * @param {string} [params.agencyId]
  * @param {boolean} [params.isPrivateBlock]
@@ -189,6 +190,7 @@ export async function updateMission(params) {
     endAt,
     status,
     clientId,
+    leadId,
     projectId,
     agencyId,
     isPrivateBlock,
@@ -252,6 +254,10 @@ export async function updateMission(params) {
   if (clientId !== undefined) {
     updates.push(`client_id = $${idx++}`);
     values.push(clientId || null);
+  }
+  if (leadId !== undefined) {
+    updates.push(`lead_id = $${idx++}`);
+    values.push(leadId || null);
   }
   if (projectId !== undefined) {
     updates.push(`project_id = $${idx++}`);

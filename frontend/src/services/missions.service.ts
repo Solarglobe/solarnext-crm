@@ -101,10 +101,10 @@ export interface CreateMissionPayload {
   start_at: string;
   end_at: string;
   status?: string;
-  client_id?: string;
-  lead_id?: string;
-  project_id?: string;
-  agency_id?: string;
+  client_id?: string | null;
+  lead_id?: string | null;
+  project_id?: string | null;
+  agency_id?: string | null;
   is_private_block?: boolean;
   assignments?: { user_id: string; team_id?: string }[];
 }
@@ -146,10 +146,10 @@ export interface UpdateMissionPayload {
   start_at?: string;
   end_at?: string;
   status?: string;
-  client_id?: string;
-  lead_id?: string;
-  project_id?: string;
-  agency_id?: string;
+  client_id?: string | null;
+  lead_id?: string | null;
+  project_id?: string | null;
+  agency_id?: string | null;
   is_private_block?: boolean;
   assignments?: { user_id: string; team_id?: string }[];
 }

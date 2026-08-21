@@ -16,7 +16,12 @@ import {
   type MissionType,
 } from "../../services/missions.service";
 import { fetchClients, type Client } from "../../services/clients.service";
-import { fetchStudiesByClientId, type Study } from "../../services/studies.service";
+import {
+  fetchStudiesByClientId,
+  fetchStudiesByLeadId,
+  type Study,
+} from "../../services/studies.service";
+import { fetchLeads, getLeadName, type Lead } from "../../services/leads.service";
 import { getUserPermissions, getCurrentUser } from "../../services/auth.service";
 import { apiFetch } from "../../services/api";
 import UserMultiSelect from "./UserMultiSelect";
@@ -30,6 +35,19 @@ import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { getCrmApiBase } from "@/config/crmApiBase";
 
 const API_BASE = getCrmApiBase();
+
+type ContactKind = "client" | "lead";
+
+function contactKey(kind: ContactKind, id: string): string {
+  return `${kind}:${id}`;
+}
+
+function parseContactKey(value: string): { kind: ContactKind; id: string } | null {
+  const [kind, ...rest] = value.split(":");
+  const id = rest.join(":");
+  if ((kind === "client" || kind === "lead") && id) return { kind, id };
+  return null;
+}
 
 const STATUS_OPTIONS = [
   { id: "scheduled", label: "Planifiée" },
@@ -54,6 +72,13 @@ function getClientDisplayName(c: Client): string {
   return parts.length ? parts.join(" ") : c.email || c.id;
 }
 
+function getLeadDisplayName(lead: Lead): string {
+  const name = getLeadName(lead);
+  const company = lead.company_name?.trim();
+  if (company && company !== name) return `${company} — ${name}`;
+  return name;
+}
+
 export default function MissionEditModal({
   missionId,
   onClose,
@@ -72,6 +97,7 @@ export default function MissionEditModal({
   const [endAt, setEndAt] = useState("");
   const [assignments, setAssignments] = useState<string[]>([]);
   const [selectedClientId, setSelectedClientId] = useState("");
+  const [selectedLeadId, setSelectedLeadId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [isPrivateBlock, setIsPrivateBlock] = useState(false);
   const [status, setStatus] = useState("scheduled");
@@ -83,6 +109,7 @@ export default function MissionEditModal({
   const [_teams, setTeams] = useState(teamsProp);
   const [missionTypes, setMissionTypes] = useState(typesProp);
   const [clients, setClients] = useState<Client[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [studies, setStudies] = useState<Study[]>([]);
   const [canEdit, setCanEdit] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
@@ -118,6 +145,7 @@ export default function MissionEditModal({
         setStartAt(formatDateTimeLocal(m.start_at));
         setEndAt(formatDateTimeLocal(m.end_at));
         setSelectedClientId(m.client_id || "");
+        setSelectedLeadId(m.lead_id || "");
         setProjectId(m.project_id || "");
         setIsPrivateBlock(m.is_private_block ?? false);
         setStatus(m.status || "scheduled");
@@ -166,16 +194,19 @@ export default function MissionEditModal({
 
   useEffect(() => {
     fetchClients().then(setClients).catch(() => setClients([]));
+    fetchLeads({ limit: 500, archive_scope: "active" }).then(setLeads).catch(() => setLeads([]));
   }, []);
 
   useEffect(() => {
     if (selectedClientId) {
       fetchStudiesByClientId(selectedClientId).then(setStudies).catch(() => setStudies([]));
+    } else if (selectedLeadId) {
+      fetchStudiesByLeadId(selectedLeadId).then(setStudies).catch(() => setStudies([]));
     } else {
       setStudies([]);
       setProjectId("");
     }
-  }, [selectedClientId]);
+  }, [selectedClientId, selectedLeadId]);
 
   const typeOptions: DropdownOption[] = missionTypes.map((t) => ({
     id: t.id,
@@ -183,10 +214,16 @@ export default function MissionEditModal({
     color: t.color,
   }));
 
-  const clientOptions: DropdownOption[] = clients.map((c) => ({
-    id: c.id,
-    label: `${getClientDisplayName(c)}${c.client_number ? ` (${c.client_number})` : ""}`,
-  }));
+  const contactOptions: DropdownOption[] = [
+    ...clients.map((c) => ({
+      id: contactKey("client", c.id),
+      label: `Client — ${getClientDisplayName(c)}${c.client_number ? ` (${c.client_number})` : ""}`,
+    })),
+    ...leads.map((l) => ({
+      id: contactKey("lead", l.id),
+      label: `Lead — ${getLeadDisplayName(l)}`,
+    })),
+  ];
 
   const studyOptions: DropdownOption[] = studies.map((s) => ({
     id: s.id,
@@ -194,7 +231,13 @@ export default function MissionEditModal({
   }));
 
   const selectedClient = clients.find((c) => c.id === selectedClientId);
+  const selectedLead = leads.find((l) => l.id === selectedLeadId);
   const selectedStudy = studies.find((s) => s.id === projectId);
+  const selectedContactValue = selectedClientId
+    ? contactKey("client", selectedClientId)
+    : selectedLeadId
+      ? contactKey("lead", selectedLeadId)
+      : "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,8 +252,9 @@ export default function MissionEditModal({
         start_at: dateTimeLocalToServerIso(startAt),
         end_at: dateTimeLocalToServerIso(endAt),
         status,
-        client_id: selectedClientId || undefined,
-        project_id: projectId || undefined,
+        client_id: selectedClientId || null,
+        lead_id: selectedLeadId || null,
+        project_id: projectId || null,
         is_private_block: isPrivateBlock,
         assignments: assignments.map((user_id) => ({ user_id, team_id: undefined })),
       });
@@ -394,15 +438,17 @@ export default function MissionEditModal({
             />
           </div>
           <div className="planning-modal-field">
-            <label>Client</label>
+            <label>Contact CRM</label>
             <SearchableDropdown
-              options={clientOptions}
-              value={selectedClientId}
-              onChange={(id) => {
-                setSelectedClientId(id);
+              options={contactOptions}
+              value={selectedContactValue}
+              onChange={(value) => {
+                const parsed = parseContactKey(value);
+                setSelectedClientId(parsed?.kind === "client" ? parsed.id : "");
+                setSelectedLeadId(parsed?.kind === "lead" ? parsed.id : "");
                 setProjectId("");
               }}
-              placeholder="Sélectionner un client"
+              placeholder="Sélectionner un client ou un lead"
               disabled={disabled}
             />
             {selectedClient && (
@@ -412,6 +458,13 @@ export default function MissionEditModal({
                 <span className="planning-modal-id">ID: {selectedClient.client_number || selectedClient.id}</span>
               </div>
             )}
+            {selectedLead && (
+              <div className="planning-modal-id-block">
+                Lead: {getLeadDisplayName(selectedLead)}
+                <br />
+                <span className="planning-modal-id">ID: {selectedLead.id}</span>
+              </div>
+            )}
           </div>
           <div className="planning-modal-field">
             <label>Projet (étude)</label>
@@ -419,8 +472,8 @@ export default function MissionEditModal({
               options={studyOptions}
               value={projectId}
               onChange={setProjectId}
-              placeholder={selectedClientId ? "Sélectionner un projet" : "Sélectionner d'abord un client"}
-              disabled={!selectedClientId || disabled}
+              placeholder={selectedClientId || selectedLeadId ? "Sélectionner un projet" : "Sélectionner d'abord un contact CRM"}
+              disabled={(!selectedClientId && !selectedLeadId) || disabled}
             />
             {selectedStudy && (
               <div className="planning-modal-id-block">
