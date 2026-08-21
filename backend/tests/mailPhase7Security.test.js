@@ -41,12 +41,14 @@ test("7 recipient suggestions service queries CRM and mail participants with org
   assert.match(src, /assigned_user_id/);
 });
 
-test("7 frontend mail message renders HTML in sandbox iframe and blocks remote images", async () => {
+test("7 frontend mail message renders sanitized HTML inline and blocks remote images", async () => {
   const fs = await import("node:fs");
   const src = fs.readFileSync(new URL("../../frontend/src/pages/mail/MailThreadMessage.tsx", import.meta.url), "utf8");
-  assert.match(src, /<iframe/);
-  assert.match(src, /sandbox="allow-popups"/);
-  assert.match(src, /h1\{font-size:22px!important/);
+  assert.doesNotMatch(src, /<iframe/);
+  assert.doesNotMatch(src, /srcDoc/);
+  assert.match(src, /sanitizeMailHtml/);
+  assert.match(src, /dangerouslySetInnerHTML/);
+  assert.match(src, /role="document"/);
   assert.match(src, /Les images distantes ont été bloquées/);
 });
 
