@@ -40,6 +40,15 @@ describe("crm compact source audit", () => {
     expect(css).toContain("--sn-kanban-col-w: clamp(164px");
     expect(css).toContain(".sn-leads-card-v3__name");
     expect(css).toContain("font-size: 12.5px");
+    expect(css).toContain(".crm-lead-page");
+    expect(css).toContain(".crm-lead-card");
+    expect(css).toContain(".crm-lead-overview input.sn-input");
+    expect(css).toContain(".study-card-sg");
+    expect(css).toContain(".fin-section");
+    expect(css).toContain(".crm-clients-page");
+    expect(css).toContain(".clients-portfolio-list__row");
+    expect(css).toContain(".clients-detail-panel");
+    expect(css).toContain(".clients-detail__title");
     expect(css).not.toContain("transform: scale");
   });
 });
