@@ -4,6 +4,7 @@ import "./design-system/saas-crm.css";
 import "./design-system/tokens.css";
 import "./design-system/primitives.css";
 import "./design-system/sidebar-crm.css";
+import "./design-system/crm-compact.css";
 import "ol/ol.css";
 import React, { Suspense, useEffect, useState } from "react";
 import { applyTheme, readStoredTheme } from "./theme/themeApply";

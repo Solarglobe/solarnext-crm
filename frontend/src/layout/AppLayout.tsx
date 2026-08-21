@@ -636,6 +636,16 @@ function SidebarCollapsibleSection({
 export function AppLayout() {
   const { isSuperAdmin } = useOrganization();
   const { pathname } = useLocation();
+  const compactExcludedPath =
+    pathname === "/mail" ||
+    pathname.startsWith("/mail/") ||
+    pathname === "/settings/mail" ||
+    pathname.startsWith("/settings/mail-") ||
+    pathname === "/documents" ||
+    pathname.startsWith("/documents/") ||
+    /^\/leads\/[^/]+\/dp(?:\/|$)/.test(pathname) ||
+    /^\/studies\/[^/]+\/versions\/[^/]+\/calpinage(?:\/|$)/.test(pathname);
+  const mainClassName = compactExcludedPath ? "sn-main" : "sn-main sn-main--compact-crm";
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [permissionsSuperAdmin, setPermissionsSuperAdmin] = useState(false);
 
@@ -954,7 +964,7 @@ export function AppLayout() {
           </button>
         </div>
         <GlobalSearchBar />
-        <main className="sn-main">
+        <main className={mainClassName}>
           <Outlet />
         </main>
       </div>

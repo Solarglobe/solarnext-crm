@@ -1,0 +1,81 @@
+/**
+ * Compactage CRM transversal.
+ * Mail, DP/Documents et Calpinage restent exclus via AppLayout.
+ */
+
+html.sn-app-page .sn-main--compact-crm {
+  --sn-crm-compact-scope: 1;
+  --font-size-body: 12px;
+  --font-size-body-lg: 13px;
+  --font-size-label: 11px;
+  --spacing-8: 6px;
+  --spacing-12: 10px;
+  --spacing-16: 13px;
+  --spacing-20: 16px;
+  --spacing-24: 19px;
+  --spacing-32: 26px;
+  --sn-ui-control-h-sm: 24px;
+  --sn-ui-control-h-md: 26px;
+  --sn-ui-control-h-lg: 31px;
+  --sn-ui-control-pad-x: 10px;
+  --sn-ui-table-row-min-h: 36px;
+  --sn-ui-shell-nav-h: 30px;
+  --sn-ui-shell-topbar-h: 40px;
+  --sn-ui-page-pad: 19px;
+  --sn-saas-page-pad-x: 18px;
+  --sn-saas-page-pad-y: 18px;
+  --sn-saas-gap-block: 11px;
+  --sn-saas-gap-section: 13px;
+  --sn-saas-input-h: 26px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-page, .sn-saas-page) {
+  gap: 13px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-card, .sg-card, .sn-saas-surface, .sn-saas-form-section) {
+  padding: 10px 12px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-saas-hero, .sn-page-header, .sn-section-header) {
+  margin-bottom: 13px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-saas-hero__title, .sn-page-header__title, h1) {
+  font-size: clamp(18px, 1.7vw, 26px);
+  line-height: 1.2;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-saas-hero__lead, .sn-page-header__subtitle, .sn-page-header__lead) {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-saas-tab) {
+  padding: 8px 11px;
+  font-size: 12px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-saas-table thead th, .sn-ui-table thead th) {
+  padding: 6px 9px;
+  font-size: 10px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-saas-table tbody td, .sn-ui-table tbody td) {
+  padding: 7px 9px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(input, select, textarea, .sn-saas-input, .sn-saas-select, .sn-saas-textarea) {
+  font-size: 12px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-saas-toolbar, .sn-saas-toolbar__main, .sn-saas-toolbar__actions) {
+  gap: 9px;
+}
+
+html.sn-app-page .sn-main--compact-crm :where(.sn-badge, .sg-badge) {
+  min-height: 20px;
+  padding: 2px 7px;
+  font-size: 11px;
+}
