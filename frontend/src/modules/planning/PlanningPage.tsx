@@ -662,15 +662,47 @@ export default function PlanningPage() {
         .planning-calendar-header {
           display: grid;
           grid-template-columns: 48px repeat(7, 1fr);
-          background: var(--surface-soft);
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.92), rgba(241,246,252,0.96));
           border-bottom: 1px solid var(--border);
         }
         .planning-calendar-corner { }
         .planning-calendar-day-header {
-          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
+          min-height: 54px;
+          padding: 9px 8px;
           text-align: center;
           font-weight: 600;
           font-size: 13px;
+        }
+        .planning-calendar-day-title {
+          color: var(--text);
+          font-size: 13px;
+          line-height: 1.15;
+        }
+        .planning-calendar-day-summary {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 18px;
+          max-width: 100%;
+          padding: 2px 7px;
+          border-radius: 999px;
+          background: rgba(124, 58, 237, 0.1);
+          color: #5b21b6;
+          font-size: 10px;
+          font-weight: 700;
+          line-height: 1;
+          white-space: nowrap;
+        }
+        .planning-calendar-day-summary.is-empty {
+          background: rgba(100, 116, 139, 0.08);
+          color: #64748b;
+          font-weight: 600;
         }
         .planning-calendar-body {
           display: grid;
@@ -714,44 +746,48 @@ export default function PlanningPage() {
         }
         .planning-mission-card {
           position: absolute;
-          border-radius: 10px;
-          border: 1px solid color-mix(in srgb, var(--brand-gold) 35%, transparent); /* or Solar */
-          background: linear-gradient(
-            180deg,
-            rgba(28,24,55,0.95),
-            rgba(20,18,45,0.95)
-          );
-          box-shadow: 0 6px 18px rgba(0,0,0,0.45);
-          padding: 8px 10px;
-          color: var(--text-on-dark);
+          border-radius: 9px;
+          border: 1px solid color-mix(in srgb, var(--mission-color) 24%, rgba(15, 23, 42, 0.12));
+          background:
+            linear-gradient(135deg, color-mix(in srgb, var(--mission-color) 12%, #ffffff) 0%, #ffffff 46%, #f8fbff 100%);
+          box-shadow:
+            0 8px 18px rgba(31, 41, 55, 0.12),
+            0 1px 0 rgba(255,255,255,0.9) inset;
+          padding: 8px 9px 8px 12px;
+          color: #111827;
           cursor: grab;
           transition:
             box-shadow 0.2s ease,
-            transform 0.06s ease;
+            transform 0.08s ease,
+            border-color 0.2s ease;
           display: flex;
           flex-direction: column;
-          gap: 2px;
+          gap: 4px;
         }
         .planning-mission-card:hover {
-          box-shadow: 0 10px 24px rgba(0,0,0,0.55);
+          border-color: color-mix(in srgb, var(--mission-color) 44%, rgba(15, 23, 42, 0.16));
+          box-shadow:
+            0 12px 24px rgba(31, 41, 55, 0.16),
+            0 1px 0 rgba(255,255,255,0.9) inset;
         }
         .planning-mission-card:active {
           transform: scale(0.99);
           cursor: grabbing;
         }
         .planning-mission-card.mission-card-compact {
-          padding: 6px 10px;
+          padding: 6px 8px 6px 11px;
+          gap: 2px;
         }
-        .planning-mission-card.mission-card-compact .mission-time {
-          font-size: 11px;
-          line-height: 1.2;
+        .planning-mission-card.mission-card-compact .mission-kind,
+        .planning-mission-card.mission-card-compact .mission-meta-row {
+          display: none;
         }
         .planning-mission-card.mission-card-compact .mission-client {
-          font-size: 12px;
+          font-size: 12.5px;
           line-height: 1.2;
         }
         .planning-mission-card.mission-card-compact .mission-title {
-          font-size: 11px;
+          font-size: 10.5px;
           line-height: 1.2;
         }
         .planning-mission-card::before {
@@ -760,7 +796,7 @@ export default function PlanningPage() {
           left: 0;
           top: 0;
           bottom: 0;
-          width: 4px;
+          width: 5px;
           border-radius: 10px 0 0 10px;
           background: var(--mission-color);
         }
@@ -772,27 +808,69 @@ export default function PlanningPage() {
           height: 6px;
           cursor: ns-resize;
         }
+        .mission-card-topline {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 6px;
+          min-width: 0;
+        }
         .mission-time {
-          font-size: 12px;
+          font-size: 11.5px;
           font-weight: 600;
-          color: var(--brand-gold);
-          margin-bottom: 2px;
+          color: color-mix(in srgb, var(--mission-color) 76%, #172033);
+          font-variant-numeric: tabular-nums;
+          white-space: nowrap;
+        }
+        .mission-kind {
+          min-width: 0;
+          border-radius: 999px;
+          padding: 2px 6px;
+          background: color-mix(in srgb, var(--mission-color) 14%, #ffffff);
+          color: color-mix(in srgb, var(--mission-color) 78%, #1e293b);
+          font-size: 9.5px;
+          font-weight: 800;
+          line-height: 1.1;
+          text-transform: uppercase;
         }
         .mission-client {
-          font-size: 13px;
-          font-weight: 600;
-          color: var(--text-on-dark);
+          font-size: 14px;
+          font-weight: 800;
+          color: #0f172a;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
           max-width: 100%;
         }
         .mission-title {
-          font-size: 12px;
-          color: rgba(255,255,255,0.65);
+          font-size: 11.5px;
+          font-weight: 600;
+          color: #475569;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+        .mission-meta-row {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          min-width: 0;
+          margin-top: auto;
+          padding-top: 2px;
+        }
+        .mission-meta {
+          min-width: 0;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          border-radius: 6px;
+          padding: 2px 5px;
+          background: rgba(241, 245, 249, 0.9);
+          color: #64748b;
+          font-size: 9.5px;
+          font-weight: 700;
+          line-height: 1.15;
         }
         .planning-day-view {
           background: var(--surface);

@@ -17,6 +17,21 @@ function getClientDisplayName(m: Mission): string {
   return m.title;
 }
 
+function getContactKind(m: Mission): string {
+  if (m.client_id) return "Client";
+  if (m.lead_id) return "Lead";
+  return "CRM";
+}
+
+function getProjectLabel(m: Mission): string {
+  const study = m.study_title || m.study_number;
+  if (study) return String(study);
+  if (m.status === "completed") return "Terminé";
+  if (m.status === "cancelled") return "Annulé";
+  if (m.status === "in_progress") return "En cours";
+  return "";
+}
+
 function formatTimeHHmm(d: Date): string {
   return d.toLocaleTimeString("fr-FR", {
     hour: "2-digit",
@@ -48,6 +63,9 @@ export default function MissionCard({
   const clientName = getClientDisplayName(mission);
   const clientId = mission.client_number ? ` (${mission.client_number})` : "";
   const title = mission.mission_type_name || mission.title;
+  const contactKind = getContactKind(mission);
+  const projectLabel = getProjectLabel(mission);
+  const assignmentCount = mission.assignments?.filter((a) => a.user_id || a.team_id).length ?? 0;
 
   const timeStr = `${formatTimeHHmm(mStart)} – ${formatTimeHHmm(mEnd)}`;
 
@@ -63,16 +81,23 @@ export default function MissionCard({
       }
       {...pointerHandlers}
     >
-      <div className="mission-time">
-        {timeStr}
+      <div className="mission-card-topline">
+        <span className="mission-time">{timeStr}</span>
+        <span className="mission-kind">{contactKind}</span>
       </div>
       <div className="mission-client">
         {clientName}
         {clientId}
       </div>
-      {clientName !== title && (
-        <div className="mission-title" title={title}>
-          {title}
+      <div className="mission-title" title={title}>
+        {title}
+      </div>
+      {(projectLabel || assignmentCount > 0) && (
+        <div className="mission-meta-row">
+          {projectLabel && <span className="mission-meta">{projectLabel}</span>}
+          {assignmentCount > 0 && (
+            <span className="mission-meta">{assignmentCount} assigné{assignmentCount > 1 ? "s" : ""}</span>
+          )}
         </div>
       )}
       {Object.keys(resizeHandlers).length > 0 && (

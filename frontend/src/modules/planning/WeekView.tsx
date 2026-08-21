@@ -106,15 +106,37 @@ export default function WeekView({
     missionsBySlot.get(dayKey)!.push(m);
   }
 
+  const daySummary = (day: Date) => {
+    const list = [...(missionsBySlot.get(toLocalISODate(day)) || [])].sort(
+      (a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime(),
+    );
+    if (list.length === 0) return { count: 0, firstTime: "" };
+    return {
+      count: list.length,
+      firstTime: new Date(list[0].start_at).toLocaleTimeString("fr-FR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+  };
+
   return (
     <div className="planning-calendar">
       <div className="planning-calendar-header">
         <div className="planning-calendar-corner" />
-        {weekDays.map((d) => (
+        {weekDays.map((d) => {
+          const summary = daySummary(d);
+          return (
           <div key={d.toISOString()} className="planning-calendar-day-header">
-            {DAY_LABELS[d.getDay() === 0 ? 6 : d.getDay() - 1]} {d.getDate()}
+            <span className="planning-calendar-day-title">
+              {DAY_LABELS[d.getDay() === 0 ? 6 : d.getDay() - 1]} {d.getDate()}
+            </span>
+            <span className={`planning-calendar-day-summary ${summary.count === 0 ? "is-empty" : ""}`}>
+              {summary.count === 0 ? "Libre" : `${summary.count} RDV · dès ${summary.firstTime}`}
+            </span>
           </div>
-        ))}
+          );
+        })}
       </div>
       <div
         ref={bodyRef}
