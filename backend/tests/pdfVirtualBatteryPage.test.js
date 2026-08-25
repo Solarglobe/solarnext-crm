@@ -4,6 +4,7 @@
  */
 
 import { mapSelectedScenarioSnapshotToPdfViewModel } from "../services/pdf/pdfViewModel.mapper.js";
+import { repairVirtualScenarioDisplayKpis } from "../services/scenarioV2DisplayRepair.service.js";
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -348,6 +349,89 @@ function main() {
   assert(vmNiardLike.fullReport?.p9?.scenario?.avg_savings_eur_year != null, "P9: average annual savings must be populated from gain cashflows");
   assert(vmNiardLike.fullReport?.p10?.best?.gains_25_eur === 41951, "P10: gain net must align with P9");
   assert(Math.round(vmNiardLike.fullReport?.p10?.best?.autonomy_pct) === 93, "P10: needs covered must include virtual credit");
+
+  const chantal6BeforeRepair = {
+    id: "BATTERY_VIRTUAL",
+    energy: {
+      production_kwh: 6883,
+      consumption_kwh: 12800,
+      direct_self_consumption_kwh: 3814,
+      total_pv_used_on_site_kwh: 6883,
+      autoconsumption_kwh: 6883,
+      site_solar_or_credit_used_kwh: 6883,
+      credited_kwh: 3069,
+      used_credit_kwh: 3069,
+      restored_kwh: 3069,
+      import_kwh: 5917,
+      billable_import_kwh: 5917,
+      grid_import_kwh: 5917,
+      energy_grid_import_kwh: 5917,
+      overflow_export_kwh: 0,
+      exported_kwh: 0,
+    },
+    finance: { annual_cashflows: [] },
+  };
+  const chantal6AfterRepair = repairVirtualScenarioDisplayKpis(chantal6BeforeRepair);
+  assert(
+    Math.round(chantal6AfterRepair.energy.energy_grid_import_kwh) === 5917,
+    "Display repair must not subtract virtual credit twice from an already canonical 6 kWc import"
+  );
+
+  const chantalSnapshot = {
+    ...snapshot,
+    scenario_type: "BATTERY_VIRTUAL",
+    installation: { puissance_kwc: 6, panneaux_nombre: 12, production_annuelle_kwh: 6883 },
+    energy: chantal6AfterRepair.energy,
+    production: { annual_kwh: 6883, monthly_kwh: Array(12).fill(6883 / 12) },
+    conso: { annual_kwh: 12800 },
+  };
+  const vmChantal6 = mapSelectedScenarioSnapshotToPdfViewModel(chantalSnapshot, {
+    selected_scenario_id: "BATTERY_VIRTUAL",
+    scenarios_v2: [chantal6AfterRepair],
+  });
+  const p6Chantal = vmChantal6.fullReport?.p6?.p6;
+  const p7Chantal = vmChantal6.fullReport?.p7;
+  assert(Math.round(p6Chantal?.grid?.reduce((a, b) => a + b, 0)) === 5917, "P6 6 kWc: grid import must stay around 5,917 kWh");
+  assert(Math.abs(Math.round(p6Chantal?.dir?.reduce((a, b) => a + b, 0)) - 3814) <= 5, "P6 6 kWc: direct solar must stay around 3,814 kWh");
+  assert(Math.round(p6Chantal?.bat?.reduce((a, b) => a + b, 0)) === 3069, "P6 6 kWc: virtual battery must stay around 3,069 kWh");
+  assert(p7Chantal?.pct?.c_pv_pct === 30, "P7 6 kWc: consumption origin direct PV = 30%");
+  assert(p7Chantal?.pct?.c_bat_pct === 24, "P7 6 kWc: consumption origin virtual battery = 24%");
+  assert(p7Chantal?.pct?.c_grid_pct === 46, "P7 6 kWc: consumption origin grid = 46%");
+  assert(p7Chantal?.pct?.p_auto_pct === 55 || p7Chantal?.pct?.p_auto_pct === 56, "P7 6 kWc: production direct should be about 56%");
+  assert(p7Chantal?.pct?.p_bat_pct === 44 || p7Chantal?.pct?.p_bat_pct === 45, "P7 6 kWc: production credited should be about 44%");
+  assert(p7Chantal?.pct?.p_surplus_pct === 0, "P7 6 kWc: production surplus overflow must be 0%");
+
+  const vmChantal9 = mapSelectedScenarioSnapshotToPdfViewModel(
+    {
+      ...snapshot,
+      scenario_type: "BATTERY_VIRTUAL",
+      installation: { puissance_kwc: 9, panneaux_nombre: 18, production_annuelle_kwh: 8458 },
+      energy: {
+        production_kwh: 8458,
+        consumption_kwh: 16936,
+        direct_self_consumption_kwh: 3552,
+        total_pv_used_on_site_kwh: 8458,
+        autoconsumption_kwh: 8458,
+        site_solar_or_credit_used_kwh: 8458,
+        credited_kwh: 4906,
+        used_credit_kwh: 4906,
+        restored_kwh: 4906,
+        import_kwh: 8478,
+        billable_import_kwh: 8478,
+        grid_import_kwh: 8478,
+        energy_grid_import_kwh: 8478,
+        overflow_export_kwh: 0,
+        exported_kwh: 0,
+      },
+      production: { annual_kwh: 8458, monthly_kwh: Array(12).fill(8458 / 12) },
+      conso: { annual_kwh: 16936 },
+    },
+    { selected_scenario_id: "BATTERY_VIRTUAL", scenarios_v2: [] }
+  );
+  const p7Chantal9 = vmChantal9.fullReport?.p7;
+  assert(p7Chantal9?.pct?.p_auto_pct === 42, "P7 9 kWc: production direct must be 42%");
+  assert(p7Chantal9?.pct?.p_bat_pct === 58, "P7 9 kWc: production credited via virtual battery must be 58%");
+  assert(p7Chantal9?.pct?.p_surplus_pct === 0, "P7 9 kWc: production graph must not show 50% surplus");
 
   console.log("OK - pdfVirtualBatteryPage.test");
 }

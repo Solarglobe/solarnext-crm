@@ -240,15 +240,8 @@ function clampPctVal(x) {
 
 /** Autonomie site : 1 − import / conso (sans fallback auto/prod). */
 function resolveSiteAutonomyPct(energy) {
-  if (hasVirtualCreditEnergy(energy)) {
-    const consoLocal = num(energy?.consumption_kwh ?? energy?.conso);
-    const local = resolvePvUsedOnSiteKwhForPdf(energy);
-    if (consoLocal != null && consoLocal > 0 && local != null && Number.isFinite(local)) {
-      return clampPctVal((local / consoLocal) * 100);
-    }
-  }
   const conso = num(energy?.consumption_kwh ?? energy?.conso);
-  const imp = canonicalGridImportKwh(energy);
+  const imp = canonicalGridImportKwhForPdf(energy);
   if (conso != null && conso > 0 && imp != null && Number.isFinite(imp)) {
     return clampPctVal((1 - imp / conso) * 100);
   }
@@ -1953,14 +1946,21 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           num(energyP7.autoconsumption_kwh) ??
           num(energyP7.auto) ??
           autoMonthly.reduce((a, b) => a + b, 0);
+        const directForSurplusP7 = num(energyP7.direct_self_consumption_kwh);
+        const overflowP7 =
+          num(energyP7.overflow_export_kwh) ??
+          num(energyP7.virtual_battery_overflow_export_kwh) ??
+          num(energyP7.exported_kwh) ??
+          num(energyP7.grid_export_kwh);
         const rawSurplusP7 =
           num(energyP7.exported_kwh) ??
           num(energyP7.surplus_kwh ?? energyP7.surplus) ??
           Math.max(0, prodP7 - autoP7);
-        const directForSurplusP7 = num(energyP7.direct_self_consumption_kwh);
         const surplusP7 =
-          (isVirtualLikeScenario || isVehicleV2hSelected) && directForSurplusP7 != null
-            ? Math.max(0, prodP7 - directForSurplusP7)
+          isVirtualLikeScenario && overflowP7 != null
+            ? Math.max(0, Math.min(numOrZero(prodP7), overflowP7))
+            : isVehicleV2hSelected && directForSurplusP7 != null
+              ? Math.max(0, prodP7 - directForSurplusP7)
             : Math.min(Math.max(0, rawSurplusP7), Math.max(0, prodP7));
         const importP7 =
           canonicalGridImportKwhForPdf(energyP7) ??
@@ -2053,6 +2053,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         let pAuto = isBatScen
           ? Math.max(0, 100 - pBat - pSurplusRounded)
           : (selfConsP7 != null ? Math.round(selfConsP7) : 0);
+        if (isVirtualLikeScenario && prodP7 > 0) {
+          pAuto = Math.round(Math.min(100, (directP7 / prodP7) * 100));
+          pBat = Math.round(Math.min(100, (creditedP7 / prodP7) * 100));
+          pSurplusRounded = Math.max(0, 100 - pAuto - pBat);
+        }
         if (isBatScen) {
           const pSum = pAuto + pBat + pSurplusRounded;
           if (pSum > 100.01 && pSum > 0) {
@@ -2087,7 +2092,15 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           is_vehicle_v2h_scenario: isVehicleV2hSelected,
           storage_label: isVehicleV2hSelected ? "Stockage" : "Batterie",
           storage_long_label: isVehicleV2hSelected ? "stockage V2H" : "batterie",
-          p_surplus_valorise: Math.min(numOrZero(prodP7), Math.max(0, numOrZero(surplusP7))),
+          p_surplus_valorise: Math.min(
+            numOrZero(prodP7),
+            Math.max(
+              0,
+              isVirtualLikeScenario
+                ? (creditedP7 > 0 ? creditedP7 : Math.max(0, numOrZero(prodP7) - numOrZero(directP7)))
+                : numOrZero(surplusP7)
+            )
+          ),
           credited_kwh: numOrZero(creditedP7),
           consumption_kwh: numOrZero(consoP7),
           autoconsumption_kwh: numOrZero(autoP7),

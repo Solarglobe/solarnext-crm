@@ -126,6 +126,15 @@ export function repairVirtualScenarioDisplayKpis(sc) {
   );
   if (currentImport == null || currentImport <= 0) return sc;
 
+  const explicitCovered = num(energy.site_solar_or_credit_used_kwh);
+  if (
+    explicitCovered != null &&
+    explicitCovered > 0 &&
+    Math.abs((consumption - currentImport) - explicitCovered) <= 2
+  ) {
+    return sc;
+  }
+
   const stabilized = sc.stabilized ?? sc.virtual_battery_rollover?.stabilized ?? null;
   const stabilizedImport = num(
     stabilized?.grid_import_kwh ??
