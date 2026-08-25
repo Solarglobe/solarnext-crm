@@ -249,7 +249,7 @@ export default function PdfPage7({
               <div style={{ display: "flex", height: "10mm", borderRadius: PILL_RADIUS, overflow: "hidden", boxShadow: "0 0.5mm 2mm rgba(0,0,0,.08) inset, 0 0.3mm 1mm rgba(0,0,0,.04)" }}>
                 {(() => {
                   const segs = [
-                    cPv >= 2 && { flex: cPv, label: cPv >= 5 ? `${cPv} % Utilisé` : `${cPv} %`, bg: "linear-gradient(135deg, #F0D060 0%, #E5B83D 50%, #D4A82E 100%)", color: "#1a1508", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.4)" },
+                    cPv >= 2 && { flex: cPv, label: cPv >= 5 ? `${cPv} % PV direct` : `${cPv} %`, bg: "linear-gradient(135deg, #F0D060 0%, #E5B83D 50%, #D4A82E 100%)", color: "#1a1508", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.4)" },
                     cBat >= 2 && { flex: cBat, label: cBat >= 5 ? `${cBat} % ${storageLabel}` : `${cBat} %`, bg: "linear-gradient(135deg, #7ED99E 0%, #5BC47A 50%, #3DA85C 100%)", color: "#0d2514", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.3)" },
                     cGrid >= 2 && { flex: cGrid, label: cGrid >= 5 ? `${cGrid} % Réseau` : `${cGrid} %`, bg: "linear-gradient(135deg, #A89BE8 0%, #8B7BD4 50%, #6B5BB8 100%)", color: "#fff", shadow: "0 0.2mm 0.6mm rgba(0,0,0,.25)" },
                   ].filter(Boolean) as { flex: number; label: string; bg: string; color: string; shadow: string }[];
@@ -504,7 +504,7 @@ export default function PdfPage7({
                   {isVirtualCreditScenario && overflowExportKwh <= 1
                     ? "Dans ce scénario, la production indiquée est entièrement valorisée : usage direct puis crédit virtuel restitué."
                     : cBat > 0 || pBat > 0
-                      ? "Une partie de votre production solaire peut rester non valorisée uniquement si un surplus réel dépasse la capacité retenue."
+                      ? "Une partie de votre production solaire peut rester non valorisée uniquement si un surplus réel dépasse la capacité étudiée."
                       : "Une partie de votre production solaire peut être injectée et valorisée selon les conditions du dossier."}
                 </p>
               </div>

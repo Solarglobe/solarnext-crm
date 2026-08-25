@@ -306,12 +306,8 @@ console.log("P11 ENGINE LOADED");
       const i = y - 1;
       set(`p11_syn_gain_${y}`, fmtEurSynth(eco[i]));
       const r = Number(reste[i]);
-      const solde = Number.isFinite(r) ? r : (Number(pay[i]) || 0) - (Number(eco[i]) || 0);
-      const soldeTxt = Number.isFinite(solde)
-        ? solde < 0
-          ? `+${fmtEurSynth(Math.abs(solde))} net`
-          : fmtEurSynth(solde)
-        : "—";
+      const solde = Number.isFinite(r) ? r : (Number(eco[i]) || 0) - (Number(pay[i]) || 0);
+      const soldeTxt = Number.isFinite(solde) ? fmtEurSynth(solde) : "—";
       set(`p11_syn_reste_${y}`, soldeTxt);
     }
   }

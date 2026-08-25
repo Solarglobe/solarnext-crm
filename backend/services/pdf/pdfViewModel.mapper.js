@@ -398,6 +398,14 @@ function str(v) {
   return String(v).trim();
 }
 
+function brandModelLabel(brand, model) {
+  const b = str(brand);
+  const m = str(model);
+  if (!b) return m;
+  if (!m) return b;
+  return m.toLowerCase().startsWith(`${b.toLowerCase()} `) ? m : `${b} ${m}`;
+}
+
 /** P1 — formatage unifié */
 function formatKwC(v) {
   if (v == null || !Number.isFinite(Number(v))) return "";
@@ -507,7 +515,7 @@ function annualGainsEurFromCashflows(flows, horizonYears = 25) {
     const row = flows.find((f) => num(f?.year) === year) ?? flows[i];
     let v = null;
     if (row && typeof row === "object") {
-      v = num(row.total_eur);
+      v = num(row.total_eur ?? row.gain);
       if (v == null) {
         const ga = num(row.gain_auto);
         const go = num(row.gain_oa);
@@ -555,7 +563,7 @@ function buildP11Section({
   const paiement25 = Array.from({ length: horizonYears }, (_, i) =>
     annualLoanPaymentForCalendarYear(i + 1, monthly, fin.duration_months)
   );
-  const reste25 = economies25.map((eco, i) => paiement25[i] - eco);
+  const reste25 = economies25.map((eco, i) => eco - paiement25[i]);
 
   const modeLabel = fin.enabled ? "Financement" : "Comptant";
   const montantDisplay = fin.enabled ? formatEur0(fin.amount) : formatEur0(capex);
@@ -567,16 +575,24 @@ function buildP11Section({
     fin.enabled && fin.amount > 0 && capex > fin.amount ? Math.round(capex - fin.amount) : null;
   const apportDisplay = apportVal != null && apportVal > 0 ? formatEur0(apportVal) : "—";
 
-  const avgAnnualEco =
-    economies25.length > 0 ? economies25.reduce((a, b) => a + numOrZero(b), 0) / economies25.length : numOrZero(annualSavings);
+  const firstYearEco =
+    economies25.length > 0 ? numOrZero(economies25[0]) : numOrZero(annualSavings);
   const resteMoyenMois =
-    monthly != null ? Math.round(monthly - avgAnnualEco / 12) : null;
+    monthly != null ? Math.round(monthly - firstYearEco / 12) : null;
 
   const factureRestante = num(
     financeActive.facture_restante ?? financeActive.residual_bill_eur ?? financeSnapshot?.facture_restante
   );
   const resteChargeMoyenPost =
     factureRestante != null && Number.isFinite(factureRestante) ? Math.round(factureRestante / 12) : null;
+  const creditCost =
+    totalPaid != null && fin.amount != null && Number.isFinite(Number(fin.amount))
+      ? Math.max(0, Math.round(totalPaid - fin.amount))
+      : null;
+  const netAfterFinancing =
+    num(economieTotal) != null
+      ? Math.round(num(economieTotal) - (fin.enabled ? numOrZero(creditCost) : 0))
+      : null;
 
   const p11 = {
     meta: { client: clientName, ref, date: dateDisplay, horizon_years_pdf: horizonYears },
@@ -595,10 +611,7 @@ function buildP11Section({
         monthly_payment_eur: monthly != null ? Math.round(monthly * 100) / 100 : null,
         annual_payment_eur: monthly != null ? Math.round(monthly * 12 * 100) / 100 : null,
         total_paid_eur: totalPaid,
-        credit_cost_eur:
-          totalPaid != null && fin.amount != null && Number.isFinite(Number(fin.amount))
-            ? Math.max(0, Math.round(totalPaid - fin.amount))
-            : null,
+        credit_cost_eur: creditCost,
         duration_months: fin.duration_months,
         enabled: fin.enabled,
       },
@@ -610,10 +623,7 @@ function buildP11Section({
       kpi: {
         mensualite_eur: monthly != null ? Math.round(monthly * 100) / 100 : null,
         total_paid_eur: totalPaid,
-        credit_cost_eur:
-          totalPaid != null && fin.amount != null && Number.isFinite(Number(fin.amount))
-            ? Math.max(0, Math.round(totalPaid - fin.amount))
-            : null,
+        credit_cost_eur: creditCost,
         roi_years: (() => {
           const ry = num(financeActive.roi_years);
           return ry != null && ry > 0 ? ry : null;
@@ -621,7 +631,10 @@ function buildP11Section({
         reste_moyen_mois_eur: resteMoyenMois,
       },
       post_loan: {
-        economies_net_25_eur: num(economieTotal) != null ? num(economieTotal) : null,
+        economies_net_25_eur: netAfterFinancing,
+        economies_net_25_label: fin.enabled
+          ? "Gain net estimé à 25 ans après coût du financement"
+          : "Gain net estimé à 25 ans",
         mensualite_liberee_eur: monthly != null ? Math.round(monthly * 100) / 100 : null,
         reste_charge_moyen_mois_eur: resteChargeMoyenPost,
       },
@@ -1281,7 +1294,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     // nombre de micros, ratio, répartition par phase. Le détail protections/sections
     // reste à la préparation technique (mention prudente côté frontend).
     elec_architecture: (() => {
-      const model = [str(onduleur.marque), str(onduleur.modele)].filter(Boolean).join(" ").trim();
+      const model = brandModelLabel(onduleur.marque, onduleur.modele);
       const nbPanneaux = numOrZero(installation.panneaux_nombre);
       if (!model || nbPanneaux <= 0) return null;
       const isMicro = /\bMI[\s-]?\d|micro/i.test(model);
@@ -1890,20 +1903,20 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         pertes_batterie_kwh: _p4PertesKwh != null ? Math.round(_p4PertesKwh) : null,
         credit_virtuel_utilise_kwh: Math.round(_p4RestitutionKwh),
         cout_batterie_virtuelle_eur: Math.round(vbAnnualServiceCostTtc),
-        storage_legend_label: isVehicleV2hSelected || isVirtualLikeScenario ? "Stockage restitué" : "Énergie stockée",
+        storage_legend_label: isVirtualLikeScenario ? "Surplus injecté et crédité" : isVehicleV2hSelected ? "Stockage restitué" : "Énergie stockée",
         storage_legend_sublabel:
           isVehicleV2hSelected && isVirtualLikeScenario
             ? "V2H + batterie virtuelle"
             : isVehicleV2hSelected
               ? "voiture V2H"
               : isVirtualLikeScenario
-                ? "batterie virtuelle"
+                ? "crédit virtuel"
                 : "batterie",
         kpi_labels: {
           pv_self_consumption: "Autoconsommation PV",
           site_autonomy: isVirtualLikeScenario ? "Autonomie locale" : "Autonomie site",
           grid_import: "Import réseau",
-          battery_restored: "Énergie restituée batterie",
+          battery_restored: isVirtualLikeScenario ? "Crédit virtuel restitué" : "Énergie restituée batterie",
         },
       },
       p5: {
@@ -1931,6 +1944,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
               num(_energyFlowsShared.overflow_export_kwh) ??
               num(_energyFlowsShared.virtual_battery_overflow_export_kwh) ??
               (isVirtualLikeScenario ? 0 : null),
+            is_virtual_credit_scenario: isVirtualLikeScenario,
           },
           is_virtual_credit_scenario: isVirtualLikeScenario,
         },
@@ -2193,8 +2207,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           num(financeActive?.residual_bill_eur);
         const productionVsConsumptionLimit =
           productionKwh != null && consumptionKwh != null && productionKwh >= consumptionKwh
-            ? "La production annuelle couvre le besoin en bilan annuel, mais production et consommation ne sont pas alignees heure par heure."
-            : "La production solaire reste inferieure a la consommation annuelle.";
+            ? "La production annuelle couvre le besoin en bilan annuel, mais production et consommation ne sont pas alignées heure par heure."
+            : "La production solaire reste inférieure à la consommation annuelle.";
 
         // FIX libellé hybride (audit 2026-07-03) — cette page est aussi rendue pour
         // BATTERY_HYBRID : le titre/libellés « batterie virtuelle » seuls sont incomplets

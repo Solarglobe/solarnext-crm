@@ -203,7 +203,8 @@ function drawChart(dir, bat, grid, tot) {
       String(Math.round(autoPct * 100)) + " %";
 
     $("#p6_auto_txt").textContent =
-      "PV directe + batterie = " + fmt(Math.round(solarUsed)) + " kWh";
+      (totals && totals.is_virtual_credit_scenario ? "PV directe + crédit virtuel = " : "PV directe + batterie = ") +
+      fmt(Math.round(solarUsed)) + " kWh";
 
     $("#p6_kpis").style.display = "grid";
   }

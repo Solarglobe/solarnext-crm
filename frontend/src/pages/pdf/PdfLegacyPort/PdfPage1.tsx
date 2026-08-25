@@ -147,7 +147,7 @@ export default function PdfPage1({
             </p>
             <div className="p1-premium__signature" aria-label="Indicateurs clés du scénario">
               <div className="p1-premium__sig-row">
-                <span className="p1-premium__sig-label">Puissance retenue</span>
+                <span className="p1-premium__sig-label">Puissance étudiée</span>
                 <strong id="p1_m_kwc">—</strong>
               </div>
               <div className="p1-premium__sig-row">
@@ -179,7 +179,7 @@ export default function PdfPage1({
             <div className="p1-premium__kpi-value" id="p1_k_puissance">
               6,7 kWc
             </div>
-            <div className="p1-premium__kpi-micro">Installation retenue</div>
+            <div className="p1-premium__kpi-micro">Installation étudiée</div>
           </div>
           <div className="p1-premium__kpi-cell">
             <div className="p1-premium__kpi-label">Besoins couverts</div>
@@ -207,7 +207,7 @@ export default function PdfPage1({
             <div className="p1-premium__kpi-value" id="p1_k_capex">
               -
             </div>
-            <div className="p1-premium__kpi-micro">CAPEX scenario retenu</div>
+            <div className="p1-premium__kpi-micro">CAPEX du scénario étudié</div>
           </div>
         </div>
 

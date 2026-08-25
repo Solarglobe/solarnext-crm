@@ -69,7 +69,7 @@ export default function PdfPage11({
   const summarySolde = (year: number) => {
     const raw = resteSeries[year - 1];
     if (!Number.isFinite(raw)) return "—";
-    return raw < 0 ? `+${fmtEur(Math.abs(raw)).replace(/^—$/, "")} net` : fmtEur(raw);
+    return fmtEur(raw);
   };
   const maxChart = Math.max(1, ...ecoSeries, ...paySeries);
   const chartBars = Array.from({ length: 25 }, (_, i) => {
@@ -243,7 +243,9 @@ export default function PdfPage11({
               <h3 className="p11-read__card-title">Après le prêt</h3>
               <div className="p11-read__stack">
                 <div className="p11-read__kv">
-                  <span className="p11-read__label">Net à 25 ans (est.)</span>
+                  <span className="p11-read__label">
+                    {p11Text(postLoan.economies_net_25_label, "Gain net estimé à 25 ans après coût du financement")}
+                  </span>
                   <span id="p11_net_25" className="p11-read__val">
                     {fmtEur(postLoan.economies_net_25_eur)}
                   </span>
@@ -275,7 +277,7 @@ export default function PdfPage11({
               </div>
               <div className="p11-read__row">
                 <span id="p11_kpi4_label" className="p11-read__label">
-                  Effort moyen mensuel
+                  Effort mensuel année 1
                 </span>
                 <span id="p11_kpi4_val" className="p11-read__val p11-read__val--reste">
                   {fmtEur(kpi.reste_moyen_mois_eur)}

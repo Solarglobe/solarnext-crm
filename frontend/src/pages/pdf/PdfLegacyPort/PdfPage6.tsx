@@ -174,7 +174,7 @@ export default function PdfPage6({
           </span>
           <span className="leg" style={{ display: "flex", gap: "2mm", alignItems: "center" }}>
             <i style={{ display: "inline-block", width: "7mm", height: "3mm", borderRadius: "999mm", background: "#B3F4C4" }} />
-            Décharge batterie
+            {isVirtualCreditScenario ? "Crédit virtuel restitué" : "Décharge batterie"}
           </span>
           <span className="leg" style={{ display: "flex", gap: "2mm", alignItems: "center" }}>
             <i style={{ display: "inline-block", width: "7mm", height: "3mm", borderRadius: "999mm", background: "#CFCBFF" }} />
@@ -289,7 +289,7 @@ export default function PdfPage6({
           <div style={{ fontSize: "2.9mm", lineHeight: 1.35, color: "#444" }}>
             {isVirtualCreditScenario && overflowExportKwh <= 1
               ? "Dans ce scénario, la production indiquée est entièrement valorisée : usage direct puis crédit virtuel restitué."
-              : "Une partie de votre production solaire peut rester non valorisée uniquement si un surplus réel dépasse la capacité retenue."}
+              : "Une partie de votre production solaire peut rester non valorisée uniquement si un surplus réel dépasse la capacité étudiée."}
           </div>
         </div>
       </div>

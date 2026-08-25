@@ -383,6 +383,109 @@ function main() {
   assert(vmNiardLike.fullReport?.p10?.best?.gains_25_eur === 41951, "P10: gain net must align with P9");
   assert(Math.round(vmNiardLike.fullReport?.p10?.best?.autonomy_pct) === 93, "P10: needs covered must include virtual credit");
 
+  const financing6Snapshot = {
+    ...snapshot,
+    scenario_type: "BATTERY_VIRTUAL",
+    installation: { puissance_kwc: 6, panneaux_nombre: 12, production_annuelle_kwh: 6883 },
+    energy: {
+      production_kwh: 6883,
+      consumption_kwh: 12800,
+      direct_self_consumption_kwh: 3836,
+      site_solar_or_credit_used_kwh: 6883,
+      credited_kwh: 3047,
+      restored_kwh: 3047,
+      used_credit_kwh: 3047,
+      import_kwh: 5917,
+      energy_grid_import_kwh: 5917,
+    },
+    finance: {
+      capex_ttc: 9860,
+      economie_year_1: 959,
+      economie_total: 41494,
+      economie_horizon_years: 25,
+      roi_years: 11,
+    },
+    economic_snapshot: {
+      capex_ttc: 9860,
+      elec_growth_pct: 5,
+      horizon_years: 25,
+      financing: {
+        amount_eur: 9860,
+        duration_months: 36,
+        interest_rate_annual_pct: 4,
+      },
+    },
+    cashflows: Array.from({ length: 25 }, (_, i) => ({
+      year: i + 1,
+      gain: Math.round(959 * Math.pow(1.05, i)),
+      cumul: i === 24 ? 41494 : null,
+    })),
+  };
+  const vmFinancing6 = mapSelectedScenarioSnapshotToPdfViewModel(financing6Snapshot, {
+    selected_scenario_id: "BATTERY_VIRTUAL",
+    scenarios_v2: [],
+  });
+  const p11Fin6 = vmFinancing6.fullReport?.p11?.data;
+  assert(Math.round(p11Fin6?.financing?.monthly_payment_eur) === 291, "P11 financing 6 kWc: monthly payment around 291 EUR");
+  assert(Math.round(p11Fin6?.financing?.total_paid_eur) === 10480, "P11 financing 6 kWc: total paid around 10,480 EUR");
+  assert(Math.round(p11Fin6?.financing?.credit_cost_eur) === 620, "P11 financing 6 kWc: credit cost around 620 EUR");
+  assert(Math.round(p11Fin6?.kpi?.reste_moyen_mois_eur) === 211, "P11 financing 6 kWc: year-1 monthly effort around 211 EUR");
+  assert(Math.round(p11Fin6?.post_loan?.economies_net_25_eur) === 40874, "P11 financing 6 kWc: net 25y must subtract financing cost");
+  assert(p11Fin6?.post_loan?.economies_net_25_label === "Gain net estimé à 25 ans après coût du financement", "P11 financing: net label");
+  assert(p11Fin6?.series?.economies_annuelles?.[0] === 959, "P11 financing: year 1 saving from cashflow gain");
+  assert(p11Fin6?.series?.economies_annuelles?.[4] > p11Fin6?.series?.economies_annuelles?.[0], "P11 financing: annual savings must not be flat");
+  assert(Math.round(p11Fin6?.series?.reste_a_charge_annuel?.[0]) === -2534, "P11 financing 6 kWc: year 1 annual balance is saving minus loan payment");
+
+  const financing9Snapshot = {
+    ...financing6Snapshot,
+    installation: { puissance_kwc: 9, panneaux_nombre: 18, production_annuelle_kwh: 10305 },
+    energy: {
+      production_kwh: 10305,
+      consumption_kwh: 12800,
+      direct_self_consumption_kwh: 4326,
+      site_solar_or_credit_used_kwh: 10305,
+      credited_kwh: 5979,
+      restored_kwh: 5979,
+      used_credit_kwh: 5979,
+      import_kwh: 2495,
+      energy_grid_import_kwh: 2495,
+    },
+    finance: {
+      capex_ttc: 13880,
+      economie_year_1: 1308,
+      economie_total: 59811,
+      economie_horizon_years: 25,
+      roi_years: 11,
+    },
+    economic_snapshot: {
+      capex_ttc: 13880,
+      elec_growth_pct: 5,
+      horizon_years: 25,
+      financing: {
+        amount_eur: 13880,
+        duration_months: 36,
+        interest_rate_annual_pct: 4,
+      },
+    },
+    cashflows: Array.from({ length: 25 }, (_, i) => ({
+      year: i + 1,
+      gain: Math.round(1308 * Math.pow(1.05, i)),
+      cumul: i === 24 ? 59811 : null,
+    })),
+  };
+  const vmFinancing9 = mapSelectedScenarioSnapshotToPdfViewModel(financing9Snapshot, {
+    selected_scenario_id: "BATTERY_VIRTUAL",
+    scenarios_v2: [],
+  });
+  const p11Fin9 = vmFinancing9.fullReport?.p11?.data;
+  assert(Math.round(p11Fin9?.financing?.monthly_payment_eur) === 410, "P11 financing 9 kWc: monthly payment around 410 EUR");
+  assert(Math.round(p11Fin9?.financing?.total_paid_eur) === 14753, "P11 financing 9 kWc: total paid around 14,753 EUR");
+  assert(Math.round(p11Fin9?.financing?.credit_cost_eur) === 873, "P11 financing 9 kWc: credit cost around 873 EUR");
+  assert(Math.round(p11Fin9?.kpi?.reste_moyen_mois_eur) === 301, "P11 financing 9 kWc: year-1 monthly effort around 301 EUR");
+  assert(Math.round(p11Fin9?.post_loan?.economies_net_25_eur) === 58938, "P11 financing 9 kWc: net 25y must subtract financing cost");
+  assert(p11Fin9?.series?.economies_annuelles?.[4] > p11Fin9?.series?.economies_annuelles?.[0], "P11 financing 9 kWc: annual savings must not be flat");
+  assert(Math.round(p11Fin9?.series?.reste_a_charge_annuel?.[0]) === -3610, "P11 financing 9 kWc: year 1 annual balance is saving minus loan payment");
+
   const chantal6BeforeRepair = {
     id: "BATTERY_VIRTUAL",
     energy: {

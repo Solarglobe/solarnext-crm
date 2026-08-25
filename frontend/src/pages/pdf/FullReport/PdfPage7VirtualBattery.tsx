@@ -325,7 +325,7 @@ export default function PdfPage7VirtualBattery({
           </div>
           <p style={{ margin: "1.2mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
             {overflowExportKwh > 1
-              ? `${Math.round(overflowExportKwh).toLocaleString("fr-FR")} kWh de surplus restent non valorisés selon la capacité retenue.`
+              ? `${Math.round(overflowExportKwh).toLocaleString("fr-FR")} kWh de surplus restent non valorisés selon la capacité étudiée.`
               : "Dans ce scénario, la production indiquée est entièrement valorisée : usage direct puis crédit virtuel restitué."}
           </p>
         </div>

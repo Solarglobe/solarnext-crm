@@ -53,6 +53,13 @@ export default function PdfPage5({
   const batt24 = useMemo(() => as24(p5?.batterie_kw), [p5?.batterie_kw]);
   const metaP5 = p5?.meta ?? {};
   const hasBatteryChart = useMemo(() => batt24.some((x) => Math.abs(x) > 1e-9), [batt24]);
+  const isVirtualCreditScenario = (() => {
+    const scenarioType =
+      (viewModel?.selectedScenario as { scenarioType?: string } | undefined)?.scenarioType ??
+      (viewModel?.meta as { scenarioType?: string } | undefined)?.scenarioType ??
+      "";
+    return String(scenarioType).includes("VIRTUAL");
+  })();
   const hasChartData = useMemo(
     () => prod24.some((x) => x > 0) || conso24.some((x) => x > 0),
     [prod24, conso24]
@@ -223,9 +230,9 @@ export default function PdfPage5({
             <>
               <span className="pill pill-green" />
               <div className="legend-text">
-                <b>Énergie stockée</b>
+                <b>{isVirtualCreditScenario ? "Surplus injecté et crédité" : "Énergie stockée"}</b>
                 <br />
-                <span className="sub">batterie (charge)</span>
+                <span className="sub">{isVirtualCreditScenario ? "crédit virtuel" : "batterie (charge)"}</span>
               </div>
             </>
           )}
@@ -325,10 +332,12 @@ export default function PdfPage5({
             }}
           >
             <div style={{ fontSize: "3.2mm", fontWeight: 600, color: brandHex, marginBottom: "1.5mm" }}>
-              {"Stockage de l'énergie"}
+              {isVirtualCreditScenario ? "Crédit du surplus" : "Stockage de l'énergie"}
             </div>
             <div style={{ fontSize: "3mm", lineHeight: 1.35, color: "#444" }}>
-              Le surplus est stocké en batterie pour être restitué ultérieurement (soirée, creux solaire).
+              {isVirtualCreditScenario
+                ? "Le surplus est injecté sur le réseau et enregistré sous forme de crédit virtuel pour être valorisé ultérieurement."
+                : "Le surplus est stocké en batterie pour être restitué ultérieurement (soirée, creux solaire)."}
             </div>
           </div>
         )}
@@ -343,7 +352,7 @@ export default function PdfPage5({
           }}
         >
           <div style={{ fontSize: "3.2mm", fontWeight: 600, color: brandHex, marginBottom: "1.5mm" }}>
-            {hasBatteryChart ? "Autonomie renforcée" : "Moins d'électricité achetée"}
+            {hasBatteryChart && isVirtualCreditScenario ? "Réduction des achats réseau" : hasBatteryChart ? "Autonomie renforcée" : "Moins d'électricité achetée"}
           </div>
           <div style={{ fontSize: "3mm", lineHeight: 1.35, color: "#444" }}>
             {hasBatteryChart

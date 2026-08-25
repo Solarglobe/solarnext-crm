@@ -184,7 +184,7 @@ export default function PdfPage10({
                 />
               ) : null
             }
-            badge={"Synthèse du scénario retenu"}
+            badge={"Synthèse du scénario étudié"}
             metaColumn={
               <div
                 className="meta-compact"
@@ -565,7 +565,7 @@ export default function PdfPage10({
                 textAlign: "left",
               }}
             >
-              <div style={{ fontSize: "3.15mm", fontWeight: 900, color: titleInk, marginBottom: "0.35mm" }}>Le dispositif retenu est :</div>
+              <div style={{ fontSize: "3.15mm", fontWeight: 900, color: titleInk, marginBottom: "0.35mm" }}>Le dispositif étudié est :</div>
               <div style={{ fontSize: "2.95mm", color: ink, fontWeight: 700, lineHeight: 1.24 }}>
                 <span style={{ color: gold, fontWeight: 900 }}>✔</span> rentable &nbsp;&nbsp;
                 <span style={{ color: gold, fontWeight: 900 }}>✔</span> durable &nbsp;&nbsp;
@@ -588,7 +588,7 @@ export default function PdfPage10({
               <div style={{ fontSize: "2.35mm", color: "#6b7280", marginTop: "0.45mm", lineHeight: 1.22 }}>
                 {isVirtualCreditScenario && overflowExportKwh <= 1
                   ? "Dans ce scénario, la production indiquée est entièrement valorisée : usage direct puis crédit virtuel restitué."
-                  : "Une partie de votre production solaire peut rester non valorisée uniquement si un surplus réel dépasse la capacité retenue."}
+                  : "Une partie de votre production solaire peut rester non valorisée uniquement si un surplus réel dépasse la capacité étudiée."}
               </div>
             </div>
           </div>
