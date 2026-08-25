@@ -336,7 +336,7 @@ export default function PdfPage3({
               <li>Nombre de panneaux : correspond à la puissance choisie.</li>
             </ul>
             <p style={{ marginTop: "2mm", fontSize: "3mm", color: "#64748b", lineHeight: 1.35 }}>
-              Cette pré-validation confirme que le scénario du dossier est ancré sur le site :
+              Cette pré-validation confirme que le scénario du dossier est ancré sur le site :{" "}
               <strong>il correspond à une implantation réalisable à ce stade, sous réserve des contrôles terrain et administratifs.</strong>
             </p>
           </div>
