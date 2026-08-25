@@ -118,11 +118,14 @@ export default function PdfPage7({
      le vocabulaire (« converti en crédit » plutôt que « injecté »). */
   const isStorageScenario =
     (p7 as unknown as { is_storage_scenario?: boolean }).is_storage_scenario === true;
+  const isVirtualCreditScenario =
+    (p7 as unknown as { is_virtual_credit_scenario?: boolean }).is_virtual_credit_scenario === true;
   const storageLabel = String(p7.storage_label || "Batterie");
   const storageLongLabel = String(p7.storage_long_label || "batterie");
   const surplusValoriseKwh = safeNum(
     (p7 as unknown as { p_surplus_valorise?: number }).p_surplus_valorise
   );
+  const overflowExportKwh = safeNum(p7.p_surplus);
   const consoKwh = p7.consumption_kwh ?? 0;
   const autoKwh = p7.autoconsumption_kwh ?? 0;
   const prodKwh = p7.production_kwh ?? 0;
@@ -444,7 +447,9 @@ export default function PdfPage7({
                     <div>
                       •{" "}
                       {isStorageScenario
-                        ? `${fmtKwh(surplusValoriseKwh)} valorisés via ${storageLongLabel} / crédit`
+                        ? isVirtualCreditScenario
+                          ? `${fmtKwh(surplusValoriseKwh)} injectés puis crédités, restitués via crédit virtuel`
+                          : `${fmtKwh(surplusValoriseKwh)} valorisés via ${storageLongLabel}`
                         : `${fmtKwh(pSurplusKwh)} injectés sur le réseau`}
                     </div>
                   </div>
@@ -489,14 +494,18 @@ export default function PdfPage7({
                   <li>le complément est assuré par le réseau selon les périodes</li>
                   <li>
                     {isStorageScenario
-                      ? `le surplus est stocké puis restitué via ${storageLongLabel}, ou injecté et converti en crédit kWh`
+                      ? isVirtualCreditScenario
+                        ? "le surplus est injecté et crédité, puis repris grâce au crédit virtuel"
+                        : `le surplus est stocké puis restitué via ${storageLongLabel}`
                       : "le surplus est injecté et valorisé selon les conditions du dossier"}
                   </li>
                 </ol>
                 <p style={{ margin: "1mm 0 0 0", fontSize: "3mm", color: "#B08B2E", lineHeight: 1.42, fontWeight: 600 }}>
-                  {cBat > 0 || pBat > 0
-                    ? "Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte. Sans système de stockage, une partie importante de votre production solaire ne pourrait pas être utilisée."
-                    : "Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte."}
+                  {isVirtualCreditScenario && overflowExportKwh <= 1
+                    ? "Dans ce scénario, la production indiquée est entièrement valorisée : usage direct puis crédit virtuel restitué."
+                    : cBat > 0 || pBat > 0
+                      ? "Une partie de votre production solaire peut rester non valorisée uniquement si un surplus réel dépasse la capacité retenue."
+                      : "Une partie de votre production solaire peut être injectée et valorisée selon les conditions du dossier."}
                 </p>
               </div>
 

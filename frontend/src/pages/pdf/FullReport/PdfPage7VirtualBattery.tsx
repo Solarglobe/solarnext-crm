@@ -28,6 +28,7 @@ interface P7VirtualBatteryData {
   with_virtual_battery?: Record<string, unknown>;
   max_theoretical?: Record<string, unknown>;
   contribution?: Record<string, unknown>;
+  source?: Record<string, unknown>;
   limits?: string[];
 }
 
@@ -121,6 +122,7 @@ export default function PdfPage7VirtualBattery({
   const withBattery = data.with_virtual_battery ?? {};
   const maxTheoretical = data.max_theoretical ?? {};
   const kpis = (data as { kpis?: Record<string, unknown> }).kpis ?? {};
+  const overflowExportKwh = num(kpis.overflow_export_kwh ?? data.source?.overflow_export_kwh) ?? 0;
   const limits = Array.isArray(data.limits) ? data.limits.slice(0, 3) : [];
 
   const rawBadgeText =
@@ -205,8 +207,8 @@ export default function PdfPage7VirtualBattery({
           <div className="card soft" style={CARD_SOFT_BASE}>
             <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
               {isHybrid
-                ? "Énergie solaire utilisée (direct + batterie physique + batterie virtuelle)"
-                : "Énergie solaire utilisée (direct + batterie virtuelle)"}
+                ? "Énergie solaire utilisée (direct + batterie physique + crédit virtuel)"
+                : "Énergie solaire utilisée (direct + crédit virtuel)"}
             </div>
             <div style={{ fontSize: "6.5mm", fontWeight: 800, lineHeight: 1 }}>{fmtKwh(kpis.energy_solar_used_kwh ?? withBattery.pv_total_used_kwh)}</div>
             <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
@@ -279,7 +281,7 @@ export default function PdfPage7VirtualBattery({
               </div>
               {row("Sans batterie", pctS, "linear-gradient(90deg,#9ca3af,#6b7280)", false)}
               {row(
-                isHybrid ? "Avec batteries physique + virtuelle" : "Avec batterie virtuelle",
+                isHybrid ? "Avec batterie physique + crédit virtuel" : "Avec crédit virtuel",
                 pctA,
                 "linear-gradient(90deg,#34d399,#0b6e4f)",
                 true
@@ -294,7 +296,7 @@ export default function PdfPage7VirtualBattery({
             <MetricRow label="Consommation" value={fmtKwh(maxTheoretical.consumption_kwh)} />
             <MetricRow label="Autonomie max" value={fmtPctFromRatio(maxTheoretical.autonomy_ratio)} isLast />
             <p style={{ margin: "2mm 0 0", fontSize: "2.85mm", color: "#666", fontStyle: "italic", lineHeight: 1.35 }}>
-              Meme avec une batterie parfaite, ce seuil ne peut pas etre depasse.
+              Même avec un crédit virtuel parfait, ce seuil ne peut pas être dépassé.
             </p>
           </div>
 
@@ -322,7 +324,9 @@ export default function PdfPage7VirtualBattery({
               : EMPTY}
           </div>
           <p style={{ margin: "1.2mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
-            Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte. Sans système de stockage, une partie importante de votre production solaire ne pourrait pas être utilisée.
+            {overflowExportKwh > 1
+              ? `${Math.round(overflowExportKwh).toLocaleString("fr-FR")} kWh de surplus restent non valorisés selon la capacité retenue.`
+              : "Dans ce scénario, la production indiquée est entièrement valorisée : usage direct puis crédit virtuel restitué."}
           </p>
         </div>
       </div>

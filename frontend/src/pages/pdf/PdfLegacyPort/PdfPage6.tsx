@@ -48,6 +48,12 @@ export default function PdfPage6({
   }, [organization?.id, organization?.logo_image_key, organization?.logo_url, viewModel?.meta]);
 
   const { brandHex } = usePdfOrgBranding();
+  const p6Data = ((viewModel?.fullReport?.p6 as { p6?: { is_virtual_credit_scenario?: boolean; totals?: { overflow_export_kwh?: number | null } } } | undefined)?.p6 ?? {}) as {
+    is_virtual_credit_scenario?: boolean;
+    totals?: { overflow_export_kwh?: number | null };
+  };
+  const isVirtualCreditScenario = p6Data.is_virtual_credit_scenario === true;
+  const overflowExportKwh = Number(p6Data.totals?.overflow_export_kwh ?? 0);
 
   return (
     <PdfPageLayout
@@ -281,7 +287,9 @@ export default function PdfPage6({
             Des marges d&apos;optimisation possibles
           </div>
           <div style={{ fontSize: "2.9mm", lineHeight: 1.35, color: "#444" }}>
-            Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte.
+            {isVirtualCreditScenario && overflowExportKwh <= 1
+              ? "Dans ce scénario, la production indiquée est entièrement valorisée : usage direct puis crédit virtuel restitué."
+              : "Une partie de votre production solaire peut rester non valorisée uniquement si un surplus réel dépasse la capacité retenue."}
           </div>
         </div>
       </div>

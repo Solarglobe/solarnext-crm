@@ -1927,7 +1927,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             solar_used_kwh: _sharedSolarUsedKwh,
             grid_import_kwh: _sharedGridImportKwh,
             production_kwh: num(_energyFlowsShared.production_kwh ?? _energyFlowsShared.prod) ?? null,
+            overflow_export_kwh:
+              num(_energyFlowsShared.overflow_export_kwh) ??
+              num(_energyFlowsShared.virtual_battery_overflow_export_kwh) ??
+              (isVirtualLikeScenario ? 0 : null),
           },
+          is_virtual_credit_scenario: isVirtualLikeScenario,
         },
       },
       // P7 — source principale = selectedScenario.energy (scenarios_v2), fallback = snapshot.energy
@@ -2090,8 +2095,17 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           // le frontend affiche alors le surplus VALORISÉ et adapte le vocabulaire.
           is_storage_scenario: isBatScen,
           is_vehicle_v2h_scenario: isVehicleV2hSelected,
-          storage_label: isVehicleV2hSelected ? "Stockage" : "Batterie",
-          storage_long_label: isVehicleV2hSelected ? "stockage V2H" : "batterie",
+          storage_label: isVirtualLikeScenario
+            ? "Crédit virtuel"
+            : isVehicleV2hSelected
+              ? "Stockage"
+              : "Batterie",
+          storage_long_label: isVirtualLikeScenario
+            ? "crédit virtuel"
+            : isVehicleV2hSelected
+              ? "stockage V2H"
+              : "batterie",
+          is_virtual_credit_scenario: isVirtualLikeScenario,
           p_surplus_valorise: Math.min(
             numOrZero(prodP7),
             Math.max(
@@ -2155,6 +2169,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           num(vbEnergy.exported_kwh) ??
           num(vbEnergy.surplus_kwh) ??
           num(vbEnergy.surplus);
+        const vbOverflowExportKwh =
+          num(vbEnergy.overflow_export_kwh) ??
+          num(vbEnergy.virtual_battery_overflow_export_kwh) ??
+          vbExportedKwh ??
+          0;
 
         const autonomyBaseRatio = safeRatio(baseDirectSelfKwh, consumptionKwh);
         const autonomyWithBatteryRatio = safeRatio(vbTotalPvUsedKwh, consumptionKwh);
@@ -2204,6 +2223,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             total_pv_used_on_site_kwh: vbTotalPvUsedKwh,
             grid_import_kwh: vbGridImportKwh,
             exported_kwh: vbExportedKwh,
+            overflow_export_kwh: vbOverflowExportKwh,
             site_autonomy_pct: num(vbEnergy.site_autonomy_pct),
             pv_self_consumption_pct: num(vbEnergy.pv_self_consumption_pct),
           },
@@ -2236,11 +2256,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
               consumptionKwh != null && consumptionKwh > 0 && vbTotalPvUsedKwh != null
                 ? (vbTotalPvUsedKwh / consumptionKwh) * 100
                 : null,
+            overflow_export_kwh: vbOverflowExportKwh,
           },
           limits: [
             productionVsConsumptionLimit,
             "La production et la consommation ne sont pas alignées en continu.",
-            "Une partie du surplus reste non récupérable selon les périodes.",
+            ...(vbOverflowExportKwh > 1
+              ? [`${Math.round(vbOverflowExportKwh).toLocaleString("fr-FR")} kWh de surplus restent non valorisés selon les périodes.`]
+              : ["Toute la production PV disponible est valorisée : usage direct puis crédit virtuel restitué."]),
           ],
         };
       })(),
@@ -2800,6 +2823,17 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           nb_panels: numOrZero(installation.panneaux_nombre),
           /* Source unique : même production que P3/P7 (scénario sélectionné), fallback canonique. */
           annual_production_kwh: num(selectedScenario?.energy?.production_kwh) ?? annualKwh,
+          scenario_status:
+            str(selectedScenario?.scenario_status) ||
+            str(selectedScenario?.recommendation_status) ||
+            str(selectedScenario?.status) ||
+            str(snapshot.scenario_status) ||
+            "studied",
+          is_virtual_credit_scenario: isVirtualLikeScenario,
+          overflow_export_kwh:
+            num(_energyFlowsShared.overflow_export_kwh) ??
+            num(_energyFlowsShared.virtual_battery_overflow_export_kwh) ??
+            (isVirtualLikeScenario ? 0 : null),
         },
         hyp: {
           pv_degrad: econDisplay.pv_degradation_pct,

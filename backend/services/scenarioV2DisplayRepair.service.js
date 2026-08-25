@@ -68,7 +68,7 @@ function repairFinanceFromImport(sc, previousImport, repairedImport) {
   }
 
   const repairedBill = round2(previousBill * (repairedImport / previousImport));
-  if (repairedBill == null || repairedBill >= previousBill) return finance;
+  if (repairedBill == null) return finance;
 
   const annualDelta = previousBill - repairedBill;
   const horizonYears = firstNum(
@@ -103,6 +103,30 @@ function repairFinanceFromImport(sc, previousImport, repairedImport) {
   return nextFinance;
 }
 
+function directVirtualKwh(energy, production, credited) {
+  const explicit = firstNum(
+    energy.direct_self_consumption_kwh,
+    energy.direct_pv_kwh,
+    energy.pv_direct_kwh,
+    energy.auto_direct_kwh
+  );
+  if (explicit != null && explicit >= 0) return explicit;
+
+  const total = firstNum(
+    energy.energy_solar_used_kwh,
+    energy.total_pv_used_on_site_kwh,
+    energy.autoconsumption_kwh,
+    energy.auto_kwh
+  );
+  if (total != null && credited != null && production != null && total > credited) {
+    return Math.min(total - credited, production);
+  }
+  if (credited != null && production != null && production >= credited) {
+    return production - credited;
+  }
+  return total;
+}
+
 export function repairVirtualScenarioDisplayKpis(sc) {
   if (!sc || typeof sc !== "object") return sc;
   if (scenarioId(sc) !== "BATTERY_VIRTUAL") return sc;
@@ -127,9 +151,12 @@ export function repairVirtualScenarioDisplayKpis(sc) {
   if (currentImport == null || currentImport <= 0) return sc;
 
   const explicitCovered = num(energy.site_solar_or_credit_used_kwh);
-  if (
+  const explicitCoveredIsPhysical =
     explicitCovered != null &&
     explicitCovered > 0 &&
+    explicitCovered <= Math.min(consumption, production) + 2;
+  if (
+    explicitCoveredIsPhysical &&
     Math.abs((consumption - currentImport) - explicitCovered) <= 2
   ) {
     return sc;
@@ -142,27 +169,46 @@ export function repairVirtualScenarioDisplayKpis(sc) {
       stabilized?.billable_import_kwh
   );
 
-  const directOrYear1PvUsed = num(
-    energy.energy_solar_used_kwh ??
-      energy.total_pv_used_on_site_kwh ??
-      energy.autoconsumption_kwh ??
-      sc.auto_kwh
+  const credited = firstNum(
+    energy.restored_kwh,
+    energy.used_credit_kwh,
+    energy.virtual_battery_discharge_kwh,
+    energy.credited_kwh,
+    sc.used_credit_kwh,
+    sc.credited_kwh,
+    sc.battery_virtual?.restored_kwh,
+    sc.battery_virtual?.credited_kwh
   );
-  const credited = num(energy.credited_kwh ?? sc.credited_kwh ?? sc.battery_virtual?.credited_kwh);
+  const directOrYear1PvUsed = directVirtualKwh(energy, production, credited);
   const inferredCredit =
     credited != null && credited > 0
       ? credited
       : directOrYear1PvUsed != null && production > directOrYear1PvUsed
         ? production - directOrYear1PvUsed
         : null;
+  const valuedFromFlows =
+    directOrYear1PvUsed != null && inferredCredit != null
+      ? clamp(directOrYear1PvUsed + inferredCredit, 0, Math.min(consumption, production))
+      : null;
 
   const repairedImport =
     stabilizedImport != null && stabilizedImport < currentImport
       ? stabilizedImport
-      : inferredCredit != null && inferredCredit > 0
-        ? Math.max(0, currentImport - inferredCredit)
-        : null;
-  if (repairedImport == null || repairedImport >= currentImport) return sc;
+      : valuedFromFlows != null
+        ? Math.max(0, consumption - valuedFromFlows)
+        : inferredCredit != null && inferredCredit > 0
+          ? Math.max(0, currentImport - inferredCredit)
+          : null;
+  const currentCovered = consumption - currentImport;
+  const hasDoubleCountedVirtual =
+    currentCovered > production + 2 ||
+    (explicitCovered != null && explicitCovered > production + 2);
+  if (
+    repairedImport == null ||
+    (!hasDoubleCountedVirtual && repairedImport >= currentImport)
+  ) {
+    return sc;
+  }
 
   const coveredBySolarOrCredit = clamp(consumption - repairedImport, 0, Math.min(consumption, production));
   if (coveredBySolarOrCredit == null || coveredBySolarOrCredit <= directOrYear1PvUsed) return sc;
@@ -208,10 +254,12 @@ export function repairVirtualScenarioDisplayKpis(sc) {
     self_consumption_pct: pvSelfPct,
     self_production_pct: solarCoveragePct,
     _display_repair: {
-      ...(sc._display_repair && typeof sc._display_repair === "object" ? sc._display_repair : {}),
+    ...(sc._display_repair && typeof sc._display_repair === "object" ? sc._display_repair : {}),
       virtual_battery_stabilized_from_legacy_snapshot: true,
       previous_import_kwh: round2(currentImport),
+      previous_covered_kwh: round2(currentCovered),
       inferred_credit_kwh: round2(inferredCredit ?? 0),
+      double_counted_virtual_energy_detected: hasDoubleCountedVirtual,
     },
   };
 }

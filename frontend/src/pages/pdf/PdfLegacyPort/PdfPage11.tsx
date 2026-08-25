@@ -255,7 +255,7 @@ export default function PdfPage11({
                   </span>
                 </div>
                 <div className="p11-read__kv">
-                  <span className="p11-read__label">Facture résiduelle (moy. mens.)</span>
+                  <span className="p11-read__label">Achat réseau (moy. mens.)</span>
                   <span id="p11_reste_card" className="p11-read__val p11-read__val--reste">
                     {fmtEur(postLoan.reste_charge_moyen_mois_eur)}
                   </span>

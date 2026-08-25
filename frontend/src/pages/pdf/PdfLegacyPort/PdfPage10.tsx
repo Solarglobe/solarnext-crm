@@ -93,7 +93,16 @@ export default function PdfPage10({
   const lcoe = best.lcoe_eur_kwh as number | undefined;
   const gains25 = best.gains_25_eur as number | undefined;
   const nbPanels = best.nb_panels as number | undefined;
-  const prodKwh = best.annual_production_kwh as number | undefined;
+  const prodKwh = best.annual_production_kwh as number | undefined;
+  const scenarioStatus = String(best.scenario_status ?? "studied").toLowerCase();
+  const scenarioBadge =
+    scenarioStatus === "recommended"
+      ? "Scénario recommandé"
+      : scenarioStatus === "alternative"
+        ? "Scénario alternatif"
+        : "Scénario étudié";
+  const isVirtualCreditScenario = best.is_virtual_credit_scenario === true;
+  const overflowExportKwh = num(best.overflow_export_kwh) ?? 0;
   const safeAutoAu = (best.autonomy_pct as number | undefined) ?? 0;
 
   const roiBarPct = clamp01((MAX.ROI - (roi ?? MAX.ROI)) / MAX.ROI) * 100;
@@ -263,7 +272,7 @@ export default function PdfPage10({
               whiteSpace: "nowrap",
             }}
           >
-            Scénario recommandé à ce stade
+            {scenarioBadge}
           </div>
         </div>
 
@@ -577,7 +586,9 @@ export default function PdfPage10({
                 Gain net cumulé sur 25 ans (estimation) : <strong style={{ color: ink, fontWeight: 800 }}>{fmtEUR(gains25)}</strong> — même base que l&apos;étude financière (page 2).
               </div>
               <div style={{ fontSize: "2.35mm", color: "#6b7280", marginTop: "0.45mm", lineHeight: 1.22 }}>
-                Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte.
+                {isVirtualCreditScenario && overflowExportKwh <= 1
+                  ? "Dans ce scénario, la production indiquée est entièrement valorisée : usage direct puis crédit virtuel restitué."
+                  : "Une partie de votre production solaire peut rester non valorisée uniquement si un surplus réel dépasse la capacité retenue."}
               </div>
             </div>
           </div>

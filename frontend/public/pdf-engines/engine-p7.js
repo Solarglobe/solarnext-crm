@@ -36,7 +36,9 @@
         ref    : payload.meta?.ref    || "",
         date   : payload.meta?.date   || "",
         scen   : payload.meta?.scenario_label || ""
-      }
+      },
+      isVirtualCredit: payload.is_virtual_credit_scenario === true,
+      storageLabel: payload.storage_label || "Batterie"
     };
   }
 
@@ -115,7 +117,7 @@
   // ============================================================================
   // LÉGENDE PREMIUM
   // ============================================================================
-  function buildLegend(){
+  function buildLegend(final){
     const wrap = document.createElement("div");
     wrap.style.display = "flex";
     wrap.style.flexWrap = "wrap";
@@ -142,7 +144,7 @@
     };
 
     wrap.appendChild(item("#E7C25A","PV directe"));
-    wrap.appendChild(item("#8EE6B4","Batterie"));
+    wrap.appendChild(item("#8EE6B4", final?.isVirtualCredit ? "Crédit virtuel" : "Batterie"));
     wrap.appendChild(item("#B8A6FF","Réseau"));
     wrap.appendChild(item("#7FDDF3","Autoconso (prod)"));
     wrap.appendChild(item("#4CA8E5","Surplus"));
@@ -228,13 +230,13 @@
     card.appendChild(head);
 
     // Légende
-    card.appendChild(buildLegend());
+    card.appendChild(buildLegend(final));
 
     // BARRE CONSOMMATION
     card.appendChild(
       buildBar("Origine de la <b>consommation</b> (100 %)", [
         {pct:final.conso.pv,   color:"#E7C25A", textColor:"#1b1b1b", label:"PV directe"},
-        {pct:final.conso.batt, color:"#8EE6B4", textColor:"#0C2E1B", label:"Batterie"},
+        {pct:final.conso.batt, color:"#8EE6B4", textColor:"#0C2E1B", label:final.storageLabel},
         {pct:final.conso.grid, color:"#B8A6FF", textColor:"#221",    label:"Réseau"}
       ])
     );
@@ -243,7 +245,7 @@
     card.appendChild(
       buildBar("Destination de la <b>production</b> (100 %)", [
         {pct:final.prod.auto,    color:"#7FDDF3", textColor:"#1A3C46", label:"Autoconso"},
-        {pct:final.prod.batt,    color:"#8EE6B4", textColor:"#0C2E1B", label:"Batterie"},
+        {pct:final.prod.batt,    color:"#8EE6B4", textColor:"#0C2E1B", label:final.storageLabel},
         {pct:final.prod.surplus, color:"#4CA8E5", textColor:"#fff",    label:"Surplus"}
       ])
     );
@@ -261,7 +263,7 @@
 
     kpi.appendChild(
       buildKPI("Autonomie", String(autonomie)+" %",
-        "= "+String(final.conso.pv)+" % PV directe + "+String(final.conso.batt)+" % Batterie")
+        "= "+String(final.conso.pv)+" % PV directe + "+String(final.conso.batt)+" % "+final.storageLabel)
     );
 
     kpi.appendChild(

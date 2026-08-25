@@ -124,7 +124,9 @@
       if (okGain) {
         commercialHook.style.display = "";
         commercialHook.removeAttribute("aria-hidden");
-        lineGain.textContent = `+ ${rLoc(gainEur)} € d'économies supplémentaires sur 25 ans grâce à la batterie`;
+        lineGain.textContent = isVirt
+          ? `+ ${rLoc(gainEur)} € d'économies supplémentaires sur 25 ans grâce au crédit virtuel`
+          : `+ ${rLoc(gainEur)} € d'économies supplémentaires sur 25 ans grâce à la batterie`;
         if (lineOpt) {
           const kwhOpt = d.option_supplement_kwh_25y;
           const autOpt = d.option_supplement_autonomie_pts;
