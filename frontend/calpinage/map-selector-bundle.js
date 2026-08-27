@@ -577,13 +577,17 @@
       style.id = "calpinage-leaflet-building-marker-style";
       style.textContent =
         ".calpinage-leaflet-building-marker{" +
-        "width:28px;height:28px;border-radius:50%;background:#2563eb;border:3px solid #fff;" +
-        "box-shadow:0 8px 20px rgba(15,23,42,.30),0 0 0 2px rgba(37,99,235,.35);" +
-        "position:relative;box-sizing:border-box;transform:translateZ(0);" +
+        "width:27px;height:27px;background:#ea4335;border:2px solid #b31412;border-radius:50% 50% 50% 0;" +
+        "box-shadow:0 3px 7px rgba(15,23,42,.35);box-sizing:border-box;display:block;" +
+        "position:relative;transform:rotate(-45deg);transform-origin:50% 50%;" +
         "}" +
         ".calpinage-leaflet-building-marker:after{" +
-        "content:\"\";position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;" +
-        "background:#fff;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(15,23,42,.08);" +
+        "content:\"\";position:absolute;left:50%;top:50%;width:9px;height:9px;border-radius:50%;" +
+        "background:#fff;transform:translate(-50%,-50%);box-shadow:inset 0 0 0 1px rgba(15,23,42,.18);" +
+        "}" +
+        ".calpinage-leaflet-building-marker:before{" +
+        "content:\"\";position:absolute;left:2px;top:2px;width:8px;height:8px;border-radius:50%;" +
+        "background:rgba(255,255,255,.22);" +
         "}" +
         ".leaflet-marker-icon.calpinage-leaflet-building-marker-icon{background:transparent;border:0;}" +
         ".leaflet-marker-icon.calpinage-leaflet-building-marker-icon:focus{outline:2px solid #0f172a;outline-offset:4px;}";
@@ -687,8 +691,8 @@
         var icon = L.divIcon({
           className: "calpinage-leaflet-building-marker-icon",
           html: '<span class="calpinage-leaflet-building-marker" aria-hidden="true"></span>',
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
+          iconSize: [27, 27],
+          iconAnchor: [13, 27],
         });
         buildingConfirmationMarker = L.marker([lat, lng], {
           draggable: options.draggable !== false,
