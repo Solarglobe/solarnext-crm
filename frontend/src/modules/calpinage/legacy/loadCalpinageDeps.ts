@@ -19,6 +19,11 @@ const cssCache = new Map<string, Promise<void>>();
 let ensureCalpinageDepsPromise: Promise<void> | null = null;
 let googleMapsPromise: Promise<void> | null = null;
 
+function looksLikeGoogleMapsApiKey(value: string): boolean {
+  const key = String(value || "").trim();
+  return key.length >= 20 && !/^\[.*\]$/.test(key) && !/your-google|placeholder|sensitive/i.test(key);
+}
+
 function getGoogleMapsKeyFromScript(script: HTMLScriptElement): string {
   try {
     const src = script.getAttribute("src") || "";
@@ -52,14 +57,18 @@ function ensureGoogleMapsLoaded(): Promise<void> {
 
   googleMapsPromise = new Promise((resolve, reject) => {
     const apiKey = getGoogleMapsApiKey();
-    if (!apiKey) {
+    function activateGeoportailFallback(reason: string) {
       win.__CALPINAGE_GOOGLE_MAPS_KEY_MISSING__ = true;
       if (!win.__CALPINAGE_INITIAL_PROVIDER__) {
         win.__CALPINAGE_INITIAL_PROVIDER__ = "geoportail-ortho";
       }
       console.warn(
-        "[CalpinageDeps] Google Maps key missing; fallback to Geoportail/IGN for Phase 1."
+        `[CalpinageDeps] ${reason}; fallback to Geoportail/IGN for Phase 1.`
       );
+    }
+
+    if (!apiKey || !looksLikeGoogleMapsApiKey(apiKey)) {
+      activateGeoportailFallback("Google Maps key missing or invalid");
       resolve();
       return;
     }
@@ -94,13 +103,21 @@ function ensureGoogleMapsLoaded(): Promise<void> {
       resolve();
     };
 
+    (win as unknown as { gm_authFailure?: () => void }).gm_authFailure = function () {
+      activateGeoportailFallback("Google Maps authentication failed");
+      resolve();
+    };
+
     const script = document.createElement("script");
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry&callback=__calpinageGoogleInit`;
     script.async = true;
     script.defer = true;
     script.dataset.googleMaps = "true";
 
-    script.onerror = () => reject(new Error("Google Maps script failed to load"));
+    script.onerror = () => {
+      activateGeoportailFallback("Google Maps script failed to load");
+      resolve();
+    };
 
     document.head.appendChild(script);
   });

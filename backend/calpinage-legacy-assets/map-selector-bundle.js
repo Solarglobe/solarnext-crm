@@ -13,6 +13,18 @@
   var MIN_ZOOM = 5;
   var MAX_ZOOM = 21;
 
+  function normalizeInitialView(options) {
+    var raw = options && options.initialView ? options.initialView :
+      (typeof global !== "undefined" ? global.__CALPINAGE_INITIAL_MAP_VIEW__ : null);
+    if (!raw) return null;
+    var center = raw.center || raw.centerLatLng || raw;
+    var lat = Array.isArray(center) ? center[0] : center && center.lat;
+    var lng = Array.isArray(center) ? center[1] : center && (center.lng != null ? center.lng : center.lon);
+    var zoom = typeof raw.zoom === "number" && !Number.isNaN(raw.zoom) ? raw.zoom : DEFAULT_ZOOM;
+    if (typeof lat !== "number" || typeof lng !== "number" || Number.isNaN(lat) || Number.isNaN(lng)) return null;
+    return { center: { lat: lat, lng: lng }, zoom: zoom };
+  }
+
   var roofState = {
     map: null,
     image: null,
@@ -134,13 +146,14 @@
    * Google Map Provider — Interface MapProvider.
    * Heading : nord = 0°, sens horaire. Init/destroy propres, aucun listener après destroy.
    */
-  function initGoogleMap(container) {
+  function initGoogleMap(container, options) {
     if (typeof google === "undefined" || !google.maps) {
       throw new Error("Google Maps API non chargée. Vérifiez le script et la clé API.");
     }
+    var initialView = normalizeInitialView(options);
     var mapInstance = new google.maps.Map(container, {
-      center: DEFAULT_CENTER,
-      zoom: 19,
+      center: initialView ? initialView.center : DEFAULT_CENTER,
+      zoom: initialView ? initialView.zoom : DEFAULT_ZOOM,
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
       mapTypeId: "hybrid", // satellite + labels (noms de rues)
@@ -554,13 +567,17 @@
    * Ortho/IGN/Leaflet Map Provider — Interface MapProvider.
    * Heading toujours 0 (Leaflet ne supporte pas la rotation). Init/destroy propres.
    */
-  function initGeoportailMap(container) {
+  function initGeoportailMap(container, options) {
     if (typeof L === "undefined" || !L.map) {
       throw new Error("Leaflet non chargé. Vérifiez le script Leaflet.");
     }
     var GP_CENTER = { lat: 48.8566, lng: 2.3522 };
     var GP_ZOOM = 19;
-    var leafletMap = L.map(container, { minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM }).setView([GP_CENTER.lat, GP_CENTER.lng], GP_ZOOM);
+    var initialView = normalizeInitialView(options);
+    var leafletMap = L.map(container, { minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM }).setView(
+      initialView ? [initialView.center.lat, initialView.center.lng] : [GP_CENTER.lat, GP_CENTER.lng],
+      initialView ? initialView.zoom : GP_ZOOM
+    );
     L.tileLayer(
       "https://data.geopf.fr/wmts?service=WMTS&request=GetTile&version=1.0.0&tilematrixset=PM_0_19&tilematrix={z}&tilecol={x}&tilerow={y}&layer=ORTHOIMAGERY.ORTHOPHOTOS&format=image/jpeg&style=normal",
       { minZoom: 0, maxZoom: 21, maxNativeZoom: 19, tileSize: 256, attribution: "IGN-F/Geoportail" }
@@ -730,9 +747,9 @@
    * @param {HTMLElement} container
    * @returns {MapProvider}
    */
-  function createMapProvider(source, container) {
-    if (source === "geoportail-ortho") return initGeoportailMap(container);
-    return initGoogleMap(container);
+  function createMapProvider(source, container, options) {
+    if (source === "geoportail-ortho") return initGeoportailMap(container, options);
+    return initGoogleMap(container, options);
   }
 
   global.CalpinageMap = {

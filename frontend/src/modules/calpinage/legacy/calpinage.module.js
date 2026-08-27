@@ -208,6 +208,7 @@ export function initCalpinage(container, options = {}) {
   if (typeof window !== "undefined") {
     window.CALPINAGE_STUDY_ID = studyId;
     window.CALPINAGE_VERSION_ID = versionId;
+    try { delete window.__CALPINAGE_INITIAL_MAP_VIEW__; } catch (_) { window.__CALPINAGE_INITIAL_MAP_VIEW__ = undefined; }
   }
   var cleanupTasks = [];
   var pvLayoutErrorTimeoutId = null;
@@ -2660,6 +2661,27 @@ export function initCalpinage(container, options = {}) {
       var INITIAL_RES = 156543.03392804097;
 
       /** Charge GPS lead + métadonnées précision (GET /api/studies/:id) — référence métier fiche lead. */
+      function parseFiniteCoord(value) {
+        if (typeof value === "number") return Number.isFinite(value) ? value : null;
+        if (typeof value === "string" && value.trim() !== "") {
+          var n = Number(value.replace(",", "."));
+          return Number.isFinite(n) ? n : null;
+        }
+        return null;
+      }
+
+      function readLatLngCandidate(source) {
+        if (!source || typeof source !== "object") return null;
+        var lat = parseFiniteCoord(source.lat != null ? source.lat : source.latitude);
+        var lng = parseFiniteCoord(
+          source.lng != null ? source.lng :
+          (source.lon != null ? source.lon : source.longitude)
+        );
+        if (lat == null || lng == null) return null;
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+        return { lat: lat, lng: lng };
+      }
+
       async function loadLeadGpsContext(studyId) {
         if (!studyId) return null;
         try {
@@ -2667,11 +2689,16 @@ export function initCalpinage(container, options = {}) {
           var res = await apiFetch(apiRoot + "/api/studies/" + encodeURIComponent(studyId));
           if (!res.ok) return null;
           var data = await res.json();
-          var lead = data && data.lead;
-          if (!lead || typeof lead.lat !== "number" || typeof lead.lng !== "number") return null;
+          var lead = (data && data.lead) || {};
+          var coords =
+            readLatLngCandidate(lead) ||
+            readLatLngCandidate(data && data.study) ||
+            readLatLngCandidate(data && data.address) ||
+            readLatLngCandidate(data && data.site_address);
+          if (!coords) return null;
           return {
-            lat: lead.lat,
-            lng: lead.lng,
+            lat: coords.lat,
+            lng: coords.lng,
             is_geo_verified: lead.is_geo_verified === true,
             geo_precision_level: lead.geo_precision_level != null ? String(lead.geo_precision_level) : null,
             geo_source: lead.geo_source != null ? String(lead.geo_source) : null,
@@ -2720,6 +2747,14 @@ export function initCalpinage(container, options = {}) {
           }
         }
         if (leadGps && typeof leadGps.lat === "number" && typeof leadGps.lng === "number") {
+          if (state && state.roof) {
+            state.roof.gps = { lat: leadGps.lat, lon: leadGps.lng };
+            state.roof.map = state.roof.map || {};
+            if (!state.roof.map.centerLatLng) {
+              state.roof.map.centerLatLng = { lat: leadGps.lat, lng: leadGps.lng };
+              state.roof.map.zoom = computeInitialZoomFromLeadMeta(leadGps);
+            }
+          }
           return {
             center: [leadGps.lat, leadGps.lng],
             zoom: computeInitialZoomFromLeadMeta(leadGps),
@@ -2730,6 +2765,10 @@ export function initCalpinage(container, options = {}) {
         var cFallback = getCenterFromSavedGeometry(state);
         if (cFallback) {
           return { center: cFallback, zoom: 19, useFly: false, hintMeta: null };
+        }
+        var gpsFallback = state && state.roof && state.roof.gps;
+        if (gpsFallback && typeof gpsFallback.lat === "number" && typeof gpsFallback.lon === "number") {
+          return { center: [gpsFallback.lat, gpsFallback.lon], zoom: 19, useFly: false, hintMeta: null };
         }
         return { center: [46.5, 2.5], zoom: 12, useFly: false, hintMeta: null };
       }
@@ -2871,16 +2910,42 @@ export function initCalpinage(container, options = {}) {
       }
 
       var APPLY_INITIAL_MAP_POSITION_DONE = false;
+      var preparedInitialMapView = null;
+      var initialMapPositionPromise = null;
+
+      function publishInitialMapView(view) {
+        if (!view || !view.center) return null;
+        var lat = Array.isArray(view.center) ? view.center[0] : view.center.lat;
+        var lng = Array.isArray(view.center) ? view.center[1] : (view.center.lng != null ? view.center.lng : view.center.lon);
+        var zoom = typeof view.zoom === "number" && !Number.isNaN(view.zoom) ? view.zoom : 19;
+        if (typeof lat !== "number" || typeof lng !== "number" || Number.isNaN(lat) || Number.isNaN(lng)) return null;
+        var normalized = { center: { lat: lat, lng: lng }, zoom: zoom };
+        preparedInitialMapView = normalized;
+        if (typeof window !== "undefined") window.__CALPINAGE_INITIAL_MAP_VIEW__ = normalized;
+        return normalized;
+      }
+
+      async function prepareInitialMapViewBeforeProviderInit() {
+        if (initialMapPositionPromise) return initialMapPositionPromise;
+        initialMapPositionPromise = (async function () {
+          var studyIdForGps = window.CALPINAGE_STUDY_ID || (function () { try { return new URLSearchParams(location.search).get("studyId"); } catch (e) { return null; } })();
+          var leadGps = await loadLeadGpsContext(studyIdForGps);
+          if (leadGps && typeof leadGps.lat === "number" && typeof leadGps.lng === "number") {
+            initialLeadCenter = [leadGps.lat, leadGps.lng];
+          }
+          var view = resolveInitialMapView(leadGps);
+          updateGpsHintBanner(view.hintMeta);
+          publishInitialMapView(view);
+          return { view: view, leadGps: leadGps };
+        })();
+        return initialMapPositionPromise;
+      }
+
       async function applyInitialMapPosition() {
         if (APPLY_INITIAL_MAP_POSITION_DONE || !mapApi || typeof mapApi.setView !== "function") return;
-        var studyId = window.CALPINAGE_STUDY_ID || (function () { try { return new URLSearchParams(location.search).get("studyId"); } catch (e) { return null; } })();
-        var leadGps = await loadLeadGpsContext(studyId);
-        if (leadGps && typeof leadGps.lat === "number" && typeof leadGps.lng === "number") {
-          initialLeadCenter = [leadGps.lat, leadGps.lng];
-        } else {
-          initialLeadCenter = null;
-        }
-        var view = resolveInitialMapView(leadGps);
+        var prepared = await prepareInitialMapViewBeforeProviderInit();
+        var leadGps = prepared && prepared.leadGps;
+        var view = prepared && prepared.view ? prepared.view : resolveInitialMapView(leadGps);
         var center = view.center;
         var zoom = view.zoom;
         updateGpsHintBanner(view.hintMeta);
@@ -26105,7 +26170,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         }
         var mapContainerEl = container.querySelector("#map-container");
         function applyNewProvider() {
-          window.calpinageMap = CalpinageMap.createMapProvider(src, mapContainerEl);
+          var providerInitialView = preservedView
+            ? { center: preservedView.centerLatLng, zoom: preservedView.zoom }
+            : preparedInitialMapView;
+          window.calpinageMap = CalpinageMap.createMapProvider(src, mapContainerEl, { initialView: providerInitialView });
           mapApi = window.calpinageMap;
           if (mapApi && typeof mapApi === "object") mapApi.switchProvider = doSwitchProvider;
           if (typeof window !== "undefined") window.calpinageMap = mapApi;
@@ -26128,7 +26196,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
 
       function doInitMap() {
         var defaultSource = (typeof window !== "undefined" && window.__CALPINAGE_INITIAL_PROVIDER__) || "google-satellite";
-        mapApi = CalpinageMap.createMapProvider(defaultSource, mapContainer);
+        mapApi = CalpinageMap.createMapProvider(defaultSource, mapContainer, { initialView: preparedInitialMapView });
         if (mapApi && typeof mapApi === "object") mapApi.switchProvider = doSwitchProvider;
         if (typeof window !== "undefined") window.calpinageMap = mapApi;
         updateStateUI();
@@ -26205,8 +26273,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
 
       var defaultSource = (typeof window !== "undefined" && window.__CALPINAGE_INITIAL_PROVIDER__) || "google-satellite";
       function afterMapReady() {
-        doInitMap();
-        setTimeout(doResizeMap, 0);
+        prepareInitialMapViewBeforeProviderInit().then(function () {
+          doInitMap();
+          setTimeout(doResizeMap, 0);
+        }).catch(function (err) {
+          if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] initial map view preparation failed", err);
+          doInitMap();
+          setTimeout(doResizeMap, 0);
+        });
       }
       if (defaultSource === "geoportail-ortho") {
         waitForContainerSize(mapContainer, afterMapReady);
@@ -26232,6 +26306,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             delete window.CALPINAGE_VIEWPORT_FIT_SCALE;
           } catch (_) {
             window.CALPINAGE_VIEWPORT_FIT_SCALE = undefined;
+          }
+          try {
+            delete window.__CALPINAGE_INITIAL_MAP_VIEW__;
+          } catch (_) {
+            window.__CALPINAGE_INITIAL_MAP_VIEW__ = undefined;
           }
         }
         if (resizeHandler && typeof window !== "undefined") {
