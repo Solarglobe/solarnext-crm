@@ -35,7 +35,12 @@ function getGoogleMapsKeyFromScript(script: HTMLScriptElement): string {
  * Singleton : pas de double injection, compatible réouverture overlay et localhost.
  */
 function ensureGoogleMapsLoaded(): Promise<void> {
-  const win = window as unknown as { google?: { maps?: unknown }; __CALPINAGE_GOOGLE_READY__?: boolean };
+  const win = window as unknown as {
+    google?: { maps?: unknown };
+    __CALPINAGE_GOOGLE_READY__?: boolean;
+    __CALPINAGE_GOOGLE_MAPS_KEY_MISSING__?: boolean;
+    __CALPINAGE_INITIAL_PROVIDER__?: string;
+  };
   if (win.google && win.google.maps) {
     win.__CALPINAGE_GOOGLE_READY__ = true;
     return Promise.resolve();
@@ -48,8 +53,13 @@ function ensureGoogleMapsLoaded(): Promise<void> {
   googleMapsPromise = new Promise((resolve, reject) => {
     const apiKey = getGoogleMapsApiKey();
     if (!apiKey) {
-      (win as unknown as { __CALPINAGE_GOOGLE_MAPS_KEY_MISSING__?: boolean }).__CALPINAGE_GOOGLE_MAPS_KEY_MISSING__ =
-        true;
+      win.__CALPINAGE_GOOGLE_MAPS_KEY_MISSING__ = true;
+      if (!win.__CALPINAGE_INITIAL_PROVIDER__) {
+        win.__CALPINAGE_INITIAL_PROVIDER__ = "geoportail-ortho";
+      }
+      console.warn(
+        "[CalpinageDeps] Google Maps key missing; fallback to Geoportail/IGN for Phase 1."
+      );
       resolve();
       return;
     }
@@ -288,8 +298,8 @@ export async function ensureCalpinageDeps(): Promise<void> {
       __CALPINAGE_GOOGLE_MAPS_KEY_MISSING__?: boolean;
     };
     if (gmaps.__CALPINAGE_GOOGLE_MAPS_KEY_MISSING__) {
-      throw new Error(
-        "Calpinage : clé Google Maps absente. Ajoutez VITE_GOOGLE_MAPS_API_KEY dans Vercel (Project → Settings → Environment Variables), pour tous les environnements ciblés, puis redéployez. En local : utilisez un .env à la racine du dépôt puis relancez Vite."
+      console.warn(
+        "Calpinage : clé Google Maps absente. La Phase 1 démarre en Géoportail/IGN. Ajoutez VITE_GOOGLE_MAPS_API_KEY à la racine du dépôt ou dans Vercel pour réactiver Google Satellite."
       );
     }
     console.log("[GoogleMaps] ready =", !!gmaps.google?.maps);

@@ -405,6 +405,13 @@
     opt.value = "google-satellite";
     opt.textContent = "Google Satellite";
     select.appendChild(opt);
+    var optGeo = document.createElement("option");
+    optGeo.value = "geoportail-ortho";
+    optGeo.textContent = "Géoportail / IGN";
+    select.appendChild(optGeo);
+    if (typeof global !== "undefined" && global.__CALPINAGE_INITIAL_PROVIDER__ === "geoportail-ortho") {
+      select.value = "geoportail-ortho";
+    }
     wrap.appendChild(select);
 
     var btn = document.createElement("button");

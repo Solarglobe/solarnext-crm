@@ -26127,7 +26127,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       }
 
       function doInitMap() {
-        var defaultSource = (typeof window !== "undefined" && window.__CALPINAGE_INITIAL_PROVIDER__) || "google";
+        var defaultSource = (typeof window !== "undefined" && window.__CALPINAGE_INITIAL_PROVIDER__) || "google-satellite";
         mapApi = CalpinageMap.createMapProvider(defaultSource, mapContainer);
         if (mapApi && typeof mapApi === "object") mapApi.switchProvider = doSwitchProvider;
         if (typeof window !== "undefined") window.calpinageMap = mapApi;
@@ -26203,7 +26203,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         }
       }
 
-      var defaultSource = (typeof window !== "undefined" && window.__CALPINAGE_INITIAL_PROVIDER__) || "google";
+      var defaultSource = (typeof window !== "undefined" && window.__CALPINAGE_INITIAL_PROVIDER__) || "google-satellite";
       function afterMapReady() {
         doInitMap();
         setTimeout(doResizeMap, 0);
