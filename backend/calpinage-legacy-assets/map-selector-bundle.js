@@ -571,6 +571,24 @@
     if (typeof L === "undefined" || !L.map) {
       throw new Error("Leaflet non chargé. Vérifiez le script Leaflet.");
     }
+    function ensureLeafletBuildingMarkerStyle() {
+      if (typeof document === "undefined" || document.getElementById("calpinage-leaflet-building-marker-style")) return;
+      var style = document.createElement("style");
+      style.id = "calpinage-leaflet-building-marker-style";
+      style.textContent =
+        ".calpinage-leaflet-building-marker{" +
+        "width:28px;height:28px;border-radius:50%;background:#2563eb;border:3px solid #fff;" +
+        "box-shadow:0 8px 20px rgba(15,23,42,.30),0 0 0 2px rgba(37,99,235,.35);" +
+        "position:relative;box-sizing:border-box;transform:translateZ(0);" +
+        "}" +
+        ".calpinage-leaflet-building-marker:after{" +
+        "content:\"\";position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;" +
+        "background:#fff;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(15,23,42,.08);" +
+        "}" +
+        ".leaflet-marker-icon.calpinage-leaflet-building-marker-icon{background:transparent;border:0;}" +
+        ".leaflet-marker-icon.calpinage-leaflet-building-marker-icon:focus{outline:2px solid #0f172a;outline-offset:4px;}";
+      document.head.appendChild(style);
+    }
     var GP_CENTER = { lat: 48.8566, lng: 2.3522 };
     var GP_ZOOM = 19;
     var initialView = normalizeInitialView(options);
@@ -665,8 +683,16 @@
           try { leafletMap.removeLayer(buildingConfirmationMarker); } catch (_) {}
           buildingConfirmationMarker = null;
         }
+        ensureLeafletBuildingMarkerStyle();
+        var icon = L.divIcon({
+          className: "calpinage-leaflet-building-marker-icon",
+          html: '<span class="calpinage-leaflet-building-marker" aria-hidden="true"></span>',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        });
         buildingConfirmationMarker = L.marker([lat, lng], {
           draggable: options.draggable !== false,
+          icon: icon,
           title: options.title || "Bâtiment à étudier — glisser pour ajuster",
         }).addTo(leafletMap);
         if (typeof buildingConfirmationMarker.setZIndexOffset === "function") {
