@@ -15886,8 +15886,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       })();
 
       var waitForGoogleMapsIntervalId = null;
+      function isGoogleMapsUsable() {
+        return typeof window !== "undefined" && !!(window.google && window.google.maps);
+      }
       function waitForGoogleMaps(cb) {
-        if (typeof window !== "undefined" && window.__CALPINAGE_GOOGLE_READY__) {
+        if ((typeof window !== "undefined" && window.__CALPINAGE_GOOGLE_READY__) || isGoogleMapsUsable()) {
           cb();
           return;
         }
@@ -26173,7 +26176,24 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var providerInitialView = preservedView
             ? { center: preservedView.centerLatLng, zoom: preservedView.zoom }
             : preparedInitialMapView;
-          window.calpinageMap = CalpinageMap.createMapProvider(src, mapContainerEl, { initialView: providerInitialView });
+          var effectiveSrc = src;
+          if (effectiveSrc !== "geoportail-ortho" && !isGoogleMapsUsable()) {
+            effectiveSrc = "geoportail-ortho";
+            if (typeof window !== "undefined") window.__CALPINAGE_INITIAL_PROVIDER__ = "geoportail-ortho";
+            if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] Google indisponible au changement de fond, bascule IGN/Ortho");
+          }
+          try {
+            window.calpinageMap = CalpinageMap.createMapProvider(effectiveSrc, mapContainerEl, { initialView: providerInitialView });
+          } catch (providerErr) {
+            if (effectiveSrc !== "geoportail-ortho") {
+              if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] Provider Google en erreur, tentative IGN/Ortho", providerErr);
+              effectiveSrc = "geoportail-ortho";
+              if (typeof window !== "undefined") window.__CALPINAGE_INITIAL_PROVIDER__ = "geoportail-ortho";
+              window.calpinageMap = CalpinageMap.createMapProvider(effectiveSrc, mapContainerEl, { initialView: providerInitialView });
+            } else {
+              throw providerErr;
+            }
+          }
           mapApi = window.calpinageMap;
           if (mapApi && typeof mapApi === "object") mapApi.switchProvider = doSwitchProvider;
           if (typeof window !== "undefined") window.calpinageMap = mapApi;
@@ -26196,7 +26216,23 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
 
       function doInitMap() {
         var defaultSource = (typeof window !== "undefined" && window.__CALPINAGE_INITIAL_PROVIDER__) || "google-satellite";
-        mapApi = CalpinageMap.createMapProvider(defaultSource, mapContainer, { initialView: preparedInitialMapView });
+        if (defaultSource !== "geoportail-ortho" && !isGoogleMapsUsable()) {
+          defaultSource = "geoportail-ortho";
+          if (typeof window !== "undefined") window.__CALPINAGE_INITIAL_PROVIDER__ = "geoportail-ortho";
+          if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] Google indisponible à l'initialisation, démarrage IGN/Ortho");
+        }
+        try {
+          mapApi = CalpinageMap.createMapProvider(defaultSource, mapContainer, { initialView: preparedInitialMapView });
+        } catch (providerErr) {
+          if (defaultSource !== "geoportail-ortho") {
+            if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] Init Google en erreur, démarrage IGN/Ortho", providerErr);
+            defaultSource = "geoportail-ortho";
+            if (typeof window !== "undefined") window.__CALPINAGE_INITIAL_PROVIDER__ = "geoportail-ortho";
+            mapApi = CalpinageMap.createMapProvider(defaultSource, mapContainer, { initialView: preparedInitialMapView });
+          } else {
+            throw providerErr;
+          }
+        }
         if (mapApi && typeof mapApi === "object") mapApi.switchProvider = doSwitchProvider;
         if (typeof window !== "undefined") window.calpinageMap = mapApi;
         updateStateUI();

@@ -9,6 +9,8 @@
  */
 
 import html2canvas from "html2canvas";
+import leafletCssUrl from "leaflet/dist/leaflet.css?url";
+import leafletJsUrl from "leaflet/dist/leaflet.js?url";
 import { getCrmApiBase } from "../../../config/crmApiBase";
 import { getGoogleMapsApiKey } from "../../../config/googleMapsPublic";
 import { apiFetch, getAuthToken } from "../../../services/api";
@@ -55,8 +57,16 @@ function ensureGoogleMapsLoaded(): Promise<void> {
     return googleMapsPromise;
   }
 
-  googleMapsPromise = new Promise((resolve, reject) => {
+  googleMapsPromise = new Promise((resolve) => {
     const apiKey = getGoogleMapsApiKey();
+    let settled = false;
+    let timeoutId: number | undefined;
+    function resolveOnce() {
+      if (settled) return;
+      settled = true;
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+      resolve();
+    }
     function activateGeoportailFallback(reason: string) {
       win.__CALPINAGE_GOOGLE_MAPS_KEY_MISSING__ = true;
       if (!win.__CALPINAGE_INITIAL_PROVIDER__) {
@@ -69,9 +79,14 @@ function ensureGoogleMapsLoaded(): Promise<void> {
 
     if (!apiKey || !looksLikeGoogleMapsApiKey(apiKey)) {
       activateGeoportailFallback("Google Maps key missing or invalid");
-      resolve();
+      resolveOnce();
       return;
     }
+
+    timeoutId = window.setTimeout(() => {
+      activateGeoportailFallback("Google Maps script timed out");
+      resolveOnce();
+    }, 4500);
 
     const existingScript =
       document.querySelector('script[data-google-maps="true"]') ??
@@ -85,14 +100,21 @@ function ensureGoogleMapsLoaded(): Promise<void> {
       } else {
       if ((win as unknown as { __CALPINAGE_GOOGLE_READY__?: boolean }).__CALPINAGE_GOOGLE_READY__ || (win.google && win.google.maps)) {
         (win as unknown as { __CALPINAGE_GOOGLE_READY__?: boolean }).__CALPINAGE_GOOGLE_READY__ = true;
-        resolve();
+        resolveOnce();
         return;
       }
       existingScript.addEventListener("load", () => {
         if (win.google && win.google.maps) {
           (win as unknown as { __CALPINAGE_GOOGLE_READY__?: boolean }).__CALPINAGE_GOOGLE_READY__ = true;
-          resolve();
-        } else reject(new Error("Google Maps loaded but window.google undefined"));
+          resolveOnce();
+        } else {
+          activateGeoportailFallback("Google Maps loaded but window.google undefined");
+          resolveOnce();
+        }
+      });
+      existingScript.addEventListener("error", () => {
+        activateGeoportailFallback("Google Maps existing script failed to load");
+        resolveOnce();
       });
       return;
       }
@@ -100,12 +122,12 @@ function ensureGoogleMapsLoaded(): Promise<void> {
 
     (win as unknown as { __calpinageGoogleInit?: () => void }).__calpinageGoogleInit = function () {
       (win as unknown as { __CALPINAGE_GOOGLE_READY__?: boolean }).__CALPINAGE_GOOGLE_READY__ = true;
-      resolve();
+      resolveOnce();
     };
 
     (win as unknown as { gm_authFailure?: () => void }).gm_authFailure = function () {
       activateGeoportailFallback("Google Maps authentication failed");
-      resolve();
+      resolveOnce();
     };
 
     const script = document.createElement("script");
@@ -116,7 +138,7 @@ function ensureGoogleMapsLoaded(): Promise<void> {
 
     script.onerror = () => {
       activateGeoportailFallback("Google Maps script failed to load");
-      resolve();
+      resolveOnce();
     };
 
     document.head.appendChild(script);
@@ -276,9 +298,45 @@ export function loadCssOnce(href: string): Promise<void> {
   return p;
 }
 
+async function loadCssWithFallbacks(hrefs: string[]): Promise<void> {
+  let lastError: unknown = null;
+  for (const href of hrefs) {
+    try {
+      await loadCssOnce(href);
+      return;
+    } catch (err) {
+      lastError = err;
+      console.warn(`[CALPINAGE] CSS indisponible, tentative suivante: ${href}`, err);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("[CALPINAGE] Failed to load CSS fallbacks");
+}
+
+async function loadScriptWithFallbacks(srcs: string[]): Promise<void> {
+  let lastError: unknown = null;
+  for (const src of srcs) {
+    try {
+      await loadScriptOnce(src);
+      return;
+    } catch (err) {
+      lastError = err;
+      console.warn(`[CALPINAGE] Script indisponible, tentative suivante: ${src}`, err);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("[CALPINAGE] Failed to load script fallbacks");
+}
+
 /** URLs Leaflet (obligatoire pour Geoportail) */
-const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+const LEAFLET_CSS_URLS = [
+  leafletCssUrl,
+  "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css",
+  "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
+];
+const LEAFLET_JS_URLS = [
+  leafletJsUrl,
+  "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js",
+  "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+];
 
 /** Scripts legacy à charger (ordre calpinage.html). Leaflet doit être chargé avant map-selector-bundle. */
 const LEGACY_SCRIPTS_RELATIVE = [
@@ -325,10 +383,10 @@ export async function ensureCalpinageDeps(): Promise<void> {
     (window as unknown as { html2canvas?: typeof html2canvas }).html2canvas = html2canvas;
 
     // 2. Leaflet CSS
-    await loadCssOnce(LEAFLET_CSS);
+    await loadCssWithFallbacks(LEAFLET_CSS_URLS);
 
     // 3. Leaflet JS (avant map-selector-bundle, requis pour initGeoportailMap)
-    await loadScriptOnce(LEAFLET_JS);
+    await loadScriptWithFallbacks(LEAFLET_JS_URLS);
 
     // 4. Bundles legacy (ordre calpinage.html) — backend /calpinage/* + JWT ou renderToken
     for (const rel of LEGACY_SCRIPTS_RELATIVE) {

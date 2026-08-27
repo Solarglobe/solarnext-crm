@@ -749,6 +749,12 @@
    */
   function createMapProvider(source, container, options) {
     if (source === "geoportail-ortho") return initGeoportailMap(container, options);
+    if ((typeof google === "undefined" || !google.maps) && typeof L !== "undefined") {
+      if (typeof console !== "undefined" && console.warn) {
+        console.warn("[CALPINAGE] Google Maps absent, création IGN/Ortho en secours");
+      }
+      return initGeoportailMap(container, options);
+    }
     return initGoogleMap(container, options);
   }
 
