@@ -373,15 +373,7 @@ export async function buildSelectedScenarioSnapshot({
       ? 299
       : activationTtc;
   const setupBillingPolicy =
-    oneTimeSetupFeeTtc > 0
-      ? scenario._virtual_battery_activation_in_capex === true
-        ? "included_in_capex"
-        : "billed_extra"
-      : activationTtc > 0
-        ? scenario._virtual_battery_activation_in_capex === true
-          ? "included_in_capex"
-          : "billed_extra"
-        : "none";
+    oneTimeSetupFeeTtc > 0 ? "outside_pv_investment" : activationTtc > 0 ? "billed_extra" : "none";
   const residualBillVirtualBreakdown =
     scenarioId === "BATTERY_VIRTUAL" && vf
       ? {
@@ -395,14 +387,19 @@ export async function buildSelectedScenarioSnapshot({
           virtualStorageSetupFee: activationTtc,
           virtualStorageSetupCommercialFee: oneTimeSetupFeeTtc,
           virtualStorageSetupBillingPolicy: setupBillingPolicy,
-          virtualStorageSetupFeeIncludedInCapex: scenario._virtual_battery_activation_in_capex === true,
+          virtualStorageSetupFeeIncludedInCapex: false,
+          pvInstallationPrice: Number.isFinite(Number(scenario.pvInstallationPrice))
+            ? Number(scenario.pvInstallationPrice)
+            : null,
+          virtualSetupFee: oneTimeSetupFeeTtc,
+          virtualAnnualFees: Number.isFinite(Number(vf.annual_total_virtual_cost_ttc))
+            ? Number(vf.annual_total_virtual_cost_ttc)
+            : null,
           virtualStorageFeesIndexationNote:
             "Les frais de gestion et de restitution du crédit virtuel sont maintenus constants dans cette projection.",
           activation_applies_note:
             activationTtc > 0
-              ? scenario._virtual_battery_activation_in_capex === true
-                ? "Frais d'activation : inclus dans l'investissement affiché, sans double comptage."
-                : "Frais d'activation : première année contractuelle (TTC), ajouté aux coûts de service."
+              ? "Frais d'activation : première année contractuelle (TTC), ajouté aux coûts de service."
               : null,
           supplier_subscription_eur: null,
           supplier_subscription_note:

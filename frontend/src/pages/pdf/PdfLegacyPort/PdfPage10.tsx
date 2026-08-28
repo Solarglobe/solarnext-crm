@@ -113,14 +113,6 @@ export default function PdfPage10({
     num(rv?.virtualStorageSetupCommercialFee) ??
     num(hyp.virtualStorageSetupCommercialFee) ??
     setupFee;
-  const setupBillingPolicy = String(
-    rv?.virtualStorageSetupBillingPolicy ??
-      hyp.virtualStorageSetupBillingPolicy ??
-      ""
-  );
-  const setupIncluded =
-    rv?.virtualStorageSetupFeeIncludedInCapex === true ||
-    hyp.virtualStorageSetupFeeIncludedInCapex === true;
   const virtualFeesIndexationNote = String(
     rv?.virtualStorageFeesIndexationNote ??
       hyp.virtualStorageFeesIndexationNote ??
@@ -373,9 +365,7 @@ export default function PdfPage10({
             ) : null}
             {isVirtualCreditScenario && setupCommercialFee != null && setupCommercialFee > 0 ? (
               <div style={{ marginTop: "0.35mm", fontSize: "2.12mm", color: softSub }}>
-                {setupIncluded || setupBillingPolicy === "included_in_capex"
-                  ? `Frais uniques de mise en place du crédit virtuel : ${fmtEUR(setupCommercialFee)} TTC, inclus dans l’investissement total affiché.`
-                  : `Frais uniques de mise en place du crédit virtuel : ${fmtEUR(setupCommercialFee)} TTC, ajoutés au coût initial et intégrés aux indicateurs financiers.`}
+                {`Frais uniques de mise en place du crédit virtuel : ${fmtEUR(setupCommercialFee)} TTC, hors investissement photovoltaïque.`}
               </div>
             ) : null}
             {isVirtualCreditScenario && virtualFeesIndexationNote ? (

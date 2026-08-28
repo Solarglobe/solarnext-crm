@@ -1,5 +1,5 @@
 /**
- * Virtual battery setup fee must be a one-time CAPEX item, not annual OPEX.
+ * Virtual battery setup fee must be a one-time expense outside PV CAPEX, not annual OPEX.
  * Usage: node --test backend/tests/virtualBatterySetupCapex.test.js
  */
 
@@ -28,7 +28,7 @@ function makeScenario(name, overrides = {}) {
   };
 }
 
-test("BATTERY_VIRTUAL investment equals PV installation plus one-time setup fee", async () => {
+test("BATTERY_VIRTUAL investment stays PV-only while one-time setup fee is charged once", async () => {
   const ctx = {
     finance_input: { capex_ttc: 6800 },
     settings: {
@@ -50,9 +50,12 @@ test("BATTERY_VIRTUAL investment equals PV installation plus one-time setup fee"
   };
   const base = makeScenario("BASE");
   const virtual = makeScenario("BATTERY_VIRTUAL", {
-    capex_ttc: 299,
+    capex_ttc: 0,
+    pvInstallationPrice: 6800,
+    virtualSetupFee: 299,
+    virtualAnnualFees: 285.04,
     billable_import_kwh: 7589,
-    _virtual_battery_activation_in_capex: true,
+    _virtual_battery_activation_in_capex: false,
     virtual_battery_finance: {
       provider_code: "URBAN_SOLAR",
       annual_subscription_ttc: 36,
@@ -68,10 +71,14 @@ test("BATTERY_VIRTUAL investment equals PV installation plus one-time setup fee"
   const result = await computeFinance(ctx, { BASE: base, BATTERY_VIRTUAL: virtual });
   const out = result.scenarios.BATTERY_VIRTUAL;
 
-  assert.equal(out.capex_ttc, 7099);
-  assert.equal(out.capex_ttc, ctx.finance_input.capex_ttc + virtual.virtual_battery_finance.one_time_setup_fee_ttc);
+  assert.equal(out.capex_ttc, 6800);
+  assert.equal(out.pvInstallationPrice, 6800);
+  assert.equal(out.virtualSetupFee, 299);
+  assert.equal(out.virtualAnnualFees, 285.04);
   assert.equal(out.virtual_battery_finance.annual_total_virtual_cost_ttc, 285.04);
   assert.equal(out.virtual_battery_finance.annual_activation_fee_ttc, 0);
-  assert.equal(out.flows[0].cumul_eur, out.flows[0].cumul_gains_eur - 7099);
-  assert.doesNotMatch(JSON.stringify(out), /offerts|pris en charge par SolarGlobe/i);
+  assert.equal(out.flows[0].cumul_eur, out.flows[0].cumul_gains_eur - 6800);
+  assert.equal(Math.round(out.flows[0].total_eur * 100) / 100, 108.04);
+  assert.equal(Math.round(out.flows[1].total_eur * 100) / 100, 436.67);
+  assert.doesNotMatch(JSON.stringify(out), /offerts|pris en charge par SolarGlobe|inclus dans l'investissement/i);
 });

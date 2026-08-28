@@ -296,16 +296,7 @@ function buildResidualBillVirtualVmFromScenario(scenario) {
   const activationTtc = num(vf.annual_activation_fee_ttc) ?? 0;
   const providerCode = String(vf.provider_code ?? scenario.provider_code ?? "").toUpperCase();
   const setupFeeTtc = num(vf.one_time_setup_fee_ttc) ?? (providerCode === "URBAN_SOLAR" ? 299 : activationTtc);
-  const setupBillingPolicy =
-    setupFeeTtc > 0
-      ? scenario._virtual_battery_activation_in_capex === true
-        ? "included_in_capex"
-        : "billed_extra"
-      : activationTtc > 0
-      ? scenario._virtual_battery_activation_in_capex === true
-        ? "included_in_capex"
-        : "billed_extra"
-        : "none";
+  const setupBillingPolicy = setupFeeTtc > 0 ? "outside_pv_investment" : activationTtc > 0 ? "billed_extra" : "none";
   return {
     grid_import_kwh: Number.isFinite(impKwh) ? impKwh : null,
     energy_purchase_from_grid_eur:
@@ -317,14 +308,15 @@ function buildResidualBillVirtualVmFromScenario(scenario) {
     virtualStorageSetupFee: activationTtc,
     virtualStorageSetupCommercialFee: setupFeeTtc,
     virtualStorageSetupBillingPolicy: setupBillingPolicy,
-    virtualStorageSetupFeeIncludedInCapex: scenario._virtual_battery_activation_in_capex === true,
+    virtualStorageSetupFeeIncludedInCapex: false,
+    pvInstallationPrice: num(scenario.pvInstallationPrice),
+    virtualSetupFee: setupFeeTtc,
+    virtualAnnualFees: num(vf.annual_total_virtual_cost_ttc),
     virtualStorageFeesIndexationNote:
       "Les frais de gestion et de restitution du crédit virtuel sont maintenus constants dans cette projection.",
     activation_applies_note:
       activationTtc > 0
-        ? scenario._virtual_battery_activation_in_capex === true
-          ? "Frais d'activation : inclus dans l'investissement affiché, sans double comptage."
-          : "Frais d'activation : première année contractuelle (TTC), ajouté aux coûts de service."
+        ? "Frais d'activation : première année contractuelle (TTC), ajouté aux coûts de service."
         : null,
     supplier_subscription_eur: null,
     supplier_subscription_note:

@@ -1638,32 +1638,11 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 ) || 0
               : 0;
 
-          const pickVbCapexPart = (v) => {
-            const n = v != null ? Number(v) : NaN;
-            return Number.isFinite(n) && n > 0 ? n : 0;
-          };
-
-          let virtualBatteryCapex =
-            pickVbCapexPart(vbInput.activation_cost_ttc) ||
-            pickVbCapexPart(ctx.organization_settings?.virtual_battery_activation_cost_ttc) ||
-            0;
-
-          if (virtualBatteryCapex <= 0 && p2ActivationTtc > 0) {
-            virtualBatteryCapex = p2ActivationTtc;
-          }
-          if (virtualBatteryCapex <= 0 && p2OneTimeSetupTtc > 0) {
-            virtualBatteryCapex = p2OneTimeSetupTtc;
-          }
-
-          const subscriptionOnlyVirtual = virtualBatteryCapex <= 0;
-
-          if (subscriptionOnlyVirtual) {
-            virtualScenario.capex_ttc = 0;
-            virtualScenario._virtual_battery_activation_in_capex = false;
-          } else {
-            virtualScenario.capex_ttc = virtualBatteryCapex;
-            virtualScenario._virtual_battery_activation_in_capex = true;
-          }
+          virtualScenario.capex_ttc = 0;
+          virtualScenario.pvInstallationPrice = Number(ctx.finance_input?.capex_ttc) || null;
+          virtualScenario.virtualSetupFee = p2OneTimeSetupTtc || p2ActivationTtc || 0;
+          virtualScenario.virtualAnnualFees = subscriptionAnnual;
+          virtualScenario._virtual_battery_activation_in_capex = false;
 
           virtualScenario.costs = { battery_virtual_annual_cost: subscriptionAnnual };
 

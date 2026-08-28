@@ -10,8 +10,8 @@
 //    - BASE : finance_input.capex_ttc = coût total installation PV TTC (devis / economic_snapshot).
 //    - BATTERY_PHYSICAL : même PV + finance_input.battery_physical_price_ttc (jamais un sous-total
 //      ambigu pris sur scenario.capex_ttc — le moteur recalcule depuis finance_input).
-//    - BATTERY_VIRTUAL : PV (finance_input.capex_ttc) + activation batterie virtuelle (scenario.capex_ttc
-//      = coût d’activation seul côté calc ; 0 si abonnement seul).
+//    - BATTERY_VIRTUAL : PV uniquement. Les frais ponctuels du crédit virtuel restent séparés
+//      du prix photovoltaïque et ne sont pas financés avec l'installation.
 //
 // 2) Flux annuels (total_eur)
 //    - Économies (auto, OA, import BV), + prime d’autoconsommation en année 1 uniquement,
@@ -207,8 +207,22 @@ function toNonNegativeFinite(n) {
   return x;
 }
 
+function resolveVirtualSetupFeeTtc(sc) {
+  const vf = sc?.virtual_battery_finance || {};
+  const candidates = [
+    sc?.virtualSetupFee,
+    vf.one_time_setup_fee_ttc,
+    vf.oneTimeSetupFeeTtc,
+  ];
+  for (const value of candidates) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return 0;
+}
+
 /**
- * CAPEX TTC projet pour le scénario V2 — règle unique depuis finance_input (+ activation BV).
+ * CAPEX TTC projet pour le scénario V2 — règle unique depuis finance_input.
  * Ne lit pas scenario.capex_ttc pour BASE / PHYSICAL (évite sous-totaux / valeurs partielles).
  */
 export function resolveScenarioCapexTtcV2(sc, ctx) {
@@ -224,10 +238,7 @@ export function resolveScenarioCapexTtcV2(sc, ctx) {
     return pvCapex + batteryPhysExtra;
   }
   if (sc.name === "BATTERY_VIRTUAL") {
-    const virtRaw = sc.capex_ttc != null ? Number(sc.capex_ttc) : 0;
-    const virtAdd = Number.isFinite(virtRaw) && virtRaw > 0 ? virtRaw : 0;
-    if (pvCapex == null) return null;
-    return pvCapex + virtAdd;
+    return pvCapex;
   }
   if (sc.name === "BATTERY_HYBRID") {
     // CAPEX = PV + batterie physique (abonnement VB = OPEX uniquement)
@@ -246,11 +257,8 @@ export function resolveScenarioCapexTtcV2(sc, ctx) {
     return pvCapex + batteryPhysExtra;
   }
   if (sc.name === "VEHICLE_V2H_VIRTUAL") {
-    // + batterie virtuelle → PV + frais d'activation VB (comme BATTERY_VIRTUAL).
-    const virtRaw = sc.capex_ttc != null ? Number(sc.capex_ttc) : 0;
-    const virtAdd = Number.isFinite(virtRaw) && virtRaw > 0 ? virtRaw : 0;
-    if (pvCapex == null) return null;
-    return pvCapex + virtAdd;
+    // + batterie virtuelle → PV uniquement ; frais VB ponctuels séparés.
+    return pvCapex;
   }
   if (sc.name === "VEHICLE_V2H_PHYSICAL_VIRTUAL") {
     // triplette → PV + batterie physique (abonnement VB = OPEX), comme BATTERY_HYBRID.
@@ -798,10 +806,12 @@ export async function computeFinance(ctx, scenarios) {
       if (_isVbScenario && sc.virtual_battery_finance) {
         const recurring = Number(sc.virtual_battery_finance.annual_total_virtual_cost_ttc);
         const act = Number(sc.virtual_battery_finance.annual_activation_fee_ttc || 0) || 0;
-        const actInCapex = sc._virtual_battery_activation_in_capex === true;
+        const actInCapex = false;
+        const oneTimeSetupFee = resolveVirtualSetupFeeTtc(sc);
         flows = flows.map((f, idx) => {
           const activationYear = actInCapex ? 0 : act;
-          const virtualCostYear = idx === 0 ? recurring + activationYear : recurring;
+          const setupYear = idx === 0 && !actInCapex ? oneTimeSetupFee : 0;
+          const virtualCostYear = idx === 0 ? recurring + activationYear + setupYear : recurring;
           const total_eur = f.total_eur - virtualCostYear;
           return { ...f, total_eur };
         });
@@ -950,6 +960,12 @@ export async function computeFinance(ctx, scenarios) {
         ...sc,
         auto_pct_real,
         capex_ttc: round(capex_ttc, 0),
+        pvInstallationPrice: round(capex_ttc, 0),
+        virtualSetupFee: _isVbScenario ? round(resolveVirtualSetupFeeTtc(sc), 0) : 0,
+        virtualAnnualFees:
+          _isVbScenario && sc.virtual_battery_finance
+            ? round(Number(sc.virtual_battery_finance.annual_total_virtual_cost_ttc) || 0, 2)
+            : 0,
         capex_net: round(capex_net, 0),
         prime_eur: round(prime, 0),
         roi_years,

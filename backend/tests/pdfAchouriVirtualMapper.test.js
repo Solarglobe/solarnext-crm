@@ -44,7 +44,7 @@ function buildSnapshot({ production, direct, credit, gridImport, capex }) {
       annual_activation_fee_ttc: 0,
       one_time_setup_fee_ttc: 299,
     },
-    _virtual_battery_activation_in_capex: true,
+    _virtual_battery_activation_in_capex: false,
   };
 }
 
@@ -71,9 +71,10 @@ test("ACHOURI 3 kWc PDF VM keeps direct, credit and reconciled production distin
   assert.equal(vm.fullReport.p7.energy_grid_import_kwh, 7589);
   assert.equal(vm.fullReport.p10.best.annual_production_kwh, 3411);
   assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupCommercialFee, 299);
-  assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupBillingPolicy, "included_in_capex");
+  assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupBillingPolicy, "outside_pv_investment");
+  assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupFeeIncludedInCapex, false);
   assert.match(vm.fullReport.p10.residual_bill_virtual.virtualStorageFeesIndexationNote, /maintenus constants/);
-  assert.doesNotMatch(JSON.stringify(vm.fullReport), /offerts|pris en charge par SolarGlobe/i);
+  assert.doesNotMatch(JSON.stringify(vm.fullReport), /offerts|pris en charge par SolarGlobe|inclus dans l'investissement/i);
 });
 
 test("ACHOURI 6 kWc PDF VM keeps direct, credit and reconciled production distinct", () => {
@@ -100,7 +101,7 @@ test("ACHOURI 6 kWc PDF VM keeps direct, credit and reconciled production distin
   assert.equal(vm.fullReport.p10.best.annual_production_kwh, 6779);
 });
 
-test("UrbanSolar 299 EUR setup fee is shown as included in capex, never waived", () => {
+test("UrbanSolar 299 EUR setup fee is shown outside PV investment, never waived", () => {
   const snapshot = buildSnapshot({
     production: 3410,
     direct: 962,
@@ -112,6 +113,7 @@ test("UrbanSolar 299 EUR setup fee is shown as included in capex, never waived",
 
   assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupFee, 0);
   assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupCommercialFee, 299);
-  assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupBillingPolicy, "included_in_capex");
-  assert.doesNotMatch(JSON.stringify(vm.fullReport.p10), /offerts|pris en charge par SolarGlobe/i);
+  assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupBillingPolicy, "outside_pv_investment");
+  assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupFeeIncludedInCapex, false);
+  assert.doesNotMatch(JSON.stringify(vm.fullReport.p10), /offerts|pris en charge par SolarGlobe|inclus dans l'investissement/i);
 });
