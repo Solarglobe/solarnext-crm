@@ -12,6 +12,7 @@ import {
   IMPACT_CAR_CO2_KG_PER_KM,
 } from "../core/engineConstants.js";
 import { buildP5DailyProfiles } from "./pdfP5DailyProfile.js";
+import { buildPdfEnergyCanonical } from "./pdfEnergyCanonical.js";
 import { formatFlatRoofMountingForPdf } from "../quotePrep/flatRoofMounting.util.js";
 
 const SCENARIO_LABELS = {
@@ -300,9 +301,13 @@ function buildResidualBillVirtualVmFromScenario(scenario) {
     virtual_battery_autoproducer_contribution_ttc: vf.annual_autoproducer_contribution_ttc ?? null,
     virtual_battery_discharge_fees_ttc: vf.annual_virtual_discharge_cost_ttc ?? null,
     virtual_battery_activation_ttc: vf.annual_activation_fee_ttc ?? null,
+    virtualStorageSetupFee: vf.annual_activation_fee_ttc ?? null,
+    virtualStorageSetupFeeIncludedInCapex: scenario._virtual_battery_activation_in_capex === true,
     activation_applies_note:
       (vf.annual_activation_fee_ttc ?? 0) > 0
-        ? "Frais d'activation : première année contractuelle (TTC), si applicable."
+        ? scenario._virtual_battery_activation_in_capex === true
+          ? "Frais d'activation : inclus dans l'investissement affiché, sans double comptage."
+          : "Frais d'activation : première année contractuelle (TTC), ajouté aux coûts de service."
         : null,
     supplier_subscription_eur: null,
     supplier_subscription_note:
@@ -871,6 +876,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     pdfBatteryType = null;
   }
   const isVehicleV2hSelected = isVehicleV2hScenarioId(selectedKey);
+  const isVirtualLikeScenario = isVirtualLikeScenarioId(selectedKey);
 
   const canonicalAnnualProductionKwh =
     num(selectedScenario?.production?.annual_kwh) ??
@@ -1141,7 +1147,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p2_price_kwh: formatEurKwh3(econDisplay.price_eur_kwh),
     p2_indexation: formatPctPerYear1(econDisplay.elec_growth_pct),
     p2_horizon: `${horizonYearsPdf} ans`,
-    p2_surplus_rate: formatEurKwh3(econDisplay.oa_rate_eur_kwh),
+    p2_surplus_rate: isVirtualLikeScenario
+      ? "crédit virtuel, pas de rachat OA"
+      : formatEurKwh3(econDisplay.oa_rate_eur_kwh),
+    p2_surplus_label: isVirtualLikeScenario ? "crédit" : "surplus",
     p2_scenario_label: SCENARIO_LABELS[selectedKey] || str(selectedKey),
     // Production page 2 = production du scénario sélectionné (celle des cartes, ~9114 kWh),
     // et non annualKwh qui peut provenir d'un champ "production.annual_kwh" légèrement différent
@@ -1459,7 +1468,6 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     });
   }
 
-  const isVirtualLikeScenario = isVirtualLikeScenarioId(selectedKey);
   const officialConsoForP6 =
     isVirtualLikeScenario && selectedScenario?.energy && typeof selectedScenario.energy === "object"
       ? num(selectedScenario.energy.consumption_kwh ?? selectedScenario.energy.conso)
@@ -1732,10 +1740,24 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     (_sharedAutoKwh != null
       ? Math.max(0, (num(_energyFlowsShared.direct_self_consumption_kwh) ?? Math.max(0, _sharedAutoKwh - _sharedRestoredKwh)) + _sharedRestoredKwh)
       : null);
+  const pdfEnergyCanonical = buildPdfEnergyCanonical({
+    scenario: selectedScenario,
+    baseScenario: baseFromV2,
+  });
+  const useCanonicalVirtualEnergy =
+    isVirtualLikeScenario && !isVehicleV2hSelected && pdfEnergyCanonical.full_virtual_valuation === true;
+  const pdfEnergyDisplay = pdfEnergyCanonical.display;
+  const pdfEnergyRaw = pdfEnergyCanonical.raw;
 
   // P4 — chiffres energie additionnels, dependants du scenario selectionne (page synthese production).
-  const _p4DirectKwh = num(_energyFlowsShared.direct_self_consumption_kwh) ?? Math.max(0, (autoAnnuelle ?? 0) - (_sharedRestoredKwh ?? 0));
-  const _p4SurplusBrutKwh = Math.max(0, (prodAnnuelle ?? 0) - _p4DirectKwh);
+  const _p4DirectKwh =
+    useCanonicalVirtualEnergy
+      ? pdfEnergyRaw.autoconsommationDirecte
+      : num(_energyFlowsShared.direct_self_consumption_kwh) ?? Math.max(0, (autoAnnuelle ?? 0) - (_sharedRestoredKwh ?? 0));
+  const _p4SurplusBrutKwh =
+    useCanonicalVirtualEnergy
+      ? pdfEnergyRaw.surplusCredite
+      : Math.max(0, (prodAnnuelle ?? 0) - _p4DirectKwh);
   const _p4ChargeKwh = isVehicleV2hSelected
     ? null
     : (
@@ -1743,7 +1765,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         num(selectedScenario?.energy?.battery_charge_kwh) ??
         num(selectedScenario?.battery?.annual_charge_kwh)
       );
-  const _p4RestitutionKwh = _sharedRestoredKwh ?? 0;
+  const _p4RestitutionKwh = useCanonicalVirtualEnergy ? pdfEnergyRaw.creditVirtuelRestitue : _sharedRestoredKwh ?? 0;
   const _p4PertesKwh = (_p4ChargeKwh != null) ? Math.max(0, _p4ChargeKwh - _p4RestitutionKwh) : null;
   const _p4RevenuReventeEur = numOrZero(financeActive.revenu_surplus ?? finance.revenu_surplus);
 
@@ -1849,6 +1871,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       simulationDisclaimer: "",
     },
     fullReport: {
+      energy_canonical: pdfEnergyCanonical,
       p1: { p1_auto },
       p2: { p2_auto },
       p3: {
@@ -1857,13 +1880,13 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         finance: { mensualite: 0, note: "" },
         tech: {},
         energy_summary: {
-          production_kwh: prodAnnuelle,
-          consumption_kwh: consoAnnuelleP4,
-          solar_used_kwh: autoAnnuelle,
-          exported_kwh: isVirtualLikeScenario ? _p4SurplusBrutKwh : surplusAnnuelle,
-          grid_import_kwh: importAnnuelle,
-          coverage_pct: couverturePct,
-          pv_self_consumption_pct: tauxAutoPct,
+          production_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.productionPV : prodAnnuelle,
+          consumption_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.consommation : consoAnnuelleP4,
+          solar_used_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.energieCouverte : autoAnnuelle,
+          exported_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.productionNonValorisee : surplusAnnuelle,
+          grid_import_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.importReseau : importAnnuelle,
+          coverage_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.tauxCouverturePct : couverturePct,
+          pv_self_consumption_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.repartitionProductionPct.pvDirect : tauxAutoPct,
         },
       },
       p3b: { p3b_auto },
@@ -1879,21 +1902,21 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         surplus_kwh: surplusMonthly,
         batterie_kwh: p4BatMonthly,
         // Synthèse annuelle (données réelles)
-        production_annuelle: prodAnnuelle,
-        consommation_annuelle: consoAnnuelleP4,
-        energie_consommee_directement: _p4DirectKwh,
-        energie_solaire_valorisee: autoAnnuelle,
-        energie_solaire_utilisee_avec_credit_kwh: _sharedSolarUsedKwh,
-        reste_reseau_kwh: importAnnuelle,
-        energie_injectee: isVirtualLikeScenario ? _p4SurplusBrutKwh : surplusAnnuelle,
-        taux_autoconsommation_pct: tauxAutoPct,
-        couverture_besoins_pct: couverturePct,
+        production_annuelle: useCanonicalVirtualEnergy ? pdfEnergyDisplay.productionPV : prodAnnuelle,
+        consommation_annuelle: useCanonicalVirtualEnergy ? pdfEnergyDisplay.consommation : consoAnnuelleP4,
+        energie_consommee_directement: useCanonicalVirtualEnergy ? pdfEnergyDisplay.autoconsommationDirecte : _p4DirectKwh,
+        energie_solaire_valorisee: useCanonicalVirtualEnergy ? pdfEnergyDisplay.energieCouverte : autoAnnuelle,
+        energie_solaire_utilisee_avec_credit_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.energieCouverte : _sharedSolarUsedKwh,
+        reste_reseau_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.importReseau : importAnnuelle,
+        energie_injectee: useCanonicalVirtualEnergy ? pdfEnergyDisplay.surplusCredite : surplusAnnuelle,
+        taux_autoconsommation_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.repartitionProductionPct.pvDirect : tauxAutoPct,
+        couverture_besoins_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.tauxCouverturePct : couverturePct,
         autonomie_pct: autonomyPct,
         economie_annee_1: annualSavings,
         scenario_type: str(selectedKey),
-        surplus_brut_kwh: Math.round(_p4SurplusBrutKwh),
+        surplus_brut_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.surplusCredite : Math.round(_p4SurplusBrutKwh),
         revenu_revente_eur: Math.round(_p4RevenuReventeEur),
-        restitution_batterie_kwh: Math.round(_p4RestitutionKwh),
+        restitution_batterie_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.creditVirtuelRestitue : Math.round(_p4RestitutionKwh),
         restitution_vehicle_v2h_kwh: Math.round(
           num(selectedScenario?.vehicle_v2h?.ev_v2h_discharge_kwh) ??
           num(_energyFlowsShared.ev_v2h_discharge_kwh) ??
@@ -1901,9 +1924,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         ),
         charge_batterie_kwh: _p4ChargeKwh != null ? Math.round(_p4ChargeKwh) : null,
         pertes_batterie_kwh: _p4PertesKwh != null ? Math.round(_p4PertesKwh) : null,
-        credit_virtuel_utilise_kwh: Math.round(_p4RestitutionKwh),
+        credit_virtuel_utilise_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.creditVirtuelRestitue : Math.round(_p4RestitutionKwh),
         cout_batterie_virtuelle_eur: Math.round(vbAnnualServiceCostTtc),
-        storage_legend_label: isVirtualLikeScenario ? "Surplus injecté et crédité" : isVehicleV2hSelected ? "Stockage restitué" : "Énergie stockée",
+        storage_legend_label: isVehicleV2hSelected ? "Stockage restitué" : isVirtualLikeScenario ? "Surplus injecté et crédité" : "Énergie stockée",
         storage_legend_sublabel:
           isVehicleV2hSelected && isVirtualLikeScenario
             ? "V2H + batterie virtuelle"
@@ -1936,14 +1959,16 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           tot: totMonthly,
           /* Totaux officiels annuels (KPI) — le graphique reste sur les séries mensuelles. */
           totals: {
-            conso_kwh: _sharedConsoKwh,
-            solar_used_kwh: _sharedSolarUsedKwh,
-            grid_import_kwh: _sharedGridImportKwh,
-            production_kwh: num(_energyFlowsShared.production_kwh ?? _energyFlowsShared.prod) ?? null,
+            conso_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.consommation : _sharedConsoKwh,
+            solar_used_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.energieCouverte : _sharedSolarUsedKwh,
+            grid_import_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.importReseau : _sharedGridImportKwh,
+            production_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.productionPV : num(_energyFlowsShared.production_kwh ?? _energyFlowsShared.prod) ?? null,
             overflow_export_kwh:
-              num(_energyFlowsShared.overflow_export_kwh) ??
-              num(_energyFlowsShared.virtual_battery_overflow_export_kwh) ??
-              (isVirtualLikeScenario ? 0 : null),
+              useCanonicalVirtualEnergy
+                ? pdfEnergyDisplay.productionNonValorisee
+                : num(_energyFlowsShared.overflow_export_kwh) ??
+                  num(_energyFlowsShared.virtual_battery_overflow_export_kwh) ??
+                  null,
             is_virtual_credit_scenario: isVirtualLikeScenario,
           },
           is_virtual_credit_scenario: isVirtualLikeScenario,
@@ -2095,14 +2120,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             scenario_label: SCENARIO_LABELS[selectedKey] || str(selectedKey),
           },
           pct: {
-            c_pv_pct: Math.round(cPv),
-            c_bat_pct: Math.round(cBat),
-            c_grid_pct: Math.round(cGrid),
-            p_auto_pct: Math.round(pAuto),
-            p_bat_pct: Math.round(pBat),
-            p_surplus_pct: pSurplusRounded,
+            c_pv_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.repartitionConsommationPct.pvDirect : Math.round(cPv),
+            c_bat_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.repartitionConsommationPct.creditVirtuel : Math.round(cBat),
+            c_grid_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.repartitionConsommationPct.reseau : Math.round(cGrid),
+            p_auto_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.repartitionProductionPct.pvDirect : Math.round(pAuto),
+            p_bat_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.repartitionProductionPct.creditVirtuel : Math.round(pBat),
+            p_surplus_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.repartitionProductionPct.nonValorisee : pSurplusRounded,
           },
-          c_grid: numOrZero(gridImportCanonicalP7),
+          c_grid: useCanonicalVirtualEnergy ? pdfEnergyDisplay.importReseau : numOrZero(gridImportCanonicalP7),
           p_surplus: numOrZero(surplusP7),
           // FIX « 0 kWh injectés » vs « surplus injecté et valorisé » (audit 2026-07-03) :
           // en scénario stockage le surplus part en batterie/crédit (exported_kwh = 0) ;
@@ -2120,24 +2145,18 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
               ? "stockage V2H"
               : "batterie",
           is_virtual_credit_scenario: isVirtualLikeScenario,
-          p_surplus_valorise: Math.min(
-            numOrZero(prodP7),
-            Math.max(
-              0,
-              isVirtualLikeScenario
-                ? (creditedP7 > 0 ? creditedP7 : Math.max(0, numOrZero(prodP7) - numOrZero(directP7)))
-                : numOrZero(surplusP7)
-            )
-          ),
-          credited_kwh: numOrZero(creditedP7),
-          consumption_kwh: numOrZero(consoP7),
-          autoconsumption_kwh: numOrZero(autoP7),
-          production_kwh: numOrZero(prodP7),
-          energy_solar_used_kwh: numOrZero(solarUsedP7),
-          energy_solar_used_direct_kwh: numOrZero(directP7),
-          energy_grid_import_kwh: numOrZero(gridImportCanonicalP7),
+          p_surplus_valorise: useCanonicalVirtualEnergy
+            ? pdfEnergyDisplay.surplusCredite
+            : Math.min(numOrZero(prodP7), Math.max(0, numOrZero(surplusP7))),
+          credited_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.surplusCredite : numOrZero(creditedP7),
+          consumption_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.consommation : numOrZero(consoP7),
+          autoconsumption_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.energieCouverte : numOrZero(autoP7),
+          production_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.productionPV : numOrZero(prodP7),
+          energy_solar_used_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.energieCouverte : numOrZero(solarUsedP7),
+          energy_solar_used_direct_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.autoconsommationDirecte : numOrZero(directP7),
+          energy_grid_import_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.importReseau : numOrZero(gridImportCanonicalP7),
           estimated_annual_bill_eur: estimatedAnnualBillP7,
-          solar_coverage_pct: solarCoverageP7,
+          solar_coverage_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.tauxCouverturePctRaw : solarCoverageP7,
         };
       })(),
       p7_virtual_battery: (() => {
@@ -2230,32 +2249,38 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             ? "Comprendre précisément ce que vos deux batteries changent dans votre projet solaire"
             : "Comprendre précisément ce qu’elle change dans votre projet solaire",
           source: {
-            consumption_kwh: consumptionKwh,
-            production_kwh: productionKwh,
-            direct_self_consumption_kwh: vbDirectSelfKwh,
-            battery_discharge_kwh: vbBatteryDischargeKwh,
-            total_pv_used_on_site_kwh: vbTotalPvUsedKwh,
-            grid_import_kwh: vbGridImportKwh,
-            exported_kwh: vbExportedKwh,
-            overflow_export_kwh: vbOverflowExportKwh,
+            consumption_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.consommation : consumptionKwh,
+            production_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.productionPV : productionKwh,
+            direct_self_consumption_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.autoconsommationDirecte : vbDirectSelfKwh,
+            battery_discharge_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.creditVirtuelRestitue : vbBatteryDischargeKwh,
+            total_pv_used_on_site_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.energieCouverte : vbTotalPvUsedKwh,
+            grid_import_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.importReseau : vbGridImportKwh,
+            exported_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.productionNonValorisee : vbExportedKwh,
+            overflow_export_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.productionNonValorisee : vbOverflowExportKwh,
             site_autonomy_pct: num(vbEnergy.site_autonomy_pct),
             pv_self_consumption_pct: num(vbEnergy.pv_self_consumption_pct),
           },
           without_battery: {
-            autonomie_ratio: autonomyBaseRatio,
+            autonomie_ratio: useCanonicalVirtualEnergy
+              ? (pdfEnergyCanonical.base.autonomieSansCreditPct ?? 0) / 100
+              : autonomyBaseRatio,
             pv_used_kwh: baseDirectSelfKwh,
             grid_import_kwh: baseGridImportKwh,
           },
           with_virtual_battery: {
-            autonomie_ratio: autonomyWithBatteryRatio,
-            pv_total_used_kwh: vbTotalPvUsedKwh,
-            battery_discharged_kwh: vbBatteryDischargeKwh,
-            grid_import_kwh: vbGridImportKwh,
+            autonomie_ratio: useCanonicalVirtualEnergy
+              ? (pdfEnergyDisplay.tauxCouverturePctRaw ?? 0) / 100
+              : autonomyWithBatteryRatio,
+            pv_total_used_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.energieCouverte : vbTotalPvUsedKwh,
+            battery_discharged_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.creditVirtuelRestitue : vbBatteryDischargeKwh,
+            grid_import_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.importReseau : vbGridImportKwh,
           },
           max_theoretical: {
-            production_kwh: productionKwh,
-            consumption_kwh: consumptionKwh,
-            autonomy_ratio: maxTheoreticalRatio,
+            production_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.productionPV : productionKwh,
+            consumption_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.consommation : consumptionKwh,
+            autonomy_ratio: useCanonicalVirtualEnergy
+              ? (pdfEnergyRaw.productionPV ?? 0) / Math.max(1, pdfEnergyRaw.consommation ?? 0)
+              : maxTheoreticalRatio,
           },
           contribution: {
             recovered_kwh: vbBatteryDischargeKwh,
@@ -2263,14 +2288,15 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             autonomy_gain_ratio: autonomyGainRatio,
           },
           kpis: {
-            energy_solar_used_kwh: vbTotalPvUsedKwh,
-            energy_grid_import_kwh: vbGridImportKwh,
+            energy_solar_used_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.energieCouverte : vbTotalPvUsedKwh,
+            energy_grid_import_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.importReseau : vbGridImportKwh,
             estimated_annual_bill_eur: estimatedAnnualBillVb,
-            solar_coverage_pct:
-              consumptionKwh != null && consumptionKwh > 0 && vbTotalPvUsedKwh != null
+            solar_coverage_pct: useCanonicalVirtualEnergy
+              ? pdfEnergyDisplay.tauxCouverturePctRaw
+              : consumptionKwh != null && consumptionKwh > 0 && vbTotalPvUsedKwh != null
                 ? (vbTotalPvUsedKwh / consumptionKwh) * 100
                 : null,
-            overflow_export_kwh: vbOverflowExportKwh,
+            overflow_export_kwh: useCanonicalVirtualEnergy ? pdfEnergyRaw.productionNonValorisee : vbOverflowExportKwh,
           },
           limits: [
             productionVsConsumptionLimit,

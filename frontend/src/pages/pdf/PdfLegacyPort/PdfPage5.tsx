@@ -178,7 +178,9 @@ export default function PdfPage5({
           flexShrink: 0,
         }}
       >
-        En journée, les modules couvrent en direct une large part de la demande instantanée du site, ce qui limite fortement les prélèvements sur le réseau.
+        {isVirtualCreditScenario
+          ? "Le véhicule étant principalement rechargé la nuit, une part limitée de la production solaire est utilisée directement pendant la journée. Le surplus est injecté et enregistré sous forme de crédit virtuel afin de réduire le coût des consommations réalisées plus tard."
+          : "La courbe montre les moments où la production solaire couvre directement les besoins du site et les périodes où le réseau reste sollicité."}
       </p>
 
       {/* 3. Graphique — même cadrage / légende que P4 (répartition mensuelle → journée 24 h) */}
@@ -222,9 +224,9 @@ export default function PdfPage5({
           </div>
           <span className="pill pill-cyan" />
           <div className="legend-text">
-            <b>Énergie utilisée directement</b>
-            <br />
-            <span className="sub">sans passer par le réseau</span>
+                <b>{isVirtualCreditScenario ? "Crédit virtuel" : "Énergie utilisée directement"}</b>
+                <br />
+                <span className="sub">{isVirtualCreditScenario ? "surplus valorisé plus tard" : "sans passer par le réseau"}</span>
           </div>
           {hasBatteryChart && (
             <>

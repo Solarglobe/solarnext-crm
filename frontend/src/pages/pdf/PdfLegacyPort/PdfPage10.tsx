@@ -332,7 +332,7 @@ export default function PdfPage10({
               lineHeight: 1.28,
             }}
           >
-            <div style={{ fontWeight: 800, marginBottom: "0.55mm", color: titleInk }}>Poste annuel batterie virtuelle (TTC)</div>
+            <div style={{ fontWeight: 800, marginBottom: "0.55mm", color: titleInk }}>Budget énergie + batterie virtuelle, hors abonnement fixe du compteur</div>
             {num(rv.energy_purchase_from_grid_eur) != null ? (
               <div>Achat réseau (énergie, {fmtInt(rv.grid_import_kwh as number)} kWh) : {fmtEUR(rv.energy_purchase_from_grid_eur as number)}</div>
             ) : null}

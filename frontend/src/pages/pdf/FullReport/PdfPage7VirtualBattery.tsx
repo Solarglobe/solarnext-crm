@@ -257,16 +257,13 @@ export default function PdfPage7VirtualBattery({
                     height: "100%",
                     borderRadius: "3.5mm",
                     background: fill,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "flex-end",
-                    paddingRight: "2.4mm",
                     boxSizing: "border-box",
                   }}
-                >
-                  <span style={{ fontSize: "3.1mm", fontWeight: 800, color: "#fff" }}>{pct} %</span>
-                </div>
+                />
               </div>
+              <span style={{ width: "13mm", flexShrink: 0, fontSize: "3.1mm", fontWeight: 800, color: bold ? "#0b6e4f" : "#4b5563", textAlign: "right" }}>
+                {pct} %
+              </span>
             </div>
           );
           return (
@@ -279,7 +276,7 @@ export default function PdfPage7VirtualBattery({
                   ? "Ce que le stockage (physique + virtuel) change — couverture de vos besoins"
                   : "Ce que la batterie virtuelle change — couverture de vos besoins"}
               </div>
-              {row("Sans batterie", pctS, "linear-gradient(90deg,#9ca3af,#6b7280)", false)}
+              {row("Sans crédit virtuel", pctS, "linear-gradient(90deg,#9ca3af,#6b7280)", false)}
               {row(
                 isHybrid ? "Avec batterie physique + crédit virtuel" : "Avec crédit virtuel",
                 pctA,

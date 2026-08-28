@@ -916,7 +916,7 @@ export default function PdfPage2({
               textAlign: "center",
             }}
           >
-            Hypothèses : kWh <span id="p2_price_kwh">{p2Text("p2_price_kwh")}</span> · indexation <span id="p2_indexation">{p2Text("p2_indexation")}</span> · horizon <span id="p2_horizon">{p2Text("p2_horizon")}</span> · surplus <span id="p2_surplus_rate">{p2Text("p2_surplus_rate")}</span> · scénario <span id="p2_scenario_label">{p2Text("p2_scenario_label")}</span>.
+            Hypothèses : kWh <span id="p2_price_kwh">{p2Text("p2_price_kwh")}</span> · indexation <span id="p2_indexation">{p2Text("p2_indexation")}</span> · horizon <span id="p2_horizon">{p2Text("p2_horizon")}</span> · <span id="p2_surplus_label">{p2Text("p2_surplus_label")}</span> <span id="p2_surplus_rate">{p2Text("p2_surplus_rate")}</span> · scénario <span id="p2_scenario_label">{p2Text("p2_scenario_label")}</span>.
             Estimations indicatives non garanties, selon les hypothèses du dossier.
           </p>
         </div>
