@@ -676,8 +676,8 @@ export default function PdfPage2({
                     gap: "4.5mm",
                     width: "100%",
                     flex: "1 1 auto",
-                    minHeight: "55mm",
-                    height: "56mm",
+                    minHeight: "49mm",
+                    height: "50mm",
                     paddingLeft: "0",
                     paddingRight: "0",
                   }}
@@ -776,12 +776,14 @@ export default function PdfPage2({
                   className="p2-bar-footer"
                   style={{
                     textAlign: "center",
-                    marginTop: "2.4mm",
-                    paddingTop: "1.8mm",
+                    marginTop: "1.15mm",
+                    paddingTop: "1.05mm",
                     borderTop: "0.25mm solid rgba(45, 122, 62, 0.2)",
-                    fontSize: "3.45mm",
+                    fontSize: "3.32mm",
+                    lineHeight: 1.18,
                     color: "#1f5c32",
                     fontWeight: 800,
+                    flexShrink: 0,
                   }}
                 >
                   Économie :{" "}
@@ -794,7 +796,8 @@ export default function PdfPage2({
                       fontSize: "3.05mm",
                       color: "#444",
                       fontWeight: 700,
-                      marginTop: "0.65mm",
+                      marginTop: "0.35mm",
+                      lineHeight: 1.15,
                     }}
                   >
                     ≈ <span id="p2_bar_pct">{p2BarPct ?? "—"}</span> % d&apos;économie
