@@ -1,15 +1,10 @@
-/** Inséré par « Signature professionnelle » — compatible clients mail, sans image distante obligatoire. */
+/** Inséré par « Signature professionnelle » — compatible clients mail, table + styles inline. */
 export const MAIL_SIG_PRO_TEMPLATE_HTML = `
 <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#1f2933;font-size:13px;line-height:1.45;max-width:620px;">
   <tbody>
     <tr>
       <td style="vertical-align:middle;padding:0 16px 0 0;width:130px;">
-        <div style="font-size:22px;line-height:1;font-weight:700;letter-spacing:.2px;white-space:nowrap;">
-          <span style="color:#111827;">Entreprise</span>
-        </div>
-        <div style="margin-top:6px;font-size:10px;line-height:1.35;color:#667085;text-transform:uppercase;letter-spacing:.7px;">
-          Activite
-        </div>
+        <img src="https://www.entreprise.fr/logo-email.png" width="120" height="40" alt="Entreprise" style="display:block;border:0;outline:none;text-decoration:none;width:120px;height:auto;max-width:120px;">
       </td>
       <td style="vertical-align:middle;border-left:3px solid #C39847;padding:0 0 0 16px;">
         <div style="font-size:14px;line-height:1.45;color:#111827;"><strong>Nom Prenom</strong> <span style="color:#C39847;">- Fonction</span></div>

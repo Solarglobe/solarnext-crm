@@ -82,23 +82,32 @@ describe("mail phase 5 source audit", () => {
     expect(message).toContain("!outbound && hasBlockedRemoteImages && !allowRemoteImages");
   });
 
-  it("le modèle de signature pro ne dépend plus d'images distantes", () => {
+  it("le modèle de signature pro reste compatible clients mail", () => {
     const constants = read("src/pages/mail/mailHtmlEditorConstants.ts");
     expect(constants).toContain("compatible clients mail");
     expect(constants).toContain("border-left:3px solid #C39847");
     expect(constants).not.toContain("placehold.co");
     expect(constants).not.toContain("icons8.com");
-    expect(constants).not.toContain("logo-solarglobe-rect.png");
   });
 
   it("le composer remplace l'ancienne signature SolarGlobe fragile avant injection", () => {
     const signature = read("src/pages/mail/mailSignatureHtml.ts");
     const composer = read("src/pages/mail/MailComposer.tsx");
+    const robustSignatureHtml = signature.slice(
+      signature.indexOf("export const SOLARGLOBE_ROBUST_SIGNATURE_HTML"),
+      signature.indexOf("export function hardenMailSignatureHtml")
+    );
     expect(signature).toContain("hardenMailSignatureHtml");
     expect(signature).toContain("SOLARGLOBE_ROBUST_SIGNATURE_HTML");
-    expect(signature).toContain("border-left:3px solid #C39847");
-    expect(signature).toContain("<span style=\"color:#111827;\">Solar</span><span style=\"color:#C39847;\">Globe</span>");
-    expect(signature).toContain("hasFragileRemoteAsset && looksLikeSolarGlobeSignature");
+    expect(robustSignatureHtml).toContain("border-left:3px solid #C39847");
+    expect(robustSignatureHtml).toContain("logo-solarglobe-rect-pdf.png");
+    expect(robustSignatureHtml).toContain("06 69 18 84 03");
+    expect(robustSignatureHtml).toContain("facebook-signature.png");
+    expect(robustSignatureHtml).toContain("instagram-signature.png");
+    expect(signature).toContain("hasFragileRemoteAsset || hasLegacySolarGlobeContent");
+    expect(robustSignatureHtml).not.toContain("Nicolas BRUNET");
+    expect(robustSignatureHtml).not.toContain("01 72 99 47 53");
+    expect(robustSignatureHtml).not.toContain("LinkedIn");
     expect(composer).toContain("hardenMailSignatureHtml");
   });
 
