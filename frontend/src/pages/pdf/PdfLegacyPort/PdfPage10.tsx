@@ -373,11 +373,9 @@ export default function PdfPage10({
             ) : null}
             {isVirtualCreditScenario && setupCommercialFee != null && setupCommercialFee > 0 ? (
               <div style={{ marginTop: "0.35mm", fontSize: "2.12mm", color: softSub }}>
-                {setupBillingPolicy === "waived_by_solarglobe"
-                  ? `Frais de mise en place de ${fmtEUR(setupCommercialFee)} TTC offerts et pris en charge par SolarGlobe.`
-                  : setupIncluded
-                    ? `Frais de mise en place de ${fmtEUR(setupCommercialFee)} TTC inclus dans l'investissement.`
-                    : `Frais de mise en place de ${fmtEUR(setupCommercialFee)} TTC facturés séparément et intégrés aux coûts de service/ROI.`}
+                {setupIncluded || setupBillingPolicy === "included_in_capex"
+                  ? `Frais uniques de mise en place du crédit virtuel : ${fmtEUR(setupCommercialFee)} TTC, inclus dans l’investissement total affiché.`
+                  : `Frais uniques de mise en place du crédit virtuel : ${fmtEUR(setupCommercialFee)} TTC, ajoutés au coût initial et intégrés aux indicateurs financiers.`}
               </div>
             ) : null}
             {isVirtualCreditScenario && virtualFeesIndexationNote ? (

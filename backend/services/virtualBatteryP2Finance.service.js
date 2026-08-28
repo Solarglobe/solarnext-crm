@@ -35,6 +35,7 @@ import {
 export { MYSMART_CAPACITY_TIERS_HT };
 
 const VAT = VIRTUAL_BATTERY_P2_VAT_RATE;
+export const URBAN_SOLAR_ONE_TIME_SETUP_FEE_TTC = 299;
 
 const P = {
   URBAN_SOLAR: "URBAN_SOLAR",
@@ -253,6 +254,7 @@ export function computeVirtualBatteryP2Finance(input) {
   let annual_subscription_ht = 0;
   let annual_autoproducer_contribution_ht = 0;
   let annual_activation_fee_ht = 0;
+  let one_time_setup_fee_ttc = 0;
   let selected_capacity_kwh = reqCap;
 
   if (contractType === "HPHC") {
@@ -268,6 +270,7 @@ export function computeVirtualBatteryP2Finance(input) {
   if (providerCode === P.URBAN_SOLAR) {
     pricing_mode = contractType === "HPHC" ? "URBAN_HPHC" : "URBAN_BASE";
     annual_activation_fee_ht = 0;
+    one_time_setup_fee_ttc = URBAN_SOLAR_ONE_TIME_SETUP_FEE_TTC;
     const rowUrban = useGrid ? vbGetSegmentRow(grids, providerCode, contractType, meterKva) : null;
     if (rowUrban && rowUrban.enabled) {
       // FIX abonnement : on ne compte QUE l'abonnement spécifique au stockage (1 €/kWc).
@@ -457,6 +460,7 @@ export function computeVirtualBatteryP2Finance(input) {
     annual_grid_import_cost_ttc,
     annual_overflow_export_revenue_ht,
     annual_overflow_export_revenue_ttc,
+    one_time_setup_fee_ttc,
     annual_total_virtual_cost_ht,
     annual_total_virtual_cost_ttc,
     hphc_allocation_status,

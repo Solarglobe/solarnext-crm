@@ -367,14 +367,20 @@ export async function buildSelectedScenarioSnapshot({
     ? Number(vf.annual_activation_fee_ttc)
     : 0;
   const providerCode = String(vf?.provider_code ?? scenario.provider_code ?? "").toUpperCase();
-  const publicSetupFeeTtc = providerCode === "URBAN_SOLAR" ? 299 : activationTtc;
+  const oneTimeSetupFeeTtc = Number.isFinite(Number(vf?.one_time_setup_fee_ttc))
+    ? Number(vf.one_time_setup_fee_ttc)
+    : providerCode === "URBAN_SOLAR"
+      ? 299
+      : activationTtc;
   const setupBillingPolicy =
-    activationTtc > 0
+    oneTimeSetupFeeTtc > 0
       ? scenario._virtual_battery_activation_in_capex === true
         ? "included_in_capex"
         : "billed_extra"
-      : providerCode === "URBAN_SOLAR"
-        ? "waived_by_solarglobe"
+      : activationTtc > 0
+        ? scenario._virtual_battery_activation_in_capex === true
+          ? "included_in_capex"
+          : "billed_extra"
         : "none";
   const residualBillVirtualBreakdown =
     scenarioId === "BATTERY_VIRTUAL" && vf
@@ -387,7 +393,7 @@ export async function buildSelectedScenarioSnapshot({
           virtual_battery_discharge_fees_ttc: vf.annual_virtual_discharge_cost_ttc ?? null,
           virtual_battery_activation_ttc: activationTtc,
           virtualStorageSetupFee: activationTtc,
-          virtualStorageSetupCommercialFee: publicSetupFeeTtc,
+          virtualStorageSetupCommercialFee: oneTimeSetupFeeTtc,
           virtualStorageSetupBillingPolicy: setupBillingPolicy,
           virtualStorageSetupFeeIncludedInCapex: scenario._virtual_battery_activation_in_capex === true,
           virtualStorageFeesIndexationNote:
@@ -397,8 +403,6 @@ export async function buildSelectedScenarioSnapshot({
               ? scenario._virtual_battery_activation_in_capex === true
                 ? "Frais d'activation : inclus dans l'investissement affiché, sans double comptage."
                 : "Frais d'activation : première année contractuelle (TTC), ajouté aux coûts de service."
-              : setupBillingPolicy === "waived_by_solarglobe"
-                ? "Frais de mise en place de 299 € TTC offerts et pris en charge par SolarGlobe."
               : null,
           supplier_subscription_eur: null,
           supplier_subscription_note:
