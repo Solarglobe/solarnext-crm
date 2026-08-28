@@ -66,6 +66,7 @@ export default function PdfPage2({
           : parseEur(p2Auto.p2_economie_totale ?? p2Auto.p2_economie_nette);
     return formatEur(base != null ? base * (years / 25) : null);
   };
+  const financialScopeNote = p2Text("p2_financial_scope_note", "");
 
   const logoUrl = useMemo(() => {
     const logoDirect = organization?.logo_url;
@@ -212,6 +213,11 @@ export default function PdfPage2({
               </strong>{" "}
               de gain net après investissement.
             </p>
+            {financialScopeNote ? (
+              <p style={{ margin: "1mm 0 0 0", fontSize: "2.65mm", color: "#6b6258" }}>
+                {financialScopeNote}
+              </p>
+            ) : null}
           </div>
         </div>
 

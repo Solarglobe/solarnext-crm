@@ -28,7 +28,7 @@ function makeScenario(name, overrides = {}) {
   };
 }
 
-test("BATTERY_VIRTUAL investment stays PV-only while one-time setup fee is charged once", async () => {
+test("BATTERY_VIRTUAL setup fee stays informational and does not change finance outputs", async () => {
   const ctx = {
     finance_input: { capex_ttc: 6800 },
     settings: {
@@ -49,10 +49,10 @@ test("BATTERY_VIRTUAL investment stays PV-only while one-time setup fee is charg
     form: { params: { tarif_kwh: 0.195 } },
   };
   const base = makeScenario("BASE");
-  const virtual = makeScenario("BATTERY_VIRTUAL", {
+  const makeVirtual = (virtualSetupFee) => makeScenario("BATTERY_VIRTUAL", {
     capex_ttc: 0,
     pvInstallationPrice: 6800,
-    virtualSetupFee: 299,
+    virtualSetupFee,
     virtualAnnualFees: 285.04,
     billable_import_kwh: 7589,
     _virtual_battery_activation_in_capex: false,
@@ -62,14 +62,16 @@ test("BATTERY_VIRTUAL investment stays PV-only while one-time setup fee is charg
       annual_autoproducer_contribution_ttc: 12,
       annual_virtual_discharge_cost_ttc: 237.04,
       annual_activation_fee_ttc: 0,
-      one_time_setup_fee_ttc: 299,
+      one_time_setup_fee_ttc: virtualSetupFee,
       annual_total_virtual_cost_ttc: 285.04,
       annual_overflow_export_revenue_ttc: 0,
     },
   });
 
-  const result = await computeFinance(ctx, { BASE: base, BATTERY_VIRTUAL: virtual });
+  const result = await computeFinance(ctx, { BASE: base, BATTERY_VIRTUAL: makeVirtual(299) });
+  const control = await computeFinance(ctx, { BASE: makeScenario("BASE"), BATTERY_VIRTUAL: makeVirtual(0) });
   const out = result.scenarios.BATTERY_VIRTUAL;
+  const withoutSetupFee = control.scenarios.BATTERY_VIRTUAL;
 
   assert.equal(out.capex_ttc, 6800);
   assert.equal(out.pvInstallationPrice, 6800);
@@ -77,8 +79,11 @@ test("BATTERY_VIRTUAL investment stays PV-only while one-time setup fee is charg
   assert.equal(out.virtualAnnualFees, 285.04);
   assert.equal(out.virtual_battery_finance.annual_total_virtual_cost_ttc, 285.04);
   assert.equal(out.virtual_battery_finance.annual_activation_fee_ttc, 0);
-  assert.equal(out.flows[0].cumul_eur, out.flows[0].cumul_gains_eur - 6800);
-  assert.equal(Math.round(out.flows[0].total_eur * 100) / 100, 108.04);
+  assert.deepEqual(out.flows, withoutSetupFee.flows);
+  assert.equal(out.irr_pct, withoutSetupFee.irr_pct);
+  assert.equal(out.roi_years, withoutSetupFee.roi_years);
+  assert.equal(out.gain_25a, withoutSetupFee.gain_25a);
+  assert.equal(Math.round(out.flows[0].total_eur * 100) / 100, 407.04);
   assert.equal(Math.round(out.flows[1].total_eur * 100) / 100, 436.67);
   assert.doesNotMatch(JSON.stringify(out), /offerts|pris en charge par SolarGlobe|inclus dans l'investissement/i);
 });

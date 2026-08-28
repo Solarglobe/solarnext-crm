@@ -66,6 +66,7 @@ export default function PdfPage11({
     totalPaid != null
       ? `${fmtEur(totalPaid)}${creditCost != null ? ` (coût ${fmtEur(creditCost)})` : ""}`
       : "—";
+  const financialScopeNote = p11Text(p11Data.financial_scope_note, "");
   const summarySolde = (year: number) => {
     const raw = resteSeries[year - 1];
     if (!Number.isFinite(raw)) return "—";
@@ -378,7 +379,9 @@ export default function PdfPage11({
             <span className="p11-foot__repay">Remboursement</span>
           <span id="p11_durations_block" className="p11-foot__dur">{p11Text(p11Data.durations_summary, "")}</span>
           </span>
-          <span className="p11-foot__right">Chiffrage indicatif aligné sur le scénario du dossier — à confirmer avec l'offre de financement.</span>
+          <span className="p11-foot__right">
+            {financialScopeNote || "Chiffrage indicatif aligné sur le scénario du dossier — à confirmer avec l'offre de financement."}
+          </span>
         </footer>
 
         {/* Pont moteur : paramètres (hors plan visible) */}

@@ -74,6 +74,8 @@ test("ACHOURI 3 kWc PDF VM keeps direct, credit and reconciled production distin
   assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupBillingPolicy, "outside_pv_investment");
   assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupFeeIncludedInCapex, false);
   assert.match(vm.fullReport.p10.residual_bill_virtual.virtualStorageFeesIndexationNote, /maintenus constants/);
+  assert.match(vm.fullReport.p2.p2_auto.p2_financial_scope_note, /hors frais ponctuels/);
+  assert.match(vm.fullReport.p11.data.financial_scope_note, /hors frais ponctuels/);
   assert.doesNotMatch(JSON.stringify(vm.fullReport), /offerts|pris en charge par SolarGlobe|inclus dans l'investissement/i);
 });
 

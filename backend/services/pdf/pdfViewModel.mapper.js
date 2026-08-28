@@ -1186,6 +1186,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       : formatEurKwh3(econDisplay.oa_rate_eur_kwh),
     p2_surplus_label: isVirtualLikeScenario ? "crédit" : "surplus",
     p2_scenario_label: SCENARIO_LABELS[selectedKey] || str(selectedKey),
+    p2_financial_scope_note: isVirtualLikeScenario
+      ? "Projection financière de l’installation photovoltaïque, hors frais ponctuels de mise en place du crédit virtuel."
+      : "",
     // Production page 2 = production du scénario sélectionné (celle des cartes, ~9114 kWh),
     // et non annualKwh qui peut provenir d'un champ "production.annual_kwh" légèrement différent
     // (gross/théorique ~9161) → harmonisation : même chiffre partout.
@@ -1397,6 +1400,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     annualCashflows: annualCashflowsForP11,
     horizonYears: horizonYearsPdf,
   });
+  if (isVirtualLikeScenarioId(selectedKey)) {
+    p11Section.data.financial_scope_note =
+      "Projection financière de l’installation photovoltaïque, hors frais ponctuels de mise en place du crédit virtuel.";
+  }
 
   const energyP10 =
     scenarioForFinance?.energy && typeof scenarioForFinance.energy === "object"

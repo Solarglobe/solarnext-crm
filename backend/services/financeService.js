@@ -807,11 +807,9 @@ export async function computeFinance(ctx, scenarios) {
         const recurring = Number(sc.virtual_battery_finance.annual_total_virtual_cost_ttc);
         const act = Number(sc.virtual_battery_finance.annual_activation_fee_ttc || 0) || 0;
         const actInCapex = false;
-        const oneTimeSetupFee = resolveVirtualSetupFeeTtc(sc);
         flows = flows.map((f, idx) => {
           const activationYear = actInCapex ? 0 : act;
-          const setupYear = idx === 0 && !actInCapex ? oneTimeSetupFee : 0;
-          const virtualCostYear = idx === 0 ? recurring + activationYear + setupYear : recurring;
+          const virtualCostYear = idx === 0 ? recurring + activationYear : recurring;
           const total_eur = f.total_eur - virtualCostYear;
           return { ...f, total_eur };
         });
