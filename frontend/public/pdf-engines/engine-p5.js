@@ -37,10 +37,14 @@
   // ============================================================================
   function applyMeta(meta){
     if(!meta) return;
-    $('#p5_client').textContent = meta.client || "—";
-    $('#p5_ref').textContent    = meta.ref    || "—";
-    $('#p5_date').textContent   = meta.date   || "—";
-    $('#p5_month').textContent  = "Annuel";
+    const setText = (selector, value) => {
+      const el = $(selector);
+      if (el) el.textContent = value;
+    };
+    setText('#p5_client', meta.client || "—");
+    setText('#p5_ref', meta.ref || "—");
+    setText('#p5_date', meta.date || "—");
+    setText('#p5_month', "Annuel");
   }
 
   // ============================================================================
@@ -53,7 +57,8 @@
 
     const series = mergeSeries(payload);
 
-    $('#p5_chart_zone').style.display = "block";
+    const chartZone = $('#p5_chart_zone');
+    if (chartZone) chartZone.style.display = "block";
     window.API_p5_drawChart(series);
   }
 
