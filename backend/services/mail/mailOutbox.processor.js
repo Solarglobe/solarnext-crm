@@ -246,17 +246,17 @@ async function deliverOutboxJob(job) {
     await client.query(
       `UPDATE mail_outbox SET
         status = 'sent',
-        smtp_completed_at = COALESCE(smtp_completed_at, $5),
+        smtp_completed_at = COALESCE(smtp_completed_at, $4),
         stable_message_id = COALESCE(stable_message_id, $3),
-        smtp_mime_rfc822 = COALESCE(smtp_mime_rfc822, $7),
-        sent_archive_status = $6,
-        sent_archive_next_attempt_at = CASE WHEN $6 = 'pending' THEN now() ELSE sent_archive_next_attempt_at END,
+        smtp_mime_rfc822 = COALESCE(smtp_mime_rfc822, $6),
+        sent_archive_status = $5,
+        sent_archive_next_attempt_at = CASE WHEN $5 = 'pending' THEN now() ELSE sent_archive_next_attempt_at END,
         sent_at = $2,
         provider_message_id = $3,
         last_error = NULL,
         updated_at = now()
        WHERE id = $1`,
-      [job.id, sentAt, smtpMessageId, null, sentAt, SENT_ARCHIVE_STATUSES.PENDING, stableMime]
+      [job.id, sentAt, smtpMessageId, sentAt, SENT_ARCHIVE_STATUSES.PENDING, stableMime]
     );
     if (!threadId) {
       throw new Error("mail_thread_id manquant");

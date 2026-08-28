@@ -41,6 +41,13 @@ test("phase 6 outbox separates SMTP completion from Sent retry", () => {
   assert.match(src, /SENT_ARCHIVE_PENDING/);
 });
 
+test("phase 6 outbox sent update uses contiguous SQL parameters", () => {
+  const src = read("../services/mail/mailOutbox.processor.js");
+  const updateMatch = src.match(/UPDATE mail_outbox SET[\s\S]*?provider_message_id = \$3[\s\S]*?WHERE id = \$1`,\s*\[job\.id, sentAt, smtpMessageId, sentAt, SENT_ARCHIVE_STATUSES\.PENDING, stableMime\]/);
+  assert.ok(updateMatch, "sent update should not leave an unused/null $4 parameter");
+  assert.doesNotMatch(updateMatch[0], /\$7|null, sentAt/);
+});
+
 test("phase 6 frontend exposes remote history and draft sync state", () => {
   const api = read("../../frontend/src/services/mailApi.ts");
   const inbox = read("../../frontend/src/pages/mail/MailInboxPage.tsx");
