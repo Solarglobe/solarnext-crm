@@ -74,6 +74,7 @@ export default function ScenariosPage() {
   const [versionLocked, setVersionLocked] = useState(false);
   const [selectedScenarioId, setSelectedScenarioId] = useState<ScenarioId | null>(null);
   const [selectingId, setSelectingId] = useState<ScenarioId | null>(null);
+  const [portalOfferBusyId, setPortalOfferBusyId] = useState<ScenarioId | null>(null);
   const [pdfFlowBusy, setPdfFlowBusy] = useState(false);
   const [redownloading, setRedownloading] = useState(false);
   const [modifierLoading, setModifierLoading] = useState(false);
@@ -319,6 +320,64 @@ export default function ScenariosPage() {
       }
     },
     [isReadOnly, studyId, versionId, fetchScenariosOnly, refreshStudy]
+  );
+
+  const handleSetPortalOffer = useCallback(
+    async (scenarioId: ScenarioId) => {
+      if (isReadOnly) return false;
+      if (!studyId || !versionId) return false;
+      const base = API_BASE.replace(/\/$/, "");
+      setPortalOfferBusyId(scenarioId);
+      try {
+        const res = await apiFetch(
+          `${base}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/portal-offer-from-scenario`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scenario_id: scenarioId }),
+            skipErrorToast: true,
+          }
+        );
+        const body = (await res.json().catch(() => ({}))) as {
+          success?: boolean;
+          error?: string;
+          message?: string;
+          portalOffer?: {
+            amount_ttc?: number | null;
+            label?: string | null;
+          };
+        };
+        if (!res.ok || !body.success) {
+          const errCode = body.error ?? "";
+          const errMsg =
+            errCode === "PDF_BLOCKED_STALE_SNAPSHOT"
+              ? "Offre page client impossible : relancez le calcul avant de choisir ce scénario."
+              : errCode === "SCENARIO_NOT_SELECTABLE"
+                ? body.message || "Ce scénario ne peut pas être choisi comme offre page client."
+                : body.message || errCode || "Impossible de mettre à jour l'offre page client";
+          showToast(errMsg, true);
+          return false;
+        }
+        const amount = body.portalOffer?.amount_ttc;
+        const label = body.portalOffer?.label || COLUMN_LABELS[scenarioId] || "Offre sélectionnée";
+        const suffix =
+          typeof amount === "number" && Number.isFinite(amount)
+            ? ` : ${new Intl.NumberFormat("fr-FR", {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+              }).format(amount)} € TTC`
+            : "";
+        showToast(`Offre page client mise à jour — ${label}${suffix}`, false);
+        await refreshStudy();
+        return true;
+      } catch (e) {
+        showToast(e instanceof Error ? e.message : "Erreur mise à jour page client", true);
+        return false;
+      } finally {
+        setPortalOfferBusyId(null);
+      }
+    },
+    [isReadOnly, refreshStudy, studyId, versionId]
   );
 
   const handleRedownloadPdf = useCallback(async () => {
@@ -754,8 +813,10 @@ export default function ScenariosPage() {
             studyId={studyId ?? undefined}
             versionId={versionId ?? undefined}
             onSelectScenario={handleSelectScenario}
+            onSetPortalOffer={handleSetPortalOffer}
             selectionDisabled={pdfFlowBusy || redownloading || isReadOnly || needsRecompute}
             selectingId={selectingId}
+            portalOfferBusyId={portalOfferBusyId}
             versionLocked={versionLocked}
             selectedScenarioId={selectedScenarioId}
             pdfFlowBusy={pdfFlowBusy}

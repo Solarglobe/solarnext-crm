@@ -519,9 +519,11 @@ interface ScenarioComparisonTableProps {
   studyId?: string;
   versionId?: string;
   onSelectScenario?: (scenarioKey: ScenarioColumnId, ctx: ScenarioSelectContext) => void;
+  onSetPortalOffer?: (scenarioKey: ScenarioColumnId) => void | boolean | Promise<void | boolean>;
   /** Désactive les boutons « Choisir » (ex. génération PDF en cours) — hors état verrouillé + colonne sélectionnée */
   selectionDisabled?: boolean;
   selectingId?: ScenarioColumnId | null;
+  portalOfferBusyId?: ScenarioColumnId | null;
   versionLocked?: boolean;
   selectedScenarioId?: ScenarioColumnId | null;
   pdfFlowBusy?: boolean;
@@ -772,8 +774,10 @@ export default function ScenarioComparisonTable({
   studyId,
   versionId,
   onSelectScenario,
+  onSetPortalOffer,
   selectionDisabled = false,
   selectingId = null,
+  portalOfferBusyId = null,
   versionLocked = false,
   selectedScenarioId = null,
   pdfFlowBusy = false,
@@ -1596,16 +1600,25 @@ export default function ScenarioComparisonTable({
                                   disabled={
                                     selectionDisabled ||
                                     pdfFlowBusy ||
+                                    portalOfferBusyId != null ||
                                     isBlockedForSelection ||
                                     isOtherLocked ||
                                     lockBlocksAll
                                   }
-                                  onChange={(e) =>
-                                    setPortalOfferByScenario((prev) => ({
-                                      ...prev,
-                                      [id]: e.target.checked,
-                                    }))
-                                  }
+                                  onChange={async (e) => {
+                                    if (!e.target.checked) {
+                                      return;
+                                    }
+                                    const previous = portalOfferByScenario;
+                                    setPortalOfferByScenario({
+                                      ...INITIAL_PORTAL_OFFER,
+                                      [id]: true,
+                                    });
+                                    const ok = await onSetPortalOffer?.(id);
+                                    if (ok === false) {
+                                      setPortalOfferByScenario(previous);
+                                    }
+                                  }}
                                 />
                                 <span>Référence page client</span>
                               </label>
@@ -1619,6 +1632,7 @@ export default function ScenarioComparisonTable({
                             disabled={
                               selectionDisabled ||
                               pdfFlowBusy ||
+                              portalOfferBusyId != null ||
                               isBlockedForSelection ||
                               isOtherLocked ||
                               lockBlocksAll

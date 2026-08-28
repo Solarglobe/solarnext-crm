@@ -500,7 +500,7 @@ router.get(
 
 // PDF V2 — Génération server-side PDF (Playwright)
 import { generatePdf } from "../controllers/pdfGeneration.controller.js";
-import { generatePdfFromScenario } from "../controllers/generatePdfFromScenario.controller.js";
+import { generatePdfFromScenario, setPortalOfferFromScenario } from "../controllers/generatePdfFromScenario.controller.js";
 
 router.post(
   "/:studyId/versions/:versionId/generate-pdf",
@@ -519,6 +519,14 @@ router.post(
   requireEmailVerified,
   pdfConcurrencyLimiter,
   generatePdfFromScenario
+);
+
+router.post(
+  "/:studyId/versions/:versionId/portal-offer-from-scenario",
+  verifyJWT,
+  requirePermission("study.manage"),
+  requireEmailVerified,
+  setPortalOfferFromScenario
 );
 
 export default router;

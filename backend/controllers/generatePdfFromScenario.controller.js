@@ -290,3 +290,97 @@ export async function generatePdfFromScenario(req, res) {
     });
   }
 }
+
+export async function setPortalOfferFromScenario(req, res) {
+  try {
+    const org = orgId(req);
+    if (!org) return res.status(401).json({ error: "Non authentifié" });
+
+    const { studyId, versionId } = req.params;
+    const scenarioId = req.body?.scenario_id;
+    if (!scenarioId || !VALID_SCENARIO_IDS.includes(scenarioId)) {
+      return res.status(400).json({
+        error: "scenario_id requis et doit être BASE, BATTERY_PHYSICAL, BATTERY_VIRTUAL ou BATTERY_HYBRID",
+      });
+    }
+
+    const versionRes = await pool.query(
+      `SELECT id, study_id, data_json
+       FROM study_versions
+       WHERE id = $1 AND organization_id = $2`,
+      [versionId, org]
+    );
+    if (versionRes.rows.length === 0) {
+      return res.status(404).json({ error: "Version non trouvée" });
+    }
+    const row = versionRes.rows[0];
+    if (row.study_id !== studyId) {
+      return res.status(404).json({ error: "Version ne correspond pas à l'étude" });
+    }
+
+    const dataJson = row.data_json && typeof row.data_json === "object" ? row.data_json : {};
+    const scenariosV2 = dataJson.scenarios_v2;
+    if (!Array.isArray(scenariosV2) || scenariosV2.length === 0) {
+      return res.status(400).json({
+        error: "scenarios_v2 absent ou vide. Lancez le calcul (run-study) avant de choisir l'offre portail.",
+      });
+    }
+
+    const selectedV2 = (scenariosV2 || []).find((s) => (s.id || s.name) === scenarioId) || null;
+    const selectable = evaluateScenarioSelectable(selectedV2, scenarioId);
+    if (!selectable.selectable) {
+      const status = selectable.reason === "SCENARIO_ABSENT" ? 400 : 409;
+      return res.status(status).json({
+        error: "SCENARIO_NOT_SELECTABLE",
+        reason: selectable.reason,
+        scenario_id: scenarioId,
+        message: SCENARIO_SELECTABLE_MESSAGES[selectable.reason] ?? "Ce scénario ne peut pas devenir l'offre portail.",
+      });
+    }
+
+    const snapshotEngineVersion = dataJson.scenarios_engine_version ?? selectedV2.scenarios_engine_version ?? null;
+    const staleSnapshot = snapshotEngineVersion !== CALC_ENGINE_VERSION;
+    if (selectedV2.display_blocked === true || selectedV2.needs_recompute === true || staleSnapshot) {
+      return res.status(409).json({
+        error: "PDF_BLOCKED_STALE_SNAPSHOT",
+        message: "Offre portail impossible : snapshot périmé — recalcul requis.",
+        blocked_reason: selectedV2.blocked_reason ?? (staleSnapshot ? "STALE_SNAPSHOT_ENGINE_VERSION" : null),
+        snapshot_engine_version: snapshotEngineVersion,
+        current_engine_version: CALC_ENGINE_VERSION,
+      });
+    }
+
+    const snapshot = await buildSelectedScenarioSnapshot({
+      studyId,
+      versionId,
+      scenarioId,
+      organizationId: org,
+      dataJson,
+    });
+    const portalOffer = buildPortalOfferFromScenarioSnapshot(snapshot, scenarioId, null);
+    const persisted = await persistPortalOffer({
+      versionId,
+      organizationId: org,
+      portalOffer,
+    });
+
+    if (!persisted) {
+      return res.status(404).json({ error: "VERSION_NOT_FOUND" });
+    }
+    return res.status(200).json({
+      success: true,
+      portalOffer: {
+        status: "updated",
+        scenario_id: scenarioId,
+        amount_ttc: portalOffer.amount_ttc,
+        label: portalOffer.label,
+      },
+    });
+  } catch (err) {
+    console.error("[setPortalOfferFromScenario]", err);
+    return res.status(500).json({
+      error: "PORTAL_OFFER_UPDATE_FAILED",
+      message: err?.message || "PORTAL_OFFER_UPDATE_FAILED",
+    });
+  }
+}

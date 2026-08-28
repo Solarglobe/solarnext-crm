@@ -706,6 +706,20 @@ export async function buildClientPortalPayload(db, ctx) {
       };
       explicitPortalOffer = resolvePortalScenarioOffer(sv.portal_offer);
     }
+
+    if (!explicitPortalOffer) {
+      const explicitOfferRes = await db.query(
+        `SELECT data_json->'portal_offer' AS portal_offer
+         FROM study_versions
+         WHERE study_id = $1
+           AND organization_id = $2
+           AND data_json ? 'portal_offer'
+         ORDER BY updated_at DESC NULLS LAST, created_at DESC
+         LIMIT 1`,
+        [study.id, organizationId]
+      );
+      explicitPortalOffer = resolvePortalScenarioOffer(explicitOfferRes.rows[0]?.portal_offer);
+    }
   }
 
   const quotesRes = await db.query(
