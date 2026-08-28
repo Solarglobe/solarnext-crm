@@ -37,7 +37,7 @@ export function hardenSignatureHtml(html) {
   const raw = String(html || "");
   if (!raw.trim()) return "";
   const hasFragileRemoteAsset = /placehold\.co|icons8\.com|logo-solarglobe-rect\.png/i.test(raw);
-  const hasLegacySolarGlobeContent = /Nicolas\s+BRUNET|01\s*72\s*99\s*47\s*53|LinkedIn/i.test(raw);
+  const hasLegacySolarGlobeContent = /Nicolas\s+BRUNET|01\s*72\s*99\s*47\s*53/i.test(raw);
   const looksLikeSolarGlobeSignature = /solarglobe|contact@solarglobe\.fr|01\s*72\s*99\s*47\s*53|06\s*69\s*18\s*84\s*03/i.test(raw);
   if ((hasFragileRemoteAsset || hasLegacySolarGlobeContent) && looksLikeSolarGlobeSignature) return SOLARGLOBE_ROBUST_SIGNATURE_HTML;
   return raw;
