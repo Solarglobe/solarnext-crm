@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  computeInstalledPowerByPanFromGeometryWithCatalog,
   computeInstalledPowerFromGeometry,
   computeInstalledPowerFromPlacedPanels,
 } from "../services/calpinage/calpinageInstalledPower.js";
@@ -54,4 +55,35 @@ test("calpinage installed power does not apply a single fallback to mixed unknow
   ], 500);
 
   assert.equal(summary, null);
+});
+
+test("calpinage installed power resolves mixed legacy dimensions by pan from catalog", async () => {
+  const db = {
+    async query(_sql, params) {
+      const [w, h] = params;
+      if (
+        (Math.abs(w - 1755) <= 2 && Math.abs(h - 1038) <= 2) ||
+        (Math.abs(w - 1038) <= 2 && Math.abs(h - 1755) <= 2)
+      ) {
+        return { rows: [{ power_wc: 375 }] };
+      }
+      if (
+        (Math.abs(w - 2094) <= 2 && Math.abs(h - 1134) <= 2) ||
+        (Math.abs(w - 1134) <= 2 && Math.abs(h - 2094) <= 2)
+      ) {
+        return { rows: [{ power_wc: 500 }] };
+      }
+      return { rows: [] };
+    },
+  };
+
+  const byPan = await computeInstalledPowerByPanFromGeometryWithCatalog(db, {
+    frozenBlocks: [
+      { panId: "bas-375", panels: Array.from({ length: 9 }, () => ({ panelWidthMm: 1755, panelHeightMm: 1038 })) },
+      { panId: "bas-500", panels: Array.from({ length: 6 }, () => ({ panelWidthMm: 2094, panelHeightMm: 1134 })) },
+    ],
+  });
+
+  assert.equal(byPan["bas-375"].total_power_kwc, 3.375);
+  assert.equal(byPan["bas-500"].total_power_kwc, 3);
 });

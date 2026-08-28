@@ -12,7 +12,7 @@ import { adaptLegacyShadingToV2, getNormalizedShadingFromGeometry } from "../ser
 import { mergeLayoutSnapshotForUpsert } from "../services/calpinage/mergeGeometryLayoutSnapshot.js";
 import { sanitizeCalpinageGeometryForPersistence } from "../services/calpinage/calpinageCommercialIntegrity.js";
 import { computeCalpinageGeometryHash } from "../services/calpinage/calpinageGeometryHash.js";
-import { computeInstalledPowerFromGeometry } from "../services/calpinage/calpinageInstalledPower.js";
+import { computeInstalledPowerFromGeometryWithCatalog } from "../services/calpinage/calpinageInstalledPower.js";
 import { lockCalpinageVersion } from "../services/calpinage/calpinageDataConcurrency.js";
 import { withPgRetryOnce } from "../utils/pgRetry.js";
 import {
@@ -280,7 +280,7 @@ export async function upsertCalpinage(req, res) {
       toSave = nextGeom;
     }
 
-    const mixedPowerSummary = computeInstalledPowerFromGeometry(toSave, resolvedWp);
+    const mixedPowerSummary = await computeInstalledPowerFromGeometryWithCatalog(pool, toSave, resolvedWp);
     if (mixedPowerSummary) {
       totalPanels = mixedPowerSummary.panels_count;
       totalPowerKwc = mixedPowerSummary.total_power_kwc;

@@ -47,6 +47,10 @@ import {
   isInstalledKwcDivergent,
   computeInstalledKwcRounded3,
 } from "../utils/resolvePanelPowerWc.js";
+import {
+  computeInstalledPowerByPanFromGeometryWithCatalog,
+  computeInstalledPowerFromGeometryWithCatalog,
+} from "./calpinage/calpinageInstalledPower.js";
 import { applyPanelPowerFromCatalog } from "./pv/resolvePanelFromDb.service.js";
 import { applyPhysicalBatteryTechnicalFromCatalog } from "./pv/resolveBatteryFromDb.service.js";
 import {
@@ -352,12 +356,14 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
    *
    * @see docs/shading-kpi-contract.md §2.4 (KPI pondéré multi-pans vs combined moteur).
    */
+  const panelPowerByPanId = await computeInstalledPowerByPanFromGeometryWithCatalog(pool, geometry);
   const rawRoofPansForProduction = Array.isArray(pans)
     ? pans.map((p) => ({
         id: p.id,
         azimuth: typeof p.azimuth === "number" ? p.azimuth : (p.orientationDeg ?? 180),
         tilt: typeof p.tilt === "number" ? p.tilt : (p.tiltDeg ?? 30),
         panelCount: Math.max(0, Math.floor(Number(p.panelCount ?? p.panel_count) || 0)),
+        powerKwc: p.id != null ? panelPowerByPanId[String(p.id)]?.total_power_kwc ?? null : null,
         shadingCombinedPct: Math.max(0, Math.min(100, Number(p.shadingCombinedPct ?? p.shading_combined_pct) || 0)),
       }))
     : [];
@@ -819,7 +825,10 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       : resolvePanelPowerWc(geometry?.panelSpec ?? geometry?.panel ?? null);
   let pvPowerKwc = Number(calpinage.total_power_kwc);
   if (!Number.isFinite(pvPowerKwc) || pvPowerKwc <= 0) pvPowerKwc = 0;
-  if (installPanels > 0 && geomResolvedWc != null) {
+  const mixedPowerSummary = await computeInstalledPowerFromGeometryWithCatalog(pool, geometry, geomResolvedWc);
+  if (mixedPowerSummary) {
+    pvPowerKwc = mixedPowerSummary.total_power_kwc;
+  } else if (installPanels > 0 && geomResolvedWc != null) {
     const recomputedPv = computeInstalledKwcRounded3(installPanels, geomResolvedWc);
     if (
       recomputedPv != null &&
@@ -1096,6 +1105,8 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       orientation_deg: Math.round(orientationDeg * 10) / 10,
       tilt_deg: Math.round(tiltDeg * 10) / 10,
       panneaux_count: totalPanels,
+      puissance_kwc: Math.round(pvPowerKwc * 1000) / 1000,
+      total_power_kwc: Math.round(pvPowerKwc * 1000) / 1000,
       reseau_type: (energyLead.grid_type || "mono").toLowerCase() === "tri" ? "tri" : "mono",
       shading_loss_pct: shadingLossPct,
       shading,

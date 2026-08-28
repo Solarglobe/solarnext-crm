@@ -15,7 +15,7 @@ const DEV_LOG = process.env.NODE_ENV !== "production";
  * @param {object} opts
  * @param {object} opts.site - { lat, lon }
  * @param {object} opts.settings - settings (pricing, pvtech, components)
- * @param {Array<{ id: string, azimuth: number, tilt: number, panelCount: number, shadingCombinedPct?: number }>} opts.pans - roof.pans (structure officielle)
+ * @param {Array<{ id: string, azimuth: number, tilt: number, panelCount: number, powerKwc?: number, shadingCombinedPct?: number }>} opts.pans - roof.pans (structure officielle)
  * @param {number} opts.moduleWp - Puissance module Wc (obligatoire si pans non vides — issu du panneau catalogue / panel_input)
  * @param {object} [opts.pv_inverter] - Même bloc que form.pv_inverter (euro_efficiency_pct pour factorAC / pvgisService)
  * @param {number|null} [opts.globalShadingLossPct] - Perte d'ombrage globale officielle a appliquer apres PVGIS pan par pan.
@@ -66,7 +66,10 @@ export async function computeProductionMultiPan(opts) {
       : Math.max(0, Math.min(100, Number(pan.shadingCombinedPct) || 0));
     const multiplier = 1 - shadingPct / 100;
 
-    const kwpPan = (panelCount * moduleWp) / 1000;
+    const panPowerKwc = Number(pan.powerKwc ?? pan.power_kwc);
+    const kwpPan = Number.isFinite(panPowerKwc) && panPowerKwc > 0
+      ? panPowerKwc
+      : (panelCount * moduleWp) / 1000;
 
     const raw = await pvgisService.computeProductionMonthlyForOrientation(ctx, azimuth, tilt);
     const monthlyBeforeShading = (raw.monthly_kwh || []).map((v) => v * kwpPan);

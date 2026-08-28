@@ -81,6 +81,30 @@ const SETTINGS = { pricing: { kit_panel_power_w: 485 } };
     "panA production != panB si PVGIS disponible, fallback national stable sinon"
   );
 
+  // ----- 2b) Puissance mixte par pan : utilise powerKwc, pas panelCount x moduleWp -----
+  console.log("\n--- 2b) Puissance mixte par pan ---");
+  const mixedPowerPans = [
+    { id: "m375", azimuth: 180, tilt: 30, panelCount: 9, powerKwc: 3.375, shadingCombinedPct: 0 },
+    { id: "m500", azimuth: 180, tilt: 30, panelCount: 6, powerKwc: 3.0, shadingCombinedPct: 0 },
+  ];
+  const rMixed = await computeProductionMultiPan({
+    site: SITE,
+    settings: SETTINGS,
+    pans: mixedPowerPans,
+    moduleWp: 500,
+  });
+  const refPan = await computeProductionMultiPan({
+    site: SITE,
+    settings: SETTINGS,
+    pans: [{ id: "ref", azimuth: 180, tilt: 30, panelCount: 1, powerKwc: 1, shadingCombinedPct: 0 }],
+    moduleWp: 500,
+  });
+  const expectedMixed = refPan.annualKwh * 6.375;
+  assert(
+    Math.abs(rMixed.annualKwh - expectedMixed) / expectedMixed < 0.001,
+    "9x375 + 6x500 = production base x 6.375 kWc"
+  );
+
   // ----- 3) Shading par pan : 0% vs 20% -----
   console.log("\n--- 3) Shading par pan ---");
   const pansShading = [

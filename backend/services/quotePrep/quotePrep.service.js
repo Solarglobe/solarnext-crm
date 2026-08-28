@@ -18,6 +18,7 @@ import {
 } from "../../utils/resolvePanelPowerWc.js";
 import { fetchPvPanelRowById } from "../pv/resolvePanelFromDb.service.js";
 import { fetchPvInverterRowById } from "../pv/resolveInverterFromDb.service.js";
+import { computeInstalledPowerFromGeometryWithCatalog } from "../calpinage/calpinageInstalledPower.js";
 
 const err = (code, message) => {
   const e = new Error(message);
@@ -119,6 +120,8 @@ async function buildTechnicalSummary(calpinageRow, calpinageDataRow = null) {
     }
   }
 
+  const mixedPowerSummary = await computeInstalledPowerFromGeometryWithCatalog(pool, payload, resolvedUnitWc);
+
   let powerKwc = null;
   if (calpinageDataRow?.total_power_kwc != null) {
     const v = Number(calpinageDataRow.total_power_kwc);
@@ -130,7 +133,10 @@ async function buildTechnicalSummary(calpinageRow, calpinageDataRow = null) {
       ? computeInstalledKwcRounded3(panelCount, resolvedUnitWc)
       : null;
 
-  if (recomputedKwc != null) {
+  if (mixedPowerSummary) {
+    panelCount = mixedPowerSummary.panels_count;
+    powerKwc = mixedPowerSummary.total_power_kwc;
+  } else if (recomputedKwc != null) {
     if (
       powerKwc == null ||
       !Number.isFinite(powerKwc) ||
