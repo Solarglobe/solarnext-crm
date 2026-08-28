@@ -137,6 +137,32 @@ function estimatedConsumptionDailyKwFromMonthly(annualConsoKwh, monthlyConso12) 
   return s > 0 ? weights.map((x) => (E * x) / s) : Array(24).fill(E / 24);
 }
 
+function estimatedNightEvDailyKw(annualConsoKwh) {
+  const a = num(annualConsoKwh);
+  const E = a != null && Number.isFinite(a) && a > 0 ? a / 365 : 0;
+  if (E <= 0) return Array(24).fill(0);
+
+  const weights = Array.from({ length: 24 }, (_, h) => {
+    const nightCharge =
+      2.35 * Math.exp(-0.5 * ((h - 1.5) / 2.2) ** 2) +
+      2.1 * Math.exp(-0.5 * ((h - 23) / 1.8) ** 2);
+    const morning = 0.45 * Math.exp(-0.5 * ((h - 7) / 1.8) ** 2);
+    const evening = 0.55 * Math.exp(-0.5 * ((h - 19) / 2.1) ** 2);
+    const daytimeBase = h >= 9 && h <= 17 ? 0.08 : 0.16;
+    return daytimeBase + nightCharge + morning + evening;
+  });
+  const s = weights.reduce((x, y) => x + y, 0);
+  return s > 0 ? weights.map((x) => (E * x) / s) : Array(24).fill(E / 24);
+}
+
+function hasCurrentEvHint(...values) {
+  const text = values
+    .filter((v) => v != null)
+    .map((v) => String(v).toLowerCase())
+    .join(" ");
+  return /\bve\b|vehicule electrique|véhicule électrique|recharge/.test(text);
+}
+
 function productionFromMonthlyAndSite(monthlyProd12, annualProdKwh, latitudeDeg) {
   const m = normalize12(monthlyProd12);
   const peakIdx = argmaxIndex(m);
@@ -171,6 +197,8 @@ export function buildP5DailyProfiles(params) {
     latitudeDeg,
     pvHourlyKw8760,
     consoHourlyKw8760,
+    consumptionProfileHint,
+    currentEquipmentText,
   } = params;
 
   let production_kw;
@@ -199,6 +227,10 @@ export function buildP5DailyProfiles(params) {
     consommation_kw = avgC;
     consoNote =
       "Consommation horaire : moyenne sur 24 tranches d’une série 8760 h issue du moteur.";
+  } else if (hasCurrentEvHint(consumptionProfileHint, currentEquipmentText)) {
+    consommation_kw = estimatedNightEvDailyKw(annualConsumptionKwh);
+    consoNote =
+      "profil journalier estimatif avec recharge de véhicule principalement nocturne (pas de mesure horaire 8760 h stockée).";
   } else {
     consommation_kw = estimatedConsumptionDailyKwFromMonthly(
       annualConsumptionKwh,

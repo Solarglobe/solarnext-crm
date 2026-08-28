@@ -1657,6 +1657,16 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     latitudeDeg: num(site.lat),
     pvHourlyKw8760,
     consoHourlyKw8760,
+    consumptionProfileHint:
+      options.p5_consumption_profile_hint ??
+      snapshot?.study_meter?.snapshot?.consumption_profile ??
+      snapshot?.meter_snapshot?.consumption_profile ??
+      null,
+    currentEquipmentText:
+      options.p5_current_equipment_text ??
+      snapshot?.study_meter?.snapshot?.equipement_actuel ??
+      snapshot?.meter_snapshot?.equipement_actuel ??
+      null,
   });
   const p5Prod = p5Profiles.production_kw;
   const p5Conso = p5Profiles.consommation_kw;

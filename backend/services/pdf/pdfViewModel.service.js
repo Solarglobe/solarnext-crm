@@ -209,6 +209,8 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
       "conso_p_pilotee_hourly",
       "conso_hourly",
     ]),
+    p5_consumption_profile_hint: dj.meter_snapshot?.consumption_profile ?? null,
+    p5_current_equipment_text: dj.meter_snapshot?.equipement_actuel ?? null,
   };
 
   const viewModel = mapSelectedScenarioSnapshotToPdfViewModel(repairedSnapshot, {
