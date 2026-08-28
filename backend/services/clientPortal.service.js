@@ -154,7 +154,7 @@ const QUOTE_OPEN_STATUSES = new Set(["DRAFT", "READY_TO_SEND", "SENT"]);
  * - Sinon, si un devis signé (ACCEPTED) apparaît dans l’historique → message projet validé.
  * - Sinon rien.
  *
- * @param {Array<{ status?: string|null, total_ttc?: unknown, currency?: string|null, sent_at?: Date|string|null, created_at?: Date|string|null }>} quotesDesc
+ * @param {Array<{ status?: string|null, total_ttc?: unknown, total_installer_ttc?: unknown, portal_offer_total_ttc?: unknown, currency?: string|null, sent_at?: Date|string|null, created_at?: Date|string|null }>} quotesDesc
  * @returns {{ kind: "none" } | { kind: "validated"; headline: string } | { kind: "pending"; amount_ttc: number|null; currency: string; reference_date: string|null; date_kind: "sent"|"created" }}
  */
 export function resolvePortalOffer(quotesDesc) {
@@ -164,8 +164,10 @@ export function resolvePortalOffer(quotesDesc) {
 
   const pendingShape = (pending) => {
     const amount =
-      pending.total_ttc != null && Number.isFinite(Number(pending.total_ttc))
-        ? Number(pending.total_ttc)
+      pending.portal_offer_total_ttc != null && Number.isFinite(Number(pending.portal_offer_total_ttc))
+        ? Number(pending.portal_offer_total_ttc)
+        : pending.total_ttc != null && Number.isFinite(Number(pending.total_ttc))
+          ? Number(pending.total_ttc) + (Number.isFinite(Number(pending.total_installer_ttc)) ? Number(pending.total_installer_ttc) : 0)
         : null;
     const currency = (pending.currency && String(pending.currency).trim()) || "EUR";
     const sent = pending.sent_at != null ? pending.sent_at : null;
@@ -667,6 +669,11 @@ export async function buildClientPortalPayload(db, ctx) {
   const quotesRes = await db.query(
     `SELECT id, quote_number, status,
             COALESCE(NULLIF(document_snapshot_json->'totals'->>'total_ttc', '')::numeric, total_ttc) AS total_ttc,
+            COALESCE(NULLIF(document_snapshot_json->'installer_totals'->>'total_ttc', '')::numeric, total_installer_ttc, 0) AS total_installer_ttc,
+            (
+              COALESCE(NULLIF(document_snapshot_json->'totals'->>'total_ttc', '')::numeric, total_ttc, 0)
+              + COALESCE(NULLIF(document_snapshot_json->'installer_totals'->>'total_ttc', '')::numeric, total_installer_ttc, 0)
+            ) AS portal_offer_total_ttc,
             currency, created_at, sent_at, valid_until
      FROM quotes
      WHERE lead_id = $1 AND organization_id = $2 AND (archived_at IS NULL)
@@ -678,6 +685,8 @@ export async function buildClientPortalPayload(db, ctx) {
     quote_number: q.quote_number ?? null,
     status: q.status ?? null,
     total_ttc: q.total_ttc != null ? Number(q.total_ttc) : null,
+    total_installer_ttc: q.total_installer_ttc != null ? Number(q.total_installer_ttc) : null,
+    portal_offer_total_ttc: q.portal_offer_total_ttc != null ? Number(q.portal_offer_total_ttc) : null,
     currency: q.currency ?? null,
     created_at: toIso(q.created_at),
     sent_at: q.sent_at ? toIso(q.sent_at) : null,

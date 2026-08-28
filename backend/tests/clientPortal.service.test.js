@@ -102,6 +102,35 @@ describe("clientPortal.service", () => {
     assert.equal(o.amount_ttc, 100);
   });
 
+  it("resolvePortalOffer — offre portail = part SolarGlobe + tarif installateur", () => {
+    const o = resolvePortalOffer([
+      {
+        status: "SENT",
+        total_ttc: 7200,
+        total_installer_ttc: 2100,
+        currency: "EUR",
+        created_at: new Date("2026-08-28"),
+      },
+    ]);
+    assert.equal(o.kind, "pending");
+    assert.equal(o.amount_ttc, 9300);
+  });
+
+  it("resolvePortalOffer — montant portail précalculé prioritaire", () => {
+    const o = resolvePortalOffer([
+      {
+        status: "SENT",
+        total_ttc: 7200,
+        total_installer_ttc: 2100,
+        portal_offer_total_ttc: 9400,
+        currency: "EUR",
+        created_at: new Date("2026-08-28"),
+      },
+    ]);
+    assert.equal(o.kind, "pending");
+    assert.equal(o.amount_ttc, 9400);
+  });
+
   it("resolvePortalOffer — dernier devis ouvert (montant + date)", () => {
     const o = resolvePortalOffer([
       {
