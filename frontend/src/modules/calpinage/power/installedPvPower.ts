@@ -98,16 +98,44 @@ export function resolveSelectedPvModulePower(args: {
 }
 
 export function isPvPanelCountableForPower(panel: Pick<PvPanelSurface3D, "placementValidity"> | null | undefined): boolean {
-  return panel?.placementValidity?.status === "VALID";
+  const status = panel?.placementValidity?.status;
+  return status == null || status === "VALID";
 }
 
 export function computeInstalledPvPower(args: {
-  readonly panels: readonly PvPanelSurface3D[];
+  readonly panels: readonly unknown[];
   readonly modulePowerWc: number | null | undefined;
 }): InstalledPvPowerSummary {
-  const countablePanelCount = args.panels.filter(isPvPanelCountableForPower).length;
+  const countablePanels = args.panels.filter((panel) => {
+    const obj = asObject(panel);
+    if (obj?.enabled === false) return false;
+    return isPvPanelCountableForPower(panel as Pick<PvPanelSurface3D, "placementValidity">);
+  });
+  const countablePanelCount = countablePanels.length;
   const ignoredPanelCount = Math.max(0, args.panels.length - countablePanelCount);
   const unitPowerWc = normalizeNumber(args.modulePowerWc);
+  let hasAnyPanelPower = false;
+  let hasMissingPanelPower = false;
+  let mixedTotalPowerWc = 0;
+  for (const panel of countablePanels) {
+    const panelPowerWc = resolvePvModulePowerWc(panel);
+    if (panelPowerWc == null) {
+      hasMissingPanelPower = true;
+      continue;
+    }
+    hasAnyPanelPower = true;
+    mixedTotalPowerWc += panelPowerWc;
+  }
+  if (hasAnyPanelPower && !hasMissingPanelPower) {
+    return {
+      unitPowerWc,
+      totalPowerWc: mixedTotalPowerWc,
+      totalPowerKwc: mixedTotalPowerWc / 1000,
+      countablePanelCount,
+      ignoredPanelCount,
+      unavailableReason: null,
+    };
+  }
   if (unitPowerWc == null) {
     return {
       unitPowerWc: null,

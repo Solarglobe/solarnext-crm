@@ -47,6 +47,19 @@ describe("installed PV power", () => {
     expect(computeInstalledPvPower({ panels, modulePowerWc: 500 }).totalPowerWc).toBe(6000);
   });
 
+  it("sums per-panel power for mixed modules instead of using the selected module for all panels", () => {
+    const panels = [
+      ...Array.from({ length: 9 }, () => ({ power_wc: 375 })),
+      ...Array.from({ length: 6 }, () => ({ power_wc: 500 })),
+    ];
+
+    const summary = computeInstalledPvPower({ panels, modulePowerWc: 500 });
+
+    expect(summary.countablePanelCount).toBe(15);
+    expect(summary.totalPowerWc).toBe(6375);
+    expect(summary.totalPowerKwc).toBe(6.375);
+  });
+
   it("returns an unavailable state when module power is missing", () => {
     const selected = resolveSelectedPvModulePower({
       selectedPanelId: "mod-empty",

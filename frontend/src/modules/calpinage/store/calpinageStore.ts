@@ -38,6 +38,7 @@ const initialPhase2: CalpinagePhase2Snapshot = {
 
 const initialPhase3: CalpinagePhase3Snapshot = {
   modulesCount: 0,
+  placedPanels: [],
   selectedInverterId: null,
   pvSelectedInverter: null,
   selectedPanelId: null,

@@ -244,6 +244,7 @@ function readPhase3Snapshot(): CalpinagePhase3Snapshot {
 
   return {
     modulesCount,
+    placedPanels: rawPanels,
     selectedInverterId,
     pvSelectedInverter,
     selectedPanelId,

@@ -13,6 +13,7 @@ import { useCalpinageStore } from "../store/calpinageStore";
 import type { CalpinageStore } from "../store/storeTypes";
 import { validateInverterSizing } from "../inverterSizing";
 import { normalizeInverterFamily } from "../utils/normalizeInverterFamily";
+import { computeInstalledPvPower } from "../power/installedPvPower";
 
 /** Émis par setupPhase3SidebarNotify / legacy ; réutilisable pour rafraîchir la vue 3D. */
 export const PHASE3_SIDEBAR_UPDATE_EVENT = "phase3:update";
@@ -53,6 +54,7 @@ export function usePhase3Data() {
   return useMemo(() => {
     const {
       modulesCount,
+      placedPanels,
       selectedInverterId,
       pvSelectedInverter,
       selectedPanelId,
@@ -91,10 +93,12 @@ export function usePhase3Data() {
       (selPanObj.power_wc != null || selPanObj.powerWc != null)
         ? Number(selPanObj.power_wc ?? selPanObj.powerWc) || 0
         : 0;
-    const totalKwc =
-      modulesCount > 0 && powerWc > 0
-        ? (modulesCount * powerWc) / 1000
-        : 0;
+    const installedPower = computeInstalledPvPower({
+      panels: Array.isArray(placedPanels) ? placedPanels : [],
+      modulePowerWc: powerWc,
+    });
+    const totalKwc = installedPower.totalPowerKwc ?? 0;
+    const effectiveModulesCount = installedPower.countablePanelCount || modulesCount;
 
     const panelSpec = selPanObj
       ? {
@@ -108,7 +112,7 @@ export function usePhase3Data() {
     // ── Validation onduleur ───────────────────────────────────────────────
     const validation = inv
       ? validateInverterSizing({
-          totalPanels: modulesCount,
+          totalPanels: effectiveModulesCount,
           totalPowerKwc: totalKwc,
           inverter: inv,
           panelSpec,
@@ -132,15 +136,15 @@ export function usePhase3Data() {
         : 0;
 
     const acTotal =
-      family === "MICRO" && inv && modulesCount > 0 && acPowerKw > 0
-        ? modulesCount * acPowerKw
+      family === "MICRO" && inv && effectiveModulesCount > 0 && acPowerKw > 0
+        ? effectiveModulesCount * acPowerKw
         : family === "CENTRAL" && acPowerKw > 0
           ? acPowerKw
           : 0;
 
     const dcAcRatio = acTotal > 0 ? totalKwc / acTotal : null;
     const isValid =
-      modulesCount > 0 &&
+      effectiveModulesCount > 0 &&
       !!inv &&
       (family === "MICRO" || (dcAcRatio !== null && dcAcRatio >= 0.8));
 

@@ -79,6 +79,8 @@ export interface CalpinagePhase3Snapshot {
   // ── Panneaux posés ──────────────────────────────────────────────────────
   /** Nombre de panneaux actuellement posés (pvPlacementEngine.getAllPanels().length). */
   modulesCount: number;
+  /** Panneaux posés tels que retournés par pvPlacementEngine.getAllPanels(), avec puissance par module si disponible. */
+  placedPanels: unknown[];
 
   // ── Sélection onduleur ──────────────────────────────────────────────────
   /** ID onduleur sélectionné (CALPINAGE_SELECTED_INVERTER_ID). */
