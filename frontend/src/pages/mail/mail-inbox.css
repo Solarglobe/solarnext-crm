@@ -1836,6 +1836,11 @@ button.mail-inbox-sn-tab:focus-visible {
   text-decoration: underline;
 }
 
+.mail-msg__html [data-signature] a {
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
 .mail-msg__text {
   font-size: 14px;
   line-height: 1.55;

@@ -58,12 +58,14 @@ describe("mail phase 5 source audit", () => {
   it("la lecture mail affiche le HTML sans mini iframe scrollable", () => {
     const message = read("src/pages/mail/MailThreadMessage.tsx");
     const css = read("src/pages/mail/mail-inbox.css");
+    const sanitize = read("src/pages/mail/mailHtmlSanitize.ts");
     expect(message).not.toContain("<iframe");
     expect(message).not.toContain("srcDoc");
     expect(message).toContain('className="mail-msg__html"');
     expect(message).toContain('role="document"');
     expect(css).not.toContain("mail-msg__html-frame");
     expect(css).toContain(".mail-msg__html :where(table)");
+    expect(sanitize).toContain('"data-signature"');
   });
 
   it("les images distantes bloquées ne créent pas de grands rectangles vides", () => {
@@ -72,6 +74,7 @@ describe("mail phase 5 source audit", () => {
     expect(css).toContain("width: auto !important");
     expect(css).toContain("max-width: 220px !important");
     expect(css).toContain("max-height: 40px !important");
+    expect(css).toContain(".mail-msg__html [data-signature] a");
     expect(css).not.toContain("width: 100%;\n  min-height: 34px");
   });
 
@@ -99,11 +102,13 @@ describe("mail phase 5 source audit", () => {
     );
     expect(signature).toContain("hardenMailSignatureHtml");
     expect(signature).toContain("SOLARGLOBE_ROBUST_SIGNATURE_HTML");
-    expect(robustSignatureHtml).toContain("border-left:3px solid #C39847");
+    expect(robustSignatureHtml).toContain('bgcolor="#C39847"');
+    expect(robustSignatureHtml).toContain('width="142"');
     expect(robustSignatureHtml).toContain("logo-solarglobe-rect-pdf.png");
     expect(robustSignatureHtml).toContain("06 69 18 84 03");
-    expect(robustSignatureHtml).toContain("facebook-signature.png");
-    expect(robustSignatureHtml).toContain("instagram-signature.png");
+    expect(robustSignatureHtml).toContain('facebook-signature.png" width="14" height="14"');
+    expect(robustSignatureHtml).toContain('instagram-signature.png" width="14" height="14"');
+    expect(robustSignatureHtml).toContain("text-decoration:none !important");
     expect(signature).toContain("hasFragileRemoteAsset || hasLegacySolarGlobeContent");
     expect(robustSignatureHtml).not.toContain("Nicolas BRUNET");
     expect(robustSignatureHtml).not.toContain("01 72 99 47 53");

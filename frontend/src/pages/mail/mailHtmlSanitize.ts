@@ -43,7 +43,7 @@ export function sanitizeMailHtmlDisplay(html: string, options: { allowRemoteImag
       USE_PROFILES: { html: true },
       FORBID_TAGS: ["script", "style", "form", "input", "button", "textarea", "select", "option", "iframe", "object", "embed", "svg", "math", "meta", "link"],
       FORBID_ATTR: ["srcset", "formaction", "ping"],
-      ADD_ATTR: ["target", "rel", "class", "data-remote-src-blocked"],
+      ADD_ATTR: ["target", "rel", "class", "data-signature", "data-remote-src-blocked"],
       ALLOW_UNKNOWN_PROTOCOLS: false,
     });
   } finally {
