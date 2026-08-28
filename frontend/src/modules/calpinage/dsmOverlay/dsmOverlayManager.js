@@ -271,6 +271,22 @@ function getUxProjectStance(lossPct) {
   return "Impact majeur : arbitrage technique recommandé avant engagement client.";
 }
 
+function resolveCatalogPanelPowerByStoredDimensions(panel) {
+  const w = Number(panel?.panelWidthMm ?? panel?.width_mm ?? panel?.widthMm);
+  const h = Number(panel?.panelHeightMm ?? panel?.height_mm ?? panel?.heightMm);
+  const catalog = typeof window !== "undefined" && Array.isArray(window.SOLARNEXT_PANELS) ? window.SOLARNEXT_PANELS : [];
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0 || catalog.length === 0) return null;
+  const matches = catalog.filter((catalogPanel) => {
+    const cw = Number(catalogPanel?.width_mm ?? catalogPanel?.widthMm);
+    const ch = Number(catalogPanel?.height_mm ?? catalogPanel?.heightMm);
+    if (!Number.isFinite(cw) || !Number.isFinite(ch) || cw <= 0 || ch <= 0) return false;
+    return (Math.abs(cw - w) <= 2 && Math.abs(ch - h) <= 2) || (Math.abs(cw - h) <= 2 && Math.abs(ch - w) <= 2);
+  });
+  if (matches.length !== 1) return null;
+  const powerWc = Number(matches[0].power_wc ?? matches[0].powerWc);
+  return Number.isFinite(powerWc) && powerWc > 50 ? powerWc : null;
+}
+
 function computeShadingSummaryForOverlay(manager) {
   const state = getState();
   const shading = state?.shading?.normalized;
@@ -289,7 +305,8 @@ function computeShadingSummaryForOverlay(manager) {
     const totalPowerWc = panels.reduce((sum, panel) => {
       if (!panel || panel.enabled === false) return sum;
       const ownPowerWc = Number(panel.power_wc ?? panel.powerWc);
-      const powerWc = Number.isFinite(ownPowerWc) && ownPowerWc > 50 ? ownPowerWc : fallbackPowerWc;
+      const dimensionPowerWc = resolveCatalogPanelPowerByStoredDimensions(panel);
+      const powerWc = Number.isFinite(ownPowerWc) && ownPowerWc > 50 ? ownPowerWc : (dimensionPowerWc ?? fallbackPowerWc);
       return Number.isFinite(powerWc) && powerWc > 50 ? sum + powerWc : sum;
     }, 0);
     if (totalPowerWc > 0) totalPowerKwc = totalPowerWc / 1000;

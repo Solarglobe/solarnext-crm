@@ -6058,9 +6058,36 @@ export function initCalpinage(container, options = {}) {
         return out;
       }
 
+      function findPanelByStoredDimensions(panel) {
+        if (!panel || typeof panel !== "object") return null;
+        var w = Number(panel.panelWidthMm || panel.width_mm || panel.widthMm);
+        var h = Number(panel.panelHeightMm || panel.height_mm || panel.heightMm);
+        if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+        var matches = getPanelList().filter(function (catalogPanel) {
+          if (!catalogPanel) return false;
+          var cw = Number(catalogPanel.width_mm || catalogPanel.widthMm);
+          var ch = Number(catalogPanel.height_mm || catalogPanel.heightMm);
+          if (!Number.isFinite(cw) || !Number.isFinite(ch) || cw <= 0 || ch <= 0) return false;
+          var direct = Math.abs(cw - w) <= 2 && Math.abs(ch - h) <= 2;
+          var swapped = Math.abs(cw - h) <= 2 && Math.abs(ch - w) <= 2;
+          return direct || swapped;
+        });
+        if (matches.length === 1) return matches[0];
+        var powered = matches.filter(function (catalogPanel) { return resolvePanelPowerWc(catalogPanel) != null; });
+        if (powered.length === 1) return powered[0];
+        return null;
+      }
+
       function resolvePlacedPanelPowerWc(panel, fallbackPanel) {
         var ownPower = resolvePanelPowerWc(panel);
         if (ownPower != null) return ownPower;
+        var panelId = panel && (panel.panelId || panel.panel_id || panel.panelCatalogId);
+        var catalogPanel = panelId ? findPanelById(panelId) : null;
+        var catalogPower = resolvePanelPowerWc(catalogPanel);
+        if (catalogPower != null) return catalogPower;
+        var dimensionPanel = findPanelByStoredDimensions(panel);
+        var dimensionPower = resolvePanelPowerWc(dimensionPanel);
+        if (dimensionPower != null) return dimensionPower;
         return resolvePanelPowerWc(fallbackPanel);
       }
 

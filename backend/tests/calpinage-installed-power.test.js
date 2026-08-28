@@ -46,3 +46,12 @@ test("calpinage installed power keeps legacy fallback only when panel power is a
   assert.equal(summary.known_power_count, 2);
   assert.equal(summary.total_power_kwc, 0.875);
 });
+
+test("calpinage installed power does not apply a single fallback to mixed unknown dimensions", () => {
+  const summary = computeInstalledPowerFromPlacedPanels([
+    { panelWidthMm: 1755, panelHeightMm: 1038 },
+    { panelWidthMm: 2094, panelHeightMm: 1134 },
+  ], 500);
+
+  assert.equal(summary, null);
+});
