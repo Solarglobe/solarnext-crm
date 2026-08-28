@@ -877,6 +877,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   }
   const isVehicleV2hSelected = isVehicleV2hScenarioId(selectedKey);
   const isVirtualLikeScenario = isVirtualLikeScenarioId(selectedKey);
+  const pdfEnergyCanonical = buildPdfEnergyCanonical({
+    scenario: selectedScenario,
+    baseScenario: baseFromV2,
+  });
+  const useCanonicalVirtualEnergy =
+    isVirtualLikeScenario && !isVehicleV2hSelected && pdfEnergyCanonical.full_virtual_valuation === true;
+  const pdfEnergyDisplay = pdfEnergyCanonical.display;
+  const pdfEnergyRaw = pdfEnergyCanonical.raw;
 
   const canonicalAnnualProductionKwh =
     num(selectedScenario?.production?.annual_kwh) ??
@@ -884,7 +892,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     num(energy.production_kwh) ??
     annualKwhFallbackSnapshot;
 
-  let annualKwh = canonicalAnnualProductionKwh;
+  let annualKwh = useCanonicalVirtualEnergy ? pdfEnergyDisplay.productionPV : canonicalAnnualProductionKwh;
   let monthly = normalizeMonthlyProduction(
     Array.isArray(selectedScenario?.production?.monthly_kwh)
       ? selectedScenario.production.monthly_kwh
@@ -1148,7 +1156,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p2_indexation: formatPctPerYear1(econDisplay.elec_growth_pct),
     p2_horizon: `${horizonYearsPdf} ans`,
     p2_surplus_rate: isVirtualLikeScenario
-      ? "crédit virtuel, pas de rachat OA"
+      ? "virtuel, sans vente du surplus en obligation d'achat"
       : formatEurKwh3(econDisplay.oa_rate_eur_kwh),
     p2_surplus_label: isVirtualLikeScenario ? "crédit" : "surplus",
     p2_scenario_label: SCENARIO_LABELS[selectedKey] || str(selectedKey),
@@ -1156,7 +1164,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     // et non annualKwh qui peut provenir d'un champ "production.annual_kwh" légèrement différent
     // (gross/théorique ~9161) → harmonisation : même chiffre partout.
     p2_production: (() => {
-      const p2Prod = num(selectedScenario?.energy?.production_kwh) ?? num(energy?.production_kwh) ?? annualKwh;
+      const p2Prod = useCanonicalVirtualEnergy
+        ? pdfEnergyDisplay.productionPV
+        : num(selectedScenario?.energy?.production_kwh) ?? num(energy?.production_kwh) ?? annualKwh;
       return p2Prod > 0 ? `${Math.round(p2Prod).toLocaleString("fr-FR")} kWh` : "—";
     })(),
   };
@@ -1750,15 +1760,6 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     (_sharedAutoKwh != null
       ? Math.max(0, (num(_energyFlowsShared.direct_self_consumption_kwh) ?? Math.max(0, _sharedAutoKwh - _sharedRestoredKwh)) + _sharedRestoredKwh)
       : null);
-  const pdfEnergyCanonical = buildPdfEnergyCanonical({
-    scenario: selectedScenario,
-    baseScenario: baseFromV2,
-  });
-  const useCanonicalVirtualEnergy =
-    isVirtualLikeScenario && !isVehicleV2hSelected && pdfEnergyCanonical.full_virtual_valuation === true;
-  const pdfEnergyDisplay = pdfEnergyCanonical.display;
-  const pdfEnergyRaw = pdfEnergyCanonical.raw;
-
   // P4 — chiffres energie additionnels, dependants du scenario selectionne (page synthese production).
   const _p4DirectKwh =
     useCanonicalVirtualEnergy
@@ -1893,6 +1894,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           production_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.productionPV : prodAnnuelle,
           consumption_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.consommation : consoAnnuelleP4,
           solar_used_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.energieCouverte : autoAnnuelle,
+          direct_self_consumption_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.autoconsommationDirecte : _p4DirectKwh,
+          virtual_credit_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.surplusCredite : null,
+          surplus_creditable_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.surplusCredite : Math.max(0, prodAnnuelle - _p4DirectKwh),
           exported_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.productionNonValorisee : surplusAnnuelle,
           grid_import_kwh: useCanonicalVirtualEnergy ? pdfEnergyDisplay.importReseau : importAnnuelle,
           coverage_pct: useCanonicalVirtualEnergy ? pdfEnergyDisplay.tauxCouverturePct : couverturePct,
@@ -1907,7 +1911,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         consommation_kwh: p4ConsoMonthly,
         consommation_kwh_source: p4ConsumptionMonthlySource,
         consommation_kwh_reference: officialMonthlyConsumption,
-        autoconso_kwh: p4SolarCoveredMonthly,
+        autoconso_kwh: useCanonicalVirtualEnergy ? p4DirectMonthly : p4SolarCoveredMonthly,
+        solar_covered_kwh: p4SolarCoveredMonthly,
         direct_pv_kwh: p4DirectMonthly,
         surplus_kwh: surplusMonthly,
         batterie_kwh: p4BatMonthly,
@@ -2872,7 +2877,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           lcoe_eur_kwh: lcoeVal,
           nb_panels: numOrZero(installation.panneaux_nombre),
           /* Source unique : même production que P3/P7 (scénario sélectionné), fallback canonique. */
-          annual_production_kwh: num(selectedScenario?.energy?.production_kwh) ?? annualKwh,
+          annual_production_kwh: useCanonicalVirtualEnergy
+            ? pdfEnergyDisplay.productionPV
+            : num(selectedScenario?.energy?.production_kwh) ?? annualKwh,
           scenario_status:
             str(selectedScenario?.scenario_status) ||
             str(selectedScenario?.recommendation_status) ||
@@ -2892,6 +2899,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           price_kwh: econDisplay.price_eur_kwh,
           horizon_years: econDisplay.horizon_years,
           prime_autoconso_eur: primeAmount,
+          virtualStorageSetupFee:
+            finance.residual_bill_virtual_breakdown?.virtualStorageSetupFee ??
+            buildResidualBillVirtualVmFromScenario(selectedScenario)?.virtualStorageSetupFee ??
+            null,
+          virtualStorageSetupFeeIncludedInCapex:
+            finance.residual_bill_virtual_breakdown?.virtualStorageSetupFeeIncludedInCapex ??
+            buildResidualBillVirtualVmFromScenario(selectedScenario)?.virtualStorageSetupFeeIncludedInCapex ??
+            null,
         },
         residual_bill_virtual:
           finance.residual_bill_virtual_breakdown ??

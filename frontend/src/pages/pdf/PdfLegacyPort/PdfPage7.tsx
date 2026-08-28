@@ -133,6 +133,7 @@ export default function PdfPage7({
   const solarUsedDirectKwh = safeNum(
     (p7 as unknown as { energy_solar_used_direct_kwh?: number }).energy_solar_used_direct_kwh
   );
+  const virtualCreditKwh = safeNum((p7 as unknown as { credited_kwh?: number }).credited_kwh) || surplusValoriseKwh;
   const gridImportKwh = safeNum((p7 as unknown as { energy_grid_import_kwh?: number }).energy_grid_import_kwh) || (p7.c_grid ?? 0);
   const estimatedBillEur = safeNum((p7 as unknown as { estimated_annual_bill_eur?: number }).estimated_annual_bill_eur);
   const solarCoveragePct = consoKwh > 0 ? (solarUsedKwh / consoKwh) * 100 : 0;
@@ -432,7 +433,14 @@ export default function PdfPage7({
                   </div>
                   <div style={{ fontSize: "3.12mm", color: "#444", lineHeight: 1.42 }}>
                     <div style={{ fontWeight: 600, marginBottom: "1.1mm" }}>{fmtKwh(consoKwh)} consommés par an</div>
-                    <div>• {fmtKwh(autoKwh)} couverts sans achat au réseau</div>
+                    {isVirtualCreditScenario ? (
+                      <>
+                        <div>• {fmtKwh(solarUsedDirectKwh)} utilisés directement</div>
+                        <div>• {fmtKwh(virtualCreditKwh)} valorisés par crédit virtuel</div>
+                      </>
+                    ) : (
+                      <div>• {fmtKwh(autoKwh)} couverts sans achat au réseau</div>
+                    )}
                     <div>• {fmtKwh(gridKwh)} fournis par le réseau</div>
                   </div>
                 </div>
@@ -443,10 +451,19 @@ export default function PdfPage7({
                   </div>
                   <div style={{ fontSize: "3.12mm", color: "#444", lineHeight: 1.42 }}>
                     <div style={{ fontWeight: 600, marginBottom: "1.1mm" }}>{fmtKwh(prodKwh)} produits par an</div>
-                    <div>• {fmtKwh(autoKwh)} consommés sur place</div>
+                    {isVirtualCreditScenario ? (
+                      <>
+                        <div>• {fmtKwh(solarUsedDirectKwh)} utilisés directement</div>
+                        <div>• {fmtKwh(virtualCreditKwh)} injectés puis valorisés par crédit virtuel</div>
+                      </>
+                    ) : (
+                      <div>• {fmtKwh(autoKwh)} consommés sur place</div>
+                    )}
                     <div>
                       •{" "}
-                      {isStorageScenario
+                      {isVirtualCreditScenario
+                        ? `production : ${fmtKwh(solarUsedDirectKwh)} + ${fmtKwh(virtualCreditKwh)} = ${fmtKwh(prodKwh)}`
+                        : isStorageScenario
                         ? isVirtualCreditScenario
                           ? `${fmtKwh(surplusValoriseKwh)} injectés puis crédités, restitués via crédit virtuel`
                           : `${fmtKwh(surplusValoriseKwh)} valorisés via ${storageLongLabel}`

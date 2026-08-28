@@ -70,9 +70,10 @@ export default function PdfPage10({
     best?: Record<string, unknown>;
     residual_bill_virtual?: Record<string, unknown> | null;
   };
-  const rv = fr.residual_bill_virtual;
+  const rv = fr.residual_bill_virtual;
   const meta = fr.meta ?? {};
-  const best = fr.best ?? {};
+  const best = fr.best ?? {};
+  const hyp = (fr as { hyp?: Record<string, unknown> }).hyp ?? {};
 
   const logoUrl = useMemo(() => {
     if (organization?.logo_url) return organization.logo_url;
@@ -103,7 +104,14 @@ export default function PdfPage10({
         : "Scénario étudié";
   const isVirtualCreditScenario = best.is_virtual_credit_scenario === true;
   const overflowExportKwh = num(best.overflow_export_kwh) ?? 0;
-  const safeAutoAu = (best.autonomy_pct as number | undefined) ?? 0;
+  const safeAutoAu = (best.autonomy_pct as number | undefined) ?? 0;
+  const setupFee =
+    num(rv?.virtualStorageSetupFee) ??
+    num(rv?.virtual_battery_activation_ttc) ??
+    num(hyp.virtualStorageSetupFee);
+  const setupIncluded =
+    rv?.virtualStorageSetupFeeIncludedInCapex === true ||
+    hyp.virtualStorageSetupFeeIncludedInCapex === true;
 
   const roiBarPct = clamp01((MAX.ROI - (roi ?? MAX.ROI)) / MAX.ROI) * 100;
   const triBarPct = clamp01((tri ?? 0) / MAX.TRI) * 100;
@@ -346,12 +354,20 @@ export default function PdfPage10({
             {num(rv.virtual_battery_discharge_fees_ttc) != null && Number(rv.virtual_battery_discharge_fees_ttc) > 0 ? (
               <div>Restitution / déstockage (€/kWh restitués) : {fmtEUR(rv.virtual_battery_discharge_fees_ttc as number)}</div>
             ) : null}
-            {num(rv.virtual_battery_activation_ttc) != null && Number(rv.virtual_battery_activation_ttc) > 0 ? (
-              <div>Frais d&apos;activation (année 1) : {fmtEUR(rv.virtual_battery_activation_ttc as number)}</div>
-            ) : null}
-            {typeof rv.supplier_subscription_note === "string" && rv.supplier_subscription_note ? (
+            {num(rv.virtual_battery_activation_ttc) != null && Number(rv.virtual_battery_activation_ttc) > 0 ? (
+              <div>Frais d&apos;activation (année 1) : {fmtEUR(rv.virtual_battery_activation_ttc as number)}</div>
+            ) : null}
+            {isVirtualCreditScenario && setupFee != null && setupFee > 0 ? (
+              <div style={{ marginTop: "0.35mm", fontSize: "2.12mm", color: softSub }}>
+                Mise en place stockage virtuel : {fmtEUR(setupFee)} TTC
+                {setupIncluded
+                  ? " inclus dans l'investissement affiché, sans double comptage."
+                  : " facturés séparément et intégrés aux coûts de service/ROI."}
+              </div>
+            ) : null}
+            {typeof rv.supplier_subscription_note === "string" && rv.supplier_subscription_note ? (
               <div style={{ marginTop: "0.35mm", fontSize: "2.12mm", color: softSub }}>{String(rv.supplier_subscription_note)}</div>
-            ) : null}
+            ) : null}
           </div>
         ) : null}
 

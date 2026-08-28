@@ -53,6 +53,9 @@ export default function PdfPage3({
       production_kwh?: number | null;
       consumption_kwh?: number | null;
       solar_used_kwh?: number | null;
+      direct_self_consumption_kwh?: number | null;
+      virtual_credit_kwh?: number | null;
+      surplus_creditable_kwh?: number | null;
       exported_kwh?: number | null;
       grid_import_kwh?: number | null;
       coverage_pct?: number | null;
@@ -70,8 +73,8 @@ export default function PdfPage3({
       ? Number(energy?.production_annual_kwh ?? energy?.production_kwh)
       : null;
   const selfConsumedKwh =
-    energySummary?.solar_used_kwh != null && Number.isFinite(Number(energySummary.solar_used_kwh))
-      ? Number(energySummary.solar_used_kwh)
+    energySummary?.direct_self_consumption_kwh != null && Number.isFinite(Number(energySummary.direct_self_consumption_kwh))
+      ? Number(energySummary.direct_self_consumption_kwh)
       : (energy?.self_consumed_kwh ?? energy?.autoconsumption_kwh) != null &&
     Number.isFinite(Number(energy?.self_consumed_kwh ?? energy?.autoconsumption_kwh))
       ? Number(energy?.self_consumed_kwh ?? energy?.autoconsumption_kwh)
@@ -98,12 +101,17 @@ export default function PdfPage3({
      batterie » de la page production, cohérence inter-pages garantie. */
   const scenarioType = String(
     (viewModel as { selected_scenario_snapshot?: { scenario_type?: string } })
-      ?.selected_scenario_snapshot?.scenario_type ?? ""
+      ?.selected_scenario_snapshot?.scenario_type ??
+      (viewModel as { selectedScenario?: { scenarioType?: string } })?.selectedScenario?.scenarioType ??
+      (viewModel as { meta?: { scenarioType?: string } })?.meta?.scenarioType ??
+      ""
   );
   const isStorageScenario = scenarioType.startsWith("BATTERY") || scenarioType.startsWith("VEHICLE_V2H");
   const nOrZero = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : 0);
   const valorizedSurplusKwh =
-    exportKwh != null && productionKwh != null
+    energySummary?.surplus_creditable_kwh != null && Number.isFinite(Number(energySummary.surplus_creditable_kwh))
+      ? Number(energySummary.surplus_creditable_kwh)
+      : exportKwh != null && productionKwh != null
       ? Math.max(0, Math.min(nOrZero(productionKwh), nOrZero(exportKwh)))
       : exportKwh;
 

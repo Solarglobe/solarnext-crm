@@ -51,6 +51,7 @@ export interface P4Data {
   production_kwh?: number[];
   consommation_kwh?: number[];
   autoconso_kwh?: number[];
+  solar_covered_kwh?: number[];
   direct_pv_kwh?: number[];
   surplus_kwh?: number[];
   batterie_kwh?: number[];
@@ -109,6 +110,7 @@ export default function PdfPage4({
   const prod = p4.production_kwh ?? [];
   const conso = p4.consommation_kwh ?? [];
   const auto = p4.autoconso_kwh ?? [];
+  const solarCoveredMonthly = p4.solar_covered_kwh ?? auto;
   const directPv = p4.direct_pv_kwh ?? [];
   const surplus = p4.surplus_kwh ?? [];
   const batt = p4.batterie_kwh ?? [];
@@ -132,7 +134,7 @@ export default function PdfPage4({
 
   const prodAnnuelle = p4.production_annuelle ?? prod.reduce((a, b) => a + (b ?? 0), 0);
   const consoAnnuelle = p4.consommation_annuelle ?? conso.reduce((a, b) => a + (b ?? 0), 0);
-  const solarCoveredAnnuelle = p4.energie_solaire_valorisee ?? auto.reduce((a, b) => a + (b ?? 0), 0);
+  const solarCoveredAnnuelle = p4.energie_solaire_valorisee ?? solarCoveredMonthly.reduce((a, b) => a + (b ?? 0), 0);
   const solarUsedWithCreditAnnuelle = p4.energie_solaire_utilisee_avec_credit_kwh ?? solarCoveredAnnuelle;
   const directPvAnnuelle = p4.energie_consommee_directement ?? directPv.reduce((a, b) => a + (b ?? 0), 0);
   const surplusAnnuelle = p4.energie_injectee ?? surplus.reduce((a, b) => a + (b ?? 0), 0);
@@ -176,7 +178,7 @@ export default function PdfPage4({
       ]
     : isVirt
       ? [
-          { label: "Solaire utilisé + crédit", value: fmtKwh(solarUsedWithCreditAnnuelle) },
+          { label: "Total solaire utilisé", value: fmtKwh(solarUsedWithCreditAnnuelle) },
           { label: "Crédit virtuel utilisé", value: fmtKwh(restitutionKwh) },
         ]
       : isHyb
@@ -351,7 +353,7 @@ export default function PdfPage4({
           <div className="p4-kpi-line">
             <div className="kpi-item highlight"><span>Production</span><strong>{fmtKwh(prodAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Consommation</span><strong>{fmtKwh(consoAnnuelle)}</strong></div>
-            <div className="kpi-item highlight"><span>{isVirtualLike ? "Autoconsommation directe" : "Énergie solaire valorisée"}</span><strong>{fmtKwh(solarCoveredAnnuelle)}</strong></div>
+            <div className="kpi-item highlight"><span>{isVirtualLike ? "Autoconsommation directe" : "Énergie solaire valorisée"}</span><strong>{fmtKwh(isVirtualLike ? directKwh : solarCoveredAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Part couverte</span><strong>{fmtPct(couverture)}</strong></div>
             {extraItems.map((it, i) => (
               <div className="kpi-item highlight" key={i}><span>{it.label}</span><strong>{it.value}</strong></div>

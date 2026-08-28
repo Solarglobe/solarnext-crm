@@ -224,9 +224,9 @@ export default function PdfPage5({
           </div>
           <span className="pill pill-cyan" />
           <div className="legend-text">
-                <b>{isVirtualCreditScenario ? "Crédit virtuel" : "Énergie utilisée directement"}</b>
+                <b>Énergie utilisée directement</b>
                 <br />
-                <span className="sub">{isVirtualCreditScenario ? "surplus valorisé plus tard" : "sans passer par le réseau"}</span>
+                <span className="sub">sans passer par le réseau</span>
           </div>
           {hasBatteryChart && (
             <>
@@ -319,7 +319,9 @@ export default function PdfPage5({
             Énergie utilisée directement
           </div>
           <div style={{ fontSize: "3mm", lineHeight: 1.35, color: "#444" }}>
-            Une grande part de cette énergie est consommée immédiatement sur site.
+            {isVirtualCreditScenario
+              ? "Une partie limitée de la production est utilisée directement. La majorité du surplus est injectée et valorisée grâce au crédit virtuel."
+              : "Une partie de cette énergie est consommée immédiatement sur site."}
           </div>
         </div>
 
