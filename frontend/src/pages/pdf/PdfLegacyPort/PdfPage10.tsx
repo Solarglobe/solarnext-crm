@@ -357,12 +357,14 @@ export default function PdfPage10({
             {num(rv.virtual_battery_activation_ttc) != null && Number(rv.virtual_battery_activation_ttc) > 0 ? (
               <div>Frais d&apos;activation (année 1) : {fmtEUR(rv.virtual_battery_activation_ttc as number)}</div>
             ) : null}
-            {isVirtualCreditScenario && setupFee != null && setupFee > 0 ? (
+            {isVirtualCreditScenario && setupFee != null ? (
               <div style={{ marginTop: "0.35mm", fontSize: "2.12mm", color: softSub }}>
                 Mise en place stockage virtuel : {fmtEUR(setupFee)} TTC
-                {setupIncluded
-                  ? " inclus dans l'investissement affiché, sans double comptage."
-                  : " facturés séparément et intégrés aux coûts de service/ROI."}
+                {setupFee <= 0
+                  ? " pour ce scénario."
+                  : setupIncluded
+                    ? " inclus dans l'investissement affiché, sans double comptage."
+                    : " facturés séparément et intégrés aux coûts de service/ROI."}
               </div>
             ) : null}
             {typeof rv.supplier_subscription_note === "string" && rv.supplier_subscription_note ? (
