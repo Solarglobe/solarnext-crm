@@ -24,6 +24,15 @@ type PortalOfferSummary =
   | { kind: "none" }
   | { kind: "validated"; headline: string }
   | {
+      kind: "scenario";
+      headline: string;
+      amount_ttc: number | null;
+      currency: string;
+      reference_date: string | null;
+      date_kind: "selected";
+      scenario_id: string | null;
+    }
+  | {
       kind: "pending";
       amount_ttc: number | null;
       currency: string;
@@ -165,6 +174,17 @@ function parsePortalOffer(raw: unknown): PortalOfferSummary {
   const k = r.kind;
   if (k === "validated" && typeof r.headline === "string" && r.headline.trim() !== "") {
     return { kind: "validated", headline: r.headline.trim() };
+  }
+  if (k === "scenario") {
+    return {
+      kind: "scenario",
+      headline: typeof r.headline === "string" && r.headline.trim() !== "" ? r.headline.trim() : "Offre sélectionnée",
+      amount_ttc: normPortalNum(r.amount_ttc),
+      currency: typeof r.currency === "string" && r.currency.trim() !== "" ? r.currency.trim() : "EUR",
+      reference_date: typeof r.reference_date === "string" ? r.reference_date : null,
+      date_kind: "selected",
+      scenario_id: typeof r.scenario_id === "string" ? r.scenario_id : null,
+    };
   }
   if (k === "pending") {
     const dateKind = r.date_kind === "created" ? "created" : "sent";
@@ -566,17 +586,29 @@ export default function ClientPortalPage() {
   const offerHeadline =
     offer.kind === "validated"
       ? offer.headline
+      : offer.kind === "scenario" && offer.amount_ttc != null
+        ? `${offer.headline} : ${new Intl.NumberFormat("fr-FR", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          }).format(offer.amount_ttc)} ${offer.currency === "EUR" ? "€" : offer.currency} TTC`
       : offer.kind === "pending" && offer.amount_ttc != null
         ? `Offre en cours : ${new Intl.NumberFormat("fr-FR", {
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
           }).format(offer.amount_ttc)} ${offer.currency === "EUR" ? "€" : offer.currency} TTC`
-        : offer.kind === "pending"
+        : offer.kind === "scenario"
+          ? offer.headline
+          : offer.kind === "pending"
           ? "Offre en cours"
           : null;
   const offerDateLine = (() => {
-    if (offer.kind !== "pending") return null;
-    const label = offer.date_kind === "sent" ? "Devis envoyé le" : "Devis établi le";
+    if (offer.kind !== "pending" && offer.kind !== "scenario") return null;
+    const label =
+      offer.kind === "scenario"
+        ? "Offre de référence sélectionnée le"
+        : offer.date_kind === "sent"
+          ? "Devis envoyé le"
+          : "Devis établi le";
     const fd = formatPortalDateFr(offer.reference_date);
     return fd ? `${label} ${fd}` : null;
   })();

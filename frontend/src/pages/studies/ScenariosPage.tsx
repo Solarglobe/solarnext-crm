@@ -8,7 +8,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../services/api";
 import { forkStudyVersionApi, patchStudyTitle, type StudyWithVersions } from "../../services/studies.service";
-import ScenarioComparisonTable, { type ScenarioV2 as ScenarioV2Type } from "../../components/study/ScenarioComparisonTable";
+import ScenarioComparisonTable, { type ScenarioSelectContext, type ScenarioV2 as ScenarioV2Type } from "../../components/study/ScenarioComparisonTable";
 import ScenarioEconomicsChart from "../../components/study/ScenarioEconomicsChart";
 import StudyCalcTracePanel from "../../components/study/StudyCalcTracePanel";
 import type { StudyVersionDataJson } from "../../services/studies.service";
@@ -199,11 +199,12 @@ export default function ScenariosPage() {
   }, [studyId, versionId, refreshStudy, fetchScenariosOnly]);
 
   const handleSelectScenario = useCallback(
-    async (scenarioId: ScenarioId, ctx?: { addToDocuments?: boolean }) => {
+    async (scenarioId: ScenarioId, ctx?: Partial<ScenarioSelectContext>) => {
       if (isReadOnly) return;
       if (!studyId || !versionId) return;
       const base = API_BASE.replace(/\/$/, "");
       const addToDocuments = ctx?.addToDocuments ?? false;
+      const setAsPortalOffer = ctx?.setAsPortalOffer ?? false;
       setPdfFlowBusy(true);
       setSelectingId(scenarioId);
       try {
@@ -215,6 +216,7 @@ export default function ScenariosPage() {
             body: JSON.stringify({
               scenario_id: scenarioId,
               ...(addToDocuments ? { add_to_documents: true } : {}),
+              ...(setAsPortalOffer ? { set_as_portal_offer: true } : {}),
             }),
             // On gère les erreurs ici — évite le toast "Erreur serveur" générique de apiFetch
             skipErrorToast: true,
@@ -232,6 +234,10 @@ export default function ScenariosPage() {
             id?: string;
             reason?: string;
             message?: string;
+          };
+          portalOffer?: {
+            status?: string;
+            scenario_id?: string;
           };
         };
 
@@ -276,6 +282,12 @@ export default function ScenariosPage() {
         await fetchScenariosOnly();
         await refreshStudy();
         showToast("Document généré", false);
+
+        if (setAsPortalOffer && body.portalOffer?.status === "updated") {
+          window.setTimeout(() => {
+            showToast("Offre principale de la page client mise à jour", false);
+          }, 220);
+        }
 
         if (addToDocuments && body.leadDocument) {
           const ld = body.leadDocument;

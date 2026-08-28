@@ -12,6 +12,7 @@ import {
   hashPortalTokenSecret,
   resolvePortalProjectStatusLabel,
   resolvePortalOffer,
+  resolvePortalScenarioOffer,
   isPortalClientDocument,
   resolvePortalDocumentLabel,
   resolvePortalDocumentLabelFromRow,
@@ -150,6 +151,21 @@ describe("clientPortal.service", () => {
   it("resolvePortalOffer — aucun devis exploitable", () => {
     assert.equal(resolvePortalOffer([]).kind, "none");
     assert.equal(resolvePortalOffer([{ status: "REJECTED", total_ttc: 1 }]).kind, "none");
+  });
+
+  it("resolvePortalScenarioOffer — offre scenario figee pour la page client", () => {
+    const o = resolvePortalScenarioOffer({
+      source: "scenario_pdf",
+      scenario_id: "BATTERY_PHYSICAL",
+      label: "Batterie physique",
+      amount_ttc: 14980,
+      currency: "EUR",
+      selected_at: "2026-08-28T10:00:00.000Z",
+    });
+    assert.equal(o.kind, "scenario");
+    assert.equal(o.headline, "Batterie physique");
+    assert.equal(o.amount_ttc, 14980);
+    assert.equal(o.reference_date, "2026-08-28T10:00:00.000Z");
   });
 
   it("resolvePortalDocumentLabel — repli sur document_type", () => {

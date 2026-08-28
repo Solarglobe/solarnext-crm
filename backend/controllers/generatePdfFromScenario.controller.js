@@ -29,6 +29,40 @@ const SCENARIO_LABELS_FR = {
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.userId ?? req.user?.id ?? null;
 
+function numOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function buildPortalOfferFromScenarioSnapshot(snapshot, scenarioId, doc) {
+  const finance = snapshot && typeof snapshot === "object" && snapshot.finance && typeof snapshot.finance === "object"
+    ? snapshot.finance
+    : {};
+  const amountTtc = numOrNull(finance.capex_ttc);
+  return {
+    schema_version: 1,
+    source: "scenario_pdf",
+    scenario_id: scenarioId,
+    label: SCENARIO_LABELS_FR[scenarioId] || scenarioId,
+    amount_ttc: amountTtc,
+    currency: "EUR",
+    selected_at: new Date().toISOString(),
+    study_document_id: doc?.id ? String(doc.id) : null,
+    study_document_file_name: doc?.file_name ?? null,
+  };
+}
+
+async function persistPortalOffer({ versionId, organizationId, portalOffer }) {
+  const updated = await pool.query(
+    `UPDATE study_versions
+     SET data_json = jsonb_set(COALESCE(data_json, '{}'::jsonb), '{portal_offer}', $1::jsonb, true),
+         updated_at = NOW()
+     WHERE id = $2 AND organization_id = $3`,
+    [JSON.stringify(portalOffer), versionId, organizationId]
+  );
+  return updated.rowCount > 0;
+}
+
 export async function generatePdfFromScenario(req, res) {
   try {
     const org = orgId(req);
@@ -124,6 +158,9 @@ export async function generatePdfFromScenario(req, res) {
     const rawAdd = req.body?.add_to_documents ?? req.body?.addToDocuments;
     const addToDocuments =
       rawAdd === true || rawAdd === "true" || rawAdd === 1 || rawAdd === "1";
+    const rawPortalOffer = req.body?.set_as_portal_offer ?? req.body?.setAsPortalOffer;
+    const setAsPortalOffer =
+      rawPortalOffer === true || rawPortalOffer === "true" || rawPortalOffer === 1 || rawPortalOffer === "1";
 
     if (addToDocuments) {
       try {
@@ -199,6 +236,18 @@ export async function generatePdfFromScenario(req, res) {
           message: leadDocErr?.message || "LEAD_DOCUMENT_COPY_FAILED",
         };
       }
+    }
+
+    if (setAsPortalOffer) {
+      const portalOffer = buildPortalOfferFromScenarioSnapshot(snapshot, scenarioId, doc);
+      const persisted = await persistPortalOffer({
+        versionId,
+        organizationId: org,
+        portalOffer,
+      });
+      payload.portalOffer = persisted
+        ? { status: "updated", scenario_id: scenarioId, amount_ttc: portalOffer.amount_ttc }
+        : { status: "error", reason: "VERSION_NOT_FOUND" };
     }
 
     return res.status(200).json(payload);

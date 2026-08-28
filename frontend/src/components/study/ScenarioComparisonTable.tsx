@@ -511,7 +511,7 @@ export function computeVisibleColumns(
   })).filter(({ id, scenario }) => id === "BASE" || scenario != null);
 }
 
-export type ScenarioSelectContext = { addToDocuments: boolean };
+export type ScenarioSelectContext = { addToDocuments: boolean; setAsPortalOffer: boolean };
 
 interface ScenarioComparisonTableProps {
   orderedScenarios: (ScenarioV2 | null)[];
@@ -531,6 +531,17 @@ interface ScenarioComparisonTableProps {
 }
 
 const INITIAL_ADD_TO_DOCS: Record<ScenarioColumnId, boolean> = {
+  BASE: false,
+  BATTERY_PHYSICAL: false,
+  BATTERY_VIRTUAL: false,
+  BATTERY_HYBRID: false,
+  VEHICLE_V2H: false,
+  VEHICLE_V2H_PHYSICAL: false,
+  VEHICLE_V2H_VIRTUAL: false,
+  VEHICLE_V2H_PHYSICAL_VIRTUAL: false,
+};
+
+const INITIAL_PORTAL_OFFER: Record<ScenarioColumnId, boolean> = {
   BASE: false,
   BATTERY_PHYSICAL: false,
   BATTERY_VIRTUAL: false,
@@ -787,6 +798,8 @@ export default function ScenarioComparisonTable({
 
   const [addToDocumentsByScenario, setAddToDocumentsByScenario] =
     useState<Record<ScenarioColumnId, boolean>>(INITIAL_ADD_TO_DOCS);
+  const [portalOfferByScenario, setPortalOfferByScenario] =
+    useState<Record<ScenarioColumnId, boolean>>(INITIAL_PORTAL_OFFER);
 
   const commercialIndicatorStars = computeCommercialIndicatorStars(scenarios);
   const bestGainNetIndices = columnIndicesAtNumericMax(
@@ -1555,26 +1568,48 @@ export default function ScenarioComparisonTable({
                       ) : (
                         <>
                           {onSelectScenario ? (
-                            <label className="scenario-add-docs">
-                              <input
-                                type="checkbox"
-                                checked={addToDocumentsByScenario[id]}
-                                disabled={
-                                  selectionDisabled ||
-                                  pdfFlowBusy ||
-                                  isBlockedForSelection ||
-                                  isOtherLocked ||
-                                  lockBlocksAll
-                                }
-                                onChange={(e) =>
-                                  setAddToDocumentsByScenario((prev) => ({
-                                    ...prev,
-                                    [id]: e.target.checked,
-                                  }))
-                                }
-                              />
-                              <span>Ajouter aux documents</span>
-                            </label>
+                            <div className="scenario-offer-options">
+                              <label className="scenario-add-docs">
+                                <input
+                                  type="checkbox"
+                                  checked={addToDocumentsByScenario[id]}
+                                  disabled={
+                                    selectionDisabled ||
+                                    pdfFlowBusy ||
+                                    isBlockedForSelection ||
+                                    isOtherLocked ||
+                                    lockBlocksAll
+                                  }
+                                  onChange={(e) =>
+                                    setAddToDocumentsByScenario((prev) => ({
+                                      ...prev,
+                                      [id]: e.target.checked,
+                                    }))
+                                  }
+                                />
+                                <span>Ajouter aux documents</span>
+                              </label>
+                              <label className="scenario-add-docs">
+                                <input
+                                  type="checkbox"
+                                  checked={portalOfferByScenario[id]}
+                                  disabled={
+                                    selectionDisabled ||
+                                    pdfFlowBusy ||
+                                    isBlockedForSelection ||
+                                    isOtherLocked ||
+                                    lockBlocksAll
+                                  }
+                                  onChange={(e) =>
+                                    setPortalOfferByScenario((prev) => ({
+                                      ...prev,
+                                      [id]: e.target.checked,
+                                    }))
+                                  }
+                                />
+                                <span>Référence page client</span>
+                              </label>
+                            </div>
                           ) : null}
                           <button
                             type="button"
@@ -1591,6 +1626,7 @@ export default function ScenarioComparisonTable({
                             onClick={() =>
                               onSelectScenario?.(id, {
                                 addToDocuments: addToDocumentsByScenario[id],
+                                setAsPortalOffer: portalOfferByScenario[id],
                               })
                             }
                           >
@@ -2289,6 +2325,12 @@ export default function ScenarioComparisonTable({
         }
         .scenario-dot-auto { background: #52d689; }
         .scenario-dot-import { background: #7ab8ff; }
+        .scenario-offer-options {
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+          width: 100%;
+        }
         .scenario-add-docs {
           display: flex;
           align-items: center;

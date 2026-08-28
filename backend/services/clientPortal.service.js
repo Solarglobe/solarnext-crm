@@ -148,6 +148,46 @@ export function resolvePortalProjectStatusLabel(leadStatus, projectStatus) {
 
 const QUOTE_OPEN_STATUSES = new Set(["DRAFT", "READY_TO_SEND", "SENT"]);
 
+function portalOfferNum(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Offre principale explicitement choisie depuis la page scénarios.
+ * Prioritaire sur le fallback historique "dernier devis".
+ *
+ * @param {unknown} raw
+ * @returns {{ kind: "scenario"; headline: string; amount_ttc: number|null; currency: string; reference_date: string|null; date_kind: "selected"; scenario_id: string|null } | null}
+ */
+export function resolvePortalScenarioOffer(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const offer = raw;
+  if (offer.source !== "scenario_pdf") return null;
+  const label =
+    typeof offer.label === "string" && offer.label.trim() !== ""
+      ? offer.label.trim()
+      : typeof offer.scenario_id === "string" && offer.scenario_id.trim() !== ""
+        ? offer.scenario_id.trim()
+        : "Offre sélectionnée";
+  const amount = portalOfferNum(offer.amount_ttc);
+  const selectedAt = typeof offer.selected_at === "string" ? offer.selected_at : null;
+  let reference_date = null;
+  if (selectedAt) {
+    const d = new Date(selectedAt);
+    reference_date = Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  return {
+    kind: "scenario",
+    headline: label,
+    amount_ttc: amount,
+    currency: typeof offer.currency === "string" && offer.currency.trim() !== "" ? offer.currency.trim() : "EUR",
+    reference_date,
+    date_kind: "selected",
+    scenario_id: typeof offer.scenario_id === "string" ? offer.scenario_id : null,
+  };
+}
+
 /**
  * Règle offre portail : quotes déjà triées created_at DESC (plus récent en premier).
  * - Le devis le plus récent s’il est « ouvert » → offre en cours (montant + date), même si un ancien devis est signé.
@@ -631,6 +671,7 @@ export async function buildClientPortalPayload(db, ctx) {
     latest_version: null,
     quotes_summary: [],
   };
+  let explicitPortalOffer = null;
 
   if (studyRes.rows.length > 0) {
     const study = studyRes.rows[0];
@@ -639,14 +680,14 @@ export async function buildClientPortalPayload(db, ctx) {
     project.current_version = study.current_version;
 
     let svRes = await db.query(
-      `SELECT id, version_number, title, summary, created_at
+      `SELECT id, version_number, title, summary, created_at, data_json->'portal_offer' AS portal_offer
        FROM study_versions
        WHERE study_id = $1 AND organization_id = $2 AND version_number = $3`,
       [study.id, organizationId, study.current_version]
     );
     if (svRes.rows.length === 0) {
       svRes = await db.query(
-        `SELECT id, version_number, title, summary, created_at
+        `SELECT id, version_number, title, summary, created_at, data_json->'portal_offer' AS portal_offer
          FROM study_versions
          WHERE study_id = $1 AND organization_id = $2
          ORDER BY version_number DESC
@@ -663,6 +704,7 @@ export async function buildClientPortalPayload(db, ctx) {
         summary: sv.summary ?? null,
         created_at: toIso(sv.created_at),
       };
+      explicitPortalOffer = resolvePortalScenarioOffer(sv.portal_offer);
     }
   }
 
@@ -693,7 +735,7 @@ export async function buildClientPortalPayload(db, ctx) {
     valid_until: q.valid_until ? toIso(q.valid_until) : null,
   }));
 
-  const portalOffer = resolvePortalOffer(quotesRes.rows);
+  const portalOffer = explicitPortalOffer ?? resolvePortalOffer(quotesRes.rows);
   const projectStatusLabel = resolvePortalProjectStatusLabel(lead.status, lead.project_status);
 
   const currency =
