@@ -1,24 +1,27 @@
-/** Inséré par « Signature professionnelle » — logo en URL https (à remplacer). */
+/** Inséré par « Signature professionnelle » — compatible clients mail, sans image distante obligatoire. */
 export const MAIL_SIG_PRO_TEMPLATE_HTML = `
-<table style="border-collapse:collapse;width:100%;max-width:600px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1e293b;">
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#1f2933;font-size:13px;line-height:1.45;max-width:620px;">
   <tbody>
     <tr>
-      <td style="vertical-align:top;padding:0 14px 0 0;width:110px;">
-        <img src="https://placehold.co/100x40/f1f5f9/64748b/png?text=Logo" alt="Logo" width="100" style="display:block;border:0;height:auto;max-width:100px;" />
+      <td style="vertical-align:middle;padding:0 16px 0 0;width:130px;">
+        <div style="font-size:22px;line-height:1;font-weight:700;letter-spacing:.2px;white-space:nowrap;">
+          <span style="color:#111827;">Entreprise</span>
+        </div>
+        <div style="margin-top:6px;font-size:10px;line-height:1.35;color:#667085;text-transform:uppercase;letter-spacing:.7px;">
+          Activite
+        </div>
       </td>
-      <td style="vertical-align:top;line-height:1.45;">
-        <p style="margin:0;font-size:16px;font-weight:bold;">Nom Prénom</p>
-        <p style="margin:4px 0 0;font-size:13px;color:#64748b;">Poste / fonction</p>
-        <p style="margin:10px 0 0;font-size:12px;line-height:1.55;">
-          Tél. <a href="tel:+33000000000" style="color:#2563eb;">+33 0 00 00 00 00</a><br />
-          <a href="mailto:contact@entreprise.fr" style="color:#2563eb;">contact@entreprise.fr</a><br />
-          Entreprise — Adresse
-        </p>
+      <td style="vertical-align:middle;border-left:3px solid #C39847;padding:0 0 0 16px;">
+        <div style="font-size:14px;line-height:1.45;color:#111827;"><strong>Nom Prenom</strong> <span style="color:#C39847;">- Fonction</span></div>
+        <div style="margin-top:8px;font-size:12px;line-height:1.55;color:#2b2b2b;">
+          <span style="color:#C39847;">Tel.</span> <a href="tel:+33000000000" style="color:#2b2b2b;text-decoration:none;">+33 0 00 00 00 00</a><br>
+          <span style="color:#C39847;">Email</span> <a href="mailto:contact@entreprise.fr" style="color:#2b2b2b;text-decoration:none;">contact@entreprise.fr</a><br>
+          <span style="color:#C39847;">Web</span> <a href="https://www.entreprise.fr" style="color:#2b2b2b;text-decoration:none;">www.entreprise.fr</a>
+        </div>
       </td>
     </tr>
   </tbody>
 </table>
-<p style="margin:8px 0 0;font-size:11px;color:#94a3b8;">— Remplacez le logo et les textes ci-dessus —</p>
 `.trim();
 
 /** Plage de tailles affichée dans la liste (px entiers). */

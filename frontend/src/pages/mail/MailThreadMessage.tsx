@@ -202,12 +202,13 @@ export const MailThreadMessage = React.memo(function MailThreadMessage({
   const label = getMessageSenderLabel(m);
   const letter = avatarLetter(label);
   const [allowRemoteImages, setAllowRemoteImages] = useState(false);
+  const shouldAllowRemoteImages = outbound || allowRemoteImages;
 
   const sanitizedHtml = useMemo(() => {
     const raw = m.bodyHtml?.trim();
     if (!raw) return null;
-    return sanitizeMailHtml(raw, { allowRemoteImages });
-  }, [m.bodyHtml, allowRemoteImages]);
+    return sanitizeMailHtml(raw, { allowRemoteImages: shouldAllowRemoteImages });
+  }, [m.bodyHtml, shouldAllowRemoteImages]);
 
   const hasBlockedRemoteImages = useMemo(() => {
     const raw = m.bodyHtml || "";
@@ -252,7 +253,7 @@ export const MailThreadMessage = React.memo(function MailThreadMessage({
           <div className={`mail-msg__bubble mail-msg__bubble--${outbound ? "out" : "in"}`}>
             {sanitizedHtml ? (
               <div className="mail-msg__html-shell">
-                {hasBlockedRemoteImages && !allowRemoteImages ? (
+                {!outbound && hasBlockedRemoteImages && !allowRemoteImages ? (
                   <div className="mail-msg__privacy-banner">
                     <span>Les images distantes ont été bloquées pour protéger votre confidentialité.</span>
                     <button type="button" onClick={() => setAllowRemoteImages(true)}>

@@ -312,27 +312,6 @@ html.theme-light .mail-composer__close:hover:not(:disabled) {
   margin: 8px 0 6px;
 }
 
-.mail-composer__sig-preview {
-  margin: 6px 0 0;
-  padding: 8px 10px;
-  border: 1px dashed var(--sg-border, var(--border));
-  border-radius: 8px;
-  background: var(--color-bg-muted);
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--sg-text-muted, var(--text-secondary));
-  max-height: 120px;
-  overflow: auto;
-}
-
-html.theme-light .mail-composer__sig-preview {
-  background: var(--color-bg-muted);
-}
-
-.mail-composer__sig-preview:empty {
-  display: none;
-}
-
 .mail-composer-toolbar {
   display: flex;
   flex-wrap: wrap;

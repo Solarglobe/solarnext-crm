@@ -38,9 +38,9 @@ import {
   type ComposerMode,
 } from "./mailComposerLogic";
 import { sanitizeComposerHtml } from "./sanitizeComposerHtml";
-import { sanitizeMailHtmlDisplay } from "./mailHtmlSanitize";
 import {
   extractForwardQuotedAppendix,
+  hardenMailSignatureHtml,
   injectMailSignatureHtml,
   shortSignaturePreview,
   stripMailSignatureFromHtml,
@@ -974,8 +974,9 @@ export const MailComposer = React.memo(function MailComposer({
           trimmed === "<p><br></p>" ||
           isBodyEmpty(sanitizeComposerHtml(currentHtml));
 
-        const innerSig =
-          (selectedSigId ? sigList.find((s) => s.id === selectedSigId)?.signature_html : "")?.trim() ?? "";
+        const innerSig = hardenMailSignatureHtml(
+          selectedSigId ? sigList.find((s) => s.id === selectedSigId)?.signature_html ?? "" : ""
+        ).trim();
         const ctx = await buildMailComposerRenderContext({
           clientId: crmClientId,
           leadId: crmLeadId,
@@ -1024,13 +1025,6 @@ export const MailComposer = React.memo(function MailComposer({
     },
     [crmClientId, crmLeadId, mode, selectedSigId, sigList, markDirty]
   );
-
-  const selectedSigPreviewHtml = useMemo(() => {
-    if (!selectedSigId) return "";
-    const row = sigList.find((s) => s.id === selectedSigId);
-    const raw = row?.signature_html?.trim() ?? "";
-    return raw ? sanitizeMailHtmlDisplay(raw) : "";
-  }, [selectedSigId, sigList]);
 
   const applyTemplateConflictChoice = useCallback(
     (modeChoice: "replace" | "append") => {
@@ -1364,9 +1358,9 @@ export const MailComposer = React.memo(function MailComposer({
           >
             <option value="">— Aucune —</option>
             {sigList.map((s) => (
-              <option key={s.id} value={s.id} title={shortSignaturePreview(s.signature_html, 200)}>
+              <option key={s.id} value={s.id} title={shortSignaturePreview(hardenMailSignatureHtml(s.signature_html), 200)}>
                 {s.name}
-                {s.is_default ? " (défaut)" : ""} — {shortSignaturePreview(s.signature_html, 48)}
+                {s.is_default ? " (défaut)" : ""} — {shortSignaturePreview(hardenMailSignatureHtml(s.signature_html), 48)}
               </option>
             ))}
           </select>
@@ -1376,14 +1370,6 @@ export const MailComposer = React.memo(function MailComposer({
         </Link>
         {sigError && <span className="mail-composer__sig-err">{sigError}</span>}
       </div>
-
-      {selectedSigPreviewHtml ? (
-        <div
-          className="mail-composer__sig-preview"
-          aria-label="Aperçu de la signature sélectionnée"
-          dangerouslySetInnerHTML={{ __html: selectedSigPreviewHtml }}
-        />
-      ) : null}
 
       <p className="mail-composer-field__label mail-composer__body-label">Message</p>
       <MailHtmlEditor

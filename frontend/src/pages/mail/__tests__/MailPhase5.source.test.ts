@@ -65,4 +65,48 @@ describe("mail phase 5 source audit", () => {
     expect(css).not.toContain("mail-msg__html-frame");
     expect(css).toContain(".mail-msg__html :where(table)");
   });
+
+  it("les images distantes bloquées ne créent pas de grands rectangles vides", () => {
+    const css = read("src/pages/mail/mail-inbox.css");
+    expect(css).toContain(".mail-msg__html :where(img[data-remote-src-blocked])");
+    expect(css).toContain("width: auto !important");
+    expect(css).toContain("max-width: 220px !important");
+    expect(css).toContain("max-height: 40px !important");
+    expect(css).not.toContain("width: 100%;\n  min-height: 34px");
+  });
+
+  it("la lecture mail affiche les images distantes des messages sortants sans bannière", () => {
+    const message = read("src/pages/mail/MailThreadMessage.tsx");
+    expect(message).toContain("const shouldAllowRemoteImages = outbound || allowRemoteImages");
+    expect(message).toContain("sanitizeMailHtml(raw, { allowRemoteImages: shouldAllowRemoteImages })");
+    expect(message).toContain("!outbound && hasBlockedRemoteImages && !allowRemoteImages");
+  });
+
+  it("le modèle de signature pro ne dépend plus d'images distantes", () => {
+    const constants = read("src/pages/mail/mailHtmlEditorConstants.ts");
+    expect(constants).toContain("compatible clients mail");
+    expect(constants).toContain("border-left:3px solid #C39847");
+    expect(constants).not.toContain("placehold.co");
+    expect(constants).not.toContain("icons8.com");
+    expect(constants).not.toContain("logo-solarglobe-rect.png");
+  });
+
+  it("le composer remplace l'ancienne signature SolarGlobe fragile avant injection", () => {
+    const signature = read("src/pages/mail/mailSignatureHtml.ts");
+    const composer = read("src/pages/mail/MailComposer.tsx");
+    expect(signature).toContain("hardenMailSignatureHtml");
+    expect(signature).toContain("SOLARGLOBE_ROBUST_SIGNATURE_HTML");
+    expect(signature).toContain("border-left:3px solid #C39847");
+    expect(signature).toContain("<span style=\"color:#111827;\">Solar</span><span style=\"color:#C39847;\">Globe</span>");
+    expect(signature).toContain("hasFragileRemoteAsset && looksLikeSolarGlobeSignature");
+    expect(composer).toContain("hardenMailSignatureHtml");
+  });
+
+  it("le composer n'affiche pas une prévisualisation de signature séparée du message", () => {
+    const composer = read("src/pages/mail/MailComposer.tsx");
+    const css = read("src/pages/mail/mail-composer.css");
+    expect(composer).not.toContain("selectedSigPreviewHtml");
+    expect(composer).not.toContain("mail-composer__sig-preview");
+    expect(css).not.toContain("mail-composer__sig-preview");
+  });
 });

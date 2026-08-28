@@ -1,27 +1,135 @@
 <!DOCTYPE html>
-<html lang="fr"><head><meta charset="utf-8"><title>Signature SolarGlobe</title>
-<style>body{font-family:Arial,Helvetica,sans-serif;background:#eef1f5;margin:0;padding:32px;}.wrap{max-width:720px;margin:0 auto;}.panel{background:#fff;border-radius:12px;padding:30px 34px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:22px;}h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:#9aa4b2;margin:0 0 18px;}.note{font-size:13px;color:#555;line-height:1.6;}</style></head>
-<body><div class="wrap">
-  <div class="panel"><h2>Pr&eacute;visualisation</h2>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Signature SolarGlobe</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 32px;
+      background: #eef1f5;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .panel {
+      margin-bottom: 22px;
+      padding: 28px 32px;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    }
+    h2 {
+      margin: 0 0 18px;
+      color: #8b95a5;
+      font-size: 13px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    textarea {
+      width: 100%;
+      min-height: 360px;
+      box-sizing: border-box;
+      padding: 12px;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      font: 12px/1.45 Consolas, Monaco, monospace;
+      color: #1f2937;
+    }
+    .note {
+      margin: 0;
+      color: #555555;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h2>Previsualisation</h2>
 
-<table cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;color:#2b2b2b;font-size:13px;">
-  <tr>
-    <td width="150" style="vertical-align:middle;padding-right:20px;">
-      <img src="https://www.solarglobe.fr/assets/images/logo-solarglobe-rect.png" width="150" alt="SolarGlobe" style="display:block;border:0;width:150px;height:auto;">
-    </td>
-    <td style="vertical-align:middle;padding:0 20px;">
-      <img src="https://placehold.co/2x180/C39847/C39847.png" width="2" height="180" alt="" style="display:block;border:0;">
-    </td>
-    <td style="vertical-align:middle;line-height:1.5;">
-      <div style="font-size:11px;color:#9a9a9a;letter-spacing:.2px;">Bureau d&rsquo;&eacute;tude &amp; coordination photovolta&iuml;que</div>
-      <div style="font-size:14px;color:#1a1a1a;margin-top:5px;"><strong>Beno&icirc;t LETREN</strong> <span style="color:#C39847;">&ndash; Pr&eacute;sident</span> &nbsp;<span style="color:#C39847;">&#9679;</span>&nbsp; <strong>Nicolas BRUNET</strong> <span style="color:#C39847;">&ndash; Directeur G&eacute;n&eacute;ral</span></div>
-      <div style="margin-top:9px;"><span style="color:#C39847;">&#9679;</span> <a href="tel:+33172994753" style="color:#2b2b2b;text-decoration:none;">01 72 99 47 53</a> &nbsp;&nbsp; <span style="color:#C39847;">&#9679;</span> <a href="mailto:contact@solarglobe.fr" style="color:#2b2b2b;text-decoration:none;">contact@solarglobe.fr</a></div>
-      <div style="margin-top:6px;"><span style="color:#C39847;">&#9679;</span> <a href="https://www.solarglobe.fr" style="color:#2b2b2b;text-decoration:none;">www.solarglobe.fr</a> &nbsp;&nbsp; <a href="https://www.facebook.com/people/Solarglobe/61578264284164/" style="text-decoration:none;"><img src="https://img.icons8.com/ios-filled/100/C39847/facebook-new.png" width="16" height="16" alt="Facebook" style="vertical-align:middle;border:0;"></a> &nbsp; <a href="https://www.instagram.com/solarglobe.fr/" style="text-decoration:none;"><img src="https://img.icons8.com/ios-filled/100/C39847/instagram-new.png" width="16" height="16" alt="Instagram" style="vertical-align:middle;border:0;"></a> &nbsp; <a href="https://www.linkedin.com/company/108327439/" style="text-decoration:none;"><img src="https://img.icons8.com/ios-filled/100/C39847/linkedin.png" width="16" height="16" alt="LinkedIn" style="vertical-align:middle;border:0;"></a></div>
-      <div style="font-size:11px;color:#9a9a9a;letter-spacing:.2px;margin-top:11px;">Solutions photovolta&iuml;ques haut rendement &ndash; &Icirc;le-de-France</div>
-    </td>
-  </tr>
-</table>
+      <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#1f2933;font-size:13px;line-height:1.45;max-width:620px;">
+        <tbody>
+          <tr>
+            <td style="vertical-align:middle;padding:0 18px 0 0;width:150px;">
+              <div style="font-size:24px;line-height:1;font-weight:700;letter-spacing:.2px;white-space:nowrap;">
+                <span style="color:#111827;">Solar</span><span style="color:#C39847;">Globe</span>
+              </div>
+              <div style="margin-top:6px;font-size:10px;line-height:1.35;color:#667085;text-transform:uppercase;letter-spacing:.7px;">
+                Energie solaire
+              </div>
+            </td>
+            <td style="vertical-align:middle;border-left:3px solid #C39847;padding:0 0 0 18px;">
+              <div style="font-size:12px;color:#667085;line-height:1.4;">Bureau d'etude &amp; coordination photovoltaique</div>
+              <div style="margin-top:6px;font-size:14px;line-height:1.45;color:#111827;">
+                <strong>Benoit LETREN</strong> <span style="color:#C39847;">- President</span><br>
+                <strong>Nicolas BRUNET</strong> <span style="color:#C39847;">- Directeur General</span>
+              </div>
+              <div style="margin-top:8px;font-size:12px;line-height:1.55;color:#2b2b2b;">
+                <span style="color:#C39847;">Tel.</span> <a href="tel:+33172994753" style="color:#2b2b2b;text-decoration:none;">01 72 99 47 53</a>
+                &nbsp;&nbsp;<span style="color:#C39847;">Email</span> <a href="mailto:contact@solarglobe.fr" style="color:#2b2b2b;text-decoration:none;">contact@solarglobe.fr</a><br>
+                <span style="color:#C39847;">Web</span> <a href="https://www.solarglobe.fr" style="color:#2b2b2b;text-decoration:none;">www.solarglobe.fr</a>
+                &nbsp;&nbsp;<span style="color:#C39847;">Social</span>
+                <a href="https://www.facebook.com/people/Solarglobe/61578264284164/" style="color:#2b2b2b;text-decoration:none;">Facebook</a>
+                <span style="color:#c8a35a;"> | </span>
+                <a href="https://www.instagram.com/solarglobe.fr/" style="color:#2b2b2b;text-decoration:none;">Instagram</a>
+                <span style="color:#c8a35a;"> | </span>
+                <a href="https://www.linkedin.com/company/108327439/" style="color:#2b2b2b;text-decoration:none;">LinkedIn</a>
+              </div>
+              <div style="margin-top:8px;font-size:11px;line-height:1.4;color:#667085;">Solutions photovoltaiques haut rendement - Ile-de-France</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
+    <div class="panel">
+      <h2>HTML a coller</h2>
+      <textarea readonly>&lt;table cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; role=&quot;presentation&quot; style=&quot;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#1f2933;font-size:13px;line-height:1.45;max-width:620px;&quot;&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td style=&quot;vertical-align:middle;padding:0 18px 0 0;width:150px;&quot;&gt;
+        &lt;div style=&quot;font-size:24px;line-height:1;font-weight:700;letter-spacing:.2px;white-space:nowrap;&quot;&gt;
+          &lt;span style=&quot;color:#111827;&quot;&gt;Solar&lt;/span&gt;&lt;span style=&quot;color:#C39847;&quot;&gt;Globe&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;div style=&quot;margin-top:6px;font-size:10px;line-height:1.35;color:#667085;text-transform:uppercase;letter-spacing:.7px;&quot;&gt;
+          Energie solaire
+        &lt;/div&gt;
+      &lt;/td&gt;
+      &lt;td style=&quot;vertical-align:middle;border-left:3px solid #C39847;padding:0 0 0 18px;&quot;&gt;
+        &lt;div style=&quot;font-size:12px;color:#667085;line-height:1.4;&quot;&gt;Bureau d'etude &amp;amp; coordination photovoltaique&lt;/div&gt;
+        &lt;div style=&quot;margin-top:6px;font-size:14px;line-height:1.45;color:#111827;&quot;&gt;
+          &lt;strong&gt;Benoit LETREN&lt;/strong&gt; &lt;span style=&quot;color:#C39847;&quot;&gt;- President&lt;/span&gt;&lt;br&gt;
+          &lt;strong&gt;Nicolas BRUNET&lt;/strong&gt; &lt;span style=&quot;color:#C39847;&quot;&gt;- Directeur General&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;div style=&quot;margin-top:8px;font-size:12px;line-height:1.55;color:#2b2b2b;&quot;&gt;
+          &lt;span style=&quot;color:#C39847;&quot;&gt;Tel.&lt;/span&gt; &lt;a href=&quot;tel:+33172994753&quot; style=&quot;color:#2b2b2b;text-decoration:none;&quot;&gt;01 72 99 47 53&lt;/a&gt;
+          &amp;nbsp;&amp;nbsp;&lt;span style=&quot;color:#C39847;&quot;&gt;Email&lt;/span&gt; &lt;a href=&quot;mailto:contact@solarglobe.fr&quot; style=&quot;color:#2b2b2b;text-decoration:none;&quot;&gt;contact@solarglobe.fr&lt;/a&gt;&lt;br&gt;
+          &lt;span style=&quot;color:#C39847;&quot;&gt;Web&lt;/span&gt; &lt;a href=&quot;https://www.solarglobe.fr&quot; style=&quot;color:#2b2b2b;text-decoration:none;&quot;&gt;www.solarglobe.fr&lt;/a&gt;
+          &amp;nbsp;&amp;nbsp;&lt;span style=&quot;color:#C39847;&quot;&gt;Social&lt;/span&gt;
+          &lt;a href=&quot;https://www.facebook.com/people/Solarglobe/61578264284164/&quot; style=&quot;color:#2b2b2b;text-decoration:none;&quot;&gt;Facebook&lt;/a&gt;
+          &lt;span style=&quot;color:#c8a35a;&quot;&gt; | &lt;/span&gt;
+          &lt;a href=&quot;https://www.instagram.com/solarglobe.fr/&quot; style=&quot;color:#2b2b2b;text-decoration:none;&quot;&gt;Instagram&lt;/a&gt;
+          &lt;span style=&quot;color:#c8a35a;&quot;&gt; | &lt;/span&gt;
+          &lt;a href=&quot;https://www.linkedin.com/company/108327439/&quot; style=&quot;color:#2b2b2b;text-decoration:none;&quot;&gt;LinkedIn&lt;/a&gt;
+        &lt;/div&gt;
+        &lt;div style=&quot;margin-top:8px;font-size:11px;line-height:1.4;color:#667085;&quot;&gt;Solutions photovoltaiques haut rendement - Ile-de-France&lt;/div&gt;
+      &lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;</textarea>
+    </div>
+
+    <div class="panel">
+      <h2>Note</h2>
+      <p class="note">
+        Cette version garde un vrai rendu de marque avec separation doree, mais sans image distante bloquable.
+        Elle reste donc lisible meme quand un client mail coupe les images.
+      </p>
+    </div>
   </div>
-  <div class="panel"><h2>Pourquoi &ccedil;a marche enfin</h2><p class="note">Ton &eacute;diteur de signature (Tiptap) supprime les &lt;div&gt; et les fonds de cellule, mais conserve les <strong>images</strong>. Le trait dor&eacute; est donc une petite image 3&times;104&nbsp;px (m&ecirc;me principe que les ic&ocirc;nes r&eacute;seaux qui, elles, s&rsquo;affichaient d&eacute;j&agrave;). Colle ce code via le bouton &laquo;&nbsp;Coller votre signature (HTML)&nbsp;&raquo;.</p></div>
-</div></body></html>
+</body>
+</html>

@@ -1818,13 +1818,17 @@ button.mail-inbox-sn-tab:focus-visible {
 }
 
 .mail-msg__html :where(img[data-remote-src-blocked]) {
-  display: block;
-  width: 100%;
-  min-height: 34px;
+  display: inline-block;
+  width: auto !important;
+  max-width: 220px !important;
+  max-height: 40px !important;
+  min-height: 18px;
+  padding: 3px 6px;
   border: 1px dashed #cbd5e1;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #f8fafc;
   object-fit: contain;
+  vertical-align: middle;
 }
 
 .mail-msg__html a {
