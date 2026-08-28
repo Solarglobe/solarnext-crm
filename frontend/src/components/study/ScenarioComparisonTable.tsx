@@ -1637,12 +1637,16 @@ export default function ScenarioComparisonTable({
                               isOtherLocked ||
                               lockBlocksAll
                             }
-                            onClick={() =>
+                            onClick={() => {
+                              setPortalOfferByScenario({
+                                ...INITIAL_PORTAL_OFFER,
+                                [id]: true,
+                              });
                               onSelectScenario?.(id, {
                                 addToDocuments: addToDocumentsByScenario[id],
-                                setAsPortalOffer: portalOfferByScenario[id],
-                              })
-                            }
+                                setAsPortalOffer: true,
+                              });
+                            }}
                           >
                             {selectingId === id ? "Enregistrement…" : ctaLabel(id)}
                           </button>
