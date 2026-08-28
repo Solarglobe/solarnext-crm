@@ -607,6 +607,9 @@ export function mapScenarioToV2(scenario, ctx) {
     ...(isVirtualLike && scenario.virtual_battery_finance && typeof scenario.virtual_battery_finance === "object"
       ? { virtual_battery_finance: scenario.virtual_battery_finance }
       : {}),
+    ...(isVirtualLike
+      ? { _virtual_battery_activation_in_capex: scenario._virtual_battery_activation_in_capex === true }
+      : {}),
     _virtualBatteryP2: isVirtualLike ? (scenario._virtualBatteryP2 ?? null) : null,
     ...batteryPhysicalMetrics,
   };
