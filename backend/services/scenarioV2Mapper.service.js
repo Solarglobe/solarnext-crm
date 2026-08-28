@@ -608,7 +608,12 @@ export function mapScenarioToV2(scenario, ctx) {
       ? { virtual_battery_finance: scenario.virtual_battery_finance }
       : {}),
     ...(isVirtualLike
-      ? { _virtual_battery_activation_in_capex: scenario._virtual_battery_activation_in_capex === true }
+      ? {
+          _virtual_battery_activation_in_capex: false,
+          pvInstallationPrice: firstFiniteNum(scenario.pvInstallationPrice, scenario.finance?.pvInstallationPrice) ?? null,
+          virtualSetupFee: firstFiniteNum(scenario.virtualSetupFee, scenario.finance?.virtualSetupFee) ?? 0,
+          virtualAnnualFees: firstFiniteNum(scenario.virtualAnnualFees, scenario.finance?.virtualAnnualFees) ?? 0,
+        }
       : {}),
     _virtualBatteryP2: isVirtualLike ? (scenario._virtualBatteryP2 ?? null) : null,
     ...batteryPhysicalMetrics,
