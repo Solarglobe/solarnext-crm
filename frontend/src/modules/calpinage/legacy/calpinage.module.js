@@ -6032,6 +6032,78 @@ export function initCalpinage(container, options = {}) {
         return null;
       }
 
+      function getSelectedPanelForPower() {
+        var p = window.PV_SELECTED_PANEL;
+        return findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) || (p ? findPanelById(p.id) : null) || p || null;
+      }
+
+      function buildPanelModulePayload(panel) {
+        if (!panel || typeof panel !== "object") return {};
+        var powerWc = resolvePanelPowerWc(panel);
+        var panelId = panel.id || panel.panel_id || panel.panelId || panel.panelCatalogId || null;
+        var out = {};
+        if (panelId) {
+          out.panelId = String(panelId);
+          out.panel_id = String(panelId);
+          out.panelCatalogId = String(panelId);
+        }
+        if (powerWc != null) {
+          out.powerWc = powerWc;
+          out.power_wc = powerWc;
+        }
+        if (panel.brand != null) out.brand = panel.brand;
+        if (panel.name != null) out.name = panel.name;
+        if (panel.model_ref != null) out.model_ref = panel.model_ref;
+        else if (panel.model != null) out.model_ref = panel.model;
+        return out;
+      }
+
+      function resolvePlacedPanelPowerWc(panel, fallbackPanel) {
+        var ownPower = resolvePanelPowerWc(panel);
+        if (ownPower != null) return ownPower;
+        return resolvePanelPowerWc(fallbackPanel);
+      }
+
+      function getAllPlacedPvPanels() {
+        return (window.pvPlacementEngine && typeof window.pvPlacementEngine.getAllPanels === "function")
+          ? (window.pvPlacementEngine.getAllPanels() || [])
+          : [];
+      }
+
+      function computePlacedPanelsPowerSummary(panels, fallbackPanel) {
+        var list = Array.isArray(panels) ? panels : [];
+        var totalPowerWc = 0;
+        var count = 0;
+        var groups = {};
+        for (var i = 0; i < list.length; i++) {
+          var panel = list[i];
+          if (!panel || panel.enabled === false) continue;
+          count++;
+          var powerWc = resolvePlacedPanelPowerWc(panel, fallbackPanel);
+          if (powerWc != null) totalPowerWc += powerWc;
+          var panelId = panel.panelId || panel.panel_id || panel.panelCatalogId || "";
+          var label = [panel.brand, panel.name || panel.model_ref].filter(Boolean).join(" ").trim();
+          var key = (panelId || label || "unknown") + "|" + (powerWc || 0);
+          if (!groups[key]) {
+            groups[key] = {
+              panel_id: panelId || null,
+              label: label || null,
+              power_wc: powerWc || null,
+              count: 0,
+              total_power_wc: 0,
+            };
+          }
+          groups[key].count++;
+          groups[key].total_power_wc += powerWc || 0;
+        }
+        return {
+          panels_count: count,
+          total_power_wc: totalPowerWc,
+          total_power_kwc: totalPowerWc > 0 ? totalPowerWc / 1000 : 0,
+          module_breakdown: Object.keys(groups).map(function (k) { return groups[k]; }),
+        };
+      }
+
       /**
        * Construit PV_SELECTED_PANEL ? partir d'un panneau API (format: id, brand, name, model_ref, power_wc, efficiency_pct, width_mm, height_mm).
        * @param {Object} apiPanel - ?l?ment de SOLARNEXT_PANELS
@@ -6794,13 +6866,14 @@ export function initCalpinage(container, options = {}) {
         }
         var out = Object.assign({}, ctx, { pvRules: pvRules });
         if (dims && Number.isFinite(dims.widthM) && Number.isFinite(dims.heightM)) {
+          var selectedModule = buildPanelModulePayload(getSelectedPanelForPower());
           /* panelOrientation reflète block.orientation (pas de hardcode) — dimensions effectives suivent. */
-          out.panelParams = {
+          out.panelParams = Object.assign({
             panelWidthMm: dims.widthM * 1000,
             panelHeightMm: dims.heightM * 1000,
             panelOrientation: blockOrientEngine,
             localRotationDeg: 0,
-          };
+          }, selectedModule);
         }
         if (typeof window !== "undefined" && window.__PV_AUDIT__ === true && out.panelParams) {
           console.log("[PV_AUDIT][CTX_BLOCK]", block.id, block.orientation, block.rotationBaseDeg, out.panelParams.panelOrientation, out.panelParams.localRotationDeg, pvRules.spacingXcm, pvRules.spacingYcm);
@@ -7911,9 +7984,8 @@ export function initCalpinage(container, options = {}) {
         for (var sp = 0; sp < panels.length; sp++) {
           if (panels[sp].selected && panels[sp].enabled !== false) selectedPanelCount++;
         }
-        var selPanelSpec = window.PV_SELECTED_PANEL || (window.CALPINAGE_SELECTED_PANEL_ID && typeof findPanelById === "function" ? findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) : null);
-        var powerWc = selPanelSpec && (selPanelSpec.power_wc != null || selPanelSpec.powerWc != null) ? (Number(selPanelSpec.power_wc || selPanelSpec.powerWc) || 0) : 0;
-        var selectedPowerKwc = selectedPanelCount > 0 && powerWc > 0 ? (selectedPanelCount * powerWc) / 1000 : null;
+        var selectedPowerSummary = computePlacedPanelsPowerSummary(panels.filter(function (p) { return p && p.selected; }), getSelectedPanelForPower());
+        var selectedPowerKwc = selectedPowerSummary.total_power_kwc > 0 ? selectedPowerSummary.total_power_kwc : null;
         return {
           focusBlockId: focusBlock && focusBlock.id != null ? String(focusBlock.id) : null,
           activeBlockId: activeBlock && activeBlock.id != null ? String(activeBlock.id) : null,
@@ -12376,6 +12448,14 @@ export function initCalpinage(container, options = {}) {
                       panelWidthMm: Number.isFinite(Number(p.panelWidthMm)) && Number(p.panelWidthMm) > 0 ? Number(p.panelWidthMm) : undefined,
                       panelHeightMm: Number.isFinite(Number(p.panelHeightMm)) && Number(p.panelHeightMm) > 0 ? Number(p.panelHeightMm) : undefined,
                       panelOrientation: p.panelOrientation || orientSaved,
+                      panelId: p.panelId || p.panel_id || p.panelCatalogId || undefined,
+                      panel_id: p.panel_id || p.panelId || p.panelCatalogId || undefined,
+                      panelCatalogId: p.panelCatalogId || p.panelId || p.panel_id || undefined,
+                      powerWc: Number.isFinite(Number(p.powerWc != null ? p.powerWc : p.power_wc)) && Number(p.powerWc != null ? p.powerWc : p.power_wc) > 50 ? Number(p.powerWc != null ? p.powerWc : p.power_wc) : undefined,
+                      power_wc: Number.isFinite(Number(p.power_wc != null ? p.power_wc : p.powerWc)) && Number(p.power_wc != null ? p.power_wc : p.powerWc) > 50 ? Number(p.power_wc != null ? p.power_wc : p.powerWc) : undefined,
+                      brand: p.brand,
+                      name: p.name,
+                      model_ref: p.model_ref || p.model,
                     }; }),
                     rotation: bl.rotation,
                     orientation: orientSaved,
@@ -12386,12 +12466,7 @@ export function initCalpinage(container, options = {}) {
             shadingSummary: (function () {
               var norm = CALPINAGE_STATE.shading?.normalized;
               var totals = (function () {
-                var totalPanels = (window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels) ? (window.pvPlacementEngine.getAllPanels() || []).length : 0;
-                var p = window.PV_SELECTED_PANEL;
-                var api = findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) || (p ? findPanelById(p.id) : null) || p;
-                var powerWc = (api || p) && (api ? api.power_wc : p.powerWc) != null ? Number(api ? api.power_wc : p.powerWc) : 0;
-                var totalPowerKwc = totalPanels > 0 && powerWc > 0 ? (totalPanels * powerWc) / 1000 : 0;
-                return { panels_count: totalPanels, total_power_kwc: totalPowerKwc };
+                return computePlacedPanelsPowerSummary(getAllPlacedPvPanels(), getSelectedPanelForPower());
               })();
               var totalLossPct = norm ? getOfficialGlobalShadingLossPctOr(norm, 0) : 0;
               var horizonData = (CALPINAGE_STATE.horizonMask && CALPINAGE_STATE.horizonMask.data) ? CALPINAGE_STATE.horizonMask.data : {};
@@ -12437,12 +12512,7 @@ export function initCalpinage(container, options = {}) {
               };
             })(),
             totals: (function () {
-              var totalPanels = (window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels) ? (window.pvPlacementEngine.getAllPanels() || []).length : 0;
-              var p = window.PV_SELECTED_PANEL;
-              var api = findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) || (p ? findPanelById(p.id) : null) || p;
-              var powerWc = (api || p) && (api ? api.power_wc : p.powerWc) != null ? Number(api ? api.power_wc : p.powerWc) : 0;
-              var totalPowerKwc = totalPanels > 0 && powerWc > 0 ? (totalPanels * powerWc) / 1000 : 0;
-              return { panels_count: totalPanels, total_power_kwc: totalPowerKwc };
+              return computePlacedPanelsPowerSummary(getAllPlacedPvPanels(), getSelectedPanelForPower());
             })(),
             /* CP-006 — Onduleur sélectionné et totaux */
             inverter: (function () {
@@ -12462,12 +12532,11 @@ export function initCalpinage(container, options = {}) {
             })(),
             inverter_totals: (function () {
               var inv = window.PV_SELECTED_INVERTER || (window.CALPINAGE_SELECTED_INVERTER_ID ? findInverterById(window.CALPINAGE_SELECTED_INVERTER_ID) : null);
-              var totalPanels = (window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels) ? (window.pvPlacementEngine.getAllPanels() || []).length : 0;
-              var p = window.PV_SELECTED_PANEL;
-              var api = findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) || (p ? findPanelById(p.id) : null) || p;
-              var selectedPanel = api || p;
+              var selectedPanel = getSelectedPanelForPower();
+              var powerSummary = computePlacedPanelsPowerSummary(getAllPlacedPvPanels(), selectedPanel);
+              var totalPanels = powerSummary.panels_count;
               var powerWc = selectedPanel && (selectedPanel.power_wc != null || selectedPanel.powerWc != null) ? Number(selectedPanel.power_wc || selectedPanel.powerWc) || 0 : 0;
-              var totalPowerKwc = totalPanels > 0 && powerWc > 0 ? (totalPanels * powerWc) / 1000 : 0;
+              var totalPowerKwc = powerSummary.total_power_kwc;
               var panelSpec = selectedPanel ? { power_wc: powerWc, isc_a: selectedPanel.isc_a, vmp_v: selectedPanel.vmp_v, strings: selectedPanel.strings } : null;
               var validation = inv ? validateInverterSizing({ totalPanels: totalPanels, totalPowerKwc: totalPowerKwc, inverter: inv, panelSpec: panelSpec }) : { requiredUnits: 0, isDcPowerOk: true, isCurrentOk: true, isMpptOk: true, isVoltageOk: true, warnings: [] };
               return {
@@ -12769,12 +12838,9 @@ export function initCalpinage(container, options = {}) {
         var summaryEl = container.querySelector("#pv-power-summary");
         var countEl = container.querySelector("#pv-panels-count");
         var kwcEl = container.querySelector("#pv-total-kwc");
-        var totalPanels = (window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels) ? (window.pvPlacementEngine.getAllPanels() || []).length : 0;
-        var selectedPanel = findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) || (window.PV_SELECTED_PANEL ? findPanelById(window.PV_SELECTED_PANEL.id) : null);
-        if (!selectedPanel) selectedPanel = window.PV_SELECTED_PANEL;
-        var powerWc = selectedPanel && (selectedPanel.power_wc != null || selectedPanel.powerWc != null) ? (Number(selectedPanel.power_wc || selectedPanel.powerWc) || 0) : 0;
-        var totalPowerWc = totalPanels * powerWc;
-        var totalPowerKwc = totalPowerWc / 1000;
+        var powerSummary = computePlacedPanelsPowerSummary(getAllPlacedPvPanels(), getSelectedPanelForPower());
+        var totalPanels = powerSummary.panels_count;
+        var totalPowerKwc = powerSummary.total_power_kwc;
         var kwcStr = totalPowerKwc > 0 ? totalPowerKwc.toFixed(2) : "0";
         if (summaryEl && countEl && kwcEl) {
           countEl.textContent = String(totalPanels);
@@ -12802,11 +12868,11 @@ export function initCalpinage(container, options = {}) {
         var microCountEl = container.querySelector("#pv-micro-count");
         var microAcTotalEl = container.querySelector("#pv-micro-ac-total");
         var inv = window.PV_SELECTED_INVERTER || (window.CALPINAGE_SELECTED_INVERTER_ID ? findInverterById(window.CALPINAGE_SELECTED_INVERTER_ID) : null);
-        var totalPanels = (window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels) ? (window.pvPlacementEngine.getAllPanels() || []).length : 0;
-        var selectedPanel = findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) || (window.PV_SELECTED_PANEL ? findPanelById(window.PV_SELECTED_PANEL.id) : null);
-        if (!selectedPanel) selectedPanel = window.PV_SELECTED_PANEL;
+        var powerSummary = computePlacedPanelsPowerSummary(getAllPlacedPvPanels(), getSelectedPanelForPower());
+        var totalPanels = powerSummary.panels_count;
+        var selectedPanel = getSelectedPanelForPower();
         var powerWc = selectedPanel && (selectedPanel.power_wc != null || selectedPanel.powerWc != null) ? (Number(selectedPanel.power_wc || selectedPanel.powerWc) || 0) : 0;
-        var totalPowerKwc = totalPanels > 0 && powerWc > 0 ? (totalPanels * powerWc) / 1000 : 0;
+        var totalPowerKwc = powerSummary.total_power_kwc;
         var panelSpec = selectedPanel ? { power_wc: powerWc, isc_a: selectedPanel.isc_a, vmp_v: selectedPanel.vmp_v, strings: selectedPanel.strings } : null;
         var validation = inv ? validateInverterSizing({ totalPanels: totalPanels, totalPowerKwc: totalPowerKwc, inverter: inv, panelSpec: panelSpec }) : { requiredUnits: 0, isDcPowerOk: true, isCurrentOk: true, isMpptOk: true, isVoltageOk: true, warnings: [] };
         var units = validation.requiredUnits;
@@ -12908,12 +12974,12 @@ export function initCalpinage(container, options = {}) {
 
       /** Données pour Phase3ChecklistPanel (lecture seule, source existante). P5-CHECKLIST-LOCKED */
       window.getPhase3ChecklistData = function getPhase3ChecklistData() {
-        var totalPanels = (window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels) ? (window.pvPlacementEngine.getAllPanels() || []).length : 0;
         var inv = window.PV_SELECTED_INVERTER || (window.CALPINAGE_SELECTED_INVERTER_ID ? findInverterById(window.CALPINAGE_SELECTED_INVERTER_ID) : null);
-        var selectedPanel = findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) || (window.PV_SELECTED_PANEL ? findPanelById(window.PV_SELECTED_PANEL.id) : null);
-        if (!selectedPanel) selectedPanel = window.PV_SELECTED_PANEL;
+        var powerSummary = computePlacedPanelsPowerSummary(getAllPlacedPvPanels(), getSelectedPanelForPower());
+        var totalPanels = powerSummary.panels_count;
+        var selectedPanel = getSelectedPanelForPower();
         var powerWc = selectedPanel && (selectedPanel.power_wc != null || selectedPanel.powerWc != null) ? (Number(selectedPanel.power_wc || selectedPanel.powerWc) || 0) : 0;
-        var totalDcKw = totalPanels > 0 && powerWc > 0 ? (totalPanels * powerWc) / 1000 : 0;
+        var totalDcKw = powerSummary.total_power_kwc;
         var acPowerKw = inv && (inv.nominal_power_kw != null || inv.max_dc_power_kw != null) ? (Number(inv.nominal_power_kw ?? inv.max_dc_power_kw) || 0) : 0;
         var invName = inv ? ((inv.brand || "").trim() ? (inv.brand + " \u2014 " + ((inv.name || inv.model_ref || "").trim() || inv.id)) : ((inv.name || inv.model_ref || "").trim() || inv.id)) : "";
         var inverterFamily = inv ? (normalizeInverterFamily(inv) || "CENTRAL") : "CENTRAL";
@@ -13879,16 +13945,11 @@ updateValidateButton();
                 var geoRaw = getCalpinageItem("state", studyId, versionId);
                 var geometryJson = geoRaw ? JSON.parse(geoRaw) : null;
                 if (geometryJson) {
-                  var panelCount = (window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels) ? (window.pvPlacementEngine.getAllPanels() || []).length : 0;
+                  var powerSummary = computePlacedPanelsPowerSummary(getAllPlacedPvPanels(), getSelectedPanelForPower());
+                  var panelCount = powerSummary.panels_count;
                   var _norm = CALPINAGE_STATE && CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.normalized;
 var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
-                  var pSel = window.PV_SELECTED_PANEL;
-                  var apiPan = window.CALPINAGE_SELECTED_PANEL_ID ? findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) : null;
-                  var panelForPower = apiPan || pSel;
-                  var resolvedWp = resolvePanelPowerWc(panelForPower);
-                  var LEGACY_FALLBACK_PANEL_WC = 485;
-                  var panelWp = resolvedWp != null ? resolvedWp : (panelCount > 0 ? LEGACY_FALLBACK_PANEL_WC : null);
-                  var totalPowerKwc = panelCount > 0 && panelWp != null ? (panelCount * panelWp) / 1000 : null;
+                  var totalPowerKwc = panelCount > 0 ? powerSummary.total_power_kwc : null;
                   var gps = (CALPINAGE_STATE && CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.gps) ? CALPINAGE_STATE.roof.gps : null;
                   var apiRoot = (window.CALPINAGE_API_BASE != null ? window.CALPINAGE_API_BASE : (window.location && window.location.origin)) || "";
                   var body = {
@@ -14105,10 +14166,6 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var spec = findPanelById(id);
           window.PV_SELECTED_PANEL = spec ? buildPVSelectedPanel(spec) : null;
           window.CALPINAGE_SELECTED_PANEL_ID = id || null;
-          if (CALPINAGE_STATE.placedPanels && CALPINAGE_STATE.placedPanels.length > 0) {
-            CALPINAGE_STATE.placedPanels = [];
-            if (typeof saveCalpinageState === "function") saveCalpinageState();
-          }
           savePvParams();
           refreshPanelSelect();
           updatePowerSummary();
@@ -24815,10 +24872,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 var centerX = (minX + maxX) / 2;
                 var topY = minY;
                 var tooltipY = topY - 18;
-                var nbPanels = block.panels ? block.panels.length : 0;
-                var selPanel = window.PV_SELECTED_PANEL || (window.CALPINAGE_SELECTED_PANEL_ID && typeof findPanelById === "function" ? findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) : null);
-                var powerWc = selPanel && (selPanel.power_wc != null || selPanel.powerWc != null) ? (Number(selPanel.power_wc || selPanel.powerWc) || 0) : 0;
-                var totalKwc = nbPanels > 0 && powerWc > 0 ? (nbPanels * powerWc) / 1000 : 0;
+                var blockPowerSummary = computePlacedPanelsPowerSummary(block.panels || [], getSelectedPanelForPower());
+                var nbPanels = blockPowerSummary.panels_count;
+                var totalKwc = blockPowerSummary.total_power_kwc;
                 var kwcStr = totalKwc > 0 ? totalKwc.toFixed(2) : "0";
                 var txt1 = nbPanels === 1 ? "1 panneau" : nbPanels + " panneaux";
                 var txt2 = kwcStr + " kWc";

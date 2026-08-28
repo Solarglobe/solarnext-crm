@@ -2038,6 +2038,14 @@
         moduleHeightM: moduleDims ? moduleDims.moduleHeightM : undefined,
         panelWidthMm: Number.isFinite(Number(p.panelWidthMm)) && Number(p.panelWidthMm) > 0 ? Number(p.panelWidthMm) : undefined,
         panelHeightMm: Number.isFinite(Number(p.panelHeightMm)) && Number(p.panelHeightMm) > 0 ? Number(p.panelHeightMm) : undefined,
+        panelId: p.panelId || p.panel_id || p.panelCatalogId || null,
+        panel_id: p.panel_id || p.panelId || p.panelCatalogId || null,
+        panelCatalogId: p.panelCatalogId || p.panelId || p.panel_id || null,
+        powerWc: Number.isFinite(Number(p.powerWc != null ? p.powerWc : p.power_wc)) && Number(p.powerWc != null ? p.powerWc : p.power_wc) > 50 ? Number(p.powerWc != null ? p.powerWc : p.power_wc) : undefined,
+        power_wc: Number.isFinite(Number(p.power_wc != null ? p.power_wc : p.powerWc)) && Number(p.power_wc != null ? p.power_wc : p.powerWc) > 50 ? Number(p.power_wc != null ? p.power_wc : p.powerWc) : undefined,
+        brand: p.brand,
+        name: p.name,
+        model_ref: p.model_ref || p.model,
         state: p.state != null ? p.state : null,
         enabled: p.enabled != null ? p.enabled : true
       });

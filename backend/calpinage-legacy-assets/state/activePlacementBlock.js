@@ -63,24 +63,56 @@
     var w = Number(pp.panelWidthMm);
     var h = Number(pp.panelHeightMm);
     if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
-    return {
+    var out = {
       panelWidthMm: w,
       panelHeightMm: h,
       panelOrientation: normalizePanelOrientation(pp.panelOrientation || orientationFallback),
     };
+    var panelId = pp.panelId || pp.panel_id || pp.panelCatalogId || pp.id || null;
+    if (panelId) {
+      out.panelId = String(panelId);
+      out.panel_id = String(panelId);
+      out.panelCatalogId = String(panelId);
+    }
+    var powerWc = Number(pp.powerWc != null ? pp.powerWc : pp.power_wc);
+    if (Number.isFinite(powerWc) && powerWc > 50) {
+      out.powerWc = powerWc;
+      out.power_wc = powerWc;
+    }
+    if (pp.brand != null) out.brand = pp.brand;
+    if (pp.name != null) out.name = pp.name;
+    if (pp.model_ref != null) out.model_ref = pp.model_ref;
+    if (pp.model != null && out.model_ref == null) out.model_ref = pp.model;
+    return out;
   }
 
   function readPanelModuleFromPanel(panel, ctx, orientationFallback) {
     var w = panel && Number(panel.panelWidthMm);
     var h = panel && Number(panel.panelHeightMm);
+    var fromCtx = readPanelModuleFromContext(ctx, orientationFallback);
     if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
-      return {
+      var out = Object.assign({}, fromCtx || {}, {
         panelWidthMm: w,
         panelHeightMm: h,
         panelOrientation: normalizePanelOrientation((panel && panel.panelOrientation) || orientationFallback),
-      };
+      });
+      var panelId = panel && (panel.panelId || panel.panel_id || panel.panelCatalogId);
+      if (panelId) {
+        out.panelId = String(panelId);
+        out.panel_id = String(panelId);
+        out.panelCatalogId = String(panelId);
+      }
+      var powerWc = panel && Number(panel.powerWc != null ? panel.powerWc : panel.power_wc);
+      if (Number.isFinite(powerWc) && powerWc > 50) {
+        out.powerWc = powerWc;
+        out.power_wc = powerWc;
+      }
+      if (panel && panel.brand != null) out.brand = panel.brand;
+      if (panel && panel.name != null) out.name = panel.name;
+      if (panel && panel.model_ref != null) out.model_ref = panel.model_ref;
+      return out;
     }
-    return readPanelModuleFromContext(ctx, orientationFallback);
+    return fromCtx;
   }
 
   function assignPanelModuleFields(target, moduleInfo) {
@@ -88,6 +120,14 @@
     target.panelWidthMm = moduleInfo.panelWidthMm;
     target.panelHeightMm = moduleInfo.panelHeightMm;
     target.panelOrientation = moduleInfo.panelOrientation;
+    if (moduleInfo.panelId) target.panelId = moduleInfo.panelId;
+    if (moduleInfo.panel_id) target.panel_id = moduleInfo.panel_id;
+    if (moduleInfo.panelCatalogId) target.panelCatalogId = moduleInfo.panelCatalogId;
+    if (moduleInfo.powerWc != null) target.powerWc = moduleInfo.powerWc;
+    if (moduleInfo.power_wc != null) target.power_wc = moduleInfo.power_wc;
+    if (moduleInfo.brand != null) target.brand = moduleInfo.brand;
+    if (moduleInfo.name != null) target.name = moduleInfo.name;
+    if (moduleInfo.model_ref != null) target.model_ref = moduleInfo.model_ref;
     return target;
   }
 
@@ -1001,6 +1041,14 @@
             panelWidthMm: Number.isFinite(Number(p.panelWidthMm)) && Number(p.panelWidthMm) > 0 ? Number(p.panelWidthMm) : undefined,
             panelHeightMm: Number.isFinite(Number(p.panelHeightMm)) && Number(p.panelHeightMm) > 0 ? Number(p.panelHeightMm) : undefined,
             panelOrientation: normalizePanelOrientation(p.panelOrientation || b.orientation),
+            panelId: p.panelId || p.panel_id || p.panelCatalogId || undefined,
+            panel_id: p.panel_id || p.panelId || p.panelCatalogId || undefined,
+            panelCatalogId: p.panelCatalogId || p.panelId || p.panel_id || undefined,
+            powerWc: Number.isFinite(Number(p.powerWc != null ? p.powerWc : p.power_wc)) && Number(p.powerWc != null ? p.powerWc : p.power_wc) > 50 ? Number(p.powerWc != null ? p.powerWc : p.power_wc) : undefined,
+            power_wc: Number.isFinite(Number(p.power_wc != null ? p.power_wc : p.powerWc)) && Number(p.power_wc != null ? p.power_wc : p.powerWc) > 50 ? Number(p.power_wc != null ? p.power_wc : p.powerWc) : undefined,
+            brand: p.brand,
+            name: p.name,
+            model_ref: p.model_ref || p.model,
           });
         }
       }

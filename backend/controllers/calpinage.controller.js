@@ -12,6 +12,7 @@ import { adaptLegacyShadingToV2, getNormalizedShadingFromGeometry } from "../ser
 import { mergeLayoutSnapshotForUpsert } from "../services/calpinage/mergeGeometryLayoutSnapshot.js";
 import { sanitizeCalpinageGeometryForPersistence } from "../services/calpinage/calpinageCommercialIntegrity.js";
 import { computeCalpinageGeometryHash } from "../services/calpinage/calpinageGeometryHash.js";
+import { computeInstalledPowerFromGeometry } from "../services/calpinage/calpinageInstalledPower.js";
 import { lockCalpinageVersion } from "../services/calpinage/calpinageDataConcurrency.js";
 import { withPgRetryOnce } from "../utils/pgRetry.js";
 import {
@@ -279,7 +280,20 @@ export async function upsertCalpinage(req, res) {
       toSave = nextGeom;
     }
 
-    if (totalPanels > 0 && resolvedWp != null) {
+    const mixedPowerSummary = computeInstalledPowerFromGeometry(toSave, resolvedWp);
+    if (mixedPowerSummary) {
+      totalPanels = mixedPowerSummary.panels_count;
+      totalPowerKwc = mixedPowerSummary.total_power_kwc;
+      toSave = {
+        ...toSave,
+        totals: {
+          ...(toSave.totals && typeof toSave.totals === "object" ? toSave.totals : {}),
+          panels_count: mixedPowerSummary.panels_count,
+          total_power_kwc: mixedPowerSummary.total_power_kwc,
+          total_power_wc: mixedPowerSummary.total_power_wc,
+        },
+      };
+    } else if (totalPanels > 0 && resolvedWp != null) {
       const recomputed = (totalPanels * resolvedWp) / 1000;
       if (totalPowerKwc == null || isInstalledKwcDivergent(totalPowerKwc, recomputed)) {
         totalPowerKwc = recomputed;

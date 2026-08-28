@@ -285,8 +285,14 @@ function computeShadingSummaryForOverlay(manager) {
   if (eng?.getAllPanels) {
     const panels = eng.getAllPanels() || [];
     const p = window.PV_SELECTED_PANEL;
-    const powerWc = (p && (p.power_wc ?? p.powerWc) != null) ? Number(p.power_wc ?? p.powerWc) : 0;
-    if (panels.length > 0 && powerWc > 0) totalPowerKwc = (panels.length * powerWc) / 1000;
+    const fallbackPowerWc = (p && (p.power_wc ?? p.powerWc) != null) ? Number(p.power_wc ?? p.powerWc) : 0;
+    const totalPowerWc = panels.reduce((sum, panel) => {
+      if (!panel || panel.enabled === false) return sum;
+      const ownPowerWc = Number(panel.power_wc ?? panel.powerWc);
+      const powerWc = Number.isFinite(ownPowerWc) && ownPowerWc > 50 ? ownPowerWc : fallbackPowerWc;
+      return Number.isFinite(powerWc) && powerWc > 50 ? sum + powerWc : sum;
+    }, 0);
+    if (totalPowerWc > 0) totalPowerKwc = totalPowerWc / 1000;
   }
   const annualProductionKwh = resolveAnnualProductionKwhForShadingOverlay(totalPowerKwc);
 
