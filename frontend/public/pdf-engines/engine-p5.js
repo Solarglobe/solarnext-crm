@@ -79,7 +79,7 @@
 })();
 
 // ============================================================================
-// 6) DRAW CHART — P5 (échelle kW honnête, recadrage visuel 5h → 22h sur l’axe X)
+// 6) DRAW CHART — P5 (échelle kW honnête, axe 00:00 → 24:00)
 // ============================================================================
 
 (function(){
@@ -87,9 +87,9 @@
   const $ = (s,root=document)=>root.querySelector(s);
   const safeNum = v => Number.isFinite(Number(v)) ? Number(v) : 0;
   const hours24 = Array.from({length:24},(_,i)=>String(i).padStart(2,"0")+":00");
-  /** Indices inclusifs sur les tableaux 24h (0 = minuit) */
-  const HOUR_VIEW_START = 5;
-  const HOUR_VIEW_END = 22;
+  /** Indices inclusifs sur les tableaux 24h (0 = minuit, 24 = fermeture visuelle de journée). */
+  const HOUR_VIEW_START = 0;
+  const HOUR_VIEW_END = 24;
 
   window.API_p5_drawChart = function(series){
     const svg = $('#p5-chart');
@@ -115,7 +115,10 @@
       ...visual.map(v => Math.max(v.prod, v.conso, Math.abs(v.batt)))
     ) * 1.12;
 
-    const visVisual = visual.slice(HOUR_VIEW_START, HOUR_VIEW_END + 1);
+    const visVisual = Array.from({ length: HOUR_VIEW_END - HOUR_VIEW_START + 1 }, (_, i) => {
+      const h = HOUR_VIEW_START + i;
+      return visual[Math.min(h, 23)] ?? { prod: 0, conso: 0, auto: 0, batt: 0 };
+    });
     const xDenom = Math.max(1, visVisual.length - 1);
     const sx = j => PAD_L + j * ((W - PAD_L - PAD_R) / xDenom);
     const sy = v => H - PAD_B - (v/maxY)*(H-PAD_T-PAD_B);
@@ -247,7 +250,7 @@
     }
 
     // ========================================================================
-    // HOURS (recadrées : premier tick 5h, dernier 22h)
+    // HOURS (journée complète : premier tick 00:00, dernier 24:00)
     // ========================================================================
     let lastLabeled = -1;
     for(let h = HOUR_VIEW_START; h <= HOUR_VIEW_END; h += 2){
@@ -259,7 +262,7 @@
       tx.style.fill="#333";
       tx.style.fontSize="13px";
       tx.style.fontWeight="600";
-      tx.textContent=hours24[h];
+      tx.textContent=h === 24 ? "24:00" : hours24[h];
       svg.appendChild(tx);
       lastLabeled = h;
     }
@@ -272,7 +275,7 @@
       tx.style.fill="#333";
       tx.style.fontSize="13px";
       tx.style.fontWeight="600";
-      tx.textContent=hours24[HOUR_VIEW_END];
+      tx.textContent=HOUR_VIEW_END === 24 ? "24:00" : hours24[HOUR_VIEW_END];
       svg.appendChild(tx);
     }
   };
