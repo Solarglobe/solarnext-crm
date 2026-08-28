@@ -1382,12 +1382,7 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {
       }
     }
 
-    if (equipKwhSum > 0 && equipKwhSum < annual_kwh * 0.95) {
-      const base_kwh = annual_kwh - equipKwhSum;
-
-      const baseRaw    = buildFallbackBase8760(normalizeProfilKeyForConsumption(merged.profil));
-      const baseHourly = scaleProfile(baseRaw, base_kwh);
-
+    if (equipKwhSum > 0) {
       const equipHourly = new Array(8760).fill(0);
       for (const c of curves) {
         for (let i = 0; i < 8760; i++) {
@@ -1395,7 +1390,18 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {
         }
       }
 
-      hourly = baseHourly.map((v, i) => v + (equipHourly[i] || 0));
+      if (equipKwhSum < annual_kwh * 0.95) {
+        const base_kwh = annual_kwh - equipKwhSum;
+
+        const baseRaw    = buildFallbackBase8760(normalizeProfilKeyForConsumption(merged.profil));
+        const baseHourly = scaleProfile(baseRaw, base_kwh);
+
+        hourly = baseHourly.map((v, i) => v + (equipHourly[i] || 0));
+      } else {
+        // Les équipements déclarés dépassent l'enveloppe compteur : on conserve strictement
+        // les kWh annuels saisis, mais on utilise les équipements comme signature horaire.
+        hourly = scaleProfile(equipHourly, annual_kwh);
+      }
       // annual_kwh inchangé (la somme reste la conso déclarée)
     }
   }

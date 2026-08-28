@@ -70,6 +70,37 @@ describe("equipmentNormalize + applyEquipmentShape", () => {
     assert.ok(Math.abs(sumH - 25000) < 2);
   });
 
+  it("équipements actuels > compteur: remodèle l'horaire sans augmenter annual_kwh", () => {
+    const merged = {
+      profil: "teletravail",
+      equipement_actuel: "ve pac",
+      equipement_actuel_params: {
+        schemaVersion: 2,
+        items: [
+          { kind: "pac", id: "pac-eau", role: "principal", pac_type: "air_eau", puissance_kw: 12, fonctionnement: "moyen" },
+          { kind: "pac", id: "pac-air", role: "principal", pac_type: "air_air", puissance_kw: 4, usage_hiver: "faible", usage_ete: "moyen" },
+          { kind: "ve", id: "ve", mode_charge: "nuit", batterie_kwh: 60, charges_semaine: 7 },
+        ],
+      },
+    };
+
+    const base = flat8760(11000);
+    const out = applyEquipmentShape(base, merged, false);
+    const sumH = out.hourly.reduce((a, b) => a + b, 0);
+    const night = out.hourly.reduce((a, b, i) => {
+      const h = i % 24;
+      return a + (h <= 6 || h >= 22 ? b : 0);
+    }, 0);
+    const day = out.hourly.reduce((a, b, i) => {
+      const h = i % 24;
+      return a + (h >= 10 && h <= 15 ? b : 0);
+    }, 0);
+
+    assert.equal(out.annual_kwh, 11000);
+    assert.ok(Math.abs(sumH - 11000) < 1);
+    assert.ok(night > day * 2);
+  });
+
   it("cas 3 — V2 à venir VE+PAC+legacy clim migré augmente annual_kwh", () => {
     const merged = {
       equipement_actuel: "",
