@@ -656,10 +656,24 @@ export async function buildClientPortalPayload(db, ctx) {
   });
 
   const studyRes = await db.query(
-    `SELECT id, study_number, status, current_version, created_at
-     FROM studies
-     WHERE lead_id = $1 AND organization_id = $2
-     ORDER BY created_at DESC
+    `SELECT s.id, s.study_number, s.status, s.current_version, s.created_at,
+            EXISTS (
+              SELECT 1
+              FROM study_versions sv
+              WHERE sv.study_id = s.id
+                AND sv.organization_id = s.organization_id
+                AND sv.data_json ? 'portal_offer'
+            ) AS has_portal_offer,
+            (
+              SELECT MAX(sv.updated_at)
+              FROM study_versions sv
+              WHERE sv.study_id = s.id
+                AND sv.organization_id = s.organization_id
+                AND sv.data_json ? 'portal_offer'
+            ) AS portal_offer_updated_at
+     FROM studies s
+     WHERE s.lead_id = $1 AND s.organization_id = $2
+     ORDER BY has_portal_offer DESC, portal_offer_updated_at DESC NULLS LAST, s.created_at DESC
      LIMIT 1`,
     [leadId, organizationId]
   );
