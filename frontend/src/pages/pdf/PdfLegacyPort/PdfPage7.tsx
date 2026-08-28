@@ -150,7 +150,7 @@ export default function PdfPage7({
     <PdfPageLayout
       legacyPort={{
         id: "p7",
-        sectionGap: "1.65mm",
+        sectionGap: "1.2mm",
         header: (
           <PdfHeader
             headerStyle={{
@@ -205,8 +205,8 @@ export default function PdfPage7({
       {/* Accroche — volontairement discrète (le schéma porte la page, pas P6) */}
       <p
         style={{
-          margin: "0 0 1.5mm 0",
-          fontSize: "3.2mm",
+          margin: "0 0 1mm 0",
+          fontSize: "3.05mm",
           lineHeight: 1.38,
           color: "#555",
           flexShrink: 0,
@@ -416,10 +416,10 @@ export default function PdfPage7({
           <div
             className="card soft p7-annual-synth"
             style={{
-              padding: "3.1mm 4.3mm",
+              padding: "2.35mm 3.7mm",
               border: "0.4mm solid rgba(195,152,71,.28)",
               borderRadius: "4.2mm",
-              marginTop: "1.35mm",
+              marginTop: "0.75mm",
               flexShrink: 0,
               background: "rgba(255, 253, 248, 0.58)",
             }}
@@ -428,11 +428,11 @@ export default function PdfPage7({
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4.5mm", alignItems: "stretch" }}>
                 {/* Colonne gauche — Consommation annuelle */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "1mm" }}>
-                  <div style={{ fontWeight: 700, marginBottom: "0.25mm", fontSize: "3.2mm", color: brandHex }}>
+                  <div style={{ fontWeight: 700, marginBottom: "0.15mm", fontSize: "3mm", color: brandHex }}>
                     Consommation annuelle
                   </div>
-                  <div style={{ fontSize: "3.12mm", color: "#444", lineHeight: 1.42 }}>
-                    <div style={{ fontWeight: 600, marginBottom: "1.1mm" }}>{fmtKwh(consoKwh)} consommés par an</div>
+                  <div style={{ fontSize: "2.92mm", color: "#444", lineHeight: 1.32 }}>
+                    <div style={{ fontWeight: 600, marginBottom: "0.65mm" }}>{fmtKwh(consoKwh)} consommés par an</div>
                     {isVirtualCreditScenario ? (
                       <>
                         <div>• {fmtKwh(solarUsedDirectKwh)} utilisés directement</div>
@@ -446,11 +446,11 @@ export default function PdfPage7({
                 </div>
                 {/* Colonne droite — Production annuelle */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "1mm", borderLeft: "0.3mm solid rgba(195,152,71,.2)", paddingLeft: "4mm" }}>
-                  <div style={{ fontWeight: 700, marginBottom: "0.25mm", fontSize: "3.2mm", color: brandHex }}>
+                  <div style={{ fontWeight: 700, marginBottom: "0.15mm", fontSize: "3mm", color: brandHex }}>
                     Production annuelle
                   </div>
-                  <div style={{ fontSize: "3.12mm", color: "#444", lineHeight: 1.42 }}>
-                    <div style={{ fontWeight: 600, marginBottom: "1.1mm" }}>{fmtKwh(prodKwh)} produits par an</div>
+                  <div style={{ fontSize: "2.92mm", color: "#444", lineHeight: 1.32 }}>
+                    <div style={{ fontWeight: 600, marginBottom: "0.65mm" }}>{fmtKwh(prodKwh)} produits par an</div>
                     {isVirtualCreditScenario ? (
                       <>
                         <div>• {fmtKwh(solarUsedDirectKwh)} utilisés directement</div>
@@ -483,9 +483,9 @@ export default function PdfPage7({
           <div
             className="card soft p7-lecture-card"
             style={{
-              padding: "3mm 4.2mm 3.15mm",
+              padding: "2.25mm 3.7mm 2.4mm",
               borderRadius: "4.2mm",
-              marginTop: "1.35mm",
+              marginTop: "0.75mm",
               flexShrink: 0,
               boxShadow: "0 0.6mm 1.8mm rgba(15, 23, 42, 0.038)",
             }}
