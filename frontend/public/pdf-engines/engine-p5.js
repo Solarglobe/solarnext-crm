@@ -198,13 +198,15 @@
     area(visVisual, d=>d.auto,  "p5auto");
     area(visVisual, d=>d.prod,  "p5pv");
 
+    const battLegend = $("#p5_leg_batt");
+    const battLegendText = $("#p5_leg_batt_text");
     if(series.some(s=>safeNum(s.batt) !== 0)){
       area(visVisual, d=>Math.max(0,d.batt), "p5batt");
-      $("#p5_leg_batt").style.display="inline-block";
-      $("#p5_leg_batt_text").style.display="block";
+      if (battLegend) battLegend.style.display="inline-block";
+      if (battLegendText) battLegendText.style.display="block";
     } else {
-      $("#p5_leg_batt").style.display="none";
-      $("#p5_leg_batt_text").style.display="none";
+      if (battLegend) battLegend.style.display="none";
+      if (battLegendText) battLegendText.style.display="none";
     }
 
     // ========================================================================
