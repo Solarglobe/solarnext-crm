@@ -32,9 +32,15 @@ function buildSnapshot({ production, direct, credit, gridImport, capex }) {
       roi_years: 12,
       irr_pct: 9,
       virtual_battery_finance: {
+        provider_code: "URBAN_SOLAR",
         annual_total_virtual_cost_ttc: 299,
-        annual_activation_fee_ttc: 299,
+        annual_activation_fee_ttc: 0,
       },
+    },
+    virtual_battery_finance: {
+      provider_code: "URBAN_SOLAR",
+      annual_total_virtual_cost_ttc: 299,
+      annual_activation_fee_ttc: 0,
     },
   };
 }
@@ -61,6 +67,9 @@ test("ACHOURI 3 kWc PDF VM keeps direct, credit and reconciled production distin
   assert.equal(vm.fullReport.p7.credited_kwh, 2449);
   assert.equal(vm.fullReport.p7.energy_grid_import_kwh, 7589);
   assert.equal(vm.fullReport.p10.best.annual_production_kwh, 3411);
+  assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupCommercialFee, 299);
+  assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupBillingPolicy, "waived_by_solarglobe");
+  assert.match(vm.fullReport.p10.residual_bill_virtual.virtualStorageFeesIndexationNote, /maintenus constants/);
 });
 
 test("ACHOURI 6 kWc PDF VM keeps direct, credit and reconciled production distinct", () => {
@@ -85,4 +94,20 @@ test("ACHOURI 6 kWc PDF VM keeps direct, credit and reconciled production distin
   assert.equal(vm.fullReport.p7.credited_kwh, 5655);
   assert.equal(vm.fullReport.p7.energy_grid_import_kwh, 4221);
   assert.equal(vm.fullReport.p10.best.annual_production_kwh, 6779);
+});
+
+test("UrbanSolar 299 EUR setup fee can be shown as waived when not billed to the client", () => {
+  const snapshot = buildSnapshot({
+    production: 3410,
+    direct: 962,
+    credit: 2448.771,
+    gridImport: 7589,
+    capex: 6800,
+  });
+  const vm = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, { studyNumber: "SGS-2026-0166" });
+
+  assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupFee, 0);
+  assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupCommercialFee, 299);
+  assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupBillingPolicy, "waived_by_solarglobe");
+  assert.match(vm.fullReport.p10.residual_bill_virtual.activation_applies_note, /offerts et pris en charge par SolarGlobe/);
 });

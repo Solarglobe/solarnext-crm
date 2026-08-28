@@ -363,6 +363,19 @@ export async function buildSelectedScenarioSnapshot({
     impKwh > 0 && residualBill != null && Number.isFinite(Number(residualBill))
       ? Number(residualBill) / impKwh
       : null;
+  const activationTtc = Number.isFinite(Number(vf?.annual_activation_fee_ttc))
+    ? Number(vf.annual_activation_fee_ttc)
+    : 0;
+  const providerCode = String(vf?.provider_code ?? scenario.provider_code ?? "").toUpperCase();
+  const publicSetupFeeTtc = providerCode === "URBAN_SOLAR" ? 299 : activationTtc;
+  const setupBillingPolicy =
+    activationTtc > 0
+      ? scenario._virtual_battery_activation_in_capex === true
+        ? "included_in_capex"
+        : "billed_extra"
+      : providerCode === "URBAN_SOLAR"
+        ? "waived_by_solarglobe"
+        : "none";
   const residualBillVirtualBreakdown =
     scenarioId === "BATTERY_VIRTUAL" && vf
       ? {
@@ -372,10 +385,20 @@ export async function buildSelectedScenarioSnapshot({
           virtual_battery_subscription_ttc: vf.annual_subscription_ttc ?? null,
           virtual_battery_autoproducer_contribution_ttc: vf.annual_autoproducer_contribution_ttc ?? null,
           virtual_battery_discharge_fees_ttc: vf.annual_virtual_discharge_cost_ttc ?? null,
-          virtual_battery_activation_ttc: vf.annual_activation_fee_ttc ?? null,
+          virtual_battery_activation_ttc: activationTtc,
+          virtualStorageSetupFee: activationTtc,
+          virtualStorageSetupCommercialFee: publicSetupFeeTtc,
+          virtualStorageSetupBillingPolicy: setupBillingPolicy,
+          virtualStorageSetupFeeIncludedInCapex: scenario._virtual_battery_activation_in_capex === true,
+          virtualStorageFeesIndexationNote:
+            "Les frais de gestion et de restitution du crédit virtuel sont maintenus constants dans cette projection.",
           activation_applies_note:
-            (vf.annual_activation_fee_ttc ?? 0) > 0
-              ? "Frais d'activation : première année contractuelle (TTC), si applicable."
+            activationTtc > 0
+              ? scenario._virtual_battery_activation_in_capex === true
+                ? "Frais d'activation : inclus dans l'investissement affiché, sans double comptage."
+                : "Frais d'activation : première année contractuelle (TTC), ajouté aux coûts de service."
+              : setupBillingPolicy === "waived_by_solarglobe"
+                ? "Frais de mise en place de 299 € TTC offerts et pris en charge par SolarGlobe."
               : null,
           supplier_subscription_eur: null,
           supplier_subscription_note:

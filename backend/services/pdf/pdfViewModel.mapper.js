@@ -284,7 +284,7 @@ function resolveSiteCoverageFromPvPct(energy) {
 function buildResidualBillVirtualVmFromScenario(scenario) {
   const sid = scenario?.id ?? scenario?.scenario_type;
   if (!isVirtualLikeScenarioId(sid)) return null;
-  const vf = scenario.virtual_battery_finance;
+  const vf = scenario.virtual_battery_finance ?? scenario.finance?.virtual_battery_finance;
   if (!vf || typeof vf !== "object") return null;
   const e = scenario.energy || {};
   const impKwh = canonicalGridImportKwhForPdf(e);
@@ -293,6 +293,17 @@ function buildResidualBillVirtualVmFromScenario(scenario) {
     impKwh > 0 && residualBill != null && Number.isFinite(Number(residualBill))
       ? Number(residualBill) / impKwh
       : null;
+  const activationTtc = num(vf.annual_activation_fee_ttc) ?? 0;
+  const providerCode = String(vf.provider_code ?? scenario.provider_code ?? "").toUpperCase();
+  const publicSetupFeeTtc = providerCode === "URBAN_SOLAR" ? 299 : activationTtc;
+  const setupBillingPolicy =
+    activationTtc > 0
+      ? scenario._virtual_battery_activation_in_capex === true
+        ? "included_in_capex"
+        : "billed_extra"
+      : providerCode === "URBAN_SOLAR"
+        ? "waived_by_solarglobe"
+        : "none";
   return {
     grid_import_kwh: Number.isFinite(impKwh) ? impKwh : null,
     energy_purchase_from_grid_eur:
@@ -300,14 +311,20 @@ function buildResidualBillVirtualVmFromScenario(scenario) {
     virtual_battery_subscription_ttc: vf.annual_subscription_ttc ?? null,
     virtual_battery_autoproducer_contribution_ttc: vf.annual_autoproducer_contribution_ttc ?? null,
     virtual_battery_discharge_fees_ttc: vf.annual_virtual_discharge_cost_ttc ?? null,
-    virtual_battery_activation_ttc: vf.annual_activation_fee_ttc ?? null,
-    virtualStorageSetupFee: vf.annual_activation_fee_ttc ?? null,
+    virtual_battery_activation_ttc: activationTtc,
+    virtualStorageSetupFee: activationTtc,
+    virtualStorageSetupCommercialFee: publicSetupFeeTtc,
+    virtualStorageSetupBillingPolicy: setupBillingPolicy,
     virtualStorageSetupFeeIncludedInCapex: scenario._virtual_battery_activation_in_capex === true,
+    virtualStorageFeesIndexationNote:
+      "Les frais de gestion et de restitution du crédit virtuel sont maintenus constants dans cette projection.",
     activation_applies_note:
-      (vf.annual_activation_fee_ttc ?? 0) > 0
+      activationTtc > 0
         ? scenario._virtual_battery_activation_in_capex === true
           ? "Frais d'activation : inclus dans l'investissement affiché, sans double comptage."
           : "Frais d'activation : première année contractuelle (TTC), ajouté aux coûts de service."
+        : setupBillingPolicy === "waived_by_solarglobe"
+          ? "Frais de mise en place de 299 € TTC offerts et pris en charge par SolarGlobe."
         : null,
     supplier_subscription_eur: null,
     supplier_subscription_note:
@@ -818,6 +835,23 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     id: selectedKey,
     name: selectedKey,
     scenario_type: selectedKey,
+    virtual_battery_finance:
+      selectedScenarioFromV2?.virtual_battery_finance ??
+      (useSnapshotAsSelected ? snapshot.virtual_battery_finance : null) ??
+      selectedScenarioFromV2?.finance?.virtual_battery_finance ??
+      (useSnapshotAsSelected ? finance.virtual_battery_finance : null),
+    battery_virtual:
+      selectedScenarioFromV2?.battery_virtual ?? (useSnapshotAsSelected ? snapshot.battery_virtual : null),
+    _virtual_battery_activation_in_capex:
+      selectedScenarioFromV2?._virtual_battery_activation_in_capex ??
+      (useSnapshotAsSelected ? snapshot._virtual_battery_activation_in_capex : undefined),
+    provider_code:
+      selectedScenarioFromV2?.provider_code ??
+      (useSnapshotAsSelected ? snapshot.provider_code : null) ??
+      selectedScenarioFromV2?.virtual_battery_finance?.provider_code ??
+      (useSnapshotAsSelected ? snapshot.virtual_battery_finance?.provider_code : null) ??
+      selectedScenarioFromV2?.finance?.virtual_battery_finance?.provider_code ??
+      (useSnapshotAsSelected ? finance.virtual_battery_finance?.provider_code : null),
     energy: {
       ...(selectedScenarioFromV2?.energy && typeof selectedScenarioFromV2.energy === "object"
         ? selectedScenarioFromV2.energy

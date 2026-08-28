@@ -109,9 +109,23 @@ export default function PdfPage10({
     num(rv?.virtualStorageSetupFee) ??
     num(rv?.virtual_battery_activation_ttc) ??
     num(hyp.virtualStorageSetupFee);
+  const setupCommercialFee =
+    num(rv?.virtualStorageSetupCommercialFee) ??
+    num(hyp.virtualStorageSetupCommercialFee) ??
+    setupFee;
+  const setupBillingPolicy = String(
+    rv?.virtualStorageSetupBillingPolicy ??
+      hyp.virtualStorageSetupBillingPolicy ??
+      ""
+  );
   const setupIncluded =
     rv?.virtualStorageSetupFeeIncludedInCapex === true ||
     hyp.virtualStorageSetupFeeIncludedInCapex === true;
+  const virtualFeesIndexationNote = String(
+    rv?.virtualStorageFeesIndexationNote ??
+      hyp.virtualStorageFeesIndexationNote ??
+      ""
+  );
 
   const roiBarPct = clamp01((MAX.ROI - (roi ?? MAX.ROI)) / MAX.ROI) * 100;
   const triBarPct = clamp01((tri ?? 0) / MAX.TRI) * 100;
@@ -357,14 +371,18 @@ export default function PdfPage10({
             {num(rv.virtual_battery_activation_ttc) != null && Number(rv.virtual_battery_activation_ttc) > 0 ? (
               <div>Frais d&apos;activation (année 1) : {fmtEUR(rv.virtual_battery_activation_ttc as number)}</div>
             ) : null}
-            {isVirtualCreditScenario && setupFee != null ? (
+            {isVirtualCreditScenario && setupCommercialFee != null && setupCommercialFee > 0 ? (
               <div style={{ marginTop: "0.35mm", fontSize: "2.12mm", color: softSub }}>
-                Mise en place stockage virtuel : {fmtEUR(setupFee)} TTC
-                {setupFee <= 0
-                  ? " pour ce scénario."
+                {setupBillingPolicy === "waived_by_solarglobe"
+                  ? `Frais de mise en place de ${fmtEUR(setupCommercialFee)} TTC offerts et pris en charge par SolarGlobe.`
                   : setupIncluded
-                    ? " inclus dans l'investissement affiché, sans double comptage."
-                    : " facturés séparément et intégrés aux coûts de service/ROI."}
+                    ? `Frais de mise en place de ${fmtEUR(setupCommercialFee)} TTC inclus dans l'investissement.`
+                    : `Frais de mise en place de ${fmtEUR(setupCommercialFee)} TTC facturés séparément et intégrés aux coûts de service/ROI.`}
+              </div>
+            ) : null}
+            {isVirtualCreditScenario && virtualFeesIndexationNote ? (
+              <div style={{ marginTop: "0.35mm", fontSize: "2.12mm", color: softSub }}>
+                {virtualFeesIndexationNote}
               </div>
             ) : null}
             {typeof rv.supplier_subscription_note === "string" && rv.supplier_subscription_note ? (

@@ -181,10 +181,10 @@ export default function ChartP5DayProfile({
 
       <line x1={PADDING_LEFT} y1={H - PAD_B} x2={W - PADDING_RIGHT} y2={H - PAD_B} stroke="#999" />
 
-      {Array.from({ length: 12 }, (_, k) => k * 2).map((h) => (
+      {[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24].map((h) => (
         <text
           key={h}
-          x={scaleX(h)}
+          x={h === 24 ? W - PADDING_RIGHT : scaleX(h)}
           y={H - 20}
           textAnchor="middle"
           fill="#222"
