@@ -423,8 +423,8 @@
 .fi-legal-bank-row {
   margin: 0;
   display: grid;
-  grid-template-columns: 56px 1fr;
-  gap: 8px;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 10px;
   font-size: 8.5pt;
   line-height: 1.35;
 }
@@ -432,6 +432,7 @@
 .fi-legal-bank-row span:first-child {
   font-weight: 600;
   color: var(--fi-muted);
+  white-space: nowrap;
 }
 
 .fi-section--legal.fi-legal {

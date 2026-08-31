@@ -247,7 +247,7 @@ export default function FinancialInvoicePdfPage() {
   const issuerBank = ((issuer.bank as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
   const legalBankPairs = [
     { label: "SIRET", value: issuer.siret },
-    { label: "Forme juridique", value: "SAS au capital de 2000 euros" },
+    { label: "SAS", value: "au capital de 2 000 euros" },
     { label: "TVA", value: issuer.vat_number },
     { label: "RCS", value: issuer.rcs },
     { label: "Banque", value: issuerBank.bank_name },
