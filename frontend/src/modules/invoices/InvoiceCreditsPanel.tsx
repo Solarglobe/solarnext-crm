@@ -102,57 +102,65 @@ export default function InvoiceCreditsPanel({
       <p className="if-panel-sub" style={{ marginTop: 0 }}>
         Total avoirs (TTC) imputés : <strong>{eur(totalCredited)}</strong>
       </p>
-      <div className="if-panel-body">
+      {pdfLoading ? (
+        <p className="if-panel-sub if-panel-sub--pending" role="status">
+          Génération du document en cours
+        </p>
+      ) : null}
+      <div className="if-panel-body if-panel-body--credits">
         {credits.length === 0 ? (
           <p className="if-muted">Aucun avoir lié.</p>
         ) : (
-          <table className="sn-ui-table if-table">
-            <thead>
-              <tr>
-                <th>N°</th>
-                <th className="if-num">TTC</th>
-                <th>Motif</th>
-                <th>Statut</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {credits.map((c) => {
-                const st = String(c.status || "").toUpperCase();
-                const draft = st === "DRAFT";
-                return (
-                  <tr key={c.id}>
-                    <td className="qb-mono">{formatCreditNoteNumberDisplay(c.credit_note_number, c.status)}</td>
-                    <td className="if-num">{eur(Number(c.total_ttc) || 0)}</td>
-                    <td className="if-muted">{c.reason_text || "—"}</td>
-                    <td>
-                      <span
-                        className={draft ? "sn-badge sn-badge-neutral" : "sn-badge sn-badge-success"}
-                      >
+          <div className="if-credit-list">
+            {credits.map((c) => {
+              const st = String(c.status || "").toUpperCase();
+              const draft = st === "DRAFT";
+              const isCurrentPdfLoading = pdfLoading === c.id;
+              return (
+                <article key={c.id} className="if-credit-row">
+                  <div className="if-credit-row__main">
+                    <div className="if-credit-row__head">
+                      <span className="if-credit-row__number qb-mono">
+                        {formatCreditNoteNumberDisplay(c.credit_note_number, c.status)}
+                      </span>
+                      <span className={draft ? "sn-badge sn-badge-neutral" : "sn-badge sn-badge-success"}>
                         {draft ? "Brouillon" : st}
                       </span>
-                    </td>
-                    <td>
-                      {draft ? (
-                        <button type="button" className="qb-btn-link" disabled={issuing === c.id} onClick={() => setConfirmIssueId(c.id)}>
-                          Émettre
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="qb-btn-link"
-                          disabled={pdfLoading === c.id}
-                          onClick={() => void openOrGeneratePdf(c)}
-                        >
-                          {pdfLoading === c.id ? "PDF..." : c.pdf_document_id ? "Télécharger" : "Générer PDF"}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </div>
+                    <p className="if-credit-row__reason">{c.reason_text || "Motif non renseigné"}</p>
+                  </div>
+                  <div className="if-credit-row__side">
+                    <span className="if-credit-row__amount">{eur(Number(c.total_ttc) || 0)}</span>
+                    {draft ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={issuing === c.id}
+                        onClick={() => setConfirmIssueId(c.id)}
+                      >
+                        Émettre
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant={c.pdf_document_id ? "secondary" : "primary"}
+                        size="sm"
+                        disabled={isCurrentPdfLoading}
+                        onClick={() => void openOrGeneratePdf(c)}
+                      >
+                        {isCurrentPdfLoading
+                          ? "Génération..."
+                          : c.pdf_document_id
+                            ? "Télécharger le PDF"
+                            : "Ajouter le PDF aux documents"}
+                      </Button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         )}
       </div>
 
