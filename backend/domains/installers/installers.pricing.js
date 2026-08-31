@@ -4,6 +4,13 @@ export const INSTALLATION_TYPES = Object.freeze(["ROOF_SUPERIMPOSED", "FLAT_ROOF
 export const ELECTRICAL_TYPES = Object.freeze(["MONO", "TRI"]);
 export const CALCULATION_VERSION = "installer-pricing-v1";
 
+const ELECTRICAL_OPTION_AMOUNTS_HT_CENTS = Object.freeze({
+  GRID_CONNECTION_CONSUEL: Object.freeze({
+    MONO: 35000,
+    TRI: 40000,
+  }),
+});
+
 function asPositiveInt(value, code, label) {
   const n = Number(value);
   if (!Number.isInteger(n) || n <= 0) {
@@ -68,7 +75,16 @@ function buildElectricalAdjustment(rule, electricalType) {
   });
 }
 
-function normalizeSelectedOptions(selectedOptions, optionsByCode) {
+function resolveCatalogOptionAmount(option, electricalType) {
+  const code = normalizeCode(option?.code);
+  const electricalAmounts = ELECTRICAL_OPTION_AMOUNTS_HT_CENTS[code];
+  if (electricalAmounts && Object.prototype.hasOwnProperty.call(electricalAmounts, electricalType)) {
+    return electricalAmounts[electricalType];
+  }
+  return asNonNegativeInt(option.amount_ht_cents, "INVALID_OPTION_AMOUNT", "Montant option");
+}
+
+function normalizeSelectedOptions(selectedOptions, optionsByCode, electricalType) {
   const selected = Array.isArray(selectedOptions) ? selectedOptions : [];
   const seen = new Set();
   const groups = new Map();
@@ -88,7 +104,7 @@ function normalizeSelectedOptions(selectedOptions, optionsByCode) {
       throw installerError("OPTION_NOT_SELECTABLE", "Option non sélectionnable pour une installation", 400, { code });
     }
 
-    const catalogAmount = asNonNegativeInt(option.amount_ht_cents, "INVALID_OPTION_AMOUNT", "Montant option");
+    const catalogAmount = resolveCatalogOptionAmount(option, electricalType);
     let finalAmount = catalogAmount;
     let override = null;
     if (typeof raw === "object" && raw?.amount_ht_cents_override != null) {
@@ -160,7 +176,7 @@ export function computeInstallationCostFromCatalog(catalog, input = {}) {
   const baseAmount = asNonNegativeInt(matchedRow.amount_ht_cents, "INVALID_BASE_AMOUNT", "Montant de base");
   const electricalAdjustment = buildElectricalAdjustment(normalized.electricalByType.get(electricalType), electricalType);
   const electricalAdjustments = electricalAdjustment ? [electricalAdjustment] : [];
-  const options = normalizeSelectedOptions(input.options, normalized.optionsByCode);
+  const options = normalizeSelectedOptions(input.options, normalized.optionsByCode, electricalType);
   const optionOverrides = options.filter((option) => option.override).map((option) => option.override);
 
   const electricalCatalogTotal = electricalAdjustments.reduce((sum, item) => sum + item.amount_ht_cents, 0);

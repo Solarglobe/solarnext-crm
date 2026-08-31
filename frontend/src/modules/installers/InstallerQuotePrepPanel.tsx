@@ -32,6 +32,7 @@ const OPTION_ORDER = [
   "NEW_SLATE_INSTALLATION",
   "TECHNICAL_VISIT",
   "CABLE_AND_CONNECTION",
+  "GRID_CONNECTION_CONSUEL",
 ];
 
 function optionLabel(code: string): string {
@@ -43,6 +44,7 @@ function optionLabel(code: string): string {
     NEW_SLATE_INSTALLATION: "Ardoise neuve",
     TECHNICAL_VISIT: "Visite technique",
     CABLE_AND_CONNECTION: "Câble / raccordement",
+    GRID_CONNECTION_CONSUEL: "Raccordement + Consuel",
   };
   return labels[code] ?? code;
 }

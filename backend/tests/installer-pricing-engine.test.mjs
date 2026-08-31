@@ -157,6 +157,15 @@ function ohelecCatalog(overrides = {}) {
         is_amount_overridable: true,
         is_active: true,
       },
+      {
+        code: "GRID_CONNECTION_CONSUEL",
+        label: "Raccordement et Consuel",
+        category: "ELECTRICAL",
+        amount_ht_cents: 35000,
+        is_selectable_for_installation: true,
+        is_amount_overridable: false,
+        is_active: true,
+      },
     ],
     ancillary_services: [
       {
@@ -365,6 +374,28 @@ test("options, câble overridable et visite technique sont calculés en HT", () 
       override_amount_ht_cents: 22000,
     },
   ]);
+});
+
+test("l'option raccordement et Consuel vaut 350 euros HT en mono et 400 euros HT en tri", () => {
+  const mono = compute({
+    requested_power_wc: 3000,
+    installation_type: "ROOF_SUPERIMPOSED",
+    electrical_type: "MONO",
+    options: ["GRID_CONNECTION_CONSUEL"],
+  });
+  const tri = compute({
+    requested_power_wc: 3000,
+    installation_type: "ROOF_SUPERIMPOSED",
+    electrical_type: "TRI",
+    options: ["GRID_CONNECTION_CONSUEL"],
+  });
+
+  assert.equal(mono.options[0].catalog_amount_ht_cents, 35000);
+  assert.equal(mono.options[0].final_amount_ht_cents, 35000);
+  assert.equal(mono.final_total_ht_cents, 155000 + 35000);
+  assert.equal(tri.options[0].catalog_amount_ht_cents, 40000);
+  assert.equal(tri.options[0].final_amount_ht_cents, 40000);
+  assert.equal(tri.final_total_ht_cents, 155000 + 25000 + 40000);
 });
 
 test("les options batterie sont mutuellement exclusives", () => {

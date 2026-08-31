@@ -343,7 +343,8 @@ export const up = async (pgm) => {
         ('MULTIPLE_ROOF_SECTIONS', 'Plusieurs pans de toiture', 'INSTALLATION', 25000, true, false, null, 40),
         ('NEW_SLATE_INSTALLATION', 'Pose ardoise neuve', 'INSTALLATION', 30000, true, false, null, 50),
         ('TECHNICAL_VISIT', 'Visite technique', 'SERVICE', 16667, true, false, null, 60),
-        ('CABLE_AND_CONNECTION', 'Câble et raccordement', 'ELECTRICAL', 15000, true, true, null, 70)
+        ('CABLE_AND_CONNECTION', 'Câble et raccordement', 'ELECTRICAL', 15000, true, true, null, 70),
+        ('GRID_CONNECTION_CONSUEL', 'Raccordement et Consuel', 'ELECTRICAL', 35000, true, false, null, 80)
       ) AS x(code, label, category, amount_ht_cents, is_selectable_for_installation, is_amount_overridable, incompatible_group, sort_order)
       ON CONFLICT (organization_id, tariff_version_id, code) DO UPDATE SET
         label = EXCLUDED.label,
