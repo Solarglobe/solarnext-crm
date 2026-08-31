@@ -376,7 +376,7 @@ test("options, câble overridable et visite technique sont calculés en HT", () 
   ]);
 });
 
-test("l'option raccordement et Consuel vaut 350 euros HT en mono et 400 euros HT en tri", () => {
+test("l'option raccordement et Consuel vaut 350 euros HT sans batterie, mono comme tri", () => {
   const mono = compute({
     requested_power_wc: 3000,
     installation_type: "ROOF_SUPERIMPOSED",
@@ -393,9 +393,34 @@ test("l'option raccordement et Consuel vaut 350 euros HT en mono et 400 euros HT
   assert.equal(mono.options[0].catalog_amount_ht_cents, 35000);
   assert.equal(mono.options[0].final_amount_ht_cents, 35000);
   assert.equal(mono.final_total_ht_cents, 155000 + 35000);
-  assert.equal(tri.options[0].catalog_amount_ht_cents, 40000);
-  assert.equal(tri.options[0].final_amount_ht_cents, 40000);
-  assert.equal(tri.final_total_ht_cents, 155000 + 25000 + 40000);
+  assert.equal(tri.options[0].catalog_amount_ht_cents, 35000);
+  assert.equal(tri.options[0].final_amount_ht_cents, 35000);
+  assert.equal(tri.final_total_ht_cents, 155000 + 25000 + 35000);
+});
+
+test("l'option raccordement et Consuel vaut 400 euros HT avec batterie, mono comme tri", () => {
+  const mono = compute({
+    requested_power_wc: 3000,
+    installation_type: "ROOF_SUPERIMPOSED",
+    electrical_type: "MONO",
+    options: ["BATTERY_UP_TO_5_KWH", "GRID_CONNECTION_CONSUEL"],
+  });
+  const tri = compute({
+    requested_power_wc: 3000,
+    installation_type: "ROOF_SUPERIMPOSED",
+    electrical_type: "TRI",
+    options: ["BATTERY_OVER_5_KWH", "GRID_CONNECTION_CONSUEL"],
+  });
+
+  const monoConsuel = mono.options.find((option) => option.code === "GRID_CONNECTION_CONSUEL");
+  const triConsuel = tri.options.find((option) => option.code === "GRID_CONNECTION_CONSUEL");
+
+  assert.equal(monoConsuel.catalog_amount_ht_cents, 40000);
+  assert.equal(monoConsuel.final_amount_ht_cents, 40000);
+  assert.equal(mono.final_total_ht_cents, 155000 + 30000 + 40000);
+  assert.equal(triConsuel.catalog_amount_ht_cents, 40000);
+  assert.equal(triConsuel.final_amount_ht_cents, 40000);
+  assert.equal(tri.final_total_ht_cents, 155000 + 25000 + 60000 + 40000);
 });
 
 test("les options batterie sont mutuellement exclusives", () => {

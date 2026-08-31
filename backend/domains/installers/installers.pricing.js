@@ -4,10 +4,12 @@ export const INSTALLATION_TYPES = Object.freeze(["ROOF_SUPERIMPOSED", "FLAT_ROOF
 export const ELECTRICAL_TYPES = Object.freeze(["MONO", "TRI"]);
 export const CALCULATION_VERSION = "installer-pricing-v1";
 
-const ELECTRICAL_OPTION_AMOUNTS_HT_CENTS = Object.freeze({
+const BATTERY_OPTION_CODES = Object.freeze(["BATTERY_UP_TO_5_KWH", "BATTERY_OVER_5_KWH"]);
+
+const CONDITIONAL_OPTION_AMOUNTS_HT_CENTS = Object.freeze({
   GRID_CONNECTION_CONSUEL: Object.freeze({
-    MONO: 35000,
-    TRI: 40000,
+    withoutBattery: 35000,
+    withBattery: 40000,
   }),
 });
 
@@ -75,20 +77,22 @@ function buildElectricalAdjustment(rule, electricalType) {
   });
 }
 
-function resolveCatalogOptionAmount(option, electricalType) {
+function resolveCatalogOptionAmount(option, context = {}) {
   const code = normalizeCode(option?.code);
-  const electricalAmounts = ELECTRICAL_OPTION_AMOUNTS_HT_CENTS[code];
-  if (electricalAmounts && Object.prototype.hasOwnProperty.call(electricalAmounts, electricalType)) {
-    return electricalAmounts[electricalType];
+  const conditionalAmounts = CONDITIONAL_OPTION_AMOUNTS_HT_CENTS[code];
+  if (conditionalAmounts) {
+    return context.hasBatteryOption ? conditionalAmounts.withBattery : conditionalAmounts.withoutBattery;
   }
   return asNonNegativeInt(option.amount_ht_cents, "INVALID_OPTION_AMOUNT", "Montant option");
 }
 
-function normalizeSelectedOptions(selectedOptions, optionsByCode, electricalType) {
+function normalizeSelectedOptions(selectedOptions, optionsByCode) {
   const selected = Array.isArray(selectedOptions) ? selectedOptions : [];
   const seen = new Set();
   const groups = new Map();
   const normalized = [];
+  const selectedCodes = selected.map((raw) => normalizeCode(typeof raw === "string" ? raw : raw?.code));
+  const hasBatteryOption = selectedCodes.some((code) => BATTERY_OPTION_CODES.includes(code));
 
   for (const raw of selected) {
     const code = normalizeCode(typeof raw === "string" ? raw : raw?.code);
@@ -104,7 +108,7 @@ function normalizeSelectedOptions(selectedOptions, optionsByCode, electricalType
       throw installerError("OPTION_NOT_SELECTABLE", "Option non sélectionnable pour une installation", 400, { code });
     }
 
-    const catalogAmount = resolveCatalogOptionAmount(option, electricalType);
+    const catalogAmount = resolveCatalogOptionAmount(option, { hasBatteryOption });
     let finalAmount = catalogAmount;
     let override = null;
     if (typeof raw === "object" && raw?.amount_ht_cents_override != null) {
@@ -176,7 +180,7 @@ export function computeInstallationCostFromCatalog(catalog, input = {}) {
   const baseAmount = asNonNegativeInt(matchedRow.amount_ht_cents, "INVALID_BASE_AMOUNT", "Montant de base");
   const electricalAdjustment = buildElectricalAdjustment(normalized.electricalByType.get(electricalType), electricalType);
   const electricalAdjustments = electricalAdjustment ? [electricalAdjustment] : [];
-  const options = normalizeSelectedOptions(input.options, normalized.optionsByCode, electricalType);
+  const options = normalizeSelectedOptions(input.options, normalized.optionsByCode);
   const optionOverrides = options.filter((option) => option.override).map((option) => option.override);
 
   const electricalCatalogTotal = electricalAdjustments.reduce((sum, item) => sum + item.amount_ht_cents, 0);
