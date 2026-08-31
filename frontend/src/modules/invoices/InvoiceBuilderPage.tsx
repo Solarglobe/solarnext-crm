@@ -475,6 +475,8 @@ export default function InvoiceBuilderPage() {
     };
   }, [invoiceDetail]);
 
+  const creditableAmountTtc = Math.max(0, finBalance.total_ttc - finBalance.total_credited);
+
   const invoiceStatusUpper = state.header ? String(state.header.status).toUpperCase() : "";
 
   const paymentsList = invoiceDetail?.payments ?? [];
@@ -533,7 +535,7 @@ export default function InvoiceBuilderPage() {
     invoiceStatusUpper !== "DRAFT" &&
     invoiceStatusUpper !== "CANCELLED" &&
     !!state.header?.client_id &&
-    finBalance.amount_due > 0.0001;
+    creditableAmountTtc > 0.0001;
 
   const remindBlockReason =
     invoiceStatusUpper === "DRAFT" ? "Émettez la facture pour activer le suivi des relances." : invoiceStatusUpper === "CANCELLED" ? "Facture annulée." : null;
@@ -1057,7 +1059,7 @@ export default function InvoiceBuilderPage() {
               totalCredited={finBalance.total_credited}
               canCreate={canCreateCredit}
               createBlockedReason={creditBlockReason}
-              maxCreditTtc={finBalance.amount_due}
+              maxCreditTtc={creditableAmountTtc}
               onRefresh={() => void load()}
               externalOpenSignal={creditModalSignal}
             />

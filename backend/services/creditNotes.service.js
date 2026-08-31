@@ -6,6 +6,7 @@ import { pool } from "../config/db.js";
 import { withTx } from "../db/tx.js";
 import { computeFinancialLineDbFields, sumLineAmounts } from "./finance/financialLine.js";
 import { MONEY_EPSILON, roundMoney2, toFiniteNumber } from "./finance/moneyRounding.js";
+import { computeInvoiceCreditableAmount } from "./finance/creditNoteComputation.js";
 import { allocateNextDocumentNumber } from "./documentSequence.service.js";
 import {
   buildInvoiceIssuerRecipientSnapshots,
@@ -135,9 +136,9 @@ export async function createDraftCreditNote(organizationId, invoiceId, body) {
   const totals = sumLineAmounts(lineInputs);
   if (totals.total_ttc < 0) throw httpError("Le total TTC de l’avoir ne peut pas être négatif");
 
-  const amountDue = roundMoney2(toFiniteNumber(invoice.amount_due));
-  if (totals.total_ttc > amountDue + MONEY_EPSILON) {
-    throw httpError("Le montant de l’avoir dépasse le reste à payer de la facture");
+  const creditableAmount = computeInvoiceCreditableAmount(invoice);
+  if (totals.total_ttc > creditableAmount + MONEY_EPSILON) {
+    throw httpError("Le montant de l’avoir dépasse le total encore créditable de la facture");
   }
 
   const draftNum = `DRAFT-AVR-${Date.now()}`;
@@ -203,9 +204,9 @@ export async function issueCreditNote(organizationId, creditNoteId) {
     }
 
     const cnTtc = roundMoney2(toFiniteNumber(cn.total_ttc));
-    const amountDue = roundMoney2(toFiniteNumber(invoice.amount_due));
-    if (cnTtc > amountDue + MONEY_EPSILON) {
-      throw httpError("Le montant de l’avoir dépasse le reste à payer de la facture");
+    const creditableAmount = computeInvoiceCreditableAmount(invoice);
+    if (cnTtc > creditableAmount + MONEY_EPSILON) {
+      throw httpError("Le montant de l’avoir dépasse le total encore créditable de la facture");
     }
 
     const lc = await client.query(

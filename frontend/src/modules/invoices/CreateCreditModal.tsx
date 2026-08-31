@@ -49,7 +49,7 @@ export default function CreateCreditModal({ open, invoiceId, maxTtc, onClose, on
       return;
     }
     if (ttc > maxTtc + 0.01) {
-      setErr(`Le montant ne peut pas dépasser le reste à payer (${maxTtc.toFixed(2)} € TTC).`);
+      setErr(`Le montant ne peut pas dépasser le total encore créditable (${maxTtc.toFixed(2)} € TTC).`);
       return;
     }
     if (!motif.trim()) {
@@ -82,7 +82,7 @@ export default function CreateCreditModal({ open, invoiceId, maxTtc, onClose, on
       open={open}
       onClose={onClose}
       title="Créer un avoir"
-      subtitle={`Montant disponible : ${maxTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} € TTC`}
+      subtitle={`Montant créditable : ${maxTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} € TTC`}
       size="sm"
       footer={
         <>

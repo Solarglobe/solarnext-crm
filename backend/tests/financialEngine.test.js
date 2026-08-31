@@ -23,7 +23,10 @@ import {
   isInvoiceEditable,
   isCreditNoteEditable,
 } from "../services/finance/financialImmutability.js";
-import { computeCreditNoteTotalsFromLines } from "../services/finance/creditNoteComputation.js";
+import {
+  computeCreditNoteTotalsFromLines,
+  computeInvoiceCreditableAmount,
+} from "../services/finance/creditNoteComputation.js";
 import { roundMoney2, MONEY_EPSILON } from "../services/finance/moneyRounding.js";
 
 function assert(cond, msg) {
@@ -195,6 +198,26 @@ function main() {
   test("computeCreditNoteTotalsFromLines alias", () => {
     const t = computeCreditNoteTotalsFromLines([{ quantity: 1, unit_price_ht: 50, vat_rate: 20 }]);
     assertApprox(t.total_ttc, 60, "ttc");
+  });
+
+  test("avoir possible sur facture payée tant que le total facture reste créditable", () => {
+    const creditable = computeInvoiceCreditableAmount({
+      total_ttc: 5880,
+      total_paid: 5880,
+      total_credited: 0,
+      amount_due: 0,
+    });
+    assertApprox(creditable, 5880, "creditable");
+  });
+
+  test("plafond avoir déduit les avoirs déjà émis, pas les paiements", () => {
+    const creditable = computeInvoiceCreditableAmount({
+      total_ttc: 5880,
+      total_paid: 5880,
+      total_credited: 1000,
+      amount_due: 0,
+    });
+    assertApprox(creditable, 4880, "creditable remaining");
   });
 
   // --- Éditabilité ---
