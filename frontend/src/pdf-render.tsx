@@ -19,7 +19,7 @@ const FinancialInvoicePdfPage = lazy(() => import("./pages/pdf/FinancialInvoiceP
 function PdfRenderRoot() {
   if (typeof window !== "undefined") {
     const q = new URLSearchParams(window.location.search);
-    if (q.get("financialInvoiceId")) {
+    if (q.get("financialInvoiceId") || q.get("financialCreditNoteId")) {
       return (
         <Suspense
           fallback={
