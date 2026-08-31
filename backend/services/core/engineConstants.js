@@ -138,6 +138,11 @@ export const SCENARIO_MONTHLY_BATTERY_AUTO_BOOST = 1.0;
 // =============================================================================
 export const IMPACT_FACTOR_CO2_AUTO_KG_PER_KWH = 0.081;
 export const IMPACT_FACTOR_CO2_SURPLUS_KG_PER_KWH = 0.048;
+import {
+  URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01,
+  URBAN_SOLAR_KVA_STEPS,
+} from "../../../shared/urbanSolarVirtualBatteryTariffs2026.js";
+
 export const IMPACT_TREE_CO2_KG_PER_YEAR = 25;
 export const IMPACT_CAR_CO2_KG_PER_KM = 0.192;
 export const IMPACT_SMARTPHONE_KWH_PER_CHARGE = 0.0035;
@@ -152,21 +157,27 @@ export const IMPACT_PARIS_MARSEILLE_KM_REF = 775;
 // =============================================================================
 export const VB_LEGACY_MYSMART_CONTRIBUTION_FIXED_EUR_PER_YEAR_HT = 9.6;
 export const VB_LEGACY_MYSMART_CONTRIBUTION_PER_KVA_EUR_PER_YEAR_HT = 2.38;
-export const VB_LEGACY_DEFAULT_AUTOPROD_CONTRIBUTION_EUR_PER_YEAR_HT = 9.6;
+export const VB_LEGACY_DEFAULT_AUTOPROD_CONTRIBUTION_EUR_PER_YEAR_HT =
+  URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.autoproducerContributionEurPerYearHt;
 export const VB_LEGACY_MYBATTERY_ACTIVATION_FEE_HT = 232.5;
 export const VB_LEGACY_MYBATTERY_BASE_DISCHARGE_EUR_PER_KWH_HT = 0.07925;
 export const VB_LEGACY_MYBATTERY_HPHC_HP_DISCHARGE_EUR_PER_KWH_HT = 0.08025;
 export const VB_LEGACY_MYBATTERY_HPHC_HC_DISCHARGE_EUR_PER_KWH_HT = 0.06585;
-export const VB_LEGACY_URBAN_BASE_GRID_FEE_EUR_PER_KWH_HT = 0.0484;
-/** Sommes legacy HP/HC Urban (énergie + réseau) — conservé pour rétrocompat / référence prix énergie. */
-export const VB_LEGACY_URBAN_HPHC_HP_DISCHARGE_SUM_HT = 0.1412 + 0.0494;
-export const VB_LEGACY_URBAN_HPHC_HC_DISCHARGE_SUM_HT = 0.1007 + 0.035;
+export const VB_LEGACY_URBAN_BASE_GRID_FEE_EUR_PER_KWH_HT =
+  URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.restitutionTtcPerKwh.base / 1.2;
+/** Alias legacy neutralisés : valeurs Urban 2026-08-01, dérivées de la source partagée. */
+export const VB_LEGACY_URBAN_HPHC_HP_DISCHARGE_SUM_HT =
+  URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.restitutionTtcPerKwh.hp / 1.2;
+export const VB_LEGACY_URBAN_HPHC_HC_DISCHARGE_SUM_HT =
+  URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.restitutionTtcPerKwh.hc / 1.2;
 /**
  * Acheminement Stockage Virtuel Urban HP/HC — €/kWh HT (PDF "TARIFS-BV-PARTICULIER-HPHC", note 7).
  * SEUL coût dû à la restitution des kWh stockés : le prix énergie n'est PAS facturé au déstockage.
  */
-export const VB_LEGACY_URBAN_HPHC_HP_RESEAU_HT = 0.0494;
-export const VB_LEGACY_URBAN_HPHC_HC_RESEAU_HT = 0.0350;
+export const VB_LEGACY_URBAN_HPHC_HP_RESEAU_HT =
+  URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.restitutionTtcPerKwh.hp / 1.2;
+export const VB_LEGACY_URBAN_HPHC_HC_RESEAU_HT =
+  URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.restitutionTtcPerKwh.hc / 1.2;
 /**
  * Accise sur l'électricité (ex-TICFE) — €/kWh HT. Due sur toute énergie consommée, y compris
  * l'énergie restituée depuis la batterie virtuelle (PDF MyLight MyBattery : « Accise 2,998 cts € HT »).
@@ -194,30 +205,30 @@ export const MYSMART_CAPACITY_TIERS_HT = [
 
 // HARD CONSTANT – NOT CONFIGURABLE FROM CRM
 // utilisé dans meterKvaToNearestUrbanBaseStep, urbanBaseEnergyPriceHt (virtualBatteryP2Finance.service.js)
-export const URBAN_BASE_KVA_STEPS = [3, 6, 9, 12, 15, 18, 24, 30, 36];
+export const URBAN_BASE_KVA_STEPS = [...URBAN_SOLAR_KVA_STEPS];
 export const URBAN_BASE_FIXED_SUBSCRIPTION_HT_BY_KVA = {
-  3: 9.96,
-  6: 12.6,
-  9: 15.48,
-  12: 18.23,
-  15: 20.79,
-  18: 23.45,
-  24: 29.15,
-  30: 34.33,
-  36: 39.55,
+  3: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.base[3] / 1.2,
+  6: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.base[6] / 1.2,
+  9: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.base[9] / 1.2,
+  12: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.base[12] / 1.2,
+  15: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.base[15] / 1.2,
+  18: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.base[18] / 1.2,
+  24: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.base[24] / 1.2,
+  30: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.base[30] / 1.2,
+  36: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.base[36] / 1.2,
 };
-export const URBAN_BASE_ENERGY_LOW = 0.1308;
-export const URBAN_BASE_ENERGY_HIGH = 0.1297;
+export const URBAN_BASE_ENERGY_LOW = URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.electricityTtcPerKwh.baseByKva[6] / 1.2;
+export const URBAN_BASE_ENERGY_HIGH = URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.electricityTtcPerKwh.baseByKva[18] / 1.2;
 export const URBAN_HPHC_KVA_STEPS = [6, 9, 12, 15, 18, 24, 30, 36];
 export const URBAN_HPHC_FIXED_SUBSCRIPTION_HT_BY_KVA = {
-  6: 12.6,
-  9: 15.48,
-  12: 18.52,
-  15: 21.9,
-  18: 25.27,
-  24: 32.01,
-  30: 38.76,
-  36: 45.5,
+  6: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.hphc[6] / 1.2,
+  9: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.hphc[9] / 1.2,
+  12: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.hphc[12] / 1.2,
+  15: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.hphc[15] / 1.2,
+  18: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.hphc[18] / 1.2,
+  24: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.hphc[24] / 1.2,
+  30: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.hphc[30] / 1.2,
+  36: URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.supplierSubscriptionTtcPerMonth.hphc[36] / 1.2,
 };
 
 /** Abonnement legacy sans grille Urban/MyBattery : €/kWc/mois × 12 (virtualBatteryP2Finance.service.js) */

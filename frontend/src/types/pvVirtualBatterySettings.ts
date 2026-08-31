@@ -13,13 +13,21 @@ export type KvaKey = (typeof KVA_KEYS)[number];
 export interface VirtualBatteryRow {
   abonnement_per_kwc_month: number;
   abonnement_fixed_month: number;
+  abonnement_fixed_month_ttc?: number;
+  abonnement_includes_contribution?: boolean;
   /** BASE uniquement */
   restitution_energy_eur_per_kwh?: number;
+  restitution_energy_ttc_per_kwh?: number;
+  electricity_base_ttc_per_kwh?: number;
   /** BASE uniquement */
   reseau_eur_per_kwh?: number;
   /** HP/HC */
   restitution_hp_eur_per_kwh?: number;
   restitution_hc_eur_per_kwh?: number;
+  restitution_hp_ttc_per_kwh?: number;
+  restitution_hc_ttc_per_kwh?: number;
+  electricity_hp_ttc_per_kwh?: number;
+  electricity_hc_ttc_per_kwh?: number;
   reseau_hp_eur_per_kwh?: number;
   reseau_hc_eur_per_kwh?: number;
   contribution_eur_per_year: number;
@@ -43,6 +51,8 @@ export interface ContributionRule {
 
 export interface ProviderSegmentConfig {
   label: string;
+  effectiveDate?: string;
+  sourceLabel?: string;
   segments: Record<SegmentKey, SegmentRows>;
 }
 

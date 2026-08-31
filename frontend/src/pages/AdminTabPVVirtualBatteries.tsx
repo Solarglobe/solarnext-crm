@@ -19,6 +19,9 @@ import {
   DEFAULT_VB_MYLIGHT_MYBATT_RESEAU_HT,
   DEFAULT_VB_MYLIGHT_MYBATT_RESTITUTION_HT,
 } from "../data/virtualBatteryTariffs2026";
+import {
+  URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01,
+} from "../../../shared/urbanSolarVirtualBatteryTariffs2026.js";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -297,26 +300,89 @@ function getTariffGridTemplate(providerCode: string): Record<string, unknown> {
     currency: "EUR",
   };
   if (providerCode === "URBAN_SOLAR") {
+    const urban = URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01;
+    const kvaRowsBase = Object.keys(urban.supplierSubscriptionTtcPerMonth.base).map((kva) => ({
+      kva: Number(kva),
+      subscriptionFixed: {
+        unit: "EUR_PER_MONTH",
+        ht: null,
+        ttc: urban.supplierSubscriptionTtcPerMonth.base[Number(kva)],
+        includesAutoproducerContribution: urban.supplierSubscriptionIncludesAutoproducerContribution,
+      },
+      virtualEnergy: {
+        unit: "EUR_PER_KWH",
+        htt: null,
+        ttc: urban.electricityTtcPerKwh.baseByKva[Number(kva)],
+        hp_htt: null,
+        hc_htt: null,
+        hp_ttc: null,
+        hc_ttc: null,
+      },
+      virtualNetworkFee: {
+        unit: "EUR_PER_KWH",
+        htt: null,
+        ttc: urban.restitutionTtcPerKwh.base,
+        hp_htt: null,
+        hc_htt: null,
+        hp_ttc: null,
+        hc_ttc: null,
+      },
+      proComponents: null,
+    }));
+    const kvaRowsHphc = Object.keys(urban.supplierSubscriptionTtcPerMonth.hphc).map((kva) => ({
+      kva: Number(kva),
+      subscriptionFixed: {
+        unit: "EUR_PER_MONTH",
+        ht: null,
+        ttc: urban.supplierSubscriptionTtcPerMonth.hphc[Number(kva)],
+        includesAutoproducerContribution: urban.supplierSubscriptionIncludesAutoproducerContribution,
+      },
+      virtualEnergy: {
+        unit: "EUR_PER_KWH",
+        htt: null,
+        ttc: null,
+        hp_htt: null,
+        hc_htt: null,
+        hp_ttc: urban.electricityTtcPerKwh.hp,
+        hc_ttc: urban.electricityTtcPerKwh.hc,
+      },
+      virtualNetworkFee: {
+        unit: "EUR_PER_KWH",
+        htt: null,
+        ttc: null,
+        hp_htt: null,
+        hc_htt: null,
+        hp_ttc: urban.restitutionTtcPerKwh.hp,
+        hc_ttc: urban.restitutionTtcPerKwh.hc,
+      },
+      proComponents: null,
+    }));
     return {
       ...base,
       provider: "URBAN_SOLAR",
+      effectiveDate: urban.effectiveDate,
+      sourceLabel: urban.sourceLabel,
       segments: [
         {
           segmentCode: "PART_BASE",
           label: "Particulier Base",
           eligibility: { isPro: false, maxKva: 36, grd: ["ENEDIS"], requiresOption: "BASE" },
           pricing: {
-            virtualSubscription: { unit: "EUR_PER_KWC_PER_MONTH_HT", value: 1.0 },
-            annualAutoproducerContribution: { unit: "EUR_PER_YEAR_HT", value: 9.6 },
-            kvaRows: [
-              {
-                kva: 3,
-                subscriptionFixed: { unit: "EUR_PER_MONTH", ht: null, ttc: 9.96 },
-                virtualEnergy: { unit: "EUR_PER_KWH", htt: 0.07925, ttc: 0.1297, hp_htt: null, hc_htt: null, hp_ttc: null, hc_ttc: null },
-                virtualNetworkFee: { unit: "EUR_PER_KWH", htt: 0.0484, ttc: 0.0951, hp_htt: null, hc_htt: null, hp_ttc: null, hc_ttc: null },
-                proComponents: null,
-              },
-            ],
+            virtualSubscription: { unit: "EUR_PER_KWC_PER_MONTH_HT", value: urban.storageSubscriptionEurPerKwcMonthHt },
+            annualAutoproducerContribution: { unit: "EUR_PER_YEAR_HT", value: urban.autoproducerContributionEurPerYearHt },
+            subscriptionIncludesAutoproducerContribution: urban.supplierSubscriptionIncludesAutoproducerContribution,
+            kvaRows: kvaRowsBase,
+          },
+        },
+        {
+          segmentCode: "PART_HPHC",
+          label: "Particulier HP/HC",
+          eligibility: { isPro: false, maxKva: 36, grd: ["ENEDIS"], requiresOption: "HPHC" },
+          pricing: {
+            virtualSubscription: { unit: "EUR_PER_KWC_PER_MONTH_HT", value: urban.storageSubscriptionEurPerKwcMonthHt },
+            annualAutoproducerContribution: { unit: "EUR_PER_YEAR_HT", value: urban.autoproducerContributionEurPerYearHt },
+            subscriptionIncludesAutoproducerContribution: urban.supplierSubscriptionIncludesAutoproducerContribution,
+            kvaRows: kvaRowsHphc,
           },
         },
       ],
@@ -751,7 +817,7 @@ function VirtualBatteryModal({
                 value={form.tariff_source_label}
                 onChange={(e) => setForm((f) => ({ ...f, tariff_source_label: e.target.value }))}
                 style={inputStyle}
-                placeholder="Tarifs au 01/02/2026 — PDF UrbanSolar Particulier Base"
+                placeholder="Tarifs Urban Solar applicables au 01/08/2026"
               />
             </Field>
             <Field label="Date d'effet">

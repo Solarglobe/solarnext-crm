@@ -21,6 +21,10 @@ function assertApprox(a, b, msg, eps = 0.02) {
   if (Math.abs(a - b) > eps) throw new Error(`${msg}: attendu ~${b}, reçu ${a}`);
 }
 
+function assertExact(a, b, msg) {
+  if (a !== b) throw new Error(`${msg}: attendu ${b}, reçu ${a}`);
+}
+
 function mockVbSim({ discharged = 0, overflow = 0, importKwh = 0, capacityKwh = null }) {
   const hourly = new Array(8760).fill(0);
   hourly[0] = discharged;
@@ -36,11 +40,11 @@ function mockVbSim({ discharged = 0, overflow = 0, importKwh = 0, capacityKwh = 
 function main() {
   console.log("=== virtualBatteryP2Finance.test.js ===\n");
 
-  // Test 1 — Urban Base (9 kVA → grille frontend virtualBatteryTariffs2026 : paliers 3,6,9 = 0.1308)
+  // Test 1 — Urban Base 2026-08-01
   {
     const vb = mockVbSim({ discharged: 100 });
     const e = urbanBaseEnergyPriceHt(9);
-    assertApprox(e, 0.1308, "Urban BASE palier 9 kVA = LOW (aligné TS)");
+    assertApprox(e, 0.1985 / 1.2, "Urban BASE palier 9 kVA 2026-08-01");
     const r = computeVirtualBatteryP2Finance({
       providerCode: "URBAN_SOLAR",
       contractType: "BASE",
@@ -59,23 +63,75 @@ function main() {
       6 * 12 * 1.0,
       "abo Urban BASE = stockage kWc seul (sans part compteur)"
     );
-    assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.6, "contribution");
-    // FIX restitution Urban : déstockage = acheminement + accise (PDF note 7 + PDF MyBattery accise),
-    // le prix énergie (0.1308) n'est PAS facturé sur l'énergie déjà créditée.
-    const expectedDischarge = 100 * (0.0484 + 0.02998);
-    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expectedDischarge, "déstockage = acheminement + accise");
+    assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.84, "contribution");
+    assertExact(r.virtual_battery_finance.virtual_discharge_rate_base_ttc_per_kwh, 0.111, "Urban BASE 2026-08-01 TTC/kWh");
+    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ttc, 11.1, "déstockage BASE TTC");
+    assertExact(r.virtual_battery_finance.tariff_effective_date, "2026-08-01", "date tarif Urban");
     console.log("✅ Test 1 Urban Base (9 kVA)");
   }
 
   // Test 1b — Urban Base 6 kVA (palier LOW)
   {
-    assertApprox(urbanBaseEnergyPriceHt(6), 0.1308, "6 kVA LOW");
-    assertApprox(urbanBaseEnergyPriceHt(12), 0.1297, "12 kVA HIGH");
-    assertApprox(urbanBaseFixedSubscriptionMonthlyHt(6), 12.6, "Urban BASE abo 6 kVA PDF");
-    assertApprox(urbanBaseFixedSubscriptionMonthlyHt(36), 39.55, "Urban BASE abo 36 kVA PDF");
-    assertApprox(urbanHphcFixedSubscriptionMonthlyHt(3), 12.6, "Urban HP/HC 3 kVA -> minimum publié 6 kVA");
-    assertApprox(urbanHphcFixedSubscriptionMonthlyHt(12), 18.52, "Urban HP/HC abo 12 kVA PDF");
+    assertApprox(urbanBaseEnergyPriceHt(6), 0.2001 / 1.2, "6 kVA BASE 2026-08-01");
+    assertApprox(urbanBaseEnergyPriceHt(12), 0.1985 / 1.2, "12 kVA BASE 2026-08-01");
+    assertApprox(urbanBaseFixedSubscriptionMonthlyHt(18), 32.54 / 1.2, "Urban BASE abo 18 kVA 2026-08-01");
+    assertApprox(urbanBaseFixedSubscriptionMonthlyHt(36), 55.54 / 1.2, "Urban BASE abo 36 kVA 2026-08-01");
+    assertApprox(urbanHphcFixedSubscriptionMonthlyHt(3), 17.31 / 1.2, "Urban HP/HC 3 kVA -> minimum publié 6 kVA");
+    assertApprox(urbanHphcFixedSubscriptionMonthlyHt(18), 35.68 / 1.2, "Urban HP/HC abo 18 kVA 2026-08-01");
     console.log("✅ Test 1b Urban Base/HPHC paliers PDF");
+  }
+
+  // Test 2 — MyLight MyBattery Base
+  // Test 1c — tarifs unitaires Urban exacts TTC
+  {
+    const hpMask = new Array(8760).fill(0);
+    const hcMask = new Array(8760).fill(0);
+    hpMask[0] = 1;
+    const vbHp = mockVbSim({ discharged: 1 });
+    const hp = computeVirtualBatteryP2Finance({
+      providerCode: "URBAN_SOLAR",
+      contractType: "HPHC",
+      installedKwc: 1,
+      meterKva: 18,
+      vbSim: vbHp,
+      unboundedRequiredCapacityKwh: 1,
+      hourlyDischargeKwh: vbHp.virtual_battery_hourly_discharge_kwh,
+      hphcHourlyIsHp: hpMask,
+      tariffElectricityPerKwh: 0.2142,
+      oaRatePerKwh: 0,
+    });
+    assertExact(hp.virtual_battery_finance.annual_virtual_discharge_cost_ttc, 0.1122, "1 kWh restitué HP");
+
+    const vbHc = mockVbSim({ discharged: 1 });
+    const hc = computeVirtualBatteryP2Finance({
+      providerCode: "URBAN_SOLAR",
+      contractType: "HPHC",
+      installedKwc: 1,
+      meterKva: 18,
+      vbSim: vbHc,
+      unboundedRequiredCapacityKwh: 1,
+      hourlyDischargeKwh: vbHc.virtual_battery_hourly_discharge_kwh,
+      hphcHourlyIsHp: hcMask,
+      tariffElectricityPerKwh: 0.1589,
+      oaRatePerKwh: 0,
+    });
+    assertExact(hc.virtual_battery_finance.annual_virtual_discharge_cost_ttc, 0.0945, "1 kWh restitué HC");
+
+    const vbBase = mockVbSim({ discharged: 1 });
+    const base = computeVirtualBatteryP2Finance({
+      providerCode: "URBAN_SOLAR",
+      contractType: "BASE",
+      installedKwc: 1,
+      meterKva: 18,
+      vbSim: vbBase,
+      unboundedRequiredCapacityKwh: 1,
+      hourlyDischargeKwh: vbBase.virtual_battery_hourly_discharge_kwh,
+      hphcHourlyIsHp: null,
+      tariffElectricityPerKwh: 0.1985,
+      oaRatePerKwh: 0,
+    });
+    assertExact(base.virtual_battery_finance.annual_virtual_discharge_cost_ttc, 0.111, "1 kWh restitué BASE");
+    console.log("✅ Test 1c tarifs unitaires Urban TTC exacts");
   }
 
   // Test 2 — MyLight MyBattery Base
@@ -221,11 +277,10 @@ function main() {
       oaRatePerKwh: 0.05,
     });
     assert(r.virtual_battery_finance.hphc_allocation_status === "OK", "HPHC OK");
-    // FIX restitution Urban : acheminement HP/HC + accise, pas le prix énergie (PDF note 7).
-    const expected =
-      10 * (0.0494 + 0.02998) +
-      30 * (0.0350 + 0.02998);
-    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expected, "coût HPHC ventilé = acheminement + accise");
+    assertExact(r.virtual_battery_finance.virtual_discharge_rate_hp_ttc_per_kwh, 0.1122, "Urban HP TTC/kWh");
+    assertExact(r.virtual_battery_finance.virtual_discharge_rate_hc_ttc_per_kwh, 0.0945, "Urban HC TTC/kWh");
+    const expected = 10 * 0.1122 + 30 * 0.0945;
+    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ttc, expected, "coût HPHC ventilé TTC", 0.0001);
     console.log("✅ Test 4b HPHC avec masque");
   }
 
@@ -294,15 +349,14 @@ function main() {
       oaRatePerKwh: 0.05,
       virtual_battery_settings: { providers: {} },
     });
-    assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.6, "contrib legacy");
+    assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.84, "contrib Urban 2026-08-01");
     assertApprox(
       r.virtual_battery_finance.annual_subscription_ht,
       6 * 12 * 1.0,
       "providers vides -> abo stockage seul (sans part compteur)"
     );
-    const expectedDischarge = 100 * (0.0484 + 0.02998);
-    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, expectedDischarge, "déstockage legacy = acheminement + accise");
-    console.log("✅ Test 9 providers vides → legacy P2");
+    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ttc, 100 * 0.111, "providers vides -> tarifs Urban officiels");
+    console.log("✅ Test 9 providers vides → tarifs Urban officiels");
   }
 
   // Test 10 — grille org sans ligne kVA : fallback legacy (TEST 4 lot 3B)
@@ -327,14 +381,14 @@ function main() {
         },
       },
     });
-    assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.6, "ligne absente → legacy");
+    assertApprox(r.virtual_battery_finance.annual_autoproducer_contribution_ht, 9.84, "ligne absente -> tarifs Urban officiels");
     assertApprox(
       r.virtual_battery_finance.annual_subscription_ht,
       6 * 12 * 1.0,
       "ligne absente -> abo stockage seul (sans part compteur)"
     );
-    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ht, 50 * (0.0484 + 0.02998), "déstockage legacy = acheminement + accise");
-    console.log("✅ Test 10 ligne kVA absente sous provider → legacy");
+    assertApprox(r.virtual_battery_finance.annual_virtual_discharge_cost_ttc, 50 * 0.111, "déstockage ligne absente = tarifs Urban officiels");
+    console.log("✅ Test 10 ligne kVA absente sous provider → tarifs Urban officiels");
   }
 
   console.log("\n=== Tous les tests P2 finance OK ===");

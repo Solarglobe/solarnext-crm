@@ -5,6 +5,7 @@
 
 import { mapSelectedScenarioSnapshotToPdfViewModel } from "../services/pdf/pdfViewModel.mapper.js";
 import { repairVirtualScenarioDisplayKpis } from "../services/scenarioV2DisplayRepair.service.js";
+import { computeVirtualBatteryP2Finance } from "../services/virtualBatteryP2Finance.service.js";
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -382,6 +383,67 @@ function main() {
   assert(vmNiardLike.fullReport?.p9?.scenario?.avg_savings_eur_year != null, "P9: average annual savings must be populated from gain cashflows");
   assert(vmNiardLike.fullReport?.p10?.best?.gains_25_eur === 41951, "P10: gain net must align with P9");
   assert(Math.round(vmNiardLike.fullReport?.p10?.best?.autonomy_pct) === 93, "P10: needs covered must include virtual credit");
+
+  {
+    const hourlyDischarge = new Array(8760).fill(0);
+    const hphcMask = new Array(8760).fill(0);
+    hourlyDischarge[0] = 10;
+    hourlyDischarge[1] = 30;
+    hphcMask[0] = 1;
+    const engine = computeVirtualBatteryP2Finance({
+      providerCode: "URBAN_SOLAR",
+      contractType: "HPHC",
+      installedKwc: 6,
+      meterKva: 18,
+      vbSim: {
+        virtual_battery_total_discharged_kwh: 40,
+        virtual_battery_overflow_export_kwh: 0,
+        grid_import_kwh: 1000,
+        virtual_battery_hourly_discharge_kwh: hourlyDischarge,
+      },
+      unboundedRequiredCapacityKwh: 100,
+      hourlyDischargeKwh: hourlyDischarge,
+      hphcHourlyIsHp: hphcMask,
+      tariffElectricityPerKwh: 0.1985,
+      oaRatePerKwh: 0,
+    }).virtual_battery_finance;
+    const vm = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
+      selected_scenario_id: "BATTERY_VIRTUAL",
+      scenarios_v2: [
+        {
+          id: "BATTERY_VIRTUAL",
+          energy: {
+            production_kwh: 5000,
+            consumption_kwh: 6000,
+            direct_self_consumption_kwh: 2000,
+            battery_discharge_kwh: 40,
+            virtual_battery_discharge_kwh: 40,
+            total_pv_used_on_site_kwh: 2040,
+            import_kwh: 1000,
+            energy_grid_import_kwh: 1000,
+          },
+          finance: {
+            residual_bill_eur: 198.5,
+            virtual_battery_finance: engine,
+            annual_cashflows: [],
+          },
+          virtual_battery_finance: engine,
+          pvInstallationPrice: 12000,
+        },
+      ],
+    });
+    const residual = vm.fullReport?.p10?.residual_bill_virtual;
+    assert(residual?.virtual_battery_subscription_ttc === engine.annual_subscription_ttc, "PDF: abonnement = moteur");
+    assert(
+      residual?.virtual_battery_autoproducer_contribution_ttc === engine.annual_autoproducer_contribution_ttc,
+      "PDF: contribution = moteur"
+    );
+    assert(
+      residual?.virtual_battery_discharge_fees_ttc === engine.annual_virtual_discharge_cost_ttc,
+      "PDF: restitution = moteur"
+    );
+    assert(residual?.virtualAnnualFees === engine.annual_total_virtual_cost_ttc, "PDF: total annuel = moteur");
+  }
 
   const financing6Snapshot = {
     ...snapshot,

@@ -35,12 +35,12 @@ describe("resolveVirtualBatteryPricing", () => {
     });
     expect(result).not.toBeNull();
     expect(result!.aboStockageMonthly).toBeCloseTo(5, 2); // 1 €/kWc * 5
-    expect(result!.aboFournisseurMonthly).toBeCloseTo(18.52, 2); // Urban HPHC 12 kVA PDF 01/02/2026
-    expect(result!.contributionMonthly).toBeCloseTo(9.6 / 12, 2); // 0.8
-    expect(result!.totalMonthly).toBeGreaterThan(0);
+    expect(result!.aboFournisseurMonthly).toBeCloseTo(26.09, 2); // Urban HPHC 12 kVA TTC 2026-08-01
+    expect(result!.contributionMonthly).toBeCloseTo(9.84 / 12, 2);
+    expect(result!.totalMonthly).toBeCloseTo(5 + 26.09, 2); // contribution déjà incluse dans l'abo fournisseur Urban
   });
 
-  it("cas 2b: URBAN_SOLAR, BASE, kVA=30, valeurs PDF 01/02/2026", () => {
+  it("cas 2b: URBAN_SOLAR, BASE, kVA=30, valeurs 2026-08-01", () => {
     const result = resolveVirtualBatteryPricing(grids, {
       provider: "URBAN_SOLAR",
       contractType: "BASE",
@@ -49,10 +49,24 @@ describe("resolveVirtualBatteryPricing", () => {
     });
     expect(result).not.toBeNull();
     expect(result!.aboStockageMonthly).toBeCloseTo(6, 2);
-    expect(result!.aboFournisseurMonthly).toBeCloseTo(34.33, 2);
-    expect(result!.restitutionPrice).toBeCloseTo(0.1297, 4);
-    expect(result!.reseauPrice).toBeCloseTo(0.0484, 4);
-    expect(result!.contributionMonthly).toBeCloseTo(9.6 / 12, 2);
+    expect(result!.aboFournisseurMonthly).toBeCloseTo(48.05, 2);
+    expect(result!.restitutionPrice).toBeCloseTo(0.111, 4);
+    expect(result!.reseauPrice).toBeCloseTo(0.111 / 1.2, 4);
+    expect(result!.contributionMonthly).toBeCloseTo(9.84 / 12, 2);
+    expect(result!.totalMonthly).toBeCloseTo(6 + 48.05, 2);
+  });
+
+  it("cas 2c: URBAN_SOLAR, HPHC, kVA=18, valeurs demandées exactes", () => {
+    const result = resolveVirtualBatteryPricing(grids, {
+      provider: "URBAN_SOLAR",
+      contractType: "HPHC",
+      meterPowerKva: 18,
+      pvPowerKwc: 6,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.aboFournisseurMonthly).toBeCloseTo(35.68, 2);
+    expect(result!.restitutionPrice).toBeCloseTo((0.1122 + 0.0945) / 2, 4);
+    expect(result!.totalMonthly).toBeCloseTo(6 + 35.68, 2);
   });
 
   it("cas 3: MYLIGHT_MYSMARTBATTERY, capacity=300 kWh", () => {

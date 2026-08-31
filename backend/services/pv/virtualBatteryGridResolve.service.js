@@ -67,8 +67,13 @@ export function resolveVirtualBatteryMonthlyFromGrid(grids, { provider, contract
   const row = vbPickRowByKvaKey(rowsByKva, kvaKey);
   if (!row || !row.enabled) return 0;
   const aboStockage = (Number(row.abonnement_per_kwc_month) || 0) * (Number(pvPowerKwc) || 0);
-  const aboFixe = Number(row.abonnement_fixed_month) || 0;
-  const contribution = (Number(row.contribution_eur_per_year) || 0) / 12;
+  const aboFixe =
+    row.abonnement_fixed_month_ttc != null && Number.isFinite(Number(row.abonnement_fixed_month_ttc))
+      ? Number(row.abonnement_fixed_month_ttc) / 1.2
+      : Number(row.abonnement_fixed_month) || 0;
+  const contribution = row.abonnement_includes_contribution
+    ? 0
+    : (Number(row.contribution_eur_per_year) || 0) / 12;
   return aboStockage + aboFixe + contribution;
 }
 
@@ -128,6 +133,9 @@ export function vbGetSegmentRow(grids, providerCode, contractType, meterKva) {
 /** BASE : somme €/kWh restitution + réseau depuis la ligne grille (aligné extractRestitutionReseauFromRow front). */
 export function vbBaseDischargeRatePerKwhFromRow(row) {
   if (!row || typeof row !== "object") return null;
+  if (row.restitution_energy_ttc_per_kwh != null && Number.isFinite(Number(row.restitution_energy_ttc_per_kwh))) {
+    return Number(row.restitution_energy_ttc_per_kwh);
+  }
   let r = row.restitution_energy_eur_per_kwh;
   let n = row.reseau_eur_per_kwh;
   if (
@@ -153,6 +161,17 @@ export function vbBaseDischargeRatePerKwhFromRow(row) {
 /** HPHC : retourne { hp, hc } sommes (restitution + réseau) par kWh si disponibles. */
 export function vbHphcDischargeRatesFromRow(row) {
   if (!row || typeof row !== "object") return null;
+  if (
+    row.restitution_hp_ttc_per_kwh != null &&
+    row.restitution_hc_ttc_per_kwh != null &&
+    Number.isFinite(Number(row.restitution_hp_ttc_per_kwh)) &&
+    Number.isFinite(Number(row.restitution_hc_ttc_per_kwh))
+  ) {
+    return {
+      hp: Number(row.restitution_hp_ttc_per_kwh),
+      hc: Number(row.restitution_hc_ttc_per_kwh),
+    };
+  }
   const rhp = row.restitution_hp_eur_per_kwh;
   const rhc = row.restitution_hc_eur_per_kwh;
   const nhp = row.reseau_hp_eur_per_kwh;

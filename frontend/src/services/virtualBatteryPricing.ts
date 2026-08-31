@@ -15,6 +15,9 @@ import {
   DEFAULT_VB_MYLIGHT_MYBATT_RESEAU_HT,
   DEFAULT_VB_MYLIGHT_MYBATT_RESTITUTION_HT,
 } from "../data/virtualBatteryTariffs2026";
+import {
+  URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01,
+} from "../../../shared/urbanSolarVirtualBatteryTariffs2026.js";
 import { vbLegacyMySmartAnnualContributionHt } from "../constants/virtualBatteryLegacyDefaults";
 
 const KVA_VALUES = [3, 6, 9, 12, 15, 18, 24, 30, 36];
@@ -48,7 +51,11 @@ function extractRestitutionReseauFromRow(row: VirtualBatteryRow | null | undefin
     };
   }
   const restitutionPrice =
+    row.restitution_energy_ttc_per_kwh ??
     row.restitution_energy_eur_per_kwh ??
+    (row.restitution_hp_ttc_per_kwh != null && row.restitution_hc_ttc_per_kwh != null
+      ? (Number(row.restitution_hp_ttc_per_kwh) + Number(row.restitution_hc_ttc_per_kwh)) / 2
+      : null) ??
     (row.restitution_hp_eur_per_kwh != null && row.restitution_hc_eur_per_kwh != null
       ? (Number(row.restitution_hp_eur_per_kwh) + Number(row.restitution_hc_eur_per_kwh)) / 2
       : null);
@@ -99,8 +106,14 @@ export function resolveVirtualBatteryPricing(
 ): VirtualBatteryPricingResult | null {
   const { provider, contractType, meterPowerKva, pvPowerKwc, capacityKwh } = params;
   const hasOrgVirtualBattery = hasExploitableOrgVirtualBatteryProviders(settings);
-  const grids = hasOrgVirtualBattery ? settings!.providers : getVirtualBatteryTariffs2026().providers;
-  const providerConfig = grids[provider];
+  const defaultGrids = getVirtualBatteryTariffs2026().providers;
+  const grids = hasOrgVirtualBattery ? settings!.providers : defaultGrids;
+  const effectiveGrids =
+    provider === "URBAN_SOLAR"
+      ? { ...grids, URBAN_SOLAR: defaultGrids.URBAN_SOLAR }
+      : grids;
+  const urban = URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01;
+  const providerConfig = effectiveGrids[provider];
   if (!providerConfig) return null;
 
   const kvaKey = kvaToKey(meterPowerKva);
@@ -140,9 +153,18 @@ export function resolveVirtualBatteryPricing(
   if (!row || !row.enabled) return null;
 
   const aboStockageMonthly = (row.abonnement_per_kwc_month ?? 0) * pvPowerKwc;
-  const aboFournisseurMonthly = row.abonnement_fixed_month ?? 0;
+  const aboFournisseurMonthly =
+    provider === "URBAN_SOLAR"
+      ? row.abonnement_fixed_month_ttc ?? row.abonnement_fixed_month ?? 0
+      : row.abonnement_fixed_month ?? 0;
   const contributionMonthly = (row.contribution_eur_per_year ?? 0) / 12;
-  const totalMonthly = aboStockageMonthly + aboFournisseurMonthly + contributionMonthly;
+  const contributionAlreadyInSupplierSubscription =
+    provider === "URBAN_SOLAR" &&
+    (row.abonnement_includes_contribution ?? urban.supplierSubscriptionIncludesAutoproducerContribution);
+  const totalMonthly =
+    aboStockageMonthly +
+    aboFournisseurMonthly +
+    (contributionAlreadyInSupplierSubscription ? 0 : contributionMonthly);
 
   const { restitutionPrice, reseauPrice } = extractRestitutionReseauFromRow(row);
 

@@ -5,6 +5,9 @@
 
 import type { PvVirtualBatterySettings, VirtualBatteryRow, CapacityTier } from "../types/pvVirtualBatterySettings";
 import { KVA_KEYS, SEGMENT_KEYS, createEmptySegments } from "../types/pvVirtualBatterySettings";
+import {
+  URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01,
+} from "../../../shared/urbanSolarVirtualBatteryTariffs2026.js";
 
 // ——— MyLight Offre électricité (mylight150) — BASE HT
 const MYLIGHT_BASE_ABO: Record<string, number> = {
@@ -40,26 +43,11 @@ export const MYSMARTBATTERY_CAPACITY_TIERS_2026: CapacityTier[] = [
   { kwh: 10000, abonnement_month_ht: 179.16 },
 ];
 
-// ——— Urban Solar BASE HT
-const URBAN_BASE_ABO: Record<string, number> = {
-  "3": 9.96, "6": 12.60, "9": 15.48, "12": 18.23, "15": 20.79, "18": 23.45, "24": 29.15, "30": 34.33, "36": 39.55,
-};
-const URBAN_BASE_ENERGY_LOW = 0.1308;  // 3-9 kVA
-const URBAN_BASE_ENERGY_HIGH = 0.1297; // 12-36 kVA
-const URBAN_BASE_RESEAU = 0.0484;
-const URBAN_BASE_ABO_KWC = 1.0;
-const URBAN_BASE_CONTRIBUTION = 9.6;
-
-// ——— Urban Solar HP/HC HT
-// Le PDF Urban Solar particulier HP/HC du 01/02/2026 publie les lignes 6-36 kVA.
-// Pour conserver une résolution déterministe si un compteur 3 kVA est fourni, on applique le minimum publié (6 kVA).
-const URBAN_HPHC_ABO: Record<string, number> = {
-  "3": 12.60, "6": 12.60, "9": 15.48, "12": 18.52, "15": 21.90, "18": 25.27, "24": 32.01, "30": 38.76, "36": 45.50,
-};
-const URBAN_HPHC_ENERGY_HP = 0.1412;
-const URBAN_HPHC_ENERGY_HC = 0.1007;
-const URBAN_HPHC_RESEAU_HP = 0.0494;
-const URBAN_HPHC_RESEAU_HC = 0.035;
+// ——— Urban Solar — source unique partagée avec le moteur P2.
+const URBAN = URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01;
+const URBAN_BASE_RESTITUTION_HT_COMPAT = URBAN.restitutionTtcPerKwh.base / 1.2;
+const URBAN_HPHC_HP_RESTITUTION_HT_COMPAT = URBAN.restitutionTtcPerKwh.hp / 1.2;
+const URBAN_HPHC_HC_RESTITUTION_HT_COMPAT = URBAN.restitutionTtcPerKwh.hc / 1.2;
 
 function buildMyBatterySegmentBase(): Record<string, VirtualBatteryRow> {
   const rowsByKva: Record<string, VirtualBatteryRow> = {};
@@ -96,13 +84,17 @@ function buildMyBatterySegmentHphc(): Record<string, VirtualBatteryRow> {
 function buildUrbanSegmentBase(): Record<string, VirtualBatteryRow> {
   const rowsByKva: Record<string, VirtualBatteryRow> = {};
   for (const k of KVA_KEYS) {
-    const energy = ["3", "6", "9"].includes(k) ? URBAN_BASE_ENERGY_LOW : URBAN_BASE_ENERGY_HIGH;
+    const kva = Number(k);
     rowsByKva[k] = {
-      abonnement_per_kwc_month: URBAN_BASE_ABO_KWC,
-      abonnement_fixed_month: URBAN_BASE_ABO[k] ?? 0,
-      restitution_energy_eur_per_kwh: energy,
-      reseau_eur_per_kwh: URBAN_BASE_RESEAU,
-      contribution_eur_per_year: URBAN_BASE_CONTRIBUTION,
+      abonnement_per_kwc_month: URBAN.storageSubscriptionEurPerKwcMonthHt,
+      abonnement_fixed_month: (URBAN.supplierSubscriptionTtcPerMonth.base[kva] ?? 0) / 1.2,
+      abonnement_fixed_month_ttc: URBAN.supplierSubscriptionTtcPerMonth.base[kva] ?? 0,
+      abonnement_includes_contribution: URBAN.supplierSubscriptionIncludesAutoproducerContribution,
+      restitution_energy_eur_per_kwh: URBAN_BASE_RESTITUTION_HT_COMPAT,
+      restitution_energy_ttc_per_kwh: URBAN.restitutionTtcPerKwh.base,
+      electricity_base_ttc_per_kwh: URBAN.electricityTtcPerKwh.baseByKva[kva] ?? 0,
+      reseau_eur_per_kwh: URBAN_BASE_RESTITUTION_HT_COMPAT,
+      contribution_eur_per_year: URBAN.autoproducerContributionEurPerYearHt,
       enabled: true,
     };
   }
@@ -112,14 +104,21 @@ function buildUrbanSegmentBase(): Record<string, VirtualBatteryRow> {
 function buildUrbanSegmentHphc(): Record<string, VirtualBatteryRow> {
   const rowsByKva: Record<string, VirtualBatteryRow> = {};
   for (const k of KVA_KEYS) {
+    const kva = Number(k);
     rowsByKva[k] = {
-      abonnement_per_kwc_month: URBAN_BASE_ABO_KWC,
-      abonnement_fixed_month: URBAN_HPHC_ABO[k] ?? 0,
-      restitution_hp_eur_per_kwh: URBAN_HPHC_ENERGY_HP,
-      restitution_hc_eur_per_kwh: URBAN_HPHC_ENERGY_HC,
-      reseau_hp_eur_per_kwh: URBAN_HPHC_RESEAU_HP,
-      reseau_hc_eur_per_kwh: URBAN_HPHC_RESEAU_HC,
-      contribution_eur_per_year: URBAN_BASE_CONTRIBUTION,
+      abonnement_per_kwc_month: URBAN.storageSubscriptionEurPerKwcMonthHt,
+      abonnement_fixed_month: (URBAN.supplierSubscriptionTtcPerMonth.hphc[kva] ?? 0) / 1.2,
+      abonnement_fixed_month_ttc: URBAN.supplierSubscriptionTtcPerMonth.hphc[kva] ?? 0,
+      abonnement_includes_contribution: URBAN.supplierSubscriptionIncludesAutoproducerContribution,
+      restitution_hp_eur_per_kwh: URBAN_HPHC_HP_RESTITUTION_HT_COMPAT,
+      restitution_hc_eur_per_kwh: URBAN_HPHC_HC_RESTITUTION_HT_COMPAT,
+      restitution_hp_ttc_per_kwh: URBAN.restitutionTtcPerKwh.hp,
+      restitution_hc_ttc_per_kwh: URBAN.restitutionTtcPerKwh.hc,
+      electricity_hp_ttc_per_kwh: URBAN.electricityTtcPerKwh.hp,
+      electricity_hc_ttc_per_kwh: URBAN.electricityTtcPerKwh.hc,
+      reseau_hp_eur_per_kwh: URBAN_HPHC_HP_RESTITUTION_HT_COMPAT,
+      reseau_hc_eur_per_kwh: URBAN_HPHC_HC_RESTITUTION_HT_COMPAT,
+      contribution_eur_per_year: URBAN.autoproducerContributionEurPerYearHt,
       enabled: true,
     };
   }
@@ -177,6 +176,8 @@ export function getVirtualBatteryTariffs2026(): PvVirtualBatterySettings {
       URBAN_SOLAR: {
         label: "Urban Solar Stockage Virtuel",
         segments: segmentsUrban,
+        effectiveDate: URBAN.effectiveDate,
+        sourceLabel: URBAN.sourceLabel,
       },
     },
   };

@@ -12,6 +12,9 @@ import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import pg from "pg";
+import {
+  URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01 as URBAN,
+} from "../../shared/urbanSolarVirtualBatteryTariffs2026.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
@@ -38,11 +41,11 @@ const STANDARD_PROVIDERS = [
     name: "UrbanSolar Stockage Virtuel",
     provider_code: "URBAN_SOLAR",
     pricing_model: "per_kwc_with_variable",
-    monthly_subscription_ht: 1.0,
-    cost_per_kwh_ht: 0.07925,
+    monthly_subscription_ht: URBAN.storageSubscriptionEurPerKwcMonthHt,
+    cost_per_kwh_ht: URBAN.restitutionTtcPerKwh.base / 1.2,
     activation_fee_ht: 0,
-    contribution_autoproducteur_ht: 9.6,
-    includes_network_fees: false,
+    contribution_autoproducteur_ht: URBAN.autoproducerContributionEurPerYearHt,
+    includes_network_fees: true,
     indexed_on_trv: false,
     capacity_table: null,
     is_active: true,
@@ -87,7 +90,8 @@ const STANDARD_PROVIDERS = [
 ];
 
 const TARIFF_EFFECTIVE_DATE = "2026-02-01";
-const TARIFF_SOURCE_URBAN = "Tarifs au 01/02/2026 — PDF UrbanSolar Particulier Base / HPHC / Pro";
+const TARIFF_EFFECTIVE_DATE_URBAN = URBAN.effectiveDate;
+const TARIFF_SOURCE_URBAN = URBAN.sourceLabel;
 const TARIFF_SOURCE_MYLIGHT = "Tarifs au 01/02/2026 — Grille MyLight 2026 (MyBattery + MySmartBattery)";
 
 function buildKvaRow(kva, subscriptionTtc, virtualEnergyHtt, virtualNetworkHtt) {
@@ -120,21 +124,73 @@ function getTariffGridForProvider(providerCode) {
   const base = { schemaVersion: 1, country: "FR", currency: "EUR" };
   const kvaValues = [3, 6, 9, 12, 15, 18, 24, 30, 36];
   if (providerCode === "URBAN_SOLAR") {
-    const kvaRows = kvaValues.map((kva) =>
-      buildKvaRow(kva, 9.96 + (kva - 3) * 0.5, 0.07925, 0.0484)
-    );
+    const baseRows = kvaValues.map((kva) => ({
+      ...buildKvaRow(
+        kva,
+        URBAN.supplierSubscriptionTtcPerMonth.base[kva],
+        URBAN.electricityTtcPerKwh.baseByKva[kva] / 1.2,
+        URBAN.restitutionTtcPerKwh.base / 1.2
+      ),
+      virtualEnergy: {
+        unit: "EUR_PER_KWH",
+        htt: URBAN.electricityTtcPerKwh.baseByKva[kva] / 1.2,
+        ttc: URBAN.electricityTtcPerKwh.baseByKva[kva],
+        hp_htt: null,
+        hc_htt: null,
+        hp_ttc: null,
+        hc_ttc: null,
+      },
+      virtualNetworkFee: {
+        unit: "EUR_PER_KWH",
+        htt: URBAN.restitutionTtcPerKwh.base / 1.2,
+        ttc: URBAN.restitutionTtcPerKwh.base,
+        hp_htt: null,
+        hc_htt: null,
+        hp_ttc: null,
+        hc_ttc: null,
+      },
+    }));
+    const hphcRows = kvaValues.map((kva) => ({
+      ...buildKvaRow(
+        kva,
+        URBAN.supplierSubscriptionTtcPerMonth.hphc[kva],
+        null,
+        null
+      ),
+      virtualEnergy: {
+        unit: "EUR_PER_KWH",
+        htt: null,
+        ttc: null,
+        hp_htt: URBAN.electricityTtcPerKwh.hp / 1.2,
+        hc_htt: URBAN.electricityTtcPerKwh.hc / 1.2,
+        hp_ttc: URBAN.electricityTtcPerKwh.hp,
+        hc_ttc: URBAN.electricityTtcPerKwh.hc,
+      },
+      virtualNetworkFee: {
+        unit: "EUR_PER_KWH",
+        htt: null,
+        ttc: null,
+        hp_htt: URBAN.restitutionTtcPerKwh.hp / 1.2,
+        hc_htt: URBAN.restitutionTtcPerKwh.hc / 1.2,
+        hp_ttc: URBAN.restitutionTtcPerKwh.hp,
+        hc_ttc: URBAN.restitutionTtcPerKwh.hc,
+      },
+    }));
     return {
       ...base,
       provider: "URBAN_SOLAR",
+      effectiveDate: URBAN.effectiveDate,
+      sourceLabel: URBAN.sourceLabel,
       segments: [
         {
           segmentCode: "PART_BASE",
           label: "Particulier Base",
           eligibility: { isPro: false, maxKva: 36, grd: ["ENEDIS"], requiresOption: "BASE" },
           pricing: {
-            virtualSubscription: { unit: "EUR_PER_KWC_PER_MONTH_HT", value: 1.0 },
-            annualAutoproducerContribution: { unit: "EUR_PER_YEAR_HT", value: 9.6 },
-            kvaRows,
+            virtualSubscription: { unit: "EUR_PER_KWC_PER_MONTH_HT", value: URBAN.storageSubscriptionEurPerKwcMonthHt },
+            annualAutoproducerContribution: { unit: "EUR_PER_YEAR_HT", value: URBAN.autoproducerContributionEurPerYearHt },
+            subscriptionIncludesAutoproducerContribution: URBAN.supplierSubscriptionIncludesAutoproducerContribution,
+            kvaRows: baseRows,
           },
         },
         {
@@ -142,9 +198,10 @@ function getTariffGridForProvider(providerCode) {
           label: "Particulier HPHC",
           eligibility: { isPro: false, maxKva: 36, grd: ["ENEDIS"], requiresOption: "HPHC" },
           pricing: {
-            virtualSubscription: { unit: "EUR_PER_KWC_PER_MONTH_HT", value: 1.0 },
-            annualAutoproducerContribution: { unit: "EUR_PER_YEAR_HT", value: 9.6 },
-            kvaRows: kvaValues.map((kva) => buildKvaRow(kva, 9.96 + (kva - 3) * 0.5, 0.07925, 0.0484)),
+            virtualSubscription: { unit: "EUR_PER_KWC_PER_MONTH_HT", value: URBAN.storageSubscriptionEurPerKwcMonthHt },
+            annualAutoproducerContribution: { unit: "EUR_PER_YEAR_HT", value: URBAN.autoproducerContributionEurPerYearHt },
+            subscriptionIncludesAutoproducerContribution: URBAN.supplierSubscriptionIncludesAutoproducerContribution,
+            kvaRows: hphcRows,
           },
         },
         {
@@ -152,11 +209,10 @@ function getTariffGridForProvider(providerCode) {
           label: "Professionnel Base CU",
           eligibility: { isPro: true, maxKva: 36, grd: ["ENEDIS"], requiresOption: "BASE" },
           pricing: {
-            virtualSubscription: { unit: "EUR_PER_KWC_PER_MONTH_HT", value: 1.0 },
-            annualAutoproducerContribution: { unit: "EUR_PER_YEAR_HT", value: 9.6 },
-            kvaRows: kvaValues.map((kva) =>
-              buildKvaRow(kva, 12 + (kva - 3) * 0.6, 0.07925, 0.0484)
-            ),
+            virtualSubscription: { unit: "EUR_PER_KWC_PER_MONTH_HT", value: URBAN.storageSubscriptionEurPerKwcMonthHt },
+            annualAutoproducerContribution: { unit: "EUR_PER_YEAR_HT", value: URBAN.autoproducerContributionEurPerYearHt },
+            subscriptionIncludesAutoproducerContribution: URBAN.supplierSubscriptionIncludesAutoproducerContribution,
+            kvaRows: baseRows,
           },
         },
         {
@@ -164,11 +220,10 @@ function getTariffGridForProvider(providerCode) {
           label: "Professionnel HPHC MU",
           eligibility: { isPro: true, maxKva: 36, grd: ["ENEDIS"], requiresOption: "HPHC" },
           pricing: {
-            virtualSubscription: { unit: "EUR_PER_KWC_PER_MONTH_HT", value: 1.0 },
-            annualAutoproducerContribution: { unit: "EUR_PER_YEAR_HT", value: 9.6 },
-            kvaRows: kvaValues.slice(1).map((kva) =>
-              buildKvaRow(kva, 14 + (kva - 6) * 0.7, 0.07925, 0.0484)
-            ),
+            virtualSubscription: { unit: "EUR_PER_KWC_PER_MONTH_HT", value: URBAN.storageSubscriptionEurPerKwcMonthHt },
+            annualAutoproducerContribution: { unit: "EUR_PER_YEAR_HT", value: URBAN.autoproducerContributionEurPerYearHt },
+            subscriptionIncludesAutoproducerContribution: URBAN.supplierSubscriptionIncludesAutoproducerContribution,
+            kvaRows: hphcRows.slice(1),
           },
         },
       ],
@@ -308,11 +363,13 @@ async function main() {
         if (!grid) continue;
         const sourceLabel =
           row.provider_code === "URBAN_SOLAR" ? TARIFF_SOURCE_URBAN : TARIFF_SOURCE_MYLIGHT;
+        const effectiveDate =
+          row.provider_code === "URBAN_SOLAR" ? TARIFF_EFFECTIVE_DATE_URBAN : TARIFF_EFFECTIVE_DATE;
         await pool.query(
           `UPDATE pv_virtual_batteries
            SET tariff_grid_json = $1::jsonb, tariff_source_label = $2, tariff_effective_date = $3, updated_at = NOW()
            WHERE id = $4`,
-          [JSON.stringify(grid), sourceLabel, TARIFF_EFFECTIVE_DATE, row.id]
+          [JSON.stringify(grid), sourceLabel, effectiveDate, row.id]
         );
         console.log(`  [org ${organization_id}] ${row.provider_code} — grille tarifaire injectée`);
         tariffInjectedTotal += 1;
