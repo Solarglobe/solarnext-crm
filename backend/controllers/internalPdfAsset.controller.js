@@ -14,6 +14,7 @@ import {
   verifyPdfRenderToken,
   verifyFinancialQuoteRenderToken,
   verifyFinancialInvoiceRenderToken,
+  verifyFinancialCreditNoteRenderToken,
 } from "../services/pdfRenderToken.service.js";
 
 const orgId = (req) => req.params.orgId;
@@ -159,6 +160,48 @@ export async function getLogoForInvoice(req, res) {
     let decoded;
     try {
       decoded = verifyFinancialInvoiceRenderToken(renderToken, invoiceId);
+    } catch (e) {
+      if (e.code === "RENDER_TOKEN_EXPIRED") {
+        return res.status(401).json({ error: "RENDER_TOKEN_EXPIRED" });
+      }
+      return res.status(403).json({ error: "RENDER_TOKEN_INVALID" });
+    }
+
+    if (decoded.organizationId !== org) {
+      return res.status(403).json({ error: "Organisation non autorisée" });
+    }
+
+    const filePath = await resolveOrgLogoAbsolutePath(org);
+    if (!filePath) {
+      return res.status(404).json({ error: "Asset logo non trouvé" });
+    }
+
+    res.sendFile(filePath);
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      return res.status(404).json({ error: "Fichier non trouvé" });
+    }
+    res.status(500).json({ error: e.message });
+  }
+}
+
+/**
+ * Logo pour le PDF avoir — token avoir.
+ * GET /api/internal/pdf-asset/:orgId/logo-for-credit-note?renderToken=...&creditNoteId=...
+ */
+export async function getLogoForCreditNote(req, res) {
+  try {
+    const org = orgId(req);
+    const renderToken = req.query.renderToken;
+    const creditNoteId = req.query.creditNoteId;
+
+    if (!renderToken || !creditNoteId) {
+      return res.status(400).json({ error: "renderToken et creditNoteId requis" });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyFinancialCreditNoteRenderToken(renderToken, creditNoteId);
     } catch (e) {
       if (e.code === "RENDER_TOKEN_EXPIRED") {
         return res.status(401).json({ error: "RENDER_TOKEN_EXPIRED" });

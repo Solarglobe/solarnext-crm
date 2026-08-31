@@ -11,6 +11,7 @@ const USAGE = "pdf-render";
 /** Jeton pour le renderer PDF devis (Playwright) — sans studyId/versionId */
 const USAGE_FINANCIAL_QUOTE = "pdf-quote-render";
 const USAGE_FINANCIAL_INVOICE = "pdf-invoice-render";
+const USAGE_FINANCIAL_CREDIT_NOTE = "pdf-credit-note-render";
 const EXPIRES_IN = "5m";
 
 /**
@@ -198,6 +199,62 @@ export function verifyFinancialInvoiceRenderToken(token, invoiceId) {
   }
   return {
     invoiceId: decoded.invoiceId,
+    organizationId: decoded.organizationId,
+  };
+}
+
+/**
+ * @param {string} creditNoteId
+ * @param {string} organizationId
+ * @returns {string}
+ */
+export function createFinancialCreditNoteRenderToken(creditNoteId, organizationId) {
+  const payload = {
+    creditNoteId,
+    organizationId,
+    usage: USAGE_FINANCIAL_CREDIT_NOTE,
+  };
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: EXPIRES_IN });
+  logger.info("PDF_CREDIT_NOTE_RENDER_TOKEN_CREATED", { creditNoteId, organizationId });
+  return token;
+}
+
+/**
+ * @param {string} token
+ * @param {string} creditNoteId
+ * @returns {{ creditNoteId: string, organizationId: string }}
+ */
+export function verifyFinancialCreditNoteRenderToken(token, creditNoteId) {
+  if (!token || typeof token !== "string") {
+    const e = new Error("renderToken manquant");
+    e.code = "RENDER_TOKEN_INVALID";
+    throw e;
+  }
+  let decoded;
+  try {
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      const e = new Error("renderToken expiré");
+      e.code = "RENDER_TOKEN_EXPIRED";
+      throw e;
+    }
+    const e = new Error("renderToken invalide");
+    e.code = "RENDER_TOKEN_INVALID";
+    throw e;
+  }
+  if (decoded.usage !== USAGE_FINANCIAL_CREDIT_NOTE) {
+    const e = new Error("usage invalide");
+    e.code = "RENDER_TOKEN_INVALID";
+    throw e;
+  }
+  if (decoded.creditNoteId !== creditNoteId) {
+    const e = new Error("creditNoteId incohérent avec le token");
+    e.code = "RENDER_TOKEN_INVALID";
+    throw e;
+  }
+  return {
+    creditNoteId: decoded.creditNoteId,
     organizationId: decoded.organizationId,
   };
 }

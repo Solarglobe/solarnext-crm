@@ -9,6 +9,7 @@ import * as pdfAsset from "../controllers/internalPdfAsset.controller.js";
 import { getInternalFinancialQuotePdfPayload } from "../controllers/internalFinancialQuotePdf.controller.js";
 import { getInternalQuoteSignaturePng } from "../controllers/internalQuoteSignature.controller.js";
 import { getInternalFinancialInvoicePdfPayload } from "../controllers/internalFinancialInvoicePdf.controller.js";
+import { getInternalFinancialCreditNotePdfPayload } from "../controllers/internalFinancialCreditNotePdf.controller.js";
 import { getCalpinageRenderData } from "../controllers/internalCalpinageRender.controller.js";
 
 const router = express.Router();
@@ -37,6 +38,7 @@ router.get(
 router.get("/internal/pdf-asset/:orgId/logo", pdfAsset.getLogo);
 router.get("/internal/pdf-asset/:orgId/logo-for-quote", pdfAsset.getLogoForQuote);
 router.get("/internal/pdf-asset/:orgId/logo-for-invoice", pdfAsset.getLogoForInvoice);
+router.get("/internal/pdf-asset/:orgId/logo-for-credit-note", pdfAsset.getLogoForCreditNote);
 router.get("/internal/pdf-asset/:orgId/pdf-cover", pdfAsset.getPdfCover);
 
 /**
@@ -53,5 +55,10 @@ router.get("/internal/pdf-quote-signature/:quoteId/:role", getInternalQuoteSigna
  * GET /api/internal/pdf-financial-invoice/:invoiceId?renderToken=...
  */
 router.get("/internal/pdf-financial-invoice/:invoiceId", getInternalFinancialInvoicePdfPayload);
+
+/**
+ * GET /api/internal/pdf-financial-credit-note/:creditNoteId?renderToken=...
+ */
+router.get("/internal/pdf-financial-credit-note/:creditNoteId", getInternalFinancialCreditNotePdfPayload);
 
 export default router;

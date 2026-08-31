@@ -136,6 +136,41 @@ export async function findExistingInvoicePdfForInvoiceEntity(organizationId, inv
   return r.rows[0] || null;
 }
 
+/**
+ * Supprime les PDF avoir précédents (fichier + ligne) avant régénération.
+ */
+export async function removeCreditNotePdfDocuments(organizationId, creditNoteId) {
+  const r = await pool.query(
+    `SELECT id, storage_key FROM entity_documents
+     WHERE organization_id = $1 AND entity_type = 'credit_note' AND entity_id = $2
+       AND document_type = 'credit_note_pdf' AND (archived_at IS NULL)`,
+    [organizationId, creditNoteId]
+  );
+  for (const row of r.rows) {
+    await localStorageDelete(row.storage_key);
+    await pool.query(`DELETE FROM entity_documents WHERE id = $1 AND organization_id = $2`, [row.id, organizationId]);
+  }
+}
+
+/**
+ * Trouve le PDF avoir principal rattaché à l'entité credit_note.
+ */
+export async function findExistingCreditNotePdfForCreditNoteEntity(organizationId, creditNoteId) {
+  const r = await pool.query(
+    `SELECT *
+     FROM entity_documents
+     WHERE organization_id = $1
+       AND entity_type = 'credit_note'
+       AND entity_id = $2
+       AND document_type = 'credit_note_pdf'
+       AND (archived_at IS NULL)
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [organizationId, creditNoteId]
+  );
+  return r.rows[0] || null;
+}
+
 export async function removeQuotePdfDocuments(organizationId, quoteId) {
   const r = await pool.query(
     `SELECT id, storage_key FROM entity_documents
@@ -915,6 +950,77 @@ export async function saveInvoicePdfDocument(pdfBuffer, organizationId, invoiceI
 }
 
 /**
+ * PDF avoir — stockage local + entity_documents (credit_note_pdf).
+ * @param {Buffer} pdfBuffer
+ * @param {string} organizationId
+ * @param {string} creditNoteId
+ * @param {string|null} userId
+ * @param {object} [opts]
+ * @param {string} [opts.fileName]
+ * @param {Record<string, unknown>} [opts.metadata]
+ */
+export async function saveCreditNotePdfDocument(pdfBuffer, organizationId, creditNoteId, userId, opts = {}) {
+  let fileName;
+  const preferred = opts.fileName && String(opts.fileName).trim();
+  if (preferred) {
+    const base = String(opts.fileName).trim();
+    fileName = /\.pdf$/i.test(base) ? base : `${base}.pdf`;
+  } else {
+    fileName = `avoir-${creditNoteId}.pdf`;
+  }
+
+  const fileHash = computeFileHash(pdfBuffer);
+  const snapshotChecksum = opts.snapshotChecksum ?? opts.metadata?.snapshot_checksum ?? null;
+
+  const { storage_path } = await localStorageUpload(
+    pdfBuffer,
+    organizationId,
+    "credit_note",
+    creditNoteId,
+    fileName
+  );
+
+  const metadata =
+    opts.metadata && typeof opts.metadata === "object" && !Array.isArray(opts.metadata) ? opts.metadata : {};
+
+  const bm = resolveSystemDocumentMetadata("credit_note_pdf", {
+    numberForLabel: opts.creditNoteNumber != null ? String(opts.creditNoteNumber) : null,
+    displayName: opts.displayName,
+  });
+
+  const ins = await pool.query(
+    `INSERT INTO entity_documents
+     (organization_id, entity_type, entity_id, file_name, file_size, mime_type, storage_key, url, uploaded_by, document_type, metadata_json,
+      document_category, source_type, is_client_visible, display_name, description,
+      file_hash, snapshot_checksum_at_generation)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18)
+     RETURNING id, file_name, storage_key`,
+    [
+      organizationId,
+      "credit_note",
+      creditNoteId,
+      fileName,
+      pdfBuffer.length,
+      "application/pdf",
+      storage_path,
+      "local",
+      userId || null,
+      "credit_note_pdf",
+      JSON.stringify(metadata),
+      bm.document_category,
+      bm.source_type,
+      bm.is_client_visible,
+      bm.display_name,
+      bm.description,
+      fileHash,
+      snapshotChecksum,
+    ]
+  );
+
+  return ins.rows[0];
+}
+
+/**
  * Trouve un PDF facture déjà copié sur une entité client/lead pour une facture donnée.
  */
 export async function findExistingOwnerInvoicePdfForInvoice(organizationId, entityType, entityId, invoiceId) {
@@ -1005,6 +1111,108 @@ export async function saveInvoicePdfOnOwnerDocument(
       "local",
       userId || null,
       "invoice_pdf",
+      JSON.stringify(metadata),
+      bm.document_category,
+      bm.source_type,
+      bm.is_client_visible,
+      bm.display_name,
+      bm.description,
+    ]
+  );
+  return { ...ins.rows[0], replaced };
+}
+
+/**
+ * Trouve un PDF avoir déjà copié sur une entité client/lead pour un avoir donné.
+ */
+export async function findExistingOwnerCreditNotePdfForCreditNote(organizationId, entityType, entityId, creditNoteId) {
+  const r = await pool.query(
+    `SELECT *
+     FROM entity_documents
+     WHERE organization_id = $1
+       AND entity_type = $2
+       AND entity_id = $3
+       AND document_type = 'credit_note_pdf'
+       AND (archived_at IS NULL)
+       AND COALESCE(metadata_json->>'credit_note_id', '') = $4
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [organizationId, entityType, entityId, String(creditNoteId)]
+  );
+  return r.rows[0] || null;
+}
+
+/**
+ * Copie le PDF avoir sur entity_documents du client/lead (Documents > Factures).
+ * Déduplication par credit_note_id via metadata_json.
+ */
+export async function saveCreditNotePdfOnOwnerDocument(
+  pdfBuffer,
+  organizationId,
+  entityType,
+  entityId,
+  creditNoteId,
+  userId,
+  opts = {}
+) {
+  if (!["client", "lead"].includes(String(entityType))) {
+    const err = new Error("entityType invalide pour saveCreditNotePdfOnOwnerDocument");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  let fileName;
+  const preferred = opts.fileName && String(opts.fileName).trim();
+  if (preferred) {
+    const base = String(opts.fileName).trim();
+    fileName = /\.pdf$/i.test(base) ? base : `${base}.pdf`;
+  } else {
+    fileName = `avoir-${creditNoteId}.pdf`;
+  }
+
+  const existing = await findExistingOwnerCreditNotePdfForCreditNote(
+    organizationId,
+    entityType,
+    entityId,
+    creditNoteId
+  );
+  const replaced = Boolean(existing);
+  if (existing?.storage_key) {
+    try {
+      await localStorageDelete(existing.storage_key);
+    } catch (_) {}
+    await pool.query(`DELETE FROM entity_documents WHERE id = $1 AND organization_id = $2`, [
+      existing.id,
+      organizationId,
+    ]);
+  }
+
+  const { storage_path } = await localStorageUpload(pdfBuffer, organizationId, entityType, entityId, fileName);
+  const metadataBase =
+    opts.metadata && typeof opts.metadata === "object" && !Array.isArray(opts.metadata) ? opts.metadata : {};
+  const metadata = { ...metadataBase, credit_note_id: String(creditNoteId) };
+  const bm = resolveSystemDocumentMetadata("credit_note_pdf", {
+    numberForLabel: opts.creditNoteNumber != null ? String(opts.creditNoteNumber) : null,
+    displayName: opts.displayName,
+  });
+
+  const ins = await pool.query(
+    `INSERT INTO entity_documents
+     (organization_id, entity_type, entity_id, file_name, file_size, mime_type, storage_key, url, uploaded_by, document_type, metadata_json,
+      document_category, source_type, is_client_visible, display_name, description)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16)
+     RETURNING id, file_name, storage_key`,
+    [
+      organizationId,
+      entityType,
+      entityId,
+      fileName,
+      pdfBuffer.length,
+      "application/pdf",
+      storage_path,
+      "local",
+      userId || null,
+      "credit_note_pdf",
       JSON.stringify(metadata),
       bm.document_category,
       bm.source_type,

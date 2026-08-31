@@ -95,6 +95,24 @@ export async function postIssueCreditNote(creditNoteId: string): Promise<unknown
   return res.json();
 }
 
+export async function postGenerateCreditNotePdf(creditNoteId: string): Promise<{
+  document?: { id?: string; file_name?: string };
+  downloadUrl?: string;
+  fileName?: string;
+  replaced?: boolean;
+  message?: string;
+}> {
+  const res = await apiFetch(`${API_BASE}/api/credit-notes/${encodeURIComponent(creditNoteId)}/pdf`, {
+    method: "POST",
+    headers: jsonHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function fetchInvoiceReminders(invoiceId: string): Promise<InvoiceReminderApi[]> {
   const res = await apiFetch(`${API_BASE}/api/invoices/${encodeURIComponent(invoiceId)}/reminders`);
   if (!res.ok) {

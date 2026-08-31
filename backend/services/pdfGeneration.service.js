@@ -234,6 +234,19 @@ export function buildFinancialInvoiceRendererUrl(invoiceId, renderToken) {
 }
 
 /**
+ * URL du renderer PDF avoir (portrait A4) — query financialCreditNoteId + renderToken.
+ * @param {string} creditNoteId
+ * @param {string} renderToken
+ */
+export function buildFinancialCreditNoteRendererUrl(creditNoteId, renderToken) {
+  const base = getPdfRendererBaseUrl();
+  const url = `${base}/pdf-render.html?financialCreditNoteId=${encodeURIComponent(creditNoteId)}&renderToken=${encodeURIComponent(renderToken)}`;
+  console.log("[PDF] rendererUrl:", url);
+  logger.info("PDF_CREDIT_NOTE_RENDER_URL", { creditNoteId, rendererBase: base });
+  return url;
+}
+
+/**
  * PDF portrait A4 — devis / facture (Playwright, même pipeline).
  * @param {string} rendererUrl
  * @param {string} [logLabel]
@@ -364,5 +377,17 @@ export async function generatePdfFromFinancialInvoiceUrlWithFooter(rendererUrl, 
   return generatePdfFromPortraitFinanceUrl(rendererUrl, "invoice", {
     useCssPageMargins: true,
     footerTemplate: buildInvoiceFooterTemplate(invoiceNumber),
+  });
+}
+
+/**
+ * @param {string} rendererUrl
+ * @param {string} creditNoteNumber
+ * @returns {Promise<Buffer>}
+ */
+export async function generatePdfFromFinancialCreditNoteUrlWithFooter(rendererUrl, creditNoteNumber) {
+  return generatePdfFromPortraitFinanceUrl(rendererUrl, "credit-note", {
+    useCssPageMargins: true,
+    footerTemplate: buildInvoiceFooterTemplate(creditNoteNumber),
   });
 }

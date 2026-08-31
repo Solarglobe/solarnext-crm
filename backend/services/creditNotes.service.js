@@ -15,7 +15,17 @@ import {
 import { recalculateInvoiceStatusFromAmounts } from "./invoices.service.js";
 import { persistCreditNoteOfficialDocumentSnapshot } from "./financialDocumentSnapshot.service.js";
 import { buildCreditNotePdfPayloadFromSnapshot } from "./financialDocumentPdfPayload.service.js";
-import { registerPendingFinancialPdf } from "./financialPdfDocument.service.js";
+import { createFinancialCreditNoteRenderToken } from "./pdfRenderToken.service.js";
+import {
+  buildFinancialCreditNoteRendererUrl,
+  generatePdfFromFinancialCreditNoteUrlWithFooter,
+} from "./pdfGeneration.service.js";
+import {
+  findExistingCreditNotePdfForCreditNoteEntity,
+  removeCreditNotePdfDocuments,
+  saveCreditNotePdfDocument,
+  saveCreditNotePdfOnOwnerDocument,
+} from "./documents.service.js";
 
 function httpError(message, statusCode = 400) {
   const e = new Error(message);
@@ -270,14 +280,20 @@ export async function listCreditNotesForInvoice(organizationId, invoiceId) {
   const r = await pool.query(
     `SELECT cn.id, cn.credit_note_number, cn.status, cn.total_ht, cn.total_ttc, cn.issue_date, cn.created_at,
             cn.reason_text, cn.reason_code,
-            (EXISTS (
-              SELECT 1 FROM entity_documents ed
-              WHERE ed.organization_id = cn.organization_id
-                AND ed.entity_type = 'credit_note' AND ed.entity_id = cn.id
-                AND ed.document_type = 'credit_note_pdf'
-                AND (ed.archived_at IS NULL)
-            )) AS has_pdf
+            ed.id AS pdf_document_id,
+            ed.file_name AS pdf_file_name,
+            (ed.id IS NOT NULL) AS has_pdf
      FROM credit_notes cn
+     LEFT JOIN LATERAL (
+       SELECT id, file_name
+       FROM entity_documents ed
+       WHERE ed.organization_id = cn.organization_id
+         AND ed.entity_type = 'credit_note' AND ed.entity_id = cn.id
+         AND ed.document_type = 'credit_note_pdf'
+         AND (ed.archived_at IS NULL)
+       ORDER BY ed.created_at DESC
+       LIMIT 1
+     ) ed ON true
      WHERE cn.invoice_id = $1 AND cn.organization_id = $2 AND (cn.archived_at IS NULL)
      ORDER BY cn.created_at`,
     [invoiceId, organizationId]
@@ -292,7 +308,10 @@ export async function listCreditNotesForInvoice(organizationId, invoiceId) {
  */
 export async function generateCreditNotePdfRecord(creditNoteId, organizationId, userId) {
   const r = await pool.query(
-    "SELECT credit_note_number, document_snapshot_json, status FROM credit_notes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)",
+    `SELECT cn.credit_note_number, cn.document_snapshot_json, cn.status, cn.client_id, i.lead_id
+     FROM credit_notes cn
+     LEFT JOIN invoices i ON i.id = cn.invoice_id AND i.organization_id = cn.organization_id
+     WHERE cn.id = $1 AND cn.organization_id = $2 AND (cn.archived_at IS NULL)`,
     [creditNoteId, organizationId]
   );
   if (r.rows.length === 0) {
@@ -312,27 +331,81 @@ export async function generateCreditNotePdfRecord(creditNoteId, organizationId, 
   const snapshot = typeof snapRaw === "string" ? JSON.parse(snapRaw) : snapRaw;
   const pdfPayload = buildCreditNotePdfPayloadFromSnapshot(snapshot);
   const num = row.credit_note_number || creditNoteId;
-  const doc = await registerPendingFinancialPdf({
-    organizationId,
-    entityType: "credit_note",
-    entityId: creditNoteId,
-    documentType: "credit_note_pdf",
-    fileName: `avoir-${num}.pdf`,
-    userId,
-    numberForLabel: row.credit_note_number ?? null,
-    metadataJson: {
+  const fileName = `${String(num).trim()}.pdf`;
+
+  const renderToken = createFinancialCreditNoteRenderToken(creditNoteId, organizationId);
+  const rendererUrl = buildFinancialCreditNoteRendererUrl(creditNoteId, renderToken);
+  const pdfBuffer = await generatePdfFromFinancialCreditNoteUrlWithFooter(rendererUrl, num);
+
+  const existingMain = await findExistingCreditNotePdfForCreditNoteEntity(organizationId, creditNoteId);
+  const replacedMain = Boolean(existingMain);
+  await removeCreditNotePdfDocuments(organizationId, creditNoteId);
+  const doc = await saveCreditNotePdfDocument(pdfBuffer, organizationId, creditNoteId, userId, {
+    fileName,
+    creditNoteNumber: row.credit_note_number ?? null,
+    metadata: {
       business_document_type: "CREDIT_NOTE",
       document_number: snapshot.number,
       status: row.status,
       schema_version: snapshot.schema_version,
-      snapshot_checksum: snapshot.snapshot_checksum,
+      snapshot_checksum: pdfPayload.snapshot_checksum,
       source: "document_snapshot_json",
+      linked_entity_type: "credit_note",
+      linked_entity_id: String(creditNoteId),
     },
   });
+
+  const ownerEntityType = row.client_id ? "client" : row.lead_id ? "lead" : null;
+  const ownerEntityId = row.client_id || row.lead_id || null;
+  let ownerMirrorReplaced = false;
+  let ownerDocId = null;
+  let ownerDocFileName = null;
+  if (ownerEntityType && ownerEntityId) {
+    const ownerDoc = await saveCreditNotePdfOnOwnerDocument(
+      pdfBuffer,
+      organizationId,
+      ownerEntityType,
+      ownerEntityId,
+      creditNoteId,
+      userId,
+      {
+        fileName,
+        creditNoteNumber: row.credit_note_number ?? null,
+        metadata: {
+          source: "credit_note_pdf_mirror",
+          linked_entity_type: "credit_note",
+          linked_entity_id: String(creditNoteId),
+        },
+      }
+    );
+    ownerMirrorReplaced = ownerDoc?.replaced === true;
+    ownerDocId = ownerDoc?.id || null;
+    ownerDocFileName = ownerDoc?.file_name || null;
+  }
+
   return {
     document: doc,
+    fileName,
     pdf_payload: pdfPayload,
-    message: "Document enregistré — payload PDF dérivé du snapshot figé (rendu à brancher sur le pipeline).",
+    downloadUrl: `/api/documents/${doc.id}/download`,
+    replaced: replacedMain || ownerMirrorReplaced,
+    observability: {
+      credit_note_id: String(creditNoteId),
+      credit_note_number: row.credit_note_number ?? null,
+      main_document: {
+        id: doc?.id ?? null,
+        file_name: doc?.file_name ?? null,
+        replaced: replacedMain,
+      },
+      mirror: {
+        entity_type: ownerEntityType,
+        entity_id: ownerEntityId,
+        document_id: ownerDocId,
+        file_name: ownerDocFileName,
+        replaced: ownerMirrorReplaced,
+      },
+    },
+    message: "PDF avoir généré et enregistré depuis le snapshot figé.",
   };
 }
 

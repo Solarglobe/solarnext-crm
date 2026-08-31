@@ -30,6 +30,8 @@ export interface InvoiceCreditNoteApi {
   reason_text?: string | null;
   reason_code?: string | null;
   has_pdf?: boolean;
+  pdf_document_id?: string | null;
+  pdf_file_name?: string | null;
 }
 
 export interface InvoiceReminderApi {

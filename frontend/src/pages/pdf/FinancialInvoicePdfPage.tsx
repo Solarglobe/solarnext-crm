@@ -1,7 +1,7 @@
 /**
- * PDF Facture client — Playwright.
+ * PDF facture / avoir client — Playwright.
  * Rendu strictement fidèle au snapshot officiel (lignes + totaux + statuts/dates figés à l’émission).
- * URL : financialInvoiceId, renderToken
+ * URL : financialInvoiceId ou financialCreditNoteId, renderToken
  */
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -34,9 +34,13 @@ export function sanitizeInvoicePdfCommercialText(value: unknown): string {
 }
 
 function getSearch() {
-  if (typeof window === "undefined") return { financialInvoiceId: "", renderToken: "" };
+  if (typeof window === "undefined") return { financialInvoiceId: "", financialCreditNoteId: "", renderToken: "" };
   const s = new URLSearchParams(window.location.search);
-  return { financialInvoiceId: s.get("financialInvoiceId") ?? "", renderToken: s.get("renderToken") ?? "" };
+  return {
+    financialInvoiceId: s.get("financialInvoiceId") ?? "",
+    financialCreditNoteId: s.get("financialCreditNoteId") ?? "",
+    renderToken: s.get("renderToken") ?? "",
+  };
 }
 
 function statusLabel(st: string | undefined | null): string {
@@ -69,7 +73,9 @@ function LegalMentionsBlock() {
 }
 
 export default function FinancialInvoicePdfPage() {
-  const { financialInvoiceId, renderToken } = useMemo(() => getSearch(), []);
+  const { financialInvoiceId, financialCreditNoteId, renderToken } = useMemo(() => getSearch(), []);
+  const isCreditNote = Boolean(financialCreditNoteId);
+  const financialDocumentId = financialCreditNoteId || financialInvoiceId;
   const [status, setStatus] = useState<Status>("loading");
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [payload, setPayload] = useState<Record<string, unknown> | null>(null);
@@ -86,12 +92,13 @@ export default function FinancialInvoicePdfPage() {
   }, []);
 
   useEffect(() => {
-    if (!financialInvoiceId || !renderToken) {
+    if (!financialDocumentId || !renderToken) {
       setStatus("error");
-      setErrMsg("Paramètres manquants : financialInvoiceId et renderToken requis.");
+      setErrMsg("Paramètres manquants : identifiant document financier et renderToken requis.");
       return;
     }
-    const url = `${API_BASE}/api/internal/pdf-financial-invoice/${encodeURIComponent(financialInvoiceId)}?renderToken=${encodeURIComponent(renderToken)}`;
+    const endpoint = isCreditNote ? "pdf-financial-credit-note" : "pdf-financial-invoice";
+    const url = `${API_BASE}/api/internal/${endpoint}/${encodeURIComponent(financialDocumentId)}?renderToken=${encodeURIComponent(renderToken)}`;
     fetch(url)
       .then((res) => {
         if (!res.ok) throw new Error("Chargement impossible");
@@ -118,10 +125,10 @@ export default function FinancialInvoicePdfPage() {
         }
       )
       .catch(() => {
-        setErrMsg("Impossible de charger la facture figée.");
+        setErrMsg(isCreditNote ? "Impossible de charger l'avoir figé." : "Impossible de charger la facture figée.");
         setStatus("error");
       });
-  }, [financialInvoiceId, renderToken]);
+  }, [financialDocumentId, isCreditNote, renderToken]);
 
   const brandColor = useMemo(() => {
     const iss = payload?.issuer as Record<string, unknown> | undefined;
@@ -130,9 +137,11 @@ export default function FinancialInvoicePdfPage() {
   }, [payload]);
 
   const logoUrl = useMemo(() => {
-    if (!organizationId || !renderToken || !financialInvoiceId) return null;
-    return `${API_BASE}/api/internal/pdf-asset/${encodeURIComponent(organizationId)}/logo-for-invoice?renderToken=${encodeURIComponent(renderToken)}&invoiceId=${encodeURIComponent(financialInvoiceId)}`;
-  }, [organizationId, renderToken, financialInvoiceId]);
+    if (!organizationId || !renderToken || !financialDocumentId) return null;
+    const logoEndpoint = isCreditNote ? "logo-for-credit-note" : "logo-for-invoice";
+    const idParam = isCreditNote ? "creditNoteId" : "invoiceId";
+    return `${API_BASE}/api/internal/pdf-asset/${encodeURIComponent(organizationId)}/${logoEndpoint}?renderToken=${encodeURIComponent(renderToken)}&${idParam}=${encodeURIComponent(financialDocumentId)}`;
+  }, [organizationId, renderToken, financialDocumentId, isCreditNote]);
 
   useEffect(() => {
     if (status !== "ready" || !payload) return;
@@ -221,6 +230,11 @@ export default function FinancialInvoicePdfPage() {
         )
       : null;
   const invoiceNumberDisplay = payload.number != null && payload.number !== "" ? String(payload.number) : "—";
+  const sourceInvoiceSnapshot = (payload.source_invoice_snapshot || {}) as Record<string, unknown>;
+  const sourceInvoiceNumber =
+    sourceInvoiceSnapshot.number != null && sourceInvoiceSnapshot.number !== ""
+      ? String(sourceInvoiceSnapshot.number)
+      : null;
   const issuerAddress = (issuer.address as Record<string, unknown> | undefined) ?? {};
   const issuerDisplayName = String(
     issuer.display_name || issuer.legal_name || issuer.trade_name || ""
@@ -272,7 +286,7 @@ export default function FinancialInvoicePdfPage() {
 
       {/* 2. Bloc client */}
       <section className="fi-no-break fi-section fi-section--client">
-        <h2 className="fi-block-label">Facturé à</h2>
+        <h2 className="fi-block-label">{isCreditNote ? "Client" : "Facturé à"}</h2>
         <div className="fi-recipient-stack">
           <p className="fi-recipient-primary">{identity.primary}</p>
           {identity.secondary ? <p className="fi-recipient-secondary">{identity.secondary}</p> : null}
@@ -294,17 +308,25 @@ export default function FinancialInvoicePdfPage() {
         </div>
       </section>
 
-      {/* 3. Infos facture */}
+      {/* 3. Infos document */}
       <section className="fi-no-break fi-section fi-section--invoice-meta">
         <div className="fi-invoice-title-row">
-          <h1 className="fi-invoice-h1">{isDepositInvoice ? "FACTURE D'ACOMPTE" : "FACTURE"}</h1>
+          <h1 className="fi-invoice-h1">
+            {isCreditNote ? "AVOIR" : isDepositInvoice ? "FACTURE D'ACOMPTE" : "FACTURE"}
+          </h1>
           <span className="fi-status-pill">{statusLabel(invStatus)}</span>
         </div>
         <div className="fi-meta-grid">
           <div className="fi-meta-field">
-            <span className="fi-meta-k">N° de facture</span>
+            <span className="fi-meta-k">{isCreditNote ? "N° d'avoir" : "N° de facture"}</span>
             <span className="fi-meta-v">{invoiceNumberDisplay}</span>
           </div>
+          {isCreditNote && sourceInvoiceNumber ? (
+            <div className="fi-meta-field">
+              <span className="fi-meta-k">Facture d'origine</span>
+              <span className="fi-meta-v">{sourceInvoiceNumber}</span>
+            </div>
+          ) : null}
           <div className="fi-meta-field">
             <span className="fi-meta-k">Monnaie</span>
             <span className="fi-meta-v">{currency}</span>
@@ -313,10 +335,12 @@ export default function FinancialInvoicePdfPage() {
             <span className="fi-meta-k">Date d&apos;émission</span>
             <span className="fi-meta-v">{formatDateFrSlash(issueDate)}</span>
           </div>
-          <div className="fi-meta-field">
-            <span className="fi-meta-k">Date d&apos;échéance</span>
-            <span className="fi-meta-v">{formatDateFrSlash(displayDueDate)}</span>
-          </div>
+          {!isCreditNote ? (
+            <div className="fi-meta-field">
+              <span className="fi-meta-k">Date d&apos;échéance</span>
+              <span className="fi-meta-v">{formatDateFrSlash(displayDueDate)}</span>
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -371,7 +395,7 @@ export default function FinancialInvoicePdfPage() {
             <span>{formatEurUnknown(totals.total_vat)}</span>
           </div>
           <div className="fi-totals-row">
-            <span>Total TTC</span>
+            <span>{isCreditNote ? "Montant de l'avoir TTC" : "Total TTC"}</span>
             <span>{formatEurUnknown(totals.total_ttc)}</span>
           </div>
           {isDepositInvoice && preparationServicesTtc != null ? (
@@ -410,20 +434,24 @@ export default function FinancialInvoicePdfPage() {
               <span>{formatEurUnknown(remainingProjectTtc)}</span>
             </div>
           ) : null}
-          <div className="fi-totals-row">
-            <span>Déjà réglé</span>
-            <span>{formatEurUnknown(totals.total_paid)}</span>
-          </div>
-          {totals.total_credited > 0.0001 ? (
+          {!isCreditNote ? (
+            <div className="fi-totals-row">
+              <span>Déjà réglé</span>
+              <span>{formatEurUnknown(totals.total_paid)}</span>
+            </div>
+          ) : null}
+          {!isCreditNote && totals.total_credited > 0.0001 ? (
             <div className="fi-totals-row">
               <span>Avoirs imputés</span>
               <span>{formatEurUnknown(totals.total_credited)}</span>
             </div>
           ) : null}
-          <div className="fi-totals-row fi-totals-row--due">
-            <span>Reste à payer</span>
-            <span>{formatEurUnknown(totals.amount_due)}</span>
-          </div>
+          {!isCreditNote ? (
+            <div className="fi-totals-row fi-totals-row--due">
+              <span>Reste à payer</span>
+              <span>{formatEurUnknown(totals.amount_due)}</span>
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -441,6 +469,13 @@ export default function FinancialInvoicePdfPage() {
         </div>
       ) : null}
 
+      {isCreditNote && payload.reason_text ? (
+        <div className="fi-no-break fi-section fi-terms">
+          <h3 className="fi-subtitle">Motif de l&apos;avoir</h3>
+          <p className="fi-pre">{String(payload.reason_text)}</p>
+        </div>
+      ) : null}
+
       {defaultInvoiceNotes ? (
         <div className="fi-no-break fi-section fi-terms">
           <h3 className="fi-subtitle">Conditions générales (émetteur)</h3>
@@ -449,7 +484,11 @@ export default function FinancialInvoicePdfPage() {
       ) : null}
 
       <section className="fi-no-break fi-doc-contract" aria-label="Méthode documentaire">
-        <p>Cette facture reflète les prestations validées et est figée à la date d&apos;émission.</p>
+        <p>
+          {isCreditNote
+            ? "Cet avoir reflète la régularisation validée et est figé à la date d'émission."
+            : "Cette facture reflète les prestations validées et est figée à la date d'émission."}
+        </p>
       </section>
 
       <section className="fi-no-break fi-section fi-legal-bank">

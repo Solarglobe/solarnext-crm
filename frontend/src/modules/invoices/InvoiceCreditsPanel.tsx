@@ -4,8 +4,9 @@ import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import type { InvoiceCreditNoteApi } from "./invoice-financial.types";
 import CreateCreditModal from "./CreateCreditModal";
-import { postIssueCreditNote } from "./invoice-financial.api";
+import { postGenerateCreditNotePdf, postIssueCreditNote } from "./invoice-financial.api";
 import { formatCreditNoteNumberDisplay } from "../finance/documentDisplay";
+import { openAuthenticatedDocumentInNewTab } from "@/utils/documentDownload";
 
 function eur(n: number) {
   return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
@@ -34,6 +35,7 @@ export default function InvoiceCreditsPanel({
 }: InvoiceCreditsPanelProps) {
   const [open, setOpen] = useState(false);
   const [issuing, setIssuing] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState<string | null>(null);
   const [confirmIssueId, setConfirmIssueId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,6 +54,32 @@ export default function InvoiceCreditsPanel({
     } finally {
       setIssuing(null);
       setConfirmIssueId(null);
+    }
+  };
+
+  const openOrGeneratePdf = async (creditNote: InvoiceCreditNoteApi) => {
+    setPdfLoading(creditNote.id);
+    try {
+      if (creditNote.pdf_document_id) {
+        await openAuthenticatedDocumentInNewTab(`/api/documents/${encodeURIComponent(creditNote.pdf_document_id)}/download`);
+        return;
+      }
+      const data = await postGenerateCreditNotePdf(creditNote.id);
+      onRefresh();
+      if (data.downloadUrl) {
+        await openAuthenticatedDocumentInNewTab(data.downloadUrl);
+        return;
+      }
+      const docId = data.document?.id;
+      if (docId) {
+        await openAuthenticatedDocumentInNewTab(`/api/documents/${encodeURIComponent(docId)}/download`);
+        return;
+      }
+      showCrmInlineToast("PDF avoir généré, mais téléchargement indisponible.", "warning");
+    } catch (e) {
+      showCrmInlineToast(e instanceof Error ? e.message : "PDF avoir non généré", "error");
+    } finally {
+      setPdfLoading(null);
     }
   };
 
@@ -109,7 +137,16 @@ export default function InvoiceCreditsPanel({
                         <button type="button" className="qb-btn-link" disabled={issuing === c.id} onClick={() => setConfirmIssueId(c.id)}>
                           Émettre
                         </button>
-                      ) : null}
+                      ) : (
+                        <button
+                          type="button"
+                          className="qb-btn-link"
+                          disabled={pdfLoading === c.id}
+                          onClick={() => void openOrGeneratePdf(c)}
+                        >
+                          {pdfLoading === c.id ? "PDF..." : c.pdf_document_id ? "Télécharger" : "Générer PDF"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
