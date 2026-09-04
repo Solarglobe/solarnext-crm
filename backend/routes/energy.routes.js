@@ -38,6 +38,66 @@ const orgIdFromReq = (req) => req.user.organizationId ?? req.user.organization_i
 
 const VALID_SOURCES = new Set(["enedis", "switchgrid"]);
 
+function numOrNull(v) {
+  const normalized = typeof v === "string" ? v.trim().replace(",", ".") : v;
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeTimeLabel(value) {
+  if (typeof value !== "string") return null;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 24 || m < 0 || m > 59 || (h === 24 && m !== 0)) {
+    return null;
+  }
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function normalizePeriod(period) {
+  const start = normalizeTimeLabel(period?.start);
+  const end = normalizeTimeLabel(period?.end);
+  if (!start || !end || start === end) return null;
+  return { start, end };
+}
+
+function formatEnedisHour(value) {
+  const [h, m] = String(value).split(":");
+  return `${Number(h)}H${m === "00" ? "" : m}`;
+}
+
+function normalizeManualHpHcImport(input) {
+  if (!input || typeof input !== "object") return null;
+  const hpPrice = numOrNull(input.elec_price_hp_eur_kwh);
+  const hcPrice = numOrNull(input.elec_price_hc_eur_kwh);
+  if (hpPrice == null || hpPrice <= 0 || hpPrice >= 2) {
+    return { error: "Prix HP invalide (attendu entre 0 et 2 €/kWh)" };
+  }
+  if (hcPrice == null || hcPrice <= 0 || hcPrice >= 2) {
+    return { error: "Prix HC invalide (attendu entre 0 et 2 €/kWh)" };
+  }
+  const offPeak = Array.isArray(input.off_peak_periods)
+    ? input.off_peak_periods.map(normalizePeriod).filter(Boolean)
+    : [];
+  const hpPeriods = Array.isArray(input.hp_periods)
+    ? input.hp_periods.map(normalizePeriod).filter(Boolean)
+    : [];
+  if (!offPeak.length) return { error: "Plage HC invalide" };
+  const plage_hc =
+    typeof input.plage_hc === "string" && input.plage_hc.trim()
+      ? input.plage_hc.trim()
+      : `HC (${offPeak.map((p) => `${formatEnedisHour(p.start)}-${formatEnedisHour(p.end)}`).join(";")})`;
+  return {
+    elec_price_hp_eur_kwh: hpPrice,
+    elec_price_hc_eur_kwh: hcPrice,
+    hp_periods: hpPeriods,
+    off_peak_periods: offPeak,
+    plage_hc,
+  };
+}
+
 function isNonEmptyString(v) {
   return typeof v === "string" && v.trim().length > 0;
 }
@@ -506,6 +566,11 @@ router.post(
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const leadId = typeof body.leadId === "string" ? body.leadId.trim() : null;
     const files = body.files && typeof body.files === "object" ? body.files : {};
+    const manualHphc = normalizeManualHpHcImport(body.manualHphc);
+    if (manualHphc?.error) {
+      res.status(400).json({ error: manualHphc.error });
+      return;
+    }
     if (!leadId) {
       res.status(400).json({ error: "leadId requis" });
       return;
@@ -568,13 +633,22 @@ router.post(
     // (la loadcurve déjà importée est réutilisée plus bas via resolveConsumptionCsv)
 
     // --- 1) Parsing ---
-    const contract = files.c68Json ? parseC68(files.c68Json) : null;
+    const contract = files.c68Json ? parseC68(files.c68Json) : manualHphc ? {
+      tariff_type: "hp_hc",
+      plage_hc: manualHphc.plage_hc,
+      off_peak_periods: manualHphc.off_peak_periods,
+      manual_hp_periods: manualHphc.hp_periods,
+      manual_contract_source: "CSV_HPHC_MANUAL",
+    } : null;
     if (files.c68Json && !contract) warnings.push("c68.json fourni mais structure non reconnue");
     // LOT1-HC-WINDOW : plages HC exploitables par le moteur (masque HP/HC).
     // Persistées dans energy_profile.contract ; les leads déjà importés sont couverts
     // par le re-parse de plage_hc côté payload builder.
     if (contract) {
       contract.off_peak_periods = parseEnedisOffPeakLabel(contract.plage_hc);
+      if (!contract.off_peak_periods && manualHphc?.off_peak_periods) {
+        contract.off_peak_periods = manualHphc.off_peak_periods;
+      }
       contract.future_off_peak_periods = parseEnedisOffPeakLabel(contract.futures_plages_hc);
     }
 
@@ -795,6 +869,12 @@ router.post(
       leadUpdates.hp_hc = contract.tariff_type === "hp_hc";
       if (contract.grid_type_auto) leadUpdates.grid_type = contract.grid_type_auto; // prudent : jamais posé si incertain
     }
+    if (manualHphc) {
+      leadUpdates.tariff_type = "hp_hc";
+      leadUpdates.hp_hc = true;
+      leadUpdates.elec_price_hp_eur_kwh = manualHphc.elec_price_hp_eur_kwh;
+      leadUpdates.elec_price_hc_eur_kwh = manualHphc.elec_price_hc_eur_kwh;
+    }
 
     // Résumé contrat pour l'affichage fiche lead (persiste au rechargement via energy_profile.engine)
     const tarifLabel =
@@ -861,6 +941,7 @@ router.post(
       annual_kwh_source_label: priority.source_label,
       hourly,
       engine_consumption_source: engine?.engine_consumption_source ?? null,
+      energy_profile: energyProfileJson,
       contract,
       lead_updates: leadUpdates,
       import_debug: importDebug,

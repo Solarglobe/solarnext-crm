@@ -25,6 +25,7 @@ import {
   collectSolteoFiles,
   isMultiFileImport,
   contractSummaryLabel,
+  buildManualHpHcImportOptions,
   type SolteoImportResponse,
 } from "./solteoImport";
 import MonthlyConsumptionChart from "./MonthlyConsumptionChart";
@@ -572,6 +573,7 @@ export default function OverviewTab({
   /** Saisie normalisée « verrouillée » après pick ou alignée sur le site — pas de liste tant qu’elle ne change pas. */
   const addressAutocompleteLockedKeyRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hphcCsvInputRef = useRef<HTMLInputElement>(null);
   const [addressSuggestions, setAddressSuggestions] = useState<AutocompleteSuggestion[]>([]);
   // Billing address (PRO — siège social)
   const billingAddressWrapRef = useRef<HTMLDivElement>(null);
@@ -584,6 +586,15 @@ export default function OverviewTab({
   /** Avertissements non bloquants de l'import Solteo (couverture partielle, écarts…) */
   const [energyImportInfo, setEnergyImportInfo] = useState<string | null>(null);
   const [energyDeleteLoading, setEnergyDeleteLoading] = useState(false);
+  const [hphcImportOpen, setHphcImportOpen] = useState(false);
+  const [hphcImportDraft, setHphcImportDraft] = useState({
+    priceHp: "",
+    priceHc: "",
+    hpStart: "08:00",
+    hpEnd: "20:00",
+    hcStart: "20:00",
+    hcEnd: "08:00",
+  });
   /** Sélecteur de type après « + Ajouter un équipement » */
   const [equipmentKindPicker, setEquipmentKindPicker] = useState<
     null | "actuel" | "avenir"
@@ -659,6 +670,68 @@ export default function OverviewTab({
       }
     } catch (e) {
       setEnergyError(e instanceof Error ? e.message : "Erreur import fichier");
+    }
+
+    setEnergyLoading(false);
+  };
+  const handleHpHcCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (!fileList.length) return;
+
+    setEnergyError(null);
+    setEnergyImportInfo(null);
+    setEnergyLoading(true);
+
+    try {
+      if (!lead?.id) {
+        throw new Error("Lead non enregistré — enregistrez le dossier avant d’importer");
+      }
+      if (fileList.length !== 1) {
+        throw new Error("Import CSV HP/HC : sélectionnez un seul fichier CSV");
+      }
+
+      const manualHphc = buildManualHpHcImportOptions(hphcImportDraft);
+      const { files: solteoFiles, names } = await collectSolteoFiles(fileList);
+      if (!solteoFiles.dailyCsv || Object.keys(solteoFiles).some((k) => k !== "dailyCsv")) {
+        throw new Error("Import CSV HP/HC : le fichier attendu est un export Enedis quotidien HP/HC");
+      }
+
+      const res = await apiFetch(`${apiBase}/api/energy/import-solteo`, {
+        method: "POST",
+        body: JSON.stringify({ leadId: lead.id, files: solteoFiles, manualHphc }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(
+          typeof (errBody as { error?: string }).error === "string"
+            ? (errBody as { error: string }).error
+            : "Erreur import CSV HP/HC"
+        );
+      }
+      const payload = (await res.json()) as SolteoImportResponse;
+      if (payload.hourly && payload.annual_kwh != null) {
+        onEnergyEngineChange?.({
+          annual_kwh: payload.annual_kwh,
+          hourly: payload.hourly,
+          engine_consumption_source: payload.engine_consumption_source,
+          annual_source_label: payload.annual_kwh_source_label,
+          contract_summary: contractSummaryLabel(payload.contract),
+          phase_detection: payload.contract?.phase_detection ?? null,
+        });
+      }
+      onLeadChange({
+        hp_hc: true,
+        tariff_type: "hp_hc",
+        elec_price_hp_eur_kwh: manualHphc.elec_price_hp_eur_kwh,
+        elec_price_hc_eur_kwh: manualHphc.elec_price_hc_eur_kwh,
+        ...((payload.lead_updates ?? {}) as Partial<OverviewLead>),
+      });
+      setEnergyFileName(names.length ? names.join(", ") : fileList[0].name);
+      const w = payload.import_debug?.warnings;
+      setEnergyImportInfo(Array.isArray(w) && w.length ? w.join(" · ") : `HP/HC ${manualHphc.plage_hc}`);
+    } catch (err) {
+      setEnergyError(err instanceof Error ? err.message : "Erreur import CSV HP/HC");
     }
 
     setEnergyLoading(false);
@@ -1780,6 +1853,24 @@ export default function OverviewTab({
               >
                 Import données Enedis
               </button>
+              <button
+                type="button"
+                className="sn-btn sn-btn-outline-gold"
+                onClick={() =>
+                  setHphcImportOpen((open) => {
+                    if (!open) {
+                      setHphcImportDraft((prev) => ({
+                        ...prev,
+                        priceHp: prev.priceHp || String(lead.elec_price_hp_eur_kwh ?? ""),
+                        priceHc: prev.priceHc || String(lead.elec_price_hc_eur_kwh ?? ""),
+                      }));
+                    }
+                    return !open;
+                  })
+                }
+              >
+                CSV HP/HC
+              </button>
               {energyEngine && onDeleteEnergyProfile && (
                 <button
                   type="button"
@@ -1816,7 +1907,103 @@ export default function OverviewTab({
                 style={{ display: "none" }}
                 onChange={handleCsvUpload}
               />
+              <input
+                type="file"
+                accept=".csv"
+                ref={hphcCsvInputRef}
+                style={{ display: "none" }}
+                onChange={handleHpHcCsvUpload}
+              />
             </div>
+            {hphcImportOpen && (
+              <div className="crm-lead-overview-subblock">
+                <h3 className="crm-lead-overview-subheading">Import CSV HP/HC</h3>
+                <div className="crm-lead-fields">
+                  <div className="crm-lead-field">
+                    <label>Prix HP (€/kWh TTC)</label>
+                    <input
+                      className="sn-input"
+                      type="number"
+                      min={0}
+                      max={2}
+                      step={0.0001}
+                      value={hphcImportDraft.priceHp}
+                      onChange={(ev) =>
+                        setHphcImportDraft((prev) => ({ ...prev, priceHp: ev.target.value }))
+                      }
+                      placeholder="0,2081"
+                    />
+                  </div>
+                  <div className="crm-lead-field">
+                    <label>Prix HC (€/kWh TTC)</label>
+                    <input
+                      className="sn-input"
+                      type="number"
+                      min={0}
+                      max={2}
+                      step={0.0001}
+                      value={hphcImportDraft.priceHc}
+                      onChange={(ev) =>
+                        setHphcImportDraft((prev) => ({ ...prev, priceHc: ev.target.value }))
+                      }
+                      placeholder="0,1635"
+                    />
+                  </div>
+                  <div className="crm-lead-field">
+                    <label>Début HP</label>
+                    <input
+                      className="sn-input"
+                      type="time"
+                      value={hphcImportDraft.hpStart}
+                      onChange={(ev) =>
+                        setHphcImportDraft((prev) => ({ ...prev, hpStart: ev.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="crm-lead-field">
+                    <label>Fin HP</label>
+                    <input
+                      className="sn-input"
+                      type="time"
+                      value={hphcImportDraft.hpEnd}
+                      onChange={(ev) =>
+                        setHphcImportDraft((prev) => ({ ...prev, hpEnd: ev.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="crm-lead-field">
+                    <label>Début HC</label>
+                    <input
+                      className="sn-input"
+                      type="time"
+                      value={hphcImportDraft.hcStart}
+                      onChange={(ev) =>
+                        setHphcImportDraft((prev) => ({ ...prev, hcStart: ev.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="crm-lead-field">
+                    <label>Fin HC</label>
+                    <input
+                      className="sn-input"
+                      type="time"
+                      value={hphcImportDraft.hcEnd}
+                      onChange={(ev) =>
+                        setHphcImportDraft((prev) => ({ ...prev, hcEnd: ev.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="sn-btn sn-btn-primary"
+                  onClick={() => hphcCsvInputRef.current?.click()}
+                  disabled={energyLoading}
+                >
+                  Importer le CSV HP/HC
+                </button>
+              </div>
+            )}
             {energyLoading && (
               <div className="sn-energy-loader">
                 Chargement...

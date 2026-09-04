@@ -41,9 +41,27 @@ export interface SolteoImportResponse {
   annual_kwh_source_label: string;
   hourly: number[] | null;
   engine_consumption_source?: string | null;
+  energy_profile?: unknown;
   contract?: SolteoContract | null;
   lead_updates?: Record<string, unknown>;
   import_debug?: Record<string, unknown> & { warnings?: string[]; reused_files?: string[] };
+}
+
+export interface ManualHpHcImportOptions {
+  elec_price_hp_eur_kwh: number;
+  elec_price_hc_eur_kwh: number;
+  hp_periods: { start: string; end: string }[];
+  off_peak_periods: { start: string; end: string }[];
+  plage_hc: string;
+}
+
+export interface ManualHpHcImportDraft {
+  priceHp: string | number | null | undefined;
+  priceHc: string | number | null | undefined;
+  hpStart: string;
+  hpEnd: string;
+  hcStart: string;
+  hcEnd: string;
 }
 
 function normalizeCsvProbe(value: string): string {
@@ -56,6 +74,48 @@ function normalizeCsvProbe(value: string): string {
 function looksLikeEnedisDailyConsumptionCsv(text: string): boolean {
   const header = normalizeCsvProbe(text.slice(0, 600));
   return header.includes("date") && header.includes("consommation") && header.includes("kwh");
+}
+
+function parsePriceInput(value: string | number | null | undefined, label: string): number {
+  const normalized = typeof value === "string" ? value.trim().replace(",", ".") : value;
+  const n = Number(normalized);
+  if (!Number.isFinite(n) || n <= 0 || n >= 2) {
+    throw new Error(`${label} invalide (attendu entre 0 et 2 €/kWh)`);
+  }
+  return n;
+}
+
+function normalizeTimeInput(value: string, label: string): string {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{1,2})(?:[:hH]?(\d{2}))?$/);
+  if (!match) throw new Error(`${label} invalide (format HH:MM)`);
+  const h = Number(match[1]);
+  const m = match[2] == null ? 0 : Number(match[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 24 || m < 0 || m > 59 || (h === 24 && m !== 0)) {
+    throw new Error(`${label} invalide (format HH:MM)`);
+  }
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function labelTime(value: string): string {
+  const [h, m] = value.split(":");
+  return `${Number(h)}H${m === "00" ? "" : m}`;
+}
+
+export function buildManualHpHcImportOptions(draft: ManualHpHcImportDraft): ManualHpHcImportOptions {
+  const hpStart = normalizeTimeInput(draft.hpStart, "Début HP");
+  const hpEnd = normalizeTimeInput(draft.hpEnd, "Fin HP");
+  const hcStart = normalizeTimeInput(draft.hcStart, "Début HC");
+  const hcEnd = normalizeTimeInput(draft.hcEnd, "Fin HC");
+  if (hpStart === hpEnd) throw new Error("La plage HP ne peut pas être vide");
+  if (hcStart === hcEnd) throw new Error("La plage HC ne peut pas être vide");
+  return {
+    elec_price_hp_eur_kwh: parsePriceInput(draft.priceHp, "Prix HP"),
+    elec_price_hc_eur_kwh: parsePriceInput(draft.priceHc, "Prix HC"),
+    hp_periods: [{ start: hpStart, end: hpEnd }],
+    off_peak_periods: [{ start: hcStart, end: hcEnd }],
+    plage_hc: `HC (${labelTime(hcStart)}-${labelTime(hcEnd)})`,
+  };
 }
 
 /** Ligne « Contrat : HP/HC (HC 22H30-6H30) — 18 kVA — 230/400 V » depuis le bloc contract. */

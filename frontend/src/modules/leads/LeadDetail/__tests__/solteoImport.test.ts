@@ -3,7 +3,11 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { collectSolteoFiles, isMultiFileImport } from "../solteoImport";
+import {
+  buildManualHpHcImportOptions,
+  collectSolteoFiles,
+  isMultiFileImport,
+} from "../solteoImport";
 
 describe("collectSolteoFiles", () => {
   it("reconnait un export annuel Enedis HP/HC comme un CSV quotidien importable seul", async () => {
@@ -22,5 +26,39 @@ describe("collectSolteoFiles", () => {
     expect(files.dailyCsv).toBe(csv);
     expect(isMultiFileImport(files)).toBe(true);
     expect(names).toEqual(["conso energie annuelle.csv"]);
+  });
+});
+
+describe("buildManualHpHcImportOptions", () => {
+  it("construit les tarifs et plages manuels pour un CSV HP/HC seul", () => {
+    const payload = buildManualHpHcImportOptions({
+      priceHp: "0,2081",
+      priceHc: "0.1635",
+      hpStart: "08:00",
+      hpEnd: "20:00",
+      hcStart: "20:00",
+      hcEnd: "08:00",
+    });
+
+    expect(payload).toEqual({
+      elec_price_hp_eur_kwh: 0.2081,
+      elec_price_hc_eur_kwh: 0.1635,
+      hp_periods: [{ start: "08:00", end: "20:00" }],
+      off_peak_periods: [{ start: "20:00", end: "08:00" }],
+      plage_hc: "HC (20H-8H)",
+    });
+  });
+
+  it("refuse un prix HP/HC absent avant import", () => {
+    expect(() =>
+      buildManualHpHcImportOptions({
+        priceHp: "",
+        priceHc: "0.1635",
+        hpStart: "08:00",
+        hpEnd: "20:00",
+        hcStart: "20:00",
+        hcEnd: "08:00",
+      })
+    ).toThrow(/Prix HP invalide/);
   });
 });
