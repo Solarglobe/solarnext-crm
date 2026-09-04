@@ -313,9 +313,139 @@ function parseHourlyCSV(lines) {
   return rows;
 }
 
-// 3.a) Horaire Enedis — dernière année réelle, conversion W→kWh par intervalle
-// Gère 8759/8760/8761/8772 (DST), intervalles irréguliers, CSV > 1 an
-function buildFromFullYearHourly(rows) {
+function monthStartHour(monthIndex) {
+  let days = 0;
+  for (let i = 0; i < monthIndex; i++) days += DAYS_IN_MONTH[i];
+  return days * 24;
+}
+
+function monthForHourIndex(idx) {
+  let cursor = 0;
+  for (let m = 0; m < 12; m++) {
+    const hours = DAYS_IN_MONTH[m] * 24;
+    if (idx >= cursor && idx < cursor + hours) return m;
+    cursor += hours;
+  }
+  return 11;
+}
+
+function canonicalDayIndexUTC(ts) {
+  const d = new Date(ts);
+  const month = d.getUTCMonth();
+  const day = d.getUTCDate();
+  if (month === 1 && day === 29) return null;
+  if (day < 1 || day > DAYS_IN_MONTH[month]) return null;
+  let priorDays = 0;
+  for (let m = 0; m < month; m++) priorDays += DAYS_IN_MONTH[m];
+  return priorDays + day - 1;
+}
+
+function canonicalHourIndexUTC(ts) {
+  const dayIdx = canonicalDayIndexUTC(ts);
+  if (dayIdx == null) return null;
+  return dayIdx * 24 + new Date(ts).getUTCHours();
+}
+
+function baseSumForDay(base8760, dayIdx) {
+  let sum = 0;
+  const start = dayIdx * 24;
+  for (let h = 0; h < 24; h++) sum += Number(base8760[start + h]) || 0;
+  return sum;
+}
+
+function estimateMissingDayKwh(dayIdx, realDailyByIdx, base8760) {
+  const month = monthForHourIndex(dayIdx * 24);
+  const startDay = monthStartHour(month) / 24;
+  const days = DAYS_IN_MONTH[month];
+  let realMonth = 0;
+  let baseMonthCovered = 0;
+  let realDaysInMonth = 0;
+  for (let d = startDay; d < startDay + days; d++) {
+    if (realDailyByIdx[d] !== undefined) {
+      realMonth += realDailyByIdx[d];
+      baseMonthCovered += baseSumForDay(base8760, d);
+      realDaysInMonth++;
+    }
+  }
+  if (realDaysInMonth > 0) {
+    return realMonth / realDaysInMonth;
+  }
+  if (realMonth > 0 && baseMonthCovered > 0) {
+    return baseSumForDay(base8760, dayIdx) * (realMonth / baseMonthCovered);
+  }
+
+  let realGlobal = 0;
+  let baseGlobalCovered = 0;
+  for (let d = 0; d < 365; d++) {
+    if (realDailyByIdx[d] !== undefined) {
+      realGlobal += realDailyByIdx[d];
+      baseGlobalCovered += baseSumForDay(base8760, d);
+    }
+  }
+  if (realGlobal > 0 && baseGlobalCovered > 0) {
+    return baseSumForDay(base8760, dayIdx) * (realGlobal / baseGlobalCovered);
+  }
+  return baseSumForDay(base8760, dayIdx);
+}
+
+function fillMissingHourlyCalendar(realKwhByIdx, base8760) {
+  const realDailyByIdx = new Array(365).fill(undefined);
+  for (let d = 0; d < 365; d++) {
+    let sum = 0;
+    let count = 0;
+    for (let h = 0; h < 24; h++) {
+      const v = realKwhByIdx[d * 24 + h];
+      if (v !== undefined) {
+        sum += v;
+        count++;
+      }
+    }
+    if (count === 24) realDailyByIdx[d] = sum;
+  }
+
+  const hourly = new Array(HOURS_PER_YEAR);
+  let estimatedKwh = 0;
+  let realHours = 0;
+  for (let d = 0; d < 365; d++) {
+    let realDaySum = 0;
+    let realHourCount = 0;
+    for (let h = 0; h < 24; h++) {
+      const v = realKwhByIdx[d * 24 + h];
+      if (v !== undefined) {
+        realDaySum += v;
+        realHourCount++;
+      }
+    }
+
+    const estimatedDayKwh =
+      realHourCount > 0 ? realDaySum * (24 / realHourCount) : estimateMissingDayKwh(d, realDailyByIdx, base8760);
+    const baseDaySum = baseSumForDay(base8760, d);
+
+    for (let h = 0; h < 24; h++) {
+      const idx = d * 24 + h;
+      if (realKwhByIdx[idx] !== undefined) {
+        hourly[idx] = realKwhByIdx[idx];
+        realHours++;
+      } else if (realHourCount > 0 && realDaySum > 0) {
+        hourly[idx] = realDaySum / realHourCount;
+        estimatedKwh += hourly[idx];
+      } else if (baseDaySum > 0) {
+        hourly[idx] = (Number(base8760[idx]) || 0) * (estimatedDayKwh / baseDaySum);
+        estimatedKwh += hourly[idx];
+      } else {
+        hourly[idx] = estimatedDayKwh / 24;
+        estimatedKwh += hourly[idx];
+      }
+    }
+  }
+
+  return { hourly, estimatedKwh, realHours };
+}
+
+// 3.a) Horaire Enedis — dernière année réelle, conversion W→kWh par intervalle.
+// Les mesures sont replacées à leur position calendaire Jan→Déc avant agrégation.
+// Gère 8759/8760/8761/8772 (DST), intervalles irréguliers, CSV > 1 an.
+function buildFromFullYearHourly(rows, base8760) {
   if (!rows || rows.length < 24) return null;
 
   const lastTs = rows[rows.length - 1].ts;
@@ -326,7 +456,7 @@ function buildFromFullYearHourly(rows) {
 
   if (filtered.length < 8000) return null;
 
-  const hourly = [];
+  const realKwhByIdx = new Array(HOURS_PER_YEAR).fill(undefined);
 
   for (let i = 0; i < filtered.length - 1; i++) {
     const r1 = filtered[i];
@@ -337,9 +467,11 @@ function buildFromFullYearHourly(rows) {
     if (deltaH <= 0 || deltaH > 3) continue;
 
     const kwh = (r1.w / 1000) * deltaH;
-    hourly.push(kwh);
+    const idx = canonicalHourIndexUTC(r1.ts);
+    if (idx != null) realKwhByIdx[idx] = kwh;
   }
 
+  const { hourly } = fillMissingHourlyCalendar(realKwhByIdx, base8760);
   const annual = hourly.reduce((a, b) => a + b, 0);
 
   return {
@@ -348,37 +480,11 @@ function buildFromFullYearHourly(rows) {
   };
 }
 
-// 3.a.1) Ramène le profil à exactement 8760 h (slice si > 8760, pad avec base8760 si < 8760)
-function normalizeTo8760(hourly, base8760) {
-  if (hourly.length === 8760) return hourly;
-
-  if (hourly.length > 8760) {
-    return hourly.slice(hourly.length - 8760);
-  }
-
-  const rebuilt = [...hourly];
-
-  while (rebuilt.length < 8760) {
-    const i = rebuilt.length;
-    rebuilt.push(base8760[i]);
-  }
-
-  return rebuilt;
-}
-
 // 3.b) Horaire incomplet (< 8760) — FIX 01/07/2026 (AUDIT_CONSO_ANNUELLE_CSV_PARTIEL)
 // Avant : trous comblés par base8760[i] non rescalé, indexé depuis la 1re ligne CSV
 // → conso annuelle sous-évaluée (ex. 7 830 au lieu de ~12 760) + désalignement calendaire.
 // Maintenant : alignement heure-de-l'année réelle + fallback rescalé au niveau observé
 // (k = Σ kWh réels / Σ base8760 sur les heures couvertes) = extrapolation saisonnière.
-
-/** Index 0..8759 de l'heure dans l'année civile (UTC). 29 févr. (bissextile) replié sur la dernière heure. */
-function hourOfYearUTC(ts) {
-  const d = new Date(ts);
-  const startOfYear = Date.UTC(d.getUTCFullYear(), 0, 1);
-  const idx = Math.floor((ts - startOfYear) / 3600000);
-  return Math.min(Math.max(idx, 0), HOURS_PER_YEAR - 1);
-}
 
 function rebuildHourlyIncomplete(rows, base8760) {
   // Heures réelles posées à leur position calendaire (dernière valeur gagne si doublon)
@@ -386,7 +492,8 @@ function rebuildHourlyIncomplete(rows, base8760) {
   const deltas = [];
   for (let i = 0; i < rows.length; i++) {
     if (i > 0) deltas.push(rows[i].ts - rows[i - 1].ts);
-    realKwhByIdx[hourOfYearUTC(rows[i].ts)] = rows[i].w / 1000; // W moyens sur 1 h → kWh
+    const idx = canonicalHourIndexUTC(rows[i].ts);
+    if (idx != null) realKwhByIdx[idx] = rows[i].w / 1000; // W moyens sur 1 h → kWh
   }
   deltas.sort((a, b) => a - b);
   const medianStepH = deltas.length ? deltas[Math.floor(deltas.length / 2)] / 3600000 : 1;
@@ -402,24 +509,7 @@ function rebuildHourlyIncomplete(rows, base8760) {
   }
   const k = baseCoveredKwh > 0 && realCoveredKwh > 0 ? realCoveredKwh / baseCoveredKwh : 1;
 
-  // Reconstruction : réel si présent, sinon moyenne des voisins réels ±3 h, sinon base × k
-  const hourly = [];
-  let fallbackFillKwh = 0;
-  for (let i = 0; i < HOURS_PER_YEAR; i++) {
-    if (realKwhByIdx[i] !== undefined) {
-      hourly.push(realKwhByIdx[i]);
-      continue;
-    }
-    let sum = 0, count = 0;
-    for (let o = -3; o <= 3; o++) {
-      if (o === 0) continue;
-      const v = realKwhByIdx[(i + o + HOURS_PER_YEAR) % HOURS_PER_YEAR];
-      if (v !== undefined) { sum += v; count++; }
-    }
-    const v = count ? sum / count : base8760[i] * k;
-    if (!count) fallbackFillKwh += v;
-    hourly.push(v);
-  }
+  const { hourly, estimatedKwh } = fillMissingHourlyCalendar(realKwhByIdx, base8760.map((v) => v * k));
 
   const annual = hourly.reduce((a, b) => a + b, 0);
 
@@ -448,7 +538,7 @@ function rebuildHourlyIncomplete(rows, base8760) {
     annualized_raw: Math.round(annualizedRaw),
     base_covered_kwh: Math.round(baseCoveredKwh * 10) / 10,
     scale_k: Math.round(k * 1000) / 1000,
-    fallback_fill_kwh: Math.round(fallbackFillKwh * 10) / 10,
+    fallback_fill_kwh: Math.round(estimatedKwh * 10) / 10,
     annual_kwh_final: Math.round(annual),
   }));
 
@@ -477,7 +567,7 @@ function parseDailyCSV(lines) {
     if (v > 2000) v = v / 1000; // Wh → kWh
 
     const ts = new Date(d).getTime();
-    if (!isNaN(ts)) days.push({ ts, kwh: v });
+    if (!isNaN(ts)) days.push({ ts, date: d.slice(0, 10), kwh: v });
   }
 
   days.sort((a, b) => a.ts - b.ts);
@@ -487,35 +577,59 @@ function parseDailyCSV(lines) {
 function rebuildDaily(days, base8760) {
   if (!days || days.length === 0) return null;
 
-  const dailyMap = {};
-  const startTs  = days[0].ts;
-  const oneDayMs = 24 * 3600 * 1000;
-
-  days.forEach(d => {
-    const dayIndex = Math.floor((d.ts - startTs) / oneDayMs);
-    dailyMap[dayIndex] = d.kwh;
+  const realDailyByIdx = new Array(365).fill(undefined);
+  days.forEach((d) => {
+    const idx = canonicalDayIndexUTC(d.ts);
+    if (idx != null) realDailyByIdx[idx] = d.kwh;
   });
 
   const hourly = [];
+  const monthlyRef = new Array(12).fill(0);
   let totalAnnual = 0;
 
   for (let d = 0; d < 365; d++) {
-    const dayKwh = dailyMap[d];
+    const month = monthForHourIndex(d * 24);
+    const dayKwh = realDailyByIdx[d] !== undefined
+      ? realDailyByIdx[d]
+      : estimateMissingDayKwh(d, realDailyByIdx, base8760);
     const slice  = base8760.slice(d * 24, d * 24 + 24);
 
-    if (dayKwh !== undefined) {
-      const scaled = scaleProfile(slice, dayKwh);
-      for (let h = 0; h < 24; h++) hourly.push(scaled[h]);
-      totalAnnual += dayKwh;
-    } else {
-      for (let h = 0; h < 24; h++) hourly.push(0.1);
-    }
+    const scaled = scaleProfile(slice, dayKwh);
+    for (let h = 0; h < 24; h++) hourly.push(scaled[h]);
+    monthlyRef[month] += dayKwh;
+    totalAnnual += dayKwh;
   }
 
   return {
     hourly: hourly.slice(0, 8760),
-    annual_kwh: totalAnnual
+    annual_kwh: totalAnnual,
+    monthly_kwh_ref: monthlyRef,
   };
+}
+
+export function buildConsumptionFromDailyPoints(points, { profil = "active", params = {} } = {}) {
+  const days = Array.isArray(points)
+    ? points
+        .map((p) => {
+          const date = typeof p?.date === "string" ? p.date.slice(0, 10) : null;
+          const ts = date ? Date.parse(`${date}T00:00:00.000Z`) : NaN;
+          const kwh = Number(p?.kwh);
+          return Number.isFinite(ts) && Number.isFinite(kwh) && kwh >= 0 ? { ts, date, kwh } : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.ts - b.ts)
+    : [];
+  if (!days.length) return null;
+
+  const base8760 = buildFallbackBase8760(profil);
+  const rebuilt = rebuildDaily(days, base8760);
+  if (!rebuilt) return null;
+  rebuilt.hourly = clampHourlyProfile(rebuilt.hourly, params);
+  rebuilt.hourly = preserveMonthlyTotals(rebuilt.hourly, rebuilt.monthly_kwh_ref);
+  return ensureConsumptionConsistent(tagEngineConsumptionSource(
+    attachReference(rebuilt, { sourceMode: "R65_DAILY", monthlyRef: rebuilt.monthly_kwh_ref }),
+    "R65_DAILY_REBUILT"
+  ));
 }
 
 // ======================================================================
@@ -737,9 +851,9 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
       const rows = parseHourlyCSV(lines);
       let result;
       if (rows.length >= 8760) {
-        const full = buildFromFullYearHourly(rows);
+        const full = buildFromFullYearHourly(rows, activeShapeBase8760);
         if (!full) throw new Error("CSV_CONSUMPTION_INVALID_HOURLY_DATA");
-        const hourly = normalizeTo8760(full.hourly, activeShapeBase8760);
+        const hourly = full.hourly;
         result = attachReference(
           { hourly, annual_kwh: sumHourly(hourly) },
           { sourceMode: "CSV_HOURLY" }

@@ -13,7 +13,7 @@ import { verifyJWT } from "../middleware/auth.middleware.js";
 import { requireAnyPermission } from "../rbac/rbac.middleware.js";
 import { getUserPermissions } from "../rbac/rbac.service.js";
 import { resolveConsumptionCsv } from "../services/consumptionCsvResolver.service.js";
-import { loadConsumption, applyEquipmentShape } from "../services/consumptionService.js";
+import { loadConsumption, applyEquipmentShape, buildConsumptionFromDailyPoints } from "../services/consumptionService.js";
 import {
   parseC68,
   parseR65Json,
@@ -104,6 +104,34 @@ function mapConsumptionProfileFromLead(profile) {
 function sumHourly(hourly) {
   if (!Array.isArray(hourly)) return 0;
   return hourly.reduce((a, b) => a + (Number(b) || 0), 0);
+}
+
+function scaleHourlyToMonthly(hourly, monthlyKwh) {
+  if (!Array.isArray(hourly) || hourly.length !== 8760 || !Array.isArray(monthlyKwh) || monthlyKwh.length !== 12) {
+    return hourly;
+  }
+  const days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const out = hourly.slice();
+  let cursor = 0;
+  for (let m = 0; m < 12; m++) {
+    const hours = days[m] * 24;
+    const target = Number(monthlyKwh[m]);
+    if (!Number.isFinite(target) || target < 0) {
+      cursor += hours;
+      continue;
+    }
+    let sum = 0;
+    for (let i = 0; i < hours; i++) sum += Number(out[cursor + i]) || 0;
+    if (sum > 0) {
+      const factor = target / sum;
+      for (let i = 0; i < hours; i++) out[cursor + i] = Math.max(0, (Number(out[cursor + i]) || 0) * factor);
+    } else {
+      const each = target / hours;
+      for (let i = 0; i < hours; i++) out[cursor + i] = each;
+    }
+    cursor += hours;
+  }
+  return out;
 }
 
 /**
@@ -646,6 +674,10 @@ router.post(
 
     // --- 4) Priorité métier conso annuelle ---
     const daily = dailyPoints ? computeAnnualFromDaily(dailyPoints) : null;
+    const dailyProfile = dailyPoints
+      ? buildConsumptionFromDailyPoints(dailyPoints, { profil: mergedConso.profil, params: mergedConso })
+      : null;
+    const dailyMonthlyRef = Array.isArray(dailyProfile?.monthly_kwh_ref) ? dailyProfile.monthly_kwh_ref : null;
     const monthly = monthsMap ? computeAnnualFromMonthly(monthsMap) : null;
     const priority = resolveAnnualPriority({
       daily,
@@ -659,6 +691,10 @@ router.post(
     let hourly = engine?.hourly ?? null;
     let hourlyScaledTo = null;
     let scaleFactor = null;
+    if (!hourly && dailyProfile?.hourly?.length === 8760) {
+      hourly = dailyProfile.hourly;
+      engine = { ...dailyProfile, engine_consumption_source: "R65_DAILY_REBUILT" };
+    }
     if (!hourly && priority.annual_kwh != null) {
       // Pas de courbe : profil synthétique calé sur l'annuel retenu
       try {
@@ -672,7 +708,11 @@ router.post(
         warnings.push("Impossible de construire un profil synthétique");
       }
     }
-    if (hourly && priority.annual_kwh != null && !["CSV_HOURLY_FULL_YEAR", "CSV_HOURLY_PARTIAL_REBUILT"].includes(priority.source)) {
+    if (hourly && dailyMonthlyRef) {
+      hourly = scaleHourlyToMonthly(hourly, dailyMonthlyRef);
+      scaleFactor = null;
+      hourlyScaledTo = Math.round(dailyMonthlyRef.reduce((a, b) => a + b, 0));
+    } else if (hourly && priority.annual_kwh != null && !["CSV_HOURLY_FULL_YEAR", "CSV_HOURLY_PARTIAL_REBUILT"].includes(priority.source)) {
       // Annuel fiable (R65/mensuel) ≠ somme du profil → normaliser exactement
       const scaled = scaleHourlyToAnnual(hourly, priority.annual_kwh);
       hourly = scaled.hourly;
@@ -714,6 +754,7 @@ router.post(
       daily_total_points: daily?.total_points ?? null,
       monthly_months: monthly?.months_present ?? null,
       monthly_total_kwh: monthly ? Math.round(monthly.sum_kwh) : null,
+      daily_monthly_kwh: dailyMonthlyRef ? dailyMonthlyRef.map((v) => Math.round(v)) : null,
       loadcurve_points: loadcurveStats?.points ?? null,
       loadcurve_period_start: loadcurveStats?.period_start ?? null,
       loadcurve_period_end: loadcurveStats?.period_end ?? null,
@@ -792,7 +833,7 @@ router.post(
     const energyProfileJson = {
       ...(engineForProfile ? { engine: engineForProfile } : {}),
       ...(contract ? { contract } : {}),
-      ...(hourly && hourly.length === 8760 ? { monthly_kwh_ref: monthlySumsFromHourly(hourly) } : {}),
+      ...(dailyMonthlyRef ? { monthly_kwh_ref: dailyMonthlyRef } : hourly && hourly.length === 8760 ? { monthly_kwh_ref: monthlySumsFromHourly(hourly) } : {}),
       import_debug: importDebug,
     };
 
