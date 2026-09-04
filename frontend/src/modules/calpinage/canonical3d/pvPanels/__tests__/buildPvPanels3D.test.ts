@@ -104,7 +104,7 @@ describe("buildPvPanels3D", () => {
     const patch = makeHorizontalPatch("pan-b");
     const base = {
       roofPlanePatchId: "pan-b",
-      center: { mode: "plane_uv" as const, uv: { u: 0, v: 0 } },
+      center: { mode: "plane_uv" as const, uv: { u: 2, v: 2 } },
       widthM: 1,
       heightM: 2,
       rotationDegInPlane: 0,
@@ -141,7 +141,7 @@ describe("buildPvPanels3D", () => {
           {
             id: "r0",
             roofPlanePatchId: "pan-c",
-            center: { mode: "plane_uv", uv: { u: 0, v: 0 } },
+            center: { mode: "plane_uv", uv: { u: 2, v: 2 } },
             widthM: 1,
             heightM: 1,
             orientation: "portrait",
@@ -159,7 +159,7 @@ describe("buildPvPanels3D", () => {
           {
             id: "r90",
             roofPlanePatchId: "pan-c",
-            center: { mode: "plane_uv", uv: { u: 0, v: 0 } },
+            center: { mode: "plane_uv", uv: { u: 2, v: 2 } },
             widthM: 1,
             heightM: 1,
             orientation: "portrait",
@@ -234,6 +234,30 @@ describe("buildPvPanels3D", () => {
 
     expect(panels).toHaveLength(0);
     expect(globalQuality.diagnostics.some((d) => d.code === "PV_PANEL_PLANE_PATCH_NOT_FOUND")).toBe(true);
+  });
+
+  it("panneau hors contour du pan : panneau omis + diagnostic", () => {
+    const patch = makeHorizontalPatch("pan-flat");
+    const { panels, globalQuality } = buildPvPanels3D(
+      {
+        panels: [
+          {
+            id: "outside",
+            roofPlanePatchId: "pan-flat",
+            center: { mode: "plane_uv", uv: { u: 10.8, v: 5 } },
+            widthM: 1,
+            heightM: 1,
+            orientation: "portrait",
+            rotationDegInPlane: 0,
+          },
+        ],
+        omitOutsideRoofSurfacePanels: true,
+      },
+      { roofPlanePatches: [patch] },
+    );
+
+    expect(panels).toHaveLength(0);
+    expect(globalQuality.diagnostics.some((d) => d.code === "PV_PANEL_INVALID_PLACEMENT_OMITTED")).toBe(true);
   });
 
   it("panneau près du bord : faible clearance + nearRoofBoundary", () => {

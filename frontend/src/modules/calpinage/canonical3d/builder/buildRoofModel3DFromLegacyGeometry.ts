@@ -61,7 +61,7 @@ import { imposeLegacyPanPlanesThroughSharedEdges } from "./imposeLegacySharedEdg
 import { legacyPanRawCornerHasExplicitHeightM } from "./explicitLegacyPanCornerZ";
 import { legacyMinSharedEdgeLenPx, legacySharedCornerClusterTolPx } from "./legacyRoofPixelTolerances";
 import type { InterPanRelationReport } from "./interPanTypes";
-import type { LegacyPanInput, LegacyRoofGeometryInput } from "./legacyInput";
+import type { LegacyImagePoint2D, LegacyPanInput, LegacyRoofGeometryInput } from "./legacyInput";
 import { imagePxToWorldHorizontalM } from "./worldMapping";
 import {
   azimuthDegEnuHorizontalNormal,
@@ -156,6 +156,123 @@ function stripClosingDuplicate(pts: LegacyPanInput["polygonPx"]): LegacyPanInput
   const b = pts[pts.length - 1];
   if (a.xPx === b.xPx && a.yPx === b.yPx) return pts.slice(0, -1);
   return pts;
+}
+
+function pointOnSegmentParamPx(
+  p: LegacyImagePoint2D,
+  a: LegacyImagePoint2D,
+  b: LegacyImagePoint2D,
+  tolPx: number,
+): number | null {
+  const abx = b.xPx - a.xPx;
+  const aby = b.yPx - a.yPx;
+  const ab2 = abx * abx + aby * aby;
+  if (ab2 < 1e-12) return null;
+  const apx = p.xPx - a.xPx;
+  const apy = p.yPx - a.yPx;
+  const t = (apx * abx + apy * aby) / ab2;
+  const endpointTol = Math.min(0.2, Math.max(1e-4, tolPx / Math.sqrt(ab2)));
+  if (t <= endpointTol || t >= 1 - endpointTol) return null;
+  const qx = a.xPx + abx * t;
+  const qy = a.yPx + aby * t;
+  if (Math.hypot(p.xPx - qx, p.yPx - qy) > tolPx) return null;
+  return t;
+}
+
+function splitLegacyRoofTJunctionEdges(
+  input: LegacyRoofGeometryInput,
+  tolPx: number,
+): { input: LegacyRoofGeometryInput; splitCount: number; diagnostics: GeometryDiagnostic[] } {
+  if (input.pans.length < 2) return { input, splitCount: 0, diagnostics: [] };
+
+  const rawPans = input.pans.map((pan) => ({ pan, raw: stripClosingDuplicate(pan.polygonPx) }));
+  const diagnostics: GeometryDiagnostic[] = [];
+  const nextPans: LegacyPanInput[] = [];
+  let splitCount = 0;
+
+  for (let pi = 0; pi < rawPans.length; pi++) {
+    const { pan, raw } = rawPans[pi];
+    if (raw.length < 3) {
+      nextPans.push(pan);
+      continue;
+    }
+
+    const splitByEdge = new Map<number, Array<{ t: number; point: LegacyImagePoint2D; fromPanId: string }>>();
+
+    for (let edgeIndex = 0; edgeIndex < raw.length; edgeIndex++) {
+      const a = raw[edgeIndex];
+      const b = raw[(edgeIndex + 1) % raw.length];
+      for (let pj = 0; pj < rawPans.length; pj++) {
+        if (pi === pj) continue;
+        const other = rawPans[pj];
+        for (const candidate of other.raw) {
+          const t = pointOnSegmentParamPx(candidate, a, b, tolPx);
+          if (t == null) continue;
+          const existing = splitByEdge.get(edgeIndex) ?? [];
+          if (existing.some((s) => Math.abs(s.t - t) <= 1e-4)) continue;
+          existing.push({
+            t,
+            point: {
+              xPx: a.xPx + (b.xPx - a.xPx) * t,
+              yPx: a.yPx + (b.yPx - a.yPx) * t,
+              ...(typeof candidate.heightM === "number" && Number.isFinite(candidate.heightM)
+                ? { heightM: candidate.heightM }
+                : {}),
+            },
+            fromPanId: other.pan.id,
+          });
+          splitByEdge.set(edgeIndex, existing);
+        }
+      }
+    }
+
+    if (splitByEdge.size === 0) {
+      nextPans.push({ ...pan, polygonPx: raw });
+      continue;
+    }
+
+    const polygonPx: LegacyImagePoint2D[] = [];
+    for (let i = 0; i < raw.length; i++) {
+      polygonPx.push(raw[i]);
+      const splits = splitByEdge.get(i);
+      if (!splits?.length) continue;
+      splits.sort((a, b) => a.t - b.t);
+      for (const split of splits) {
+        polygonPx.push(split.point);
+        splitCount++;
+        diagnostics.push({
+          code: "INTERPAN_T_JUNCTION_EDGE_SPLIT",
+          severity: "info",
+          message:
+            "Arête de pan découpée automatiquement sur une jonction partielle avec un autre pan.",
+          context: {
+            panId: pan.id,
+            edgeIndex: i,
+            fromPanId: split.fromPanId,
+            t: split.t,
+            xPx: split.point.xPx,
+            yPx: split.point.yPx,
+          },
+        });
+      }
+    }
+
+    nextPans.push({ ...pan, polygonPx });
+  }
+
+  if (splitCount === 0) return { input, splitCount: 0, diagnostics: [] };
+  diagnostics.push({
+    code: "INTERPAN_T_JUNCTION_EDGE_SPLIT_SUMMARY",
+    severity: "info",
+    message: `${splitCount} point(s) de jonction partielle ajoutés aux contours de pans avant reconstruction 3D.`,
+    context: { splitCount },
+  });
+
+  return {
+    input: { ...input, pans: nextPans },
+    splitCount,
+    diagnostics,
+  };
 }
 
 function shoelaceXYSigned(pts: readonly Vector3[]): number {
@@ -405,7 +522,11 @@ export function buildRoofModel3DFromLegacyGeometry(
     });
   }
 
-  const heightBundle = buildHeightConstraintBundle(input, input.ridges, input.traits);
+  const splitInput = splitLegacyRoofTJunctionEdges(input, cornerTolPx);
+  const legacyInput = splitInput.input;
+  globalDiagnostics.push(...splitInput.diagnostics);
+
+  const heightBundle = buildHeightConstraintBundle(legacyInput, legacyInput.ridges, legacyInput.traits);
 
   if (isFidelity) {
     globalDiagnostics.push({
@@ -428,7 +549,7 @@ export function buildRoofModel3DFromLegacyGeometry(
 
   roofZTraceReset();
 
-  for (const pan of input.pans) {
+  for (const pan of legacyInput.pans) {
     const raw = stripClosingDuplicate(pan.polygonPx);
     if (raw.length < 3) {
       globalDiagnostics.push({
@@ -450,11 +571,11 @@ export function buildRoofModel3DFromLegacyGeometry(
         raw[i].heightM,
         heightBundle,
         panExplicitMeanM,
-        input.defaultHeightM,
+        legacyInput.defaultHeightM,
         { panId: pan.id, cornerIndex: i },
       );
       cornerTraces.push(trace);
-      const xy = imagePxToWorldHorizontalM(raw[i].xPx, raw[i].yPx, mpp, input.northAngleDeg);
+      const xy = imagePxToWorldHorizontalM(raw[i].xPx, raw[i].yPx, mpp, legacyInput.northAngleDeg);
       cornersWorld.push({ x: xy.x, y: xy.y, z });
     }
     const slopeAnchorReplacedCount = applySlopeAzimuthAnchorReconstruction({
@@ -789,7 +910,7 @@ export function buildRoofModel3DFromLegacyGeometry(
       const maxN = (arr: number[]) => Math.max(...arr);
       logCalpinage3DDebug(`roofModel patch ${pan.id}`, {
         patchId: pan.id,
-        inputDefaultHeightM: input.defaultHeightM,
+        inputDefaultHeightM: legacyInput.defaultHeightM,
         cornersWorld: cornersWorld.map((c, i) => ({
           i,
           x: c.x,
@@ -877,13 +998,13 @@ export function buildRoofModel3DFromLegacyGeometry(
 
   const ridgeAssemblyDiagnostics: GeometryDiagnostic[] = [];
   const ridgeAssembly = assembleRoofRidges3DFromStructuralInput(
-    input.ridges,
-    input.traits,
+    legacyInput.ridges,
+    legacyInput.traits,
     heightBundle,
     mergedEdges,
     vertexPositions,
     mpp,
-    input.northAngleDeg,
+    legacyInput.northAngleDeg,
     ridgeAssemblyDiagnostics
   );
 
@@ -1047,7 +1168,7 @@ export function buildRoofModel3DFromLegacyGeometry(
         upAxis: { ...upWorld },
         axisConvention: "ENU_Z_UP",
       },
-      studyRef: input.studyRef,
+      studyRef: legacyInput.studyRef,
     },
     roofVertices,
     roofEdges: roofEdgesWithRidges,
@@ -1071,13 +1192,13 @@ export function buildRoofModel3DFromLegacyGeometry(
   };
 
   const roofReconstructionQuality = computeRoofReconstructionQualityDiagnostics({
-    legacyInput: input,
+    legacyInput,
     model,
     roofHeightSignal,
     interPanReports,
   });
   const roofCommercialGeometryValidation = validateRoofCommercialGeometry({
-    legacyInput: input,
+    legacyInput,
     roofResult: { model, roofHeightSignal, roofReconstructionQuality },
   });
 

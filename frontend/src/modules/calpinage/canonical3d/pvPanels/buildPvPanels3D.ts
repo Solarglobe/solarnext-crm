@@ -271,7 +271,21 @@ export function buildPvPanels3D(input: BuildPvPanels3DInput, context: BuildPvPan
       continue;
     }
     const built = buildOnePanel(p, patch, context, globalDiag);
-    if (built) panels.push(built);
+    if (!built) continue;
+    if (input.omitOutsideRoofSurfacePanels === true && built.placementValidity.reasons.includes("outside_roof_surface")) {
+      globalDiag.push({
+        code: "PV_PANEL_INVALID_PLACEMENT_OMITTED",
+        severity: "warning",
+        message: `Panneau ${p.id} : hors contour du pan, surface 3D omise.`,
+        context: {
+          panelId: p.id,
+          roofPlanePatchId: p.roofPlanePatchId,
+          reasons: built.placementValidity.reasons.join(","),
+        },
+      });
+      continue;
+    }
+    panels.push(built);
   }
 
   if (_pv3dDbg()) {

@@ -48,6 +48,11 @@ export interface PvPanelPlacementInput {
 
 export interface BuildPvPanels3DInput {
   readonly panels: readonly PvPanelPlacementInput[];
+  /**
+   * Pipeline produit : ne rend pas les panneaux qui débordent du contour du pan.
+   * Les tests/audits bas niveau peuvent laisser false pour conserver les surfaces invalides et leurs diagnostics.
+   */
+  readonly omitOutsideRoofSurfacePanels?: boolean;
 }
 
 /** Contexte enrichi : patches + lignes / volumes optionnels (non branchés prod). */

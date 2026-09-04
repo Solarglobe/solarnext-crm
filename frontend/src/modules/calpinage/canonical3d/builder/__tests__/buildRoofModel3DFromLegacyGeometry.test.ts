@@ -86,6 +86,51 @@ describe("buildRoofModel3DFromLegacyGeometry", () => {
     }
   });
 
+  it("découpe une arête longue quand un autre pan crée une jonction en T", () => {
+    const { model, stats, interPanReports } = buildRoofModel3DFromLegacyGeometry({
+      metersPerPixel: 0.05,
+      northAngleDeg: 0,
+      defaultHeightM: 8,
+      pans: [
+        {
+          id: "volume-principal",
+          polygonPx: [
+            { xPx: 0, yPx: 0, heightM: 8 },
+            { xPx: 100, yPx: 0, heightM: 8 },
+            { xPx: 100, yPx: 100, heightM: 8 },
+            { xPx: 0, yPx: 100, heightM: 8 },
+          ],
+        },
+        {
+          id: "retour-l",
+          polygonPx: [
+            { xPx: 100, yPx: 40, heightM: 8 },
+            { xPx: 160, yPx: 40, heightM: 8 },
+            { xPx: 160, yPx: 80, heightM: 8 },
+            { xPx: 100, yPx: 80, heightM: 8 },
+          ],
+        },
+      ],
+    });
+
+    expect(stats.panCount).toBe(2);
+    expect(stats.vertexCount).toBe(8);
+    expect(stats.edgeCount).toBe(9);
+    expect(stats.interPanRelationCount).toBe(1);
+    expect(interPanReports).toHaveLength(1);
+    expect(model.globalQuality.diagnostics.some((d) => d.code === "INTERPAN_T_JUNCTION_EDGE_SPLIT")).toBe(true);
+
+    const main = model.roofPlanePatches.find((p) => p.id === "volume-principal")!;
+    const retour = model.roofPlanePatches.find((p) => p.id === "retour-l")!;
+    expect(main.cornersWorld).toHaveLength(6);
+    expect(main.adjacentPlanePatchIds).toContain("retour-l");
+    expect(retour.adjacentPlanePatchIds).toContain("volume-principal");
+
+    const shared = model.roofEdges.filter((e) => e.incidentPlanePatchIds.length === 2);
+    expect(shared).toHaveLength(1);
+    expect(validateRoofModel3D(model).ok).toBe(true);
+  });
+
   it("refuse metersPerPixel invalide sans lever", () => {
     const { model, stats } = buildRoofModel3DFromLegacyGeometry({
       metersPerPixel: -1,

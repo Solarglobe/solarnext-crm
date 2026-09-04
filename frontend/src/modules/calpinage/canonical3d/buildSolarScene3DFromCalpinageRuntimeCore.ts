@@ -882,7 +882,13 @@ export function buildSolarScene3DFromCalpinageRuntime(
     const obstaclesForVolumes = shiftCanonicalObstaclesZWorld(obsRebuiltForShift.obstacles, zSceneAdjustM);
     const panelsShifted = shiftCanonicalPanelsZWorld(sceneInput.panels.items, zSceneAdjustM);
     const commercialRoofValidation = roofRes.roofCommercialGeometryValidation;
-    const filteredPanels = commercialRoofValidation.officialPvPlacementAllowed
+    const roofMultiPanDiagnostics = buildRoofMultiPanDiagnostics({
+      model: roofRes.model,
+      interPanReports: roofRes.interPanReports,
+    });
+    const officialPvLayoutAllowed =
+      commercialRoofValidation.officialPvPlacementAllowed && roofMultiPanDiagnostics.okForPvLayout;
+    const filteredPanels = officialPvLayoutAllowed
       ? filterPvPlacementInputsForOfficialBinding(
           panelsShifted,
           roofRes.roofReconstructionQuality,
@@ -923,7 +929,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       ? mergeVolumeQuality(mergeVolumeQuality(volRes.globalQuality, roofExtRes.quality), paramDormerRes.quality)
       : mergeVolumeQuality(volRes.globalQuality, roofExtRes.quality);
     const pvRes = buildPvPanels3D(
-      { panels: [...filteredPanels] },
+      { panels: [...filteredPanels], omitOutsideRoofSurfacePanels: true },
       {
         roofPlanePatches: patches,
         obstacleVolumes: allObstacleVolumes,
@@ -939,10 +945,15 @@ export function buildSolarScene3DFromCalpinageRuntime(
       builtPanelIds: new Set(pvRes.panels.map((p) => String(p.id))),
       roofReconstructionQuality: roofRes.roofReconstructionQuality,
       roofGeometrySource: roofGeoSrc,
-      officialGeometryUsable: commercialRoofValidation.officialPvPlacementAllowed,
-      officialGeometryBlockingCodes: commercialRoofValidation.diagnostics
+      officialGeometryUsable: officialPvLayoutAllowed,
+      officialGeometryBlockingCodes: [
+        ...commercialRoofValidation.diagnostics
         .filter((d) => d.severity === "error")
         .map((d) => d.code),
+        ...roofMultiPanDiagnostics.items
+          .filter((d) => d.severity === "error")
+          .flatMap((d) => d.codes),
+      ],
     });
 
     const panelIds = pvRes.panels.map((p) => String(p.id));
@@ -964,16 +975,26 @@ export function buildSolarScene3DFromCalpinageRuntime(
       roofGeometryFidelityMode,
       roofOutlineHorizontalAreaM2: sourceTrace.metrics?.roofOutlineHorizontalAreaM2 ?? null,
     });
-    const commercialGeometryBuildGuards: SolarSceneBuildGuard[] =
-      commercialRoofValidation.status === "INVALID"
+    const commercialGeometryBuildGuards: SolarSceneBuildGuard[] = [
+      ...(commercialRoofValidation.status === "INVALID"
         ? commercialRoofValidation.diagnostics
             .filter((d) => d.severity === "error")
             .map((d) => ({
               code: d.code,
-              severity: "warning",
+              severity: "warning" as const,
               message: d.message,
             }))
-        : [];
+        : []),
+      ...(!roofMultiPanDiagnostics.okForPvLayout
+        ? roofMultiPanDiagnostics.items
+            .filter((d) => d.severity === "error")
+            .map((d) => ({
+              code: d.codes[0] ?? d.kind,
+              severity: "warning" as const,
+              message: d.messageFr,
+            }))
+        : []),
+    ];
     const buildGuards = [...level0.guards, ...commercialGeometryBuildGuards];
 
     const buildingShell = buildBuildingShell3DFromCalpinageRuntime({
@@ -996,10 +1017,6 @@ export function buildSolarScene3DFromCalpinageRuntime(
       model: roofRes.model,
       roofQuality: roofRes.roofReconstructionQuality,
       roofHeightSignal: roofRes.roofHeightSignal,
-    });
-    const roofMultiPanDiagnostics = buildRoofMultiPanDiagnostics({
-      model: roofRes.model,
-      interPanReports: roofRes.interPanReports,
     });
     const scene3d = buildSolarScene3D({
       worldConfig: canonicalWorldConfigFromSceneWorld(sceneInput.world as CanonicalWorldConfig),
