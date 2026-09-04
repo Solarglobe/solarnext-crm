@@ -134,6 +134,23 @@ test("parseDailyCsv : unité par médiane globale — un jour d'absence à 1 800
   assert.ok(Math.abs(low.kwh - 1.8) < 0.001, `kwh=${low.kwh}`);
 });
 
+test("parseDailyCsv : export Enedis annuel HP/HC — somme les consommations kWh sans exiger date,value", () => {
+  const csv = [
+    ";;H PLEINE-CREUSE Heures Creuses;H PLEINE-CREUSE Heures Creuses;H PLEINE-CREUSE Heures Pleines;H PLEINE-CREUSE Heures Pleines",
+    "Date;Nature relève;Consommation (kWh);Index;Consommation (kWh);Index",
+    "01-09-2025;evt réelle;15;25924;10;29543",
+    "02-09-2025;evt réelle;12,5;25936;8,5;29552",
+  ].join("\n");
+
+  const r = parseDailyCsv(csv);
+  assert.ok(r);
+  assert.equal(r.points.length, 2);
+  assert.deepEqual(r.points, [
+    { date: "2025-09-01", kwh: 25 },
+    { date: "2025-09-02", kwh: 21 },
+  ]);
+});
+
 test("resolveAnnualPriority : R65 complet PRIME sur la courbe horaire partielle", () => {
   const daily = computeAnnualFromDaily(parseR65Json(r65JsonFixture(365)).points);
   const out = resolveAnnualPriority({

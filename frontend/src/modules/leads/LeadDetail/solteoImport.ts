@@ -46,6 +46,18 @@ export interface SolteoImportResponse {
   import_debug?: Record<string, unknown> & { warnings?: string[]; reused_files?: string[] };
 }
 
+function normalizeCsvProbe(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function looksLikeEnedisDailyConsumptionCsv(text: string): boolean {
+  const header = normalizeCsvProbe(text.slice(0, 600));
+  return header.includes("date") && header.includes("consommation") && header.includes("kwh");
+}
+
 /** Ligne « Contrat : HP/HC (HC 22H30-6H30) — 18 kVA — 230/400 V » depuis le bloc contract. */
 export function contractSummaryLabel(c?: SolteoContract | null): string | null {
   if (!c) return null;
@@ -87,10 +99,19 @@ function assignByNameOrContent(collected: SolteoFiles, lowerName: string, text: 
     collected.dailyCsv = text;
     return;
   }
+  if (
+    lowerName.endsWith(".csv") &&
+    (lowerName.includes("annuel") || lowerName.includes("annuelle")) &&
+    looksLikeEnedisDailyConsumptionCsv(text)
+  ) {
+    collected.dailyCsv = text;
+    return;
+  }
   // Détection par contenu (fichiers renommés, « Heures été inclus canicule.csv », etc.)
   if (lowerName.endsWith(".csv")) {
-    const header = text.slice(0, 300).toLowerCase();
+    const header = normalizeCsvProbe(text.slice(0, 600));
     if (header.includes("powerinwatts")) collected.loadCurveCsv = collected.loadCurveCsv ?? text;
+    else if (looksLikeEnedisDailyConsumptionCsv(text)) collected.dailyCsv = collected.dailyCsv ?? text;
     else if (header.includes("date") && header.includes("value")) collected.dailyCsv = collected.dailyCsv ?? text;
     return;
   }

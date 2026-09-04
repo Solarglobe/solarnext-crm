@@ -34,7 +34,8 @@ function toObj(input) {
 }
 
 function numOrNull(v) {
-  const n = Number(v);
+  const normalized = typeof v === "string" ? v.trim().replace(/\s/g, "").replace(",", ".") : v;
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -48,6 +49,36 @@ function median(arr) {
 function dateToTs(d) {
   const ts = Date.parse(`${d}T00:00:00.000Z`);
   return Number.isFinite(ts) ? ts : null;
+}
+
+function normalizeHeaderCell(value) {
+  return String(value || "")
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function splitDelimitedLine(line) {
+  const semicolons = (line.match(/;/g) || []).length;
+  const commas = (line.match(/,/g) || []).length;
+  const separator = semicolons >= commas ? ";" : ",";
+  return line.split(separator).map((cell) => cell.trim());
+}
+
+function normalizeDailyDate(value) {
+  const raw = String(value || "").trim();
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const fr = raw.match(/^(\d{2})[-/](\d{2})[-/](\d{4})/);
+  const y = iso ? Number(iso[1]) : fr ? Number(fr[3]) : null;
+  const m = iso ? Number(iso[2]) : fr ? Number(fr[2]) : null;
+  const d = iso ? Number(iso[3]) : fr ? Number(fr[1]) : null;
+  if (y == null || m == null || d == null) return null;
+  const ts = Date.UTC(y, m - 1, d);
+  const check = new Date(ts);
+  if (check.getUTCFullYear() !== y || check.getUTCMonth() !== m - 1 || check.getUTCDate() !== d) return null;
+  return check.toISOString().slice(0, 10);
 }
 
 // ----------------------------------------------------------------------
@@ -196,22 +227,55 @@ export function parseDailyCsv(text) {
   if (typeof text !== "string" || !text.trim()) return null;
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return null;
-  const header = lines[0].replace(/;/g, ",").split(",").map((h) => h.trim().toLowerCase());
+
+  let headerIndex = -1;
+  let header = [];
+  for (let i = 0; i < Math.min(lines.length, 10); i++) {
+    const cells = splitDelimitedLine(lines[i]).map(normalizeHeaderCell);
+    const hasDate = cells.includes("date");
+    const hasValue = cells.includes("value");
+    const hasEnedisKwh = cells.some((cell) => cell.includes("consommation") && cell.includes("kwh"));
+    if (hasDate && (hasValue || hasEnedisKwh)) {
+      headerIndex = i;
+      header = cells;
+      break;
+    }
+  }
+  if (headerIndex === -1) return null;
+
   const idxDate = header.indexOf("date");
   const idxVal = header.indexOf("value");
-  if (idxDate === -1 || idxVal === -1) return null;
+  const idxEnedisKwh = header
+    .map((h, idx) => ({ h, idx }))
+    .filter(({ h }) => h.includes("consommation") && h.includes("kwh"))
+    .map(({ idx }) => idx);
 
+  if (idxDate === -1 || (idxVal === -1 && idxEnedisKwh.length === 0)) return null;
   const raw = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].replace(/;/g, ",").split(",");
-    const d = (cols[idxDate] || "").trim().slice(0, 10);
-    const v = numOrNull(cols[idxVal]);
+  const enedisDailyKwh = idxEnedisKwh.length > 0 && idxVal === -1;
+  for (let i = headerIndex + 1; i < lines.length; i++) {
+    const cols = splitDelimitedLine(lines[i]);
+    const d = normalizeDailyDate(cols[idxDate]);
+    let v = null;
+    if (enedisDailyKwh) {
+      let sum = 0;
+      let found = false;
+      for (const idx of idxEnedisKwh) {
+        const part = numOrNull(cols[idx]);
+        if (part == null) continue;
+        sum += part;
+        found = true;
+      }
+      if (found) v = sum;
+    } else {
+      v = numOrNull(cols[idxVal]);
+    }
     if (!d || v == null || !dateToTs(d)) continue;
     raw.push({ date: d, v });
   }
   if (!raw.length) return null;
 
-  const factor = median(raw.map((r) => r.v)) >= 1000 ? 1 / 1000 : 1; // Wh → kWh
+  const factor = enedisDailyKwh ? 1 : median(raw.map((r) => r.v)) >= 1000 ? 1 / 1000 : 1; // Wh → kWh
   const byDate = new Map();
   for (const r of raw) byDate.set(r.date, r.v * factor);
   const points = [...byDate.entries()]
