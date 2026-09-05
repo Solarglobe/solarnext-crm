@@ -13,6 +13,7 @@ import {
   removeSketchSegment,
   setAllSketchNodeHeights,
   setSketchNodeHeight,
+  setSketchNodeHeightsForGroup,
   setSketchSegmentHeight,
   setSketchSegmentRole,
   splitSketchSegmentAtPoint,
@@ -66,6 +67,7 @@ export interface SmartRoofDrawingDraftSession {
   readonly sourceRevision: string;
   readonly sourceImportCount: number;
   readonly graph: SmartRoofSketchGraph;
+  readonly activeGroupId: string | null;
   readonly tool: SmartRoofDraftTool;
   readonly chain:
     | {
@@ -102,6 +104,7 @@ export interface SmartRoofDrawingDraftRuntimeApi {
   readonly setSelectedNodeHeight: (height: SmartRoofHeight | null) => SmartRoofDrawingDraftSession;
   readonly setSelectedSegmentHeight: (height: SmartRoofHeight | null) => SmartRoofDrawingDraftSession;
   readonly setAllNodeHeights: (height: SmartRoofHeight | null) => SmartRoofDrawingDraftSession;
+  readonly startNewGroup: (label?: string) => SmartRoofDrawingDraftSession;
   readonly setSelectedSegmentRole: (role: SmartRoofLineRole) => SmartRoofDrawingDraftSession;
   readonly prepareApplication: (state?: LegacyCalpinageStateLike) => SmartRoofApplicationCandidate;
   readonly undo: () => SmartRoofDrawingDraftSession;
@@ -181,14 +184,21 @@ export function findSmartRoofDraftSnap(
   options: {
     readonly viewportScale?: number;
     readonly screenSnapTolerancePx?: number;
+    readonly activeGroupId?: string | null;
   } = {},
 ): SmartRoofDraftSnap {
   const viewportScale = options.viewportScale ?? 1;
   const screenTolerancePx = options.screenSnapTolerancePx ?? DEFAULT_SCREEN_SNAP_TOLERANCE_PX;
   const modelTolerance = screenToleranceToModel(screenTolerancePx, viewportScale);
+  const activeGroupId = options.activeGroupId ?? null;
+  const hasGroupFilter = activeGroupId != null;
+  const isSnapCandidateInActiveGroup = (value: string | null | undefined): boolean => (
+    !hasGroupFilter || (value ?? null) === activeGroupId
+  );
 
   let bestNode: { node: SmartRoofNode; distancePx: number } | null = null;
   for (const node of graph.nodes) {
+    if (!isSnapCandidateInActiveGroup(node.groupId)) continue;
     const dModel = distance(point, node);
     if (dModel > modelTolerance) continue;
     const dPx = dModel * viewportScale;
@@ -196,17 +206,15 @@ export function findSmartRoofDraftSnap(
       bestNode = { node, distancePx: dPx };
     }
   }
-  if (bestNode) {
-    return {
-      kind: "node",
-      point: { x: bestNode.node.x, y: bestNode.node.y },
-      nodeId: bestNode.node.id,
-      distancePx: bestNode.distancePx,
-    };
-  }
 
-  let bestSegment: { segment: SmartRoofSegment; projection: ReturnType<typeof projectPointOnSegment>; distancePx: number } | null = null;
+  let bestSegment: {
+    segment: SmartRoofSegment;
+    projection: ReturnType<typeof projectPointOnSegment>;
+    distancePx: number;
+    endpointClearancePx: number;
+  } | null = null;
   for (const segment of graph.segments) {
+    if (!isSnapCandidateInActiveGroup(segment.groupId)) continue;
     const a = nodeById(graph, segment.startNodeId);
     const b = nodeById(graph, segment.endNodeId);
     if (!a || !b) continue;
@@ -214,17 +222,36 @@ export function findSmartRoofDraftSnap(
     if (projection.t <= 0 || projection.t >= 1) continue;
     if (projection.distance > modelTolerance) continue;
     const dPx = projection.distance * viewportScale;
+    const endpointClearancePx = Math.min(distance(projection, a), distance(projection, b)) * viewportScale;
     if (!bestSegment || dPx < bestSegment.distancePx || (Math.abs(dPx - bestSegment.distancePx) <= 1e-9 && segment.id < bestSegment.segment.id)) {
-      bestSegment = { segment, projection, distancePx: dPx };
+      bestSegment = { segment, projection, distancePx: dPx, endpointClearancePx };
     }
   }
-  if (bestSegment) {
+
+  const endpointGuardPx = Math.min(screenTolerancePx / 2, 8);
+  const segmentIsClearlyCloser = bestSegment && (
+    !bestNode ||
+    (
+      bestSegment.endpointClearancePx >= endpointGuardPx &&
+      bestSegment.distancePx + 0.5 < bestNode.distancePx
+    )
+  );
+  if (bestSegment && segmentIsClearlyCloser) {
     return {
       kind: "segment",
       point: { x: bestSegment.projection.x, y: bestSegment.projection.y },
       segmentId: bestSegment.segment.id,
       t: bestSegment.projection.t,
       distancePx: bestSegment.distancePx,
+    };
+  }
+
+  if (bestNode) {
+    return {
+      kind: "node",
+      point: { x: bestNode.node.x, y: bestNode.node.y },
+      nodeId: bestNode.node.id,
+      distancePx: bestNode.distancePx,
     };
   }
 
@@ -258,7 +285,12 @@ function compileDraft(
             : panCount > 0
               ? "computed"
               : "draft";
-  const hasRelief = graph.nodes.some((node) => node.height && Number.isFinite(node.height.valueM));
+  const interpretedNodes = result.normalizedGraph?.nodes ?? graph.nodes;
+  const hasRelief = interpretedNodes.some((node) => node.height && Number.isFinite(node.height.valueM));
+  const hasEstimatedRelief = result.diagnostics.some((item) => (
+    item.code === "SMART_ROOF_RELIEF_ESTIMATED_FLAT" ||
+    item.code === "SMART_ROOF_RELIEF_ESTIMATED_PITCHED"
+  ));
   const message = status === "empty"
     ? "Dessin en cours - aucun segment"
     : status === "incomplete"
@@ -267,7 +299,7 @@ function compileDraft(
         ? "Geometrie a verifier"
         : status === "engine_error"
           ? "Erreur de calcul geometrique"
-          : `${panCount} surface${panCount > 1 ? "s" : ""} detectee${panCount > 1 ? "s" : ""}${hasRelief ? "" : " - relief a preciser"}`;
+          : `${panCount} surface${panCount > 1 ? "s" : ""} detectee${panCount > 1 ? "s" : ""}${hasEstimatedRelief ? " - relief estime" : hasRelief ? "" : " - relief a preciser"}`;
   return { revision, result, status, message };
 }
 
@@ -328,6 +360,7 @@ function resolveSnapAsNode(
   graph: SmartRoofSketchGraph,
   snap: SmartRoofDraftSnap,
   modelTolerancePx: number,
+  activeGroupId: string | null,
 ): { readonly graph: SmartRoofSketchGraph; readonly nodeId: string; readonly diagnostics: readonly SmartRoofDiagnostic[] } {
   if (snap.kind === "node") return { graph, nodeId: snap.nodeId, diagnostics: [] };
   if (snap.kind === "segment") {
@@ -341,6 +374,7 @@ function resolveSnapAsNode(
     id: nodeId,
     x: snap.point.x,
     y: snap.point.y,
+    groupId: activeGroupId,
     provenance: { source: "draft" },
   });
   return { graph: added.graph, nodeId, diagnostics: added.diagnostics };
@@ -350,6 +384,7 @@ function addUnknownSegmentBetweenNodes(
   graph: SmartRoofSketchGraph,
   startNodeId: string,
   endNodeId: string,
+  groupId: string | null,
 ): SmartRoofOperationResult {
   const start = nodeById(graph, startNodeId);
   const end = nodeById(graph, endNodeId);
@@ -363,9 +398,93 @@ function addUnknownSegmentBetweenNodes(
     id: nextUnusedId("draft-segment", graph.segments),
     start: { nodeId: startNodeId },
     end: { nodeId: endNodeId },
+    groupId: groupId ?? start.groupId ?? end.groupId ?? null,
+    levelId: start.levelId ?? end.levelId ?? null,
     role: { value: "unknown", source: "unset" },
     provenance: { source: "draft", parentNodeIds: [startNodeId, endNodeId] },
   });
+}
+
+function groupUngroupedElementsForDistinctVolume(
+  graph: SmartRoofSketchGraph,
+): { readonly graph: SmartRoofSketchGraph; readonly diagnostics: readonly SmartRoofDiagnostic[] } {
+  const hasUngroupedNodes = graph.nodes.some((node) => (node.groupId ?? null) === null);
+  const hasUngroupedSegments = graph.segments.some((segment) => (segment.groupId ?? null) === null);
+  if (!hasUngroupedNodes && !hasUngroupedSegments) return { graph, diagnostics: [] };
+  if (graph.nodes.length === 0 && graph.segments.length === 0) return { graph, diagnostics: [] };
+
+  const groupId = nextUnusedId("draft-volume", graph.groups);
+  const groupLabel = `Volume ${graph.groups.length + 1}`;
+  return {
+    graph: {
+      ...graph,
+      groups: [
+        ...graph.groups,
+        {
+          id: groupId,
+          label: groupLabel,
+          kind: "building",
+          parentGroupId: null,
+        },
+      ],
+      nodes: graph.nodes.map((node) => (
+        (node.groupId ?? null) === null ? { ...node, groupId } : node
+      )),
+      segments: graph.segments.map((segment) => (
+        (segment.groupId ?? null) === null ? { ...segment, groupId } : segment
+      )),
+    },
+    diagnostics: [
+      diagnostic(
+        "info",
+        "SMART_ROOF_PREVIOUS_VOLUME_GROUPED",
+        "Le volume deja dessine a ete conserve comme volume distinct avant de commencer le suivant.",
+        [groupId],
+      ),
+    ],
+  };
+}
+
+function startDraftGroup(
+  graph: SmartRoofSketchGraph,
+  label?: string,
+): { readonly graph: SmartRoofSketchGraph; readonly groupId: string; readonly diagnostics: readonly SmartRoofDiagnostic[] } {
+  const grouped = groupUngroupedElementsForDistinctVolume(graph);
+  const baseGraph = grouped.graph;
+  const groupId = nextUnusedId("draft-volume", baseGraph.groups);
+  const fallbackLabel = `Volume ${baseGraph.groups.length + 1}`;
+  return {
+    groupId,
+    graph: {
+      ...baseGraph,
+      groups: [
+        ...baseGraph.groups,
+        {
+          id: groupId,
+          label: label && label.trim() ? label.trim() : fallbackLabel,
+          kind: "building",
+          parentGroupId: null,
+        },
+      ],
+    },
+    diagnostics: [
+      ...grouped.diagnostics,
+      diagnostic(
+        "info",
+        "SMART_ROOF_VOLUME_GROUP_STARTED",
+        "Un volume distinct a ete cree : les accroches restent locales pour eviter de fusionner deux toitures accolees a hauteurs differentes.",
+        [groupId],
+      ),
+    ],
+  };
+}
+
+function ensureActiveGroupExists(
+  session: SmartRoofDrawingDraftSession,
+): SmartRoofDrawingDraftSession {
+  if (session.activeGroupId == null) return session;
+  if (session.graph.groups.some((group) => group.id === session.activeGroupId)) return session;
+  return { ...session, activeGroupId: null };
 }
 
 function initialSession(options: {
@@ -389,6 +508,7 @@ function initialSession(options: {
     sourceRevision: smartRoofLegacyDrawingRevision(options.sourceState),
     sourceImportCount: persistedRead.persisted ? 0 : 1,
     graph,
+    activeGroupId: null,
     tool: "draw",
     chain: null,
     hover: null,
@@ -428,7 +548,11 @@ export function createSmartRoofDrawingDraftRuntimeApi(options: {
     modelTolerancePx,
   });
   const snapAt = (point: { readonly x: number; readonly y: number }, viewportScale: number) => (
-    findSmartRoofDraftSnap(session.graph, point, { viewportScale, screenSnapTolerancePx })
+    findSmartRoofDraftSnap(session.graph, point, {
+      viewportScale,
+      screenSnapTolerancePx,
+      activeGroupId: session.activeGroupId,
+    })
   );
 
   return {
@@ -451,7 +575,7 @@ export function createSmartRoofDrawingDraftRuntimeApi(options: {
       const snap = snapAt(point, viewportScale);
       if (session.tool === "draw") {
         const beforeGraph = session.graph;
-        const resolved = resolveSnapAsNode(beforeGraph, snap, modelTolerancePx);
+        const resolved = resolveSnapAsNode(beforeGraph, snap, modelTolerancePx, session.activeGroupId);
         if (!session.chain) {
           const changed = resolved.graph !== beforeGraph;
           session = changed
@@ -476,7 +600,7 @@ export function createSmartRoofDrawingDraftRuntimeApi(options: {
         const addingFrom = session.chain.lastNodeId;
         const closingLoop = resolved.nodeId === session.chain.startNodeId && addingFrom !== resolved.nodeId;
         const withEndNode = resolved.graph;
-        const addedSegment = addUnknownSegmentBetweenNodes(withEndNode, addingFrom, resolved.nodeId);
+        const addedSegment = addUnknownSegmentBetweenNodes(withEndNode, addingFrom, resolved.nodeId, session.activeGroupId);
         session = withGraphOperation(session, {
           graph: addedSegment.graph,
           diagnostics: [...resolved.diagnostics, ...addedSegment.diagnostics],
@@ -593,13 +717,30 @@ export function createSmartRoofDrawingDraftRuntimeApi(options: {
     },
     setAllNodeHeights(height) {
       assertAlive();
-      const changed = setAllSketchNodeHeights(session.graph, height);
+      const changed = session.activeGroupId == null
+        ? setAllSketchNodeHeights(session.graph, height)
+        : setSketchNodeHeightsForGroup(session.graph, session.activeGroupId, height);
       session = withGraphOperation(session, changed, {
         ...compileOptions(),
         selected: session.selected,
         chain: null,
         hover: null,
       });
+      return session;
+    },
+    startNewGroup(label) {
+      assertAlive();
+      const started = startDraftGroup(session.graph, label);
+      session = withCompiled(session, started.graph, {
+        ...compileOptions(),
+        pushUndo: true,
+        dirty: true,
+        selected: null,
+        chain: null,
+        hover: null,
+        diagnostics: started.diagnostics,
+      });
+      session = { ...session, activeGroupId: started.groupId, tool: "draw" };
       return session;
     },
     setSelectedSegmentRole(role) {
@@ -651,6 +792,7 @@ export function createSmartRoofDrawingDraftRuntimeApi(options: {
         redoStack: [...session.redoStack, clone(session.graph)].slice(-50),
       });
       session = { ...session, undoStack: remaining };
+      session = ensureActiveGroupExists(session);
       return session;
     },
     redo() {
@@ -669,6 +811,7 @@ export function createSmartRoofDrawingDraftRuntimeApi(options: {
         redoStack: remaining,
       });
       session = { ...session, undoStack: [...session.undoStack, current].slice(-50) };
+      session = ensureActiveGroupExists(session);
       return session;
     },
     checkSourceRevision(state) {

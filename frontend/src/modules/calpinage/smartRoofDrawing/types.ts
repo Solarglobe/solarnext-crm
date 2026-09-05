@@ -19,7 +19,10 @@ export type SmartRoofHeightSource =
   | "manual"
   | "measured"
   | "legacy"
-  | "imported";
+  | "imported"
+  | "deduced"
+  | "estimated"
+  | "default";
 
 export type SmartRoofEndpoint = "start" | "end";
 
@@ -92,6 +95,10 @@ export interface SmartRoofSketchGraph {
   readonly metadata?: {
     readonly createdFrom?: "empty" | "legacy" | "test" | "import";
     readonly modelTolerancePx?: number;
+    readonly lastInterpretation?: {
+      readonly status: "none" | "estimated_flat" | "estimated_pitched" | "explicit_or_mixed";
+      readonly generatedAtIso?: string;
+    };
   };
 }
 

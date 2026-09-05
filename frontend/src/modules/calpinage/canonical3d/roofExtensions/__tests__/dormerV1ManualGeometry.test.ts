@@ -118,21 +118,20 @@ describe("dormer V1 manuel -- invariants geometriques", () => {
     expect(Math.abs(signedHeightAbovePatch(projected!.ridge.a.top, supportPatch) - 0.8)).toBeLessThan(HEIGHT_EPS_M);
     expect(Math.abs(signedHeightAbovePatch(projected!.ridge.b.top, supportPatch) - 0.8)).toBeLessThan(HEIGHT_EPS_M);
 
-    for (const corner of ["front-left", "front-right", "rear-right", "rear-left"]) {
-      const base = topology!.vertices.find((v) => v.id.endsWith(`:base:${corner}`));
-      const eave = topology!.vertices.find((v) => v.id.endsWith(`:eave:${corner}`));
+    for (let index = 0; index < source.contour.length; index += 1) {
+      const base = topology!.vertices.find((v) => v.id.endsWith(`:base:${index}`));
+      const eave = topology!.vertices.find((v) => v.id.endsWith(`:eave:${index}`));
       expect(base).toBeTruthy();
       expect(eave).toBeTruthy();
       expect(distance(base!.position, eave!.position)).toBeLessThan(HEIGHT_EPS_M);
     }
 
-    const dormerFaces = topology!.faces.filter((face) => face.kind !== "base");
-    expect(dormerFaces).toHaveLength(4);
-    expect(dormerFaces.filter((face) => face.kind === "side" && face.vertexIndexCycle.length === 3)).toHaveLength(2);
+    const sideFaces = topology!.faces.filter((face) => face.kind === "side");
+    expect(sideFaces).toHaveLength(0);
 
-    const roofQuads = dormerFaces.filter((face) => face.kind === "top" && face.vertexIndexCycle.length === 4);
-    expect(roofQuads).toHaveLength(2);
-    for (const quad of roofQuads) {
+    const roofFaces = topology!.faces.filter((face) => face.kind === "top");
+    expect(roofFaces).toHaveLength(6);
+    for (const quad of roofFaces.filter((face) => face.vertexIndexCycle.length === 4)) {
       const [ia, ib, ic, id] = quad.vertexIndexCycle;
       const a = topology!.vertices[ia!]!.position;
       const b = topology!.vertices[ib!]!.position;

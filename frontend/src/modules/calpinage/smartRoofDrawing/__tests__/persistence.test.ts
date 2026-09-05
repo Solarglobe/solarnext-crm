@@ -48,6 +48,33 @@ describe("smartRoofDrawing persistence", () => {
     expect(read.persisted?.graph.nodes.every((node) => node.height?.valueM === 3)).toBe(true);
   });
 
+  it("round-trips volume groups and scoped node parentage", () => {
+    let graph = createSmartRoofSketchGraph({
+      groups: [{ id: "volume-b", label: "Volume B", kind: "building", parentGroupId: null }],
+      metadata: { createdFrom: "test", modelTolerancePx: 0.01 },
+    });
+    graph = addSketchSegment(graph, {
+      id: "seg-b",
+      groupId: "volume-b",
+      start: { id: "node-b1", x: 100, y: 0, groupId: "volume-b", height: { valueM: 5, source: "manual", locked: true } },
+      end: { id: "node-b2", x: 200, y: 0, groupId: "volume-b", height: { valueM: 5, source: "manual", locked: true } },
+      role: { value: "unknown", source: "unset" },
+      provenance: { source: "draft", parentSegmentIds: ["seg-source"] },
+    }).graph;
+
+    const persisted = buildSmartRoofPersistedDrawing({ graph, sourceRevision: "legacy-b", draftRevision: "draft-b" });
+    const read = readSmartRoofPersistedDrawing(JSON.parse(JSON.stringify(persisted)));
+
+    expect(read.diagnostics).toEqual([]);
+    expect(read.persisted?.graph.groups).toEqual([{ id: "volume-b", label: "Volume B", kind: "building", parentGroupId: null }]);
+    expect(read.persisted?.graph.nodes.every((node) => node.groupId === "volume-b" && node.height?.valueM === 5)).toBe(true);
+    expect(read.persisted?.graph.segments[0]).toMatchObject({
+      id: "seg-b",
+      groupId: "volume-b",
+      provenance: { parentSegmentIds: ["seg-source"] },
+    });
+  });
+
   it("rejects unknown versions and keeps the raw payload available to the caller", () => {
     const read = readSmartRoofPersistedDrawing({
       kind: "smartRoofDrawing",

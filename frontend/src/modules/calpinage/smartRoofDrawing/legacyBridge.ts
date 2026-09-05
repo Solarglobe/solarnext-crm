@@ -11,6 +11,7 @@ import {
   normalizeSketchGraph,
   splitSketchSegmentAtPoint,
 } from "./operations";
+import { interpretSmartRoofStructure } from "./interpretation";
 import { reconcileSmartRoofPanIdentities, type SmartRoofPanLike } from "./panReconciliation";
 import type {
   SmartRoofDiagnostic,
@@ -45,10 +46,36 @@ export interface LegacyCalpinageContour {
   readonly [key: string]: unknown;
 }
 
+export interface LegacyCalpinageRoofExtension {
+  readonly id: string;
+  readonly type: "roof_extension";
+  readonly kind: "dormer";
+  readonly stage: "COMPLETE";
+  readonly supportPanId?: string | null;
+  readonly visualModel: "manual_outline_gable";
+  readonly contour: {
+    readonly closed: true;
+    readonly points: readonly LegacyCalpinagePoint[];
+  };
+  readonly ridge: {
+    readonly a: LegacyCalpinagePoint;
+    readonly b: LegacyCalpinagePoint;
+  };
+  readonly ridgeHeightRelM: number;
+  readonly wallHeightM: number;
+  readonly heightReference: "support_plane_normal";
+  readonly smartRoofRole: "dormer";
+  readonly smartRoofRoleSource: "inferred";
+  readonly smartSourceSegmentIds: readonly string[];
+  readonly smartSourceRidgeSegmentId: string;
+  readonly [key: string]: unknown;
+}
+
 export interface LegacyCalpinageStateLike {
   readonly contours?: readonly LegacyCalpinageContour[];
   readonly traits?: readonly LegacyCalpinageLine[];
   readonly ridges?: readonly LegacyCalpinageLine[];
+  readonly roofExtensions?: readonly LegacyCalpinageRoofExtension[];
   readonly pans?: readonly SmartRoofPanLike[];
   readonly roof?: unknown;
   readonly [key: string]: unknown;
@@ -58,6 +85,7 @@ export interface SmartRoofLegacyState {
   readonly contours: readonly LegacyCalpinageContour[];
   readonly traits: readonly LegacyCalpinageLine[];
   readonly ridges: readonly LegacyCalpinageLine[];
+  readonly roofExtensions: readonly LegacyCalpinageRoofExtension[];
   readonly pans: readonly SmartRoofPanLike[];
   readonly roof: Record<string, unknown>;
 }
@@ -94,6 +122,14 @@ type SmartRoofOutlineComponent = {
   readonly inferredFromUnknown?: boolean;
 };
 
+type ClassifiedOutlineComponents = {
+  readonly mainComponents: readonly SmartRoofOutlineComponent[];
+  readonly roofExtensions: readonly LegacyCalpinageRoofExtension[];
+  readonly extensionSegmentIds: ReadonlySet<string>;
+  readonly excludedMainSegmentIds: ReadonlySet<string>;
+  readonly diagnostics: readonly SmartRoofDiagnostic[];
+};
+
 function diagnostic(
   severity: SmartRoofDiagnostic["severity"],
   code: string,
@@ -105,6 +141,17 @@ function diagnostic(
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function dedupeDiagnostics(items: readonly SmartRoofDiagnostic[]): readonly SmartRoofDiagnostic[] {
+  return items.filter((item, index, list) => (
+    index === list.findIndex((other) => (
+      other.severity === item.severity &&
+      other.code === item.code &&
+      other.message === item.message &&
+      JSON.stringify(other.entityIds ?? []) === JSON.stringify(item.entityIds ?? [])
+    ))
+  ));
 }
 
 function finiteHeight(point: LegacyCalpinagePoint | undefined): SmartRoofNode["height"] | undefined {
@@ -318,7 +365,7 @@ function orderedOutlineComponents(
     byNode.set(segment.endNodeId, [...(byNode.get(segment.endNodeId) ?? []), segment]);
   }
   const visited = new Set<string>();
-  const components: { points: SmartRoofNode[]; segmentIds: string[] }[] = [];
+  const components: { points: SmartRoofNode[]; segmentIds: string[]; inferredFromUnknown?: boolean }[] = [];
   for (const first of outlineSegments.sort((a, b) => a.id.localeCompare(b.id))) {
     if (visited.has(first.id)) continue;
     const pointIds = [first.startNodeId, first.endNodeId];
@@ -343,7 +390,11 @@ function orderedOutlineComponents(
     }
     if (currentNodeId === pointIds[0] && pointIds.length >= 3) {
       const points = pointIds.map((id) => graph.nodes.find((node) => node.id === id)).filter(Boolean) as SmartRoofNode[];
-      components.push({ points, segmentIds });
+      const inferredFromUnknown = segmentIds.some((segmentId) => {
+        const source = graph.segments.find((segment) => segment.id === segmentId)?.role.source;
+        return source === "inferred";
+      });
+      components.push({ points, segmentIds, ...(inferredFromUnknown ? { inferredFromUnknown: true } : {}) });
     }
   }
   return components;
@@ -550,28 +601,294 @@ function pointInPolygon2D(
   return inside;
 }
 
-function nestedContourDiagnostics(contours: readonly LegacyCalpinageContour[]): readonly SmartRoofDiagnostic[] {
-  const diagnostics: SmartRoofDiagnostic[] = [];
-  for (let i = 0; i < contours.length; i++) {
-    const a = contours[i]!;
-    const aPoints = a.points ?? [];
-    if (aPoints.length < 3) continue;
-    for (let j = i + 1; j < contours.length; j++) {
-      const b = contours[j]!;
-      const bPoints = b.points ?? [];
-      if (bPoints.length < 3) continue;
-      const aInsideB = pointInPolygon2D(aPoints[0]!, bPoints);
-      const bInsideA = pointInPolygon2D(bPoints[0]!, aPoints);
-      if (!aInsideB && !bInsideA) continue;
-      diagnostics.push(diagnostic(
-        "warning",
-        "HOLE_OR_NESTED_OUTLINE_UNSUPPORTED",
-        "Nested closed outlines were detected; this may be a hole, courtyard or stacked roof and is not converted silently into a validated roof.",
-        [String(a.id ?? `contour-${i}`), String(b.id ?? `contour-${j}`)],
-      ));
+function pointOnPolygonBoundary(
+  point: { readonly x: number; readonly y: number },
+  polygon: readonly { readonly x: number; readonly y: number }[],
+  tolerance: number,
+): boolean {
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i]!;
+    const b = polygon[(i + 1) % polygon.length]!;
+    if (pointOnSegment(point, a, b, tolerance)) return true;
+  }
+  return false;
+}
+
+function pointInPolygonOrBoundary(
+  point: { readonly x: number; readonly y: number },
+  polygon: readonly { readonly x: number; readonly y: number }[],
+  tolerance: number,
+): boolean {
+  return pointOnPolygonBoundary(point, polygon, tolerance) || pointInPolygon2D(point, polygon);
+}
+
+function componentKey(component: SmartRoofOutlineComponent): string {
+  return canonicalPolygonKey(component.points, 5);
+}
+
+function combineOutlineComponents(
+  explicitComponents: readonly SmartRoofOutlineComponent[],
+  inferredComponents: readonly SmartRoofOutlineComponent[],
+): readonly SmartRoofOutlineComponent[] {
+  const byKey = new Map<string, SmartRoofOutlineComponent>();
+  for (const component of [...explicitComponents, ...inferredComponents]) {
+    const key = componentKey(component);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, component);
+      continue;
+    }
+    if (existing.inferredFromUnknown && !component.inferredFromUnknown) {
+      byKey.set(key, component);
     }
   }
-  return diagnostics;
+  return [...byKey.values()].sort((a, b) => componentKey(a).localeCompare(componentKey(b)));
+}
+
+function segmentEndpointNodes(
+  graph: SmartRoofSketchGraph,
+  segment: SmartRoofSegment,
+): { readonly a: SmartRoofNode; readonly b: SmartRoofNode } | null {
+  const a = graph.nodes.find((node) => node.id === segment.startNodeId);
+  const b = graph.nodes.find((node) => node.id === segment.endNodeId);
+  return a && b ? { a, b } : null;
+}
+
+function segmentLength(segment: SmartRoofSegment, graph: SmartRoofSketchGraph): number {
+  const endpoints = segmentEndpointNodes(graph, segment);
+  if (!endpoints) return 0;
+  return Math.hypot(endpoints.a.x - endpoints.b.x, endpoints.a.y - endpoints.b.y);
+}
+
+function segmentInsideComponent(
+  segment: SmartRoofSegment,
+  graph: SmartRoofSketchGraph,
+  component: SmartRoofOutlineComponent,
+  tolerance: number,
+): boolean {
+  const endpoints = segmentEndpointNodes(graph, segment);
+  if (!endpoints) return false;
+  return pointInPolygonOrBoundary(endpoints.a, component.points, tolerance)
+    && pointInPolygonOrBoundary(endpoints.b, component.points, tolerance);
+}
+
+function segmentMidpoint(
+  segment: SmartRoofSegment,
+  graph: SmartRoofSketchGraph,
+): { readonly x: number; readonly y: number } | null {
+  const endpoints = segmentEndpointNodes(graph, segment);
+  if (!endpoints) return null;
+  return {
+    x: (endpoints.a.x + endpoints.b.x) / 2,
+    y: (endpoints.a.y + endpoints.b.y) / 2,
+  };
+}
+
+function segmentOnComponentBoundary(
+  segment: SmartRoofSegment,
+  graph: SmartRoofSketchGraph,
+  component: SmartRoofOutlineComponent,
+  tolerance: number,
+): boolean {
+  const endpoints = segmentEndpointNodes(graph, segment);
+  const midpoint = segmentMidpoint(segment, graph);
+  if (!endpoints || !midpoint) return false;
+  return pointOnPolygonBoundary(endpoints.a, component.points, tolerance)
+    && pointOnPolygonBoundary(endpoints.b, component.points, tolerance)
+    && pointOnPolygonBoundary(midpoint, component.points, tolerance);
+}
+
+function simpleHash(text: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+function findSimpleDormerRidgeSegment(
+  graph: SmartRoofSketchGraph,
+  component: SmartRoofOutlineComponent,
+  outlineSegmentIds: ReadonlySet<string>,
+  tolerance: number,
+): SmartRoofSegment | null {
+  const candidates = graph.segments
+    .filter((segment) => !outlineSegmentIds.has(segment.id))
+    .filter((segment) => segmentInsideComponent(segment, graph, component, tolerance))
+    .filter((segment) => !segmentOnComponentBoundary(segment, graph, component, tolerance))
+    .sort((a, b) => {
+      if (a.role.value === "ridge" && b.role.value !== "ridge") return -1;
+      if (a.role.value !== "ridge" && b.role.value === "ridge") return 1;
+      return segmentLength(b, graph) - segmentLength(a, graph) || a.id.localeCompare(b.id);
+    });
+  if (candidates.length !== 1) return null;
+  return candidates[0]!;
+}
+
+function buildSimpleDormerExtension(input: {
+  readonly graph: SmartRoofSketchGraph;
+  readonly component: SmartRoofOutlineComponent;
+  readonly ridgeSegment: SmartRoofSegment;
+}): LegacyCalpinageRoofExtension | null {
+  const ridgeEndpoints = segmentEndpointNodes(input.graph, input.ridgeSegment);
+  if (!ridgeEndpoints) return null;
+  const id = `smart-roof-extension-${simpleHash([...input.component.segmentIds, input.ridgeSegment.id].sort().join("|")).slice(0, 8)}`;
+  const ridgeHeightRelM = 1;
+  return {
+    id,
+    type: "roof_extension",
+    kind: "dormer",
+    stage: "COMPLETE",
+    supportPanId: null,
+    visualModel: "manual_outline_gable",
+    contour: {
+      closed: true,
+      points: input.component.points.map((node) => ({
+        x: node.x,
+        y: node.y,
+        h: 0,
+        heightRelM: 0,
+        smartRoofHeightSource: "default",
+      })),
+    },
+    ridge: {
+      a: {
+        x: ridgeEndpoints.a.x,
+        y: ridgeEndpoints.a.y,
+        h: ridgeHeightRelM,
+        heightRelM: ridgeHeightRelM,
+        smartRoofHeightSource: "estimated",
+      },
+      b: {
+        x: ridgeEndpoints.b.x,
+        y: ridgeEndpoints.b.y,
+        h: ridgeHeightRelM,
+        heightRelM: ridgeHeightRelM,
+        smartRoofHeightSource: "estimated",
+      },
+    },
+    ridgeHeightRelM,
+    wallHeightM: 0,
+    heightReference: "support_plane_normal",
+    smartRoofRole: "dormer",
+    smartRoofRoleSource: "inferred",
+    smartSourceSegmentIds: [...input.component.segmentIds].sort(),
+    smartSourceRidgeSegmentId: input.ridgeSegment.id,
+    smartRoofRelief: {
+      status: "estimated_extension",
+      ridgeHeightRelM,
+      heightReference: "support_plane_normal",
+    },
+  };
+}
+
+function classifyOutlineComponents(
+  graph: SmartRoofSketchGraph,
+  components: readonly SmartRoofOutlineComponent[],
+  tolerance: number,
+): ClassifiedOutlineComponents {
+  const diagnostics: SmartRoofDiagnostic[] = [];
+  const entries = components
+    .filter((component) => polygonArea(component.points) > tolerance)
+    .map((component) => ({
+      component,
+      area: polygonArea(component.points),
+      key: componentKey(component),
+    }))
+    .sort((a, b) => b.area - a.area || a.key.localeCompare(b.key));
+  const allOutlineSegmentIds = new Set<string>(entries.flatMap((entry) => entry.component.segmentIds));
+  const mainComponents: SmartRoofOutlineComponent[] = [];
+  const roofExtensions: LegacyCalpinageRoofExtension[] = [];
+  const extensionSegmentIds = new Set<string>();
+  const excludedMainSegmentIds = new Set<string>();
+
+  for (const entry of entries) {
+    const container = entries.find((other) => (
+      other !== entry &&
+      other.area > entry.area + tolerance &&
+      pointInPolygonOrBoundary(entry.component.points[0]!, other.component.points, tolerance)
+    ));
+    if (!container) {
+      mainComponents.push(entry.component);
+      continue;
+    }
+
+    const nestedSegmentIds = graph.segments
+      .filter((segment) => segmentInsideComponent(segment, graph, entry.component, tolerance))
+      .map((segment) => segment.id);
+    for (const segmentId of nestedSegmentIds) excludedMainSegmentIds.add(segmentId);
+    const ridgeSegment = findSimpleDormerRidgeSegment(graph, entry.component, allOutlineSegmentIds, tolerance);
+    const extension = ridgeSegment ? buildSimpleDormerExtension({
+      graph,
+      component: entry.component,
+      ridgeSegment,
+    }) : null;
+    if (extension) {
+      roofExtensions.push(extension);
+      for (const segmentId of extension.smartSourceSegmentIds) extensionSegmentIds.add(segmentId);
+      extensionSegmentIds.add(extension.smartSourceRidgeSegmentId);
+      excludedMainSegmentIds.add(extension.smartSourceRidgeSegmentId);
+      diagnostics.push(diagnostic(
+        "info",
+        "SMART_ROOF_DORMER_INFERRED",
+        "Une boucle interne avec faitage a ete interpretee comme chien-assis simple porte par le pan principal.",
+        [extension.id, ...extension.smartSourceSegmentIds, extension.smartSourceRidgeSegmentId],
+      ));
+      continue;
+    }
+
+    diagnostics.push(diagnostic(
+      "warning",
+      "HOLE_OR_NESTED_OUTLINE_UNSUPPORTED",
+      "Une boucle interne a ete detectee, mais elle ne correspond pas a un chien-assis simple exploitable. Le dessin est conserve sans conversion silencieuse.",
+      entry.component.segmentIds,
+    ));
+  }
+
+  return { mainComponents, roofExtensions, extensionSegmentIds, excludedMainSegmentIds, diagnostics };
+}
+
+function polygonAveragePoint(points: readonly { readonly x: number; readonly y: number }[]): { readonly x: number; readonly y: number } {
+  if (points.length === 0) return { x: 0, y: 0 };
+  const sum = points.reduce((acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }), { x: 0, y: 0 });
+  return { x: sum.x / points.length, y: sum.y / points.length };
+}
+
+function panPolygonPoints(pan: SmartRoofPanLike): readonly { readonly x: number; readonly y: number }[] {
+  const record = pan as Record<string, unknown>;
+  if (Array.isArray(record.polygon) && record.polygon.length >= 3) return record.polygon as readonly { readonly x: number; readonly y: number }[];
+  if (Array.isArray(record.polygonPx) && record.polygonPx.length >= 3) return record.polygonPx as readonly { readonly x: number; readonly y: number }[];
+  if (Array.isArray(record.points) && record.points.length >= 3) return record.points as readonly { readonly x: number; readonly y: number }[];
+  return [];
+}
+
+function assignRoofExtensionSupportPanIds(
+  roofExtensions: readonly LegacyCalpinageRoofExtension[],
+  pans: readonly SmartRoofPanLike[],
+  tolerance: number,
+): { readonly roofExtensions: readonly LegacyCalpinageRoofExtension[]; readonly diagnostics: readonly SmartRoofDiagnostic[] } {
+  const diagnostics: SmartRoofDiagnostic[] = [];
+  const nextExtensions = roofExtensions.map((extension) => {
+    const center = polygonAveragePoint(extension.contour.points);
+    const matchingPans = pans.filter((pan) => {
+      const polygon = panPolygonPoints(pan);
+      return polygon.length >= 3 && pointInPolygonOrBoundary(center, polygon, tolerance);
+    });
+    if (matchingPans.length === 1) {
+      return { ...extension, supportPanId: String(matchingPans[0]!.id ?? "") || null };
+    }
+    diagnostics.push(diagnostic(
+      "error",
+      matchingPans.length === 0 ? "SMART_ROOF_EXTENSION_SUPPORT_NOT_FOUND" : "SMART_ROOF_EXTENSION_SUPPORT_AMBIGUOUS",
+      matchingPans.length === 0
+        ? "Le support du chien-assis n'a pas ete retrouve dans les pans calcules."
+        : "Le chien-assis chevauche plusieurs pans : le support doit etre precise avant application.",
+      [extension.id, ...matchingPans.map((pan) => String(pan.id ?? "")).filter(Boolean)],
+    ));
+    return extension;
+  });
+  return { roofExtensions: nextExtensions, diagnostics };
 }
 
 function endpointAttach(
@@ -627,6 +944,7 @@ function annotatePanSourceSegments<TPan extends SmartRoofPanLike>(
 ): TPan {
   const points = (pan.polygon ?? pan.polygonPx ?? []) as readonly { readonly x: number; readonly y: number }[];
   const ids = new Set<string>();
+  const segmentById = new Map(graph.segments.map((segment) => [segment.id, segment] as const));
   for (let i = 0; i < points.length; i++) {
     const a = points[i]!;
     const b = points[(i + 1) % points.length]!;
@@ -639,7 +957,28 @@ function annotatePanSourceSegments<TPan extends SmartRoofPanLike>(
       if (sameForward || sameBackward) ids.add(segment.id);
     }
   }
-  return { ...pan, smartSourceSegmentIds: [...ids].sort() };
+  const groupedCounts = new Map<string, number>();
+  for (const id of ids) {
+    const groupId = segmentById.get(id)?.groupId ?? null;
+    if (!groupId) continue;
+    groupedCounts.set(groupId, (groupedCounts.get(groupId) ?? 0) + 1);
+  }
+  const rankedGroups = [...groupedCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const dominantGroupId = rankedGroups.length > 0 && rankedGroups[0]![1] > (rankedGroups[1]?.[1] ?? 0)
+    ? rankedGroups[0]![0]
+    : null;
+  const sourceIds = dominantGroupId
+    ? [...ids].filter((id) => {
+        const groupId = segmentById.get(id)?.groupId ?? null;
+        return groupId == null || groupId === dominantGroupId;
+      })
+    : [...ids];
+  return {
+    ...pan,
+    smartSourceSegmentIds: sourceIds.sort(),
+    ...(dominantGroupId ? { smartSourceGroupId: dominantGroupId } : {}),
+  };
 }
 
 export function compileSmartRoofSketchToLegacyState(
@@ -651,11 +990,12 @@ export function compileSmartRoofSketchToLegacyState(
   const diagnostics: SmartRoofDiagnostic[] = [...normalized.diagnostics];
   const normalizedGraph = normalized.graph;
   const explicitComponents = orderedOutlineComponents(normalizedGraph);
-  const inferred = explicitComponents.length === 0
-    ? inferUnknownClosedOutlineComponents(normalizedGraph, tolerance)
-    : { components: [] as readonly SmartRoofOutlineComponent[], diagnostics: [] as readonly SmartRoofDiagnostic[] };
+  const inferred = inferUnknownClosedOutlineComponents(normalizedGraph, tolerance);
   diagnostics.push(...inferred.diagnostics);
-  const components = explicitComponents.length > 0 ? explicitComponents : inferred.components;
+  const allComponents = combineOutlineComponents(explicitComponents, inferred.components);
+  const classified = classifyOutlineComponents(normalizedGraph, allComponents, tolerance);
+  diagnostics.push(...classified.diagnostics);
+  const components = classified.mainComponents;
   const smartToLegacy: Record<string, string> = {};
   const legacyToSmart: Record<string, string> = {};
   const contours = components
@@ -675,7 +1015,16 @@ export function compileSmartRoofSketchToLegacyState(
       };
     });
   const contourSegmentIds = new Set<string>(components.flatMap((component) => component.segmentIds));
-  diagnostics.push(...nestedContourDiagnostics(contours));
+  const extensionSegmentIds = classified.extensionSegmentIds;
+  const excludedMainSegmentIds = classified.excludedMainSegmentIds;
+  for (const extension of classified.roofExtensions) {
+    for (const segmentId of extension.smartSourceSegmentIds) {
+      smartToLegacy[segmentId] = `roofExtension:${extension.id}:contour`;
+      legacyToSmart[`roofExtension:${extension.id}:segment:${segmentId}`] = segmentId;
+    }
+    smartToLegacy[extension.smartSourceRidgeSegmentId] = `roofExtension:${extension.id}:ridge`;
+    legacyToSmart[`roofExtension:${extension.id}:ridge`] = extension.smartSourceRidgeSegmentId;
+  }
 
   if (contours.length === 0 && normalizedGraph.segments.length > 0) {
     diagnostics.push(diagnostic("warning", "OUTLINE_OPEN_INCOMPLETE", "No closed outline could be compiled; the drawing remains a valid draft but cannot publish pans yet."));
@@ -685,7 +1034,7 @@ export function compileSmartRoofSketchToLegacyState(
   const ridges: LegacyCalpinageLine[] = [];
 
   for (const segment of normalizedGraph.segments) {
-    if (segment.role.value === "outline" || contourSegmentIds.has(segment.id)) continue;
+    if (segment.role.value === "outline" || contourSegmentIds.has(segment.id) || extensionSegmentIds.has(segment.id) || excludedMainSegmentIds.has(segment.id)) continue;
     const line = segmentToLegacyLine(segment, normalizedGraph, contours, tolerance);
     if (!line) {
       diagnostics.push(diagnostic("warning", "SEGMENT_ENDPOINT_MISSING", "Segment references a missing endpoint and was not compiled.", [segment.id]));
@@ -718,7 +1067,7 @@ export function compileSmartRoofSketchToLegacyState(
         : "topology_ready";
 
   return {
-    legacyState: { contours, traits, ridges, pans: [], roof: {} },
+    legacyState: { contours, traits, ridges, roofExtensions: classified.roofExtensions, pans: [], roof: {} },
     normalizedGraph,
     diagnostics,
     status,
@@ -734,36 +1083,76 @@ export function compileSmartRoofSketchWithLegacyEngine(
     readonly modelTolerancePx?: number;
   },
 ): SmartRoofCompileResult {
-  const compiled = compileSmartRoofSketchToLegacyState(graph, { modelTolerancePx: options.modelTolerancePx });
-  if (compiled.status === "empty" || compiled.status === "incomplete") return compiled;
+  const tolerance = options.modelTolerancePx ?? DEFAULT_MODEL_TOLERANCE_PX;
 
-  const tempState = clone({
-    ...compiled.legacyState,
-    pans: [],
-    obstacles: [],
-    roof: { roofPans: [] },
-  }) as Record<string, unknown>;
+  const runEngine = (compiled: SmartRoofCompileResult): {
+    readonly rawPans: readonly SmartRoofPanLike[];
+    readonly diagnostics: readonly SmartRoofDiagnostic[];
+    readonly status?: SmartRoofCompileResult["status"];
+  } => {
+    const tempState = clone({
+      ...compiled.legacyState,
+      pans: [],
+      obstacles: [],
+      roof: { roofPans: [] },
+    }) as Record<string, unknown>;
 
-  try {
-    options.computePansFromGeometryCore(tempState, {
-      excludeChienAssis: true,
-      topologyTolerancePx: options.modelTolerancePx,
-    });
-  } catch (error) {
+    try {
+      options.computePansFromGeometryCore(tempState, {
+        excludeChienAssis: true,
+        topologyTolerancePx: options.modelTolerancePx,
+      });
+    } catch (error) {
+      return {
+        rawPans: [],
+        status: "engine_error",
+        diagnostics: [
+          diagnostic("error", "LEGACY_ENGINE_ERROR", error instanceof Error ? error.message : String(error)),
+        ],
+      };
+    }
+
+    return {
+      rawPans: Array.isArray(tempState.pans) ? (tempState.pans as SmartRoofPanLike[]) : [],
+      diagnostics: [],
+    };
+  };
+
+  const firstCompiled = compileSmartRoofSketchToLegacyState(graph, { modelTolerancePx: options.modelTolerancePx });
+  if (firstCompiled.status === "empty" || firstCompiled.status === "incomplete") return firstCompiled;
+
+  const firstEngine = runEngine(firstCompiled);
+  if (firstEngine.status === "engine_error") {
+    return {
+      ...firstCompiled,
+      legacyState: { ...firstCompiled.legacyState, pans: [] },
+      status: "engine_error",
+      diagnostics: dedupeDiagnostics([...firstCompiled.diagnostics, ...firstEngine.diagnostics]),
+    };
+  }
+
+  const firstPansWithSources = firstEngine.rawPans.map((pan) => annotatePanSourceSegments(pan, firstCompiled.normalizedGraph, tolerance));
+  const interpreted = interpretSmartRoofStructure({
+    graph: firstCompiled.normalizedGraph,
+    legacyState: { ...firstCompiled.legacyState, pans: firstPansWithSources },
+    modelTolerancePx: tolerance,
+  });
+
+  const compiled = compileSmartRoofSketchToLegacyState(interpreted.graph, { modelTolerancePx: options.modelTolerancePx });
+  const finalEngine = runEngine(compiled);
+  if (finalEngine.status === "engine_error") {
     return {
       ...compiled,
       legacyState: { ...compiled.legacyState, pans: [] },
       status: "engine_error",
-      diagnostics: [
-        ...compiled.diagnostics,
-        diagnostic("error", "LEGACY_ENGINE_ERROR", error instanceof Error ? error.message : String(error)),
-      ],
+      diagnostics: dedupeDiagnostics([...firstCompiled.diagnostics, ...interpreted.diagnostics, ...compiled.diagnostics, ...finalEngine.diagnostics]),
     };
   }
 
-  const rawPans = Array.isArray(tempState.pans) ? (tempState.pans as SmartRoofPanLike[]) : [];
-  const pansWithSources = rawPans.map((pan) => annotatePanSourceSegments(pan, compiled.normalizedGraph, options.modelTolerancePx ?? DEFAULT_MODEL_TOLERANCE_PX));
+  const rawPans = finalEngine.rawPans;
+  const pansWithSources = rawPans.map((pan) => annotatePanSourceSegments(pan, interpreted.graph, tolerance));
   const reconciled = reconcileSmartRoofPanIdentities(options.previousPans ?? [], pansWithSources);
+  const supportedExtensions = assignRoofExtensionSupportPanIds(compiled.legacyState.roofExtensions, reconciled.pans, tolerance);
   const noPansDiagnostics = rawPans.length === 0 && compiled.legacyState.contours.length > 0
     ? [diagnostic("warning", "LEGACY_ENGINE_NO_PANS", "Legacy pan engine returned no pans for a closed outline; source drawing is preserved for review.")]
     : [];
@@ -772,6 +1161,7 @@ export function compileSmartRoofSketchWithLegacyEngine(
     legacyState: {
       ...compiled.legacyState,
       pans: reconciled.pans,
+      roofExtensions: supportedExtensions.roofExtensions,
       roof: {
         roofPans: reconciled.pans.map((pan) => ({
           id: pan.id,
@@ -779,8 +1169,9 @@ export function compileSmartRoofSketchWithLegacyEngine(
         })),
       },
     },
-    diagnostics: [...compiled.diagnostics, ...noPansDiagnostics, ...reconciled.diagnostics],
-    status: noPansDiagnostics.length > 0 || compiled.status === "ambiguous" ? "ambiguous" : "topology_ready",
+    normalizedGraph: interpreted.graph,
+    diagnostics: dedupeDiagnostics([...firstCompiled.diagnostics, ...interpreted.diagnostics, ...compiled.diagnostics, ...supportedExtensions.diagnostics, ...noPansDiagnostics, ...reconciled.diagnostics]),
+    status: noPansDiagnostics.length > 0 || supportedExtensions.diagnostics.some((item) => item.severity === "error") || compiled.status === "ambiguous" ? "ambiguous" : "topology_ready",
     mapping: {
       ...compiled.mapping,
       panIdMapping: reconciled.panIdMapping,

@@ -27,6 +27,7 @@ import { buildSmartRoofPersistedDrawing, type SmartRoofPersistedDrawing } from "
 import type {
   SmartRoofDiagnostic,
   SmartRoofHeight,
+  SmartRoofHeightSource,
   SmartRoofNode,
   SmartRoofSketchGraph,
 } from "./types";
@@ -96,6 +97,19 @@ function finiteHeight(value: unknown): number | null {
 
 function heightValue(point: LegacyCalpinagePoint): number | null {
   return finiteHeight(point.h) ?? finiteHeight(point.heightM);
+}
+
+function isEstimatedHeightSource(source: unknown): source is SmartRoofHeightSource {
+  return source === "default" || source === "estimated" || source === "deduced";
+}
+
+function reliefStatusForSources(
+  isFlat: boolean,
+  sources: readonly unknown[],
+): "explicit_flat" | "estimated_flat" | "explicit_vertices" | "estimated_vertices" {
+  return isFlat
+    ? sources.some(isEstimatedHeightSource) ? "estimated_flat" : "explicit_flat"
+    : sources.some(isEstimatedHeightSource) ? "estimated_vertices" : "explicit_vertices";
 }
 
 function readMetersPerPixel(sourceState: LegacyCalpinageStateLike): number {
@@ -168,7 +182,31 @@ function heightForPointFromGraph(
   graph: SmartRoofSketchGraph,
   point: { readonly x: number; readonly y: number },
   tolerance: number,
+  sourceSegmentIds: readonly string[] = [],
 ): { readonly height: SmartRoofHeight; readonly sourceId: string } | null {
+  const sourceIds = new Set(sourceSegmentIds.map(String));
+  const sourceSegments = graph.segments
+    .filter((segment) => sourceIds.has(segment.id))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  for (const segment of sourceSegments) {
+    const a = nodeById(graph, segment.startNodeId);
+    const b = nodeById(graph, segment.endNodeId);
+    if (!a || !b) continue;
+    if (a.height && Number.isFinite(a.height.valueM) && distance(point, a) <= tolerance) return { height: a.height, sourceId: a.id };
+    if (b.height && Number.isFinite(b.height.valueM) && distance(point, b) <= tolerance) return { height: b.height, sourceId: b.id };
+    if (segment.height && Number.isFinite(segment.height.valueM) && pointOnSegment(point, a, b, tolerance)) return { height: segment.height, sourceId: segment.id };
+    if (
+      a.height &&
+      b.height &&
+      Number.isFinite(a.height.valueM) &&
+      Number.isFinite(b.height.valueM) &&
+      Math.abs(a.height.valueM - b.height.valueM) <= 1e-6 &&
+      pointOnSegment(point, a, b, tolerance)
+    ) {
+      return { height: a.height, sourceId: `${a.id}:${b.id}` };
+    }
+  }
+
   let bestNode: { readonly node: SmartRoofNode; readonly d: number } | null = null;
   for (const node of graph.nodes) {
     if (!node.height || !Number.isFinite(node.height.valueM)) continue;
@@ -209,7 +247,7 @@ function annotatePanRelief<TPan extends SmartRoofPanLike>(
   const nextPoints = points.map((point, index) => {
     const existingHeight = heightValue(point);
     if (existingHeight != null) return { ...point, h: existingHeight, smartRoofHeightSource: "legacy" };
-    const resolved = heightForPointFromGraph(graph, point, tolerance);
+    const resolved = heightForPointFromGraph(graph, point, tolerance, (pan as { smartSourceSegmentIds?: readonly string[] }).smartSourceSegmentIds ?? []);
     if (resolved) return { ...point, h: resolved.height.valueM, smartRoofHeightSource: resolved.height.source, smartRoofHeightSourceId: resolved.sourceId };
     diagnostics.push(diagnostic(
       "error",
@@ -231,6 +269,8 @@ function annotatePanRelief<TPan extends SmartRoofPanLike>(
   const isFlat = heights.every((value) => Math.abs(value - heights[0]!) <= 1e-6);
   const panWithPoints = { ...pan, points: nextPoints, polygon: nextPoints, polygonPx: nextPoints } as TPan;
   const metrics = computePanMetrics(panWithPoints, sourceState);
+  const heightSources = nextPoints.map((point) => (point as Record<string, unknown>).smartRoofHeightSource).filter(Boolean);
+  const reliefStatus = reliefStatusForSources(isFlat, heightSources);
   const physical = {
     ...(asRecord((panWithPoints as Record<string, unknown>).physical) ?? {}),
     slope: {
@@ -269,8 +309,9 @@ function annotatePanRelief<TPan extends SmartRoofPanLike>(
           slope: { mode: "auto", computedDeg: 0, valueDeg: 0 },
         },
         smartRoofRelief: {
-          status: "explicit_flat",
+          status: reliefStatus,
           heightM: heights[0],
+          heightSources,
           projectedSurfaceM2: metrics.projectedSurfaceM2,
           inclinedSurfaceM2: metrics.projectedSurfaceM2,
           slopeDeg: 0,
@@ -286,7 +327,8 @@ function annotatePanRelief<TPan extends SmartRoofPanLike>(
         pitchDeg: metrics.slopeDeg,
         slopeDeg: metrics.slopeDeg,
         smartRoofRelief: {
-          status: "explicit_vertices",
+          status: reliefStatus,
+          heightSources,
           projectedSurfaceM2: metrics.projectedSurfaceM2,
           inclinedSurfaceM2: metrics.inclinedSurfaceM2,
           slopeDeg: metrics.slopeDeg,
@@ -498,6 +540,7 @@ export function prepareSmartRoofDrawingApplication(input: {
   const legacyState: SmartRoofLegacyState = {
     ...compile.legacyState,
     pans: settingTransfer.pans,
+    roofExtensions: compile.legacyState.roofExtensions,
     roof: {
       ...(clone(input.sourceState.roof ?? {}) as Record<string, unknown>),
       ...(compile.legacyState.roof ?? {}),

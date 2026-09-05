@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { initCalpinage } from "../../legacy/calpinage.module";
 import {
+  addSketchSegment,
   createSmartRoofDrawingDraftRuntimeApi,
+  createSmartRoofSketchGraph,
+  findSmartRoofDraftSnap,
   buildSmartRoofPersistedDrawing,
   smartRoofLegacyDrawingRevision,
   type ComputePansFromGeometryCore,
@@ -148,7 +151,56 @@ describe("smartRoofDrawing draft session", () => {
     expect(state.graph.nodes.some((node) => node.id.includes("draft-junction"))).toBe(true);
     expect(state.graph.segments.some((segment) => segment.id.includes(":part-"))).toBe(true);
     expect(state.graph.segments.every((segment) => segment.role.value === "unknown")).toBe(true);
-    expect(state.compile.result.legacyState.traits.some((trait) => trait.smartRoofRole === "unknown")).toBe(true);
+    expect(state.compile.result.legacyState.traits.some((trait) => trait.smartRoofRole === "unknown" || trait.smartRoofRole === "trait")).toBe(true);
+  });
+
+  it("prefers an exact segment projection over a nearby endpoint while keeping endpoint snaps near corners", () => {
+    const segment = addSketchSegment(createSmartRoofSketchGraph(), {
+      id: "small-edge",
+      start: { id: "left", x: 230, y: 220 },
+      end: { id: "right", x: 250, y: 220 },
+    }).graph;
+
+    expect(findSmartRoofDraftSnap(segment, { x: 240, y: 220 }, { viewportScale: 1, screenSnapTolerancePx: 12 })).toMatchObject({
+      kind: "segment",
+      segmentId: "small-edge",
+      t: 0.5,
+    });
+    expect(findSmartRoofDraftSnap(segment, { x: 248, y: 220 }, { viewportScale: 1, screenSnapTolerancePx: 12 })).toMatchObject({
+      kind: "node",
+      nodeId: "right",
+    });
+  });
+
+  it("starts a distinct volume with local snaps and group-scoped flat heights", () => {
+    const runtime = createSmartRoofDrawingDraftRuntimeApi({
+      sourceState: emptySource(),
+      computePansFromGeometryCore: legacyEngine(),
+      modelTolerancePx: 0.01,
+    });
+    drawRectangle(runtime);
+    runtime.setAllNodeHeights({ valueM: 3, source: "manual", locked: true });
+    const firstGraph = runtime.getState().graph;
+    const firstNodeCount = firstGraph.nodes.length;
+
+    runtime.startNewGroup("Volume B");
+    runtime.pointerDown({ x: 0, y: 0 }, 1);
+    runtime.pointerDown({ x: 100, y: 0 }, 1);
+    runtime.setAllNodeHeights({ valueM: 5, source: "manual", locked: true });
+    const state = runtime.getState();
+
+    expect(state.activeGroupId).toBe("draft-volume-2");
+    expect(state.graph.groups).toEqual([
+      { id: "draft-volume-1", label: "Volume 1", kind: "building", parentGroupId: null },
+      { id: "draft-volume-2", label: "Volume B", kind: "building", parentGroupId: null },
+    ]);
+    expect(state.graph.nodes).toHaveLength(firstNodeCount + 2);
+    expect(state.graph.nodes.filter((node) => node.groupId === "draft-volume-1")).toHaveLength(firstNodeCount);
+    expect(state.graph.nodes.filter((node) => node.groupId === "draft-volume-2")).toHaveLength(2);
+    expect(state.graph.nodes.filter((node) => node.groupId === "draft-volume-1").every((node) => node.height?.valueM === 3)).toBe(true);
+    expect(state.graph.nodes.filter((node) => node.groupId === "draft-volume-2").every((node) => node.height?.valueM === 5)).toBe(true);
+    expect(state.graph.segments.filter((segment) => segment.groupId === "draft-volume-1")).toHaveLength(4);
+    expect(state.graph.segments.filter((segment) => segment.groupId === "draft-volume-2")).toHaveLength(1);
   });
 
   it("moves a shared node while preserving connected segment ids", () => {

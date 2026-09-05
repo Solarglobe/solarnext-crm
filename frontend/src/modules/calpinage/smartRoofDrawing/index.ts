@@ -2,6 +2,7 @@ export * from "./types";
 export * from "./geometry";
 export * from "./operations";
 export * from "./legacyBridge";
+export * from "./interpretation";
 export * from "./panReconciliation";
 export * from "./comparison";
 export * from "./comparisonFeatureFlag";

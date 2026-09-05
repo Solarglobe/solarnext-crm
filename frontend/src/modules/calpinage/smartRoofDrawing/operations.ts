@@ -289,6 +289,24 @@ export function setAllSketchNodeHeights(
   return { graph: next, diagnostics: [] };
 }
 
+export function setSketchNodeHeightsForGroup(
+  graph: SmartRoofSketchGraph,
+  groupId: string | null,
+  height: SmartRoofHeight | null,
+): SmartRoofOperationResult {
+  const next = cloneGraph(graph);
+  const matchesGroup = (value: string | null | undefined): boolean => (value ?? null) === groupId;
+  next.nodes = next.nodes.map((node) => {
+    if (!matchesGroup(node.groupId)) return node;
+    return height ? { ...node, height } : (({ height: _height, ...rest }) => rest)(node);
+  });
+  next.segments = next.segments.map((segment) => {
+    if (!matchesGroup(segment.groupId)) return segment;
+    return height ? { ...segment, height } : (({ height: _height, ...rest }) => rest)(segment);
+  });
+  return { graph: next, diagnostics: [] };
+}
+
 export function connectSegmentEndpointToNode(
   graph: SmartRoofSketchGraph,
   segmentId: string,

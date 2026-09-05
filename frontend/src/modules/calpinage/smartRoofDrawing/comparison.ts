@@ -13,6 +13,7 @@ export type SmartRoofComparisonClassification =
   | "geometry_error"
   | "unsupported_case"
   | "geometry_computed"
+  | "relief_estimated"
   | "relief_indeterminate"
   | "divergence_with_current";
 
@@ -191,6 +192,13 @@ function countExplicitHeights(state: LegacyCalpinageStateLike): number {
   return count;
 }
 
+function hasEstimatedRelief(diagnostics: readonly SmartRoofDiagnostic[]): boolean {
+  return diagnostics.some((item) => (
+    item.code === "SMART_ROOF_RELIEF_ESTIMATED_FLAT" ||
+    item.code === "SMART_ROOF_RELIEF_ESTIMATED_PITCHED"
+  ));
+}
+
 export function cloneLegacyStateForSmartRoofComparison(state: LegacyCalpinageStateLike): LegacyCalpinageStateLike {
   return clone({
     contours: state.contours ?? [],
@@ -222,13 +230,15 @@ export function runSmartRoofDrawingComparison(options: {
   const divergences = compareSurfaces(currentSurfaces, experimentalSurfaces);
   const explicitHeightCount = countExplicitHeights(snapshot);
   const missingExplicitHeights = explicitHeightCount === 0;
+  const reliefEstimated = hasEstimatedRelief(compiled.diagnostics);
   const classifications = new Set<SmartRoofComparisonClassification>();
 
   if (compiled.status === "empty" || compiled.status === "incomplete") classifications.add("incomplete_drawing");
   if (compiled.status === "engine_error") classifications.add("geometry_error");
   if (compiled.status === "ambiguous") classifications.add("unsupported_case");
   if (compiled.legacyState.pans.length > 0) classifications.add("geometry_computed");
-  if (missingExplicitHeights) classifications.add("relief_indeterminate");
+  if (reliefEstimated) classifications.add("relief_estimated");
+  if (missingExplicitHeights && !reliefEstimated) classifications.add("relief_indeterminate");
   if (divergences.length > 0) classifications.add("divergence_with_current");
 
   const status: SmartRoofComparisonReport["status"] =
@@ -249,8 +259,11 @@ export function runSmartRoofDrawingComparison(options: {
     diagnostics: [
       ...imported.diagnostics,
       ...compiled.diagnostics,
-      ...(missingExplicitHeights
+      ...(missingExplicitHeights && !reliefEstimated
         ? [diagnostic("info", "RELIEF_INDETERMINATE", "The topology was computed without confirmed heights; the 3D roof relief remains to be resolved.")]
+        : []),
+      ...(reliefEstimated
+        ? [diagnostic("info", "RELIEF_ESTIMATED_NOT_MEASURED", "The roof relief uses editable working estimates; no estimated value is presented as measured.")]
         : []),
     ],
     current: {
@@ -271,7 +284,9 @@ export function runSmartRoofDrawingComparison(options: {
     relief: {
       explicitHeightCount,
       missingExplicitHeights,
-      message: missingExplicitHeights
+      message: reliefEstimated
+        ? "Relief estimated from the drawing: editable working values are available but are not measured."
+        : missingExplicitHeights
         ? "Relief not validated: no confirmed height was present in the analysed copy."
         : "Explicit heights were preserved in the analysed copy.",
     },

@@ -219,19 +219,23 @@ describe("smartRoofDrawing legacy bridge", () => {
     expect(compiled.diagnostics.some((item) => item.code === "UNKNOWN_CLOSED_LOOP_COMPILED_AS_CONTOUR_CANDIDATE")).toBe(true);
   });
 
-  it("uses unknown inner separators for topology without confirming their business role", () => {
+  it("infers a compatible unknown inner separator as a ridge for product publication", () => {
     const engine = legacyEngine();
     let graph = rectangleGraphWithRole(false, "unknown");
     graph = addLine(graph, "middle", { id: "m1", x: 0, y: 50 }, { id: "m2", x: 100, y: 50 }, "unknown");
+    const sourceBefore = JSON.stringify(graph);
 
     const result = compileSmartRoofSketchWithLegacyEngine(graph, {
       computePansFromGeometryCore: engine.computePansFromGeometryCore,
       modelTolerancePx: 0.01,
     });
 
-    expect(result.normalizedGraph.segments.every((segment) => segment.role.value === "unknown")).toBe(true);
-    expect(result.legacyState.traits).toHaveLength(1);
-    expect(result.legacyState.traits[0]?.smartRoofRole).toBe("unknown");
+    expect(JSON.stringify(graph)).toBe(sourceBefore);
+    expect(graph.segments.every((segment) => segment.role.value === "unknown")).toBe(true);
+    expect(result.normalizedGraph.segments.find((segment) => segment.id === "middle")?.role).toMatchObject({ value: "ridge", source: "inferred" });
+    expect(result.legacyState.ridges).toHaveLength(1);
+    expect(result.legacyState.ridges[0]?.smartRoofRole).toBe("ridge");
+    expect(result.legacyState.ridges[0]?.smartRoofRoleSource).toBe("inferred");
     expect(result.legacyState.pans).toHaveLength(2);
     expect(panAreas(result.legacyState.pans)).toEqual([5000, 5000]);
   });
@@ -401,7 +405,9 @@ describe("smartRoofDrawing legacy bridge", () => {
 
     expect(panAreas(a.legacyState.pans)).toEqual([5000, 5000]);
     expect(panAreas(a.legacyState.pans)).toEqual(panAreas(b.legacyState.pans));
-    expect(a.normalizedGraph.segments.every((segment) => segment.role.value === "unknown")).toBe(true);
+    expect(lineFirst.segments.every((segment) => segment.role.value === "unknown")).toBe(true);
+    expect(a.normalizedGraph.segments.find((segment) => segment.id === "middle")?.role.value).toBe("ridge");
+    expect(a.legacyState.ridges).toHaveLength(1);
   });
 
   it("keeps an unknown draft incomplete until the final closing segment is added", () => {
@@ -472,7 +478,8 @@ describe("smartRoofDrawing legacy bridge", () => {
     const compiled = compileSmartRoofSketchToLegacyState(graph, { modelTolerancePx: 0.01 });
 
     expect(compiled.status).toBe("ambiguous");
-    expect(compiled.legacyState.contours).toHaveLength(2);
+    expect(compiled.legacyState.contours).toHaveLength(1);
+    expect(compiled.legacyState.traits).toHaveLength(0);
     expect(compiled.diagnostics.some((item) => item.code === "HOLE_OR_NESTED_OUTLINE_UNSUPPORTED")).toBe(true);
   });
 

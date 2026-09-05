@@ -87,7 +87,8 @@ describe("buildRoofExtensions3DFromRuntime", () => {
     expect(vol.topology?.miniRoof?.keepout.supportPlanePatchId).toBe("pan-flat");
     expect(vol.topology?.miniRoof?.faceRoles.some((x) => x.role === "mini_roof_plane")).toBe(true);
     expect(vol.topology?.miniRoof?.edgeRoles.some((x) => x.roles.includes("base_keepout"))).toBe(true);
-    expect(vol.topology?.architecturalParts?.walls.length).toBeGreaterThanOrEqual(4);
+    expect(vol.topology?.architecturalParts?.walls).toHaveLength(0);
+    expect(vol.topology?.architecturalParts?.dormerRoof.length).toBeGreaterThanOrEqual(2);
     expect(vol.topology?.preparedUses?.collisions).toBe("canonical_mesh");
   });
 
@@ -226,7 +227,7 @@ describe("buildRoofExtensions3DFromRuntime", () => {
       ],
       1,
     );
-    expect(vol.footprintWorld).toHaveLength(4);
+    expect(vol.footprintWorld).toHaveLength(5);
     expect(vol.topology?.sourceContourPx.map((p) => p.x)).toEqual([1, 3, 4, 2, 1]);
   });
 
