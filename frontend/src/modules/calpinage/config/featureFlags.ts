@@ -25,7 +25,8 @@ export type CalpinageFeatureFlag =
   | "NEAR_SHADING_3D"
   | "FAR_SHADING"
   | "AUTO_SHADING_ROWS"
-  | "BIFACIAL";
+  | "BIFACIAL"
+  | "SMART_ROOF_COMPARISON";
 
 // ---------------------------------------------------------------------------
 // Mapping flag → clé VITE_
@@ -46,6 +47,8 @@ export const CALPINAGE_FLAG_ENV_KEYS: Readonly<Record<CalpinageFeatureFlag, stri
   AUTO_SHADING_ROWS: "VITE_CALPINAGE_AUTO_SHADING_ROWS",
   /** Gain bifacial (face arrière des panneaux bifaciaux). */
   BIFACIAL: "VITE_CALPINAGE_BIFACIAL",
+  /** Comparaison expérimentale dessin toiture intelligent (lecture seule, désactivée par défaut). */
+  SMART_ROOF_COMPARISON: "VITE_CALPINAGE_SMART_ROOF_COMPARISON",
 } as const;
 
 // ---------------------------------------------------------------------------

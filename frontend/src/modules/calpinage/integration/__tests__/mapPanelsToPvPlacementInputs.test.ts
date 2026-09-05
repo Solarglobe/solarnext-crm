@@ -46,10 +46,10 @@ describe("mapPanelsToPvPlacementInputs", () => {
     );
 
     expect(inputs).toHaveLength(1);
-    expect(inputs[0]!.center.mode).toBe("world");
-    if (inputs[0]!.center.mode === "world") {
-      expect(inputs[0]!.center.position.x).toBeCloseTo(12, 6);
-      expect(inputs[0]!.center.position.y).toBeCloseTo(-11, 6);
+    expect(inputs[0]!.center.mode).toBe("plane_uv");
+    if (inputs[0]!.center.mode === "plane_uv") {
+      expect(inputs[0]!.center.uv.u).toBeCloseTo(12, 6);
+      expect(inputs[0]!.center.uv.v).toBeCloseTo(-11, 6);
     }
 
     const { panels } = buildPvPanels3D({ panels: inputs }, { roofPlanePatches: [patch] });

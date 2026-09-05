@@ -102,7 +102,7 @@ describe("buildOfficialPans / pans[] official structure", () => {
     expect(typeof p.panelCount).toBe("number");
     expect(typeof p.surface).toBe("number");
     expect(typeof p.geometryRef).toBe("string");
-    expect(typeof p.shadingNearPct).toBe("number");
+    expect(p.shadingNearPct).toBeNull();
     expect(typeof p.shadingFarPct).toBe("number");
     expect(typeof p.shadingCombinedPct).toBe("number");
     const roundTrip = JSON.parse(JSON.stringify(enriched));

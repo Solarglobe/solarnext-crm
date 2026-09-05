@@ -13,7 +13,7 @@ import { getOfficialGlobalShadingLossPctOr } from "../shading/officialGlobalShad
  * @param {Array<{ id: string, orientationDeg?: number|null, tiltDeg?: number|null, surfaceM2?: number }>} pans - Pans (validatedRoofData.pans ou équivalent)
  * @param {() => Array<{ id: string, panId: string|null }>} getAllPanels - Fournisseur des panneaux (ex: pvPlacementEngine.getAllPanels)
  * @param {object|null} shadingNormalized - state.shading.normalized (near/far/combined, perPanel optionnel)
- * @returns {Array<{ id: string, azimuth: number, tilt: number, panelCount: number, surface: number, geometryRef: string, shadingNearPct: number, shadingFarPct: number, shadingCombinedPct: number }>}
+ * @returns {Array<{ id: string, azimuth: number, tilt: number, panelCount: number, surface: number, geometryRef: string, shadingNearPct: number|null, shadingFarPct: number|null, shadingCombinedPct: number|null }>}
  */
 function buildOfficialPans(pans, getAllPanels, shadingNormalized) {
   if (!Array.isArray(pans) || pans.length === 0) {

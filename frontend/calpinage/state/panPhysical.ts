@@ -29,7 +29,6 @@ export type CalpinageStateLike = {
   } | null;
 };
 
-const TOL = 1e-10;
 const TOL_PX = 1e-6;
 
 function readNorthDeg(state: CalpinageStateLike): number {
