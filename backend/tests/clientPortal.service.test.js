@@ -307,6 +307,35 @@ describe("clientPortal.service", () => {
     assert.equal(merged.length, 3);
     assert.equal(merged[0].id, "q1");
   });
+  it("conserve les quatre propositions 6/8 kWc avec et sans batterie, mais retire une ancienne generation du meme scenario", () => {
+    const proposal = (id, version, scenario, date) => ({
+      id,
+      entity_type: "lead",
+      entity_id: "lead-1",
+      document_type: "study_pdf",
+      created_at: date,
+      metadata_json: { study_version_id: version, scenario_key: scenario },
+    });
+    const rows = [
+      proposal("6-base", "version-6", "BASE", "2026-09-07T09:11:35Z"),
+      proposal("6-battery", "version-6", "BATTERY_PHYSICAL", "2026-09-07T09:11:52Z"),
+      proposal("8-base", "version-8", "BASE", "2026-09-07T09:05:16Z"),
+      proposal("8-battery", "version-8", "BATTERY_PHYSICAL", "2026-09-07T09:05:30Z"),
+      proposal("6-base-old", "version-6", "BASE", "2026-09-06T09:11:35Z"),
+    ];
+    assert.deepEqual(selectPortalDocumentsForResponse(rows).map((d) => d.id), [
+      "6-battery", "6-base", "8-battery", "8-base",
+    ]);
+  });
+
+  it("reconnait les scenarios camelCase et les metadonnees JSON texte", () => {
+    const row = { id: "doc-1", entity_type: "lead", document_type: "study_pdf" };
+    assert.equal(
+      portalDocumentDedupeKey({ ...row, metadata_json: JSON.stringify({ studyVersionId: "v1", scenarioKey: "BATTERY_VIRTUAL" }) }),
+      portalDocumentDedupeKey({ ...row, metadata_json: { study_version_id: "v1", scenario_key: "BATTERY_VIRTUAL" } })
+    );
+  });
+
   it("portalDocumentDedupeKey quote lead/source", () => {
     assert.equal(
       portalDocumentDedupeKey({

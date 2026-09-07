@@ -386,7 +386,10 @@ export function portalDocumentDedupeKey(row) {
   }
   if (dt === "study_pdf" || dt === "study_proposal") {
     const studyId = metaId("study_version_id", "studyVersionId", "study_id", "studyId");
-    return `study:${studyId || ((et === "study" || et === "study_version") && entityId ? entityId : `doc:${docId}`)}`;
+    const studyKey = studyId || ((et === "study" || et === "study_version") && entityId ? entityId : `doc:${docId}`);
+    // Une version d'étude peut proposer plusieurs scénarios distincts au client.
+    const scenarioKey = metaId("scenario_key", "scenarioKey");
+    return `study:${studyKey}${scenarioKey ? `:scenario:${scenarioKey}` : ""}`;
   }
   return `doc:${docId}`;
 }
