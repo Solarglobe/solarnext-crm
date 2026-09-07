@@ -246,6 +246,26 @@ export function setSketchNodeHeight(
   return { graph: next, diagnostics: [] };
 }
 
+export function setSketchNodeHeights(
+  graph: SmartRoofSketchGraph,
+  nodeIds: readonly string[],
+  height: SmartRoofHeight | null,
+): SmartRoofOperationResult {
+  const requestedIds = new Set(nodeIds.filter(Boolean));
+  const next = cloneGraph(graph);
+  const diagnostics: SmartRoofDiagnostic[] = [];
+  if (requestedIds.size === 0) return { graph: next, diagnostics };
+  next.nodes = next.nodes.map((node) => {
+    if (!requestedIds.has(node.id)) return node;
+    requestedIds.delete(node.id);
+    return height ? { ...node, height } : (({ height: _height, ...rest }) => rest)(node);
+  });
+  for (const missingId of requestedIds) {
+    diagnostics.push(diag("warning", "NODE_HEIGHT_TARGET_MISSING", "A selected height point no longer exists in the smart roof drawing.", [missingId]));
+  }
+  return { graph: next, diagnostics };
+}
+
 export function setSketchSegmentHeight(
   graph: SmartRoofSketchGraph,
   segmentId: string,

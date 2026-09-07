@@ -136,6 +136,7 @@ import {
 import {
   createSmartRoofDrawingDraftRuntimeApi,
   createSmartRoofComparisonRuntimeApi,
+  findSmartRoofDraftSnap,
   isSmartRoofDrawingEnabled,
   isSmartRoofComparisonEnabled,
   prepareSmartRoofDrawingApplication,
@@ -1114,93 +1115,6 @@ export function initCalpinage(container, options = {}) {
     }
     .calpinage-tool-icon { font-size: 16px; line-height: 1; }
     .calpinage-tool-label { white-space: nowrap; }
-    .smart-roof-drawing-entry {
-      border-color: rgba(14,165,233,0.35) !important;
-      background: rgba(14,165,233,0.06) !important;
-    }
-    .smart-roof-drawing-entry[hidden] {
-      display: none !important;
-    }
-    .smart-roof-drawing-session-bar {
-      display: flex;
-      flex: 1 1 auto;
-      flex-wrap: wrap;
-      align-items: center;
-      align-content: center;
-      gap: 4px;
-      min-width: 0;
-    }
-    .smart-roof-drawing-session-bar[hidden] {
-      display: none !important;
-    }
-    .smart-roof-drawing-badge,
-    .smart-roof-drawing-status {
-      display: inline-flex;
-      align-items: center;
-      min-height: 28px;
-      padding: 0 8px;
-      border: 1px solid rgba(15,23,42,0.12);
-      border-radius: var(--sg-radius-sm);
-      background: rgba(255,255,255,0.86);
-      color: #334155;
-      font-size: 12px;
-      white-space: nowrap;
-    }
-    .smart-roof-drawing-badge {
-      color: #0369a1;
-      border-color: rgba(14,165,233,0.28);
-      background: rgba(14,165,233,0.08);
-      font-weight: 600;
-    }
-    .smart-roof-drawing-status {
-      max-width: min(240px, 24vw);
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .smart-roof-drawing-inspector {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 0 4px;
-      min-width: 0;
-    }
-    .smart-roof-drawing-field {
-      height: 30px;
-      border: 1px solid rgba(15,23,42,0.14);
-      border-radius: var(--sg-radius-sm);
-      background: rgba(255,255,255,0.92);
-      color: #0f172a;
-      font-size: 12px;
-      padding: 0 8px;
-    }
-    #calpinage-smart-roof-role {
-      max-width: 108px;
-    }
-    .smart-roof-drawing-height {
-      width: 60px;
-      padding: 0 6px;
-    }
-    #zone-b-toolbar.smart-roof-drawing-active,
-    #zone-b-toolbar.smart-roof-drawing-active .calpinage-toolbar-scroll {
-      height: auto;
-      min-height: var(--calpinage-toolbar-height);
-    }
-    #zone-b-toolbar.smart-roof-drawing-active .calpinage-toolbar-scroll {
-      flex-wrap: wrap;
-      overflow-x: visible;
-      overflow-y: visible;
-    }
-    #zone-b-toolbar.smart-roof-drawing-active .calpinage-toolbar-scroll > *:not(.smart-roof-drawing-session-bar) {
-      display: none !important;
-    }
-    @media (max-width: 1600px) {
-      #zone-b-toolbar.smart-roof-drawing-active .smart-roof-drawing-status {
-        display: none;
-      }
-      #zone-b-toolbar.smart-roof-drawing-active .smart-roof-drawing-badge {
-        padding: 0 6px;
-      }
-    }
     .calpinage-phase2-actions {
       display: flex;
       align-items: center;
@@ -2289,37 +2203,6 @@ export function initCalpinage(container, options = {}) {
               <span class="sg-icon-wrapper"><span class="calpinage-tool-icon" aria-hidden="true"></span></span>
               <span class="calpinage-tool-label">Sélection</span>
             </button>
-            <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost smart-roof-drawing-entry" id="calpinage-smart-roof-open" title="Essayer le dessin toiture intelligent" hidden>
-              <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.roofDraw}</svg></span>
-              <span class="calpinage-tool-label">Essayer le dessin unique</span>
-            </button>
-            <div class="smart-roof-drawing-session-bar" id="calpinage-smart-roof-session-bar" hidden>
-              <span class="smart-roof-drawing-badge">Non enregistré</span>
-              <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost smart-roof-drawing-tool" id="calpinage-smart-roof-tool-draw" aria-pressed="true" title="Tracer des segments neutres">
-                <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.roofDraw}</svg></span>
-                <span class="calpinage-tool-label">Dessiner</span>
-              </button>
-              <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost smart-roof-drawing-tool" id="calpinage-smart-roof-tool-select" aria-pressed="false" title="Sélectionner un segment ou un nœud">Sélection</button>
-              <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost smart-roof-drawing-tool" id="calpinage-smart-roof-new-volume" title="Commencer un volume distinct sans fusionner les accroches avec le volume précédent">Volume +</button>
-              <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost smart-roof-drawing-tool" id="calpinage-smart-roof-undo" title="Annuler le brouillon" disabled>Annuler</button>
-              <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost smart-roof-drawing-tool" id="calpinage-smart-roof-redo" title="Rétablir le brouillon" disabled>Rétablir</button>
-              <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost smart-roof-drawing-tool" id="calpinage-smart-roof-delete" title="Supprimer le segment sélectionné" disabled>Supprimer</button>
-              <span class="smart-roof-drawing-inspector" id="calpinage-smart-roof-inspector" aria-label="Correction relief dessin intelligent">
-                <select id="calpinage-smart-roof-role" class="smart-roof-drawing-field" title="Rôle optionnel de la ligne sélectionnée" disabled>
-                  <option value="unknown">Rôle inconnu</option>
-                  <option value="outline">Contour</option>
-                  <option value="trait">Arête</option>
-                  <option value="ridge">Faîtage</option>
-                </select>
-                <input id="calpinage-smart-roof-height" class="smart-roof-drawing-field smart-roof-drawing-height" type="number" step="0.01" min="-20" max="80" placeholder="H m" title="Hauteur de la sélection en mètres" disabled />
-                <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost smart-roof-drawing-tool" id="calpinage-smart-roof-set-height" title="Appliquer la hauteur à la sélection" disabled>H sel.</button>
-                <input id="calpinage-smart-roof-flat-height" class="smart-roof-drawing-field smart-roof-drawing-height" type="number" step="0.01" min="-20" max="80" placeholder="H plat" title="Hauteur plate du volume actif" />
-                <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost smart-roof-drawing-tool" id="calpinage-smart-roof-set-flat" title="Renseigner une hauteur identique pour le volume actif">Plat</button>
-              </span>
-              <button type="button" class="calpinage-tool-btn sg-btn sg-btn-primary smart-roof-drawing-tool" id="calpinage-smart-roof-apply" title="Appliquer ce dessin à l'étude">Appliquer</button>
-              <span class="smart-roof-drawing-status" id="calpinage-smart-roof-status">Dessin en cours</span>
-              <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost smart-roof-drawing-tool" id="calpinage-smart-roof-close" title="Quitter l'essai">Quitter</button>
-            </div>
             <div class="calpinage-tool-dessin-wrap" role="group" aria-label="Dessin toiture">
               <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost" id="calpinage-tool-dessin-toiture" title="Dessin toiture (contour, trait, faîtage)">
                 <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.roofDraw}</svg></span>
@@ -6651,6 +6534,9 @@ export function initCalpinage(container, options = {}) {
       /** Peut-on activer le bouton "Valider le relevé toiture" : contour valide + au moins un pan. Les hauteurs sont informatives (orange/vert), jamais bloquantes. */
       function canValidateRoofSurvey() {
         if (CALPINAGE_STATE.roofSurveyLocked) return false;
+        if (shouldUseSmartRoofDrawingPhase2Status()) {
+          return !!readSmartRoofDrawingPhase2Status().canValidate;
+        }
         if (!isContourValid()) return false;
         computePansFromGeometry();
         var pans = CALPINAGE_STATE.pans || [];
@@ -9132,6 +9018,27 @@ export function initCalpinage(container, options = {}) {
         return getHeightForSelection(sel);
       }
 
+      function getSmartRoofNodeIdForHeightSelection(sel) {
+        var point = getImgPtForHeightSelection(sel);
+        if (point && point.smartSourceNodeId != null) return String(point.smartSourceNodeId);
+        return null;
+      }
+
+      function syncSmartRoofDrawingHeightsFromHeightSelections(sels, value) {
+        if (!smartRoofDrawingDraftRuntime || !sels || !sels.length) return false;
+        var ids = [];
+        sels.forEach(function (sel) {
+          var id = getSmartRoofNodeIdForHeightSelection(sel);
+          if (id && ids.indexOf(id) < 0) ids.push(id);
+        });
+        if (!ids.length) return false;
+        var v = parseFloat(value);
+        if (isNaN(v) || v < 0) return false;
+        smartRoofDrawingDraftRuntime.setNodeHeights(ids, { valueM: v, source: "manual", locked: true });
+        publishSmartRoofDrawingWorkingProjection({ skipUi: true });
+        return true;
+      }
+
       /** SEULE fonction autorisée à modifier h. Écrit value sur chaque point de sels (ou sélection courante si sels absent). Aucune propagation implicite. */
       function applyHeightToSelectedPoints(value, optionalSels) {
         var pts = optionalSels != null ? optionalSels : CALPINAGE_STATE.selectedHeightPoints;
@@ -9179,6 +9086,13 @@ export function initCalpinage(container, options = {}) {
         touchedRoofExtensionIndexes.forEach(function (idx) {
           rebuildRoofExtensionVisualGeometry(roofExtensions[idx]);
         });
+        if (touchedStructuralHeight && syncSmartRoofDrawingHeightsFromHeightSelections(sels, v)) {
+          if (optionalSels == null) CALPINAGE_STATE.selectedHeightPoint = sels[0];
+          updatePansListUI();
+          if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+          saveCalpinageState();
+          return;
+        }
         if (touchedStructuralHeight) tracePanPhysicsPipeline("A_after_height_edit");
         if (optionalSels == null) CALPINAGE_STATE.selectedHeightPoint = sels[0];
         if (touchedStructuralHeight) {
@@ -9396,6 +9310,12 @@ export function initCalpinage(container, options = {}) {
         if (typeof window !== "undefined") {
           window.__calpinageApplyStructuralHeightSelection = applyStructuralHeightSelection;
           window.__calpinageApplyStructuralRidgeHeightSelection = applyStructuralRidgeHeightSelection;
+          if (typeof import.meta !== "undefined" && (import.meta.env?.DEV || import.meta.env?.MODE === "test")) {
+            window.__calpinageApplyCurrentHeightSelectionForTests = function (heightM) {
+              applyHeightToSelectedPoints(heightM);
+              return true;
+            };
+          }
           window.__calpinageResolveStructuralHeightSelectionNearImagePoint = resolveStructuralHeightSelectionNearImagePoint;
           window.__calpinageCommitPvPlacementFrom3DImagePoint = commitPvPlacementFrom3DImagePoint;
           window.__calpinageHitTestPvBlockPanelFromImagePoint = hitTestAnyPvBlockPanelFromImage;
@@ -12706,10 +12626,22 @@ export function initCalpinage(container, options = {}) {
         opts = opts || {};
         if (!candidate || candidate.status !== "ready" || !candidate.legacyState) return false;
         var legacy = candidate.legacyState;
+        var previousManualRoofExtensions = (CALPINAGE_STATE.roofExtensions || []).filter(function (rx) {
+          if (!rx) return false;
+          var inferredSmartExtension = rx.smartRoofRoleSource === "inferred" || (rx.smartSourceSegmentIds && rx.smartSourceSegmentIds.length);
+          return !inferredSmartExtension;
+        });
+        var nextRoofExtensions = cloneSmartRoofJson(legacy.roofExtensions || []) || [];
+        var nextRoofExtensionIds = {};
+        nextRoofExtensions.forEach(function (rx) { if (rx && rx.id != null) nextRoofExtensionIds[String(rx.id)] = true; });
+        previousManualRoofExtensions.forEach(function (rx) {
+          if (!rx || rx.id == null || nextRoofExtensionIds[String(rx.id)]) return;
+          nextRoofExtensions.push(cloneSmartRoofJson(rx));
+        });
         CALPINAGE_STATE.contours = cloneSmartRoofJson(legacy.contours || []) || [];
         CALPINAGE_STATE.traits = cloneSmartRoofJson(legacy.traits || []) || [];
         CALPINAGE_STATE.ridges = cloneSmartRoofJson(legacy.ridges || []) || [];
-        CALPINAGE_STATE.roofExtensions = cloneSmartRoofJson(legacy.roofExtensions || []) || [];
+        CALPINAGE_STATE.roofExtensions = nextRoofExtensions;
         CALPINAGE_STATE.pans = cloneSmartRoofJson(legacy.pans || []) || [];
         if (!CALPINAGE_STATE.roof) CALPINAGE_STATE.roof = {};
         var roofPatch = legacy.roof && typeof legacy.roof === "object" ? legacy.roof : {};
@@ -13161,8 +13093,12 @@ export function initCalpinage(container, options = {}) {
         try {
           var btnUndo = container.querySelector("#calpinage-tool-undo");
           var btnRedo = container.querySelector("#calpinage-tool-redo");
-          if (btnUndo) btnUndo.disabled = _undoStack.length === 0;
-          if (btnRedo) btnRedo.disabled = _redoStack.length === 0;
+          var smartState = null;
+          try { smartState = smartRoofDrawingDraftRuntime ? smartRoofDrawingDraftRuntime.getState() : null; } catch (_) { smartState = null; }
+          var smartUndo = isSmartRoofDrawingCommandContext() && smartState && smartState.undoStack && smartState.undoStack.length > 0;
+          var smartRedo = isSmartRoofDrawingCommandContext() && smartState && smartState.redoStack && smartState.redoStack.length > 0;
+          if (btnUndo) btnUndo.disabled = !smartUndo && _undoStack.length === 0;
+          if (btnRedo) btnRedo.disabled = !smartRedo && _redoStack.length === 0;
         } catch (_) {}
       }
 
@@ -13616,6 +13552,9 @@ export function initCalpinage(container, options = {}) {
       }
 
       function getPhase2ValidateHint() {
+        if (shouldUseSmartRoofDrawingPhase2Status()) {
+          return readSmartRoofDrawingPhase2Status().validateHint || "Dessin toiture à compléter.";
+        }
         var can = canValidateRoofSurvey();
         if (can) return "Cliquez pour figer le relev\u00E9 et passer \u00E0 l'implantation des panneaux.";
         if (!isContourValid()) return "Tracez un contour ferm\u00E9 pour d\u00E9finir la toiture.";
@@ -13656,10 +13595,11 @@ export function initCalpinage(container, options = {}) {
         var ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r && r.roofRole !== "chienAssis"; });
         var obstacles = CALPINAGE_STATE.obstacles || [];
         var captured = !!(CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.image && CALPINAGE_STATE.roof.image.dataUrl);
+        var smartPhase2 = shouldUseSmartRoofDrawingPhase2Status() ? readSmartRoofDrawingPhase2Status() : null;
         return {
-          contourClosed: contours.some(function (c) { return c && c.points && c.points.length >= 3 && c.closed !== false; }),
-          ridgeDefined: ridges.length > 0,
-          heightsDefined: (function () {
+          contourClosed: smartPhase2 ? smartPhase2.contourClosed : contours.some(function (c) { return c && c.points && c.points.length >= 3 && c.closed !== false; }),
+          ridgeDefined: smartPhase2 ? smartPhase2.ridgeDefined : ridges.length > 0,
+          heightsDefined: smartPhase2 ? smartPhase2.heightsDefined : (function () {
             var ok = function (pt) { return pt && typeof pt.h === "number" && Number.isFinite(pt.h); };
             var i, j, pt;
             for (i = 0; i < contours.length; i++) {
@@ -13679,8 +13619,8 @@ export function initCalpinage(container, options = {}) {
             return true;
           })(),
           obstaclesCount: obstacles.length,
-          canValidate: canValidateRoofSurvey(),
-          validateHint: getPhase2ValidateHint(),
+          canValidate: smartPhase2 ? smartPhase2.canValidate : canValidateRoofSurvey(),
+          validateHint: smartPhase2 ? smartPhase2.validateHint : getPhase2ValidateHint(),
           captured: captured,
           hasExistingGeometry: hasExistingGeometry()
         };
@@ -14222,6 +14162,9 @@ updateValidateButton();
       (function initValidateRoofButton() {
         var btn = container.querySelector("#btn-validate-roof");
         function performValidateRoofSurvey() {
+          if (smartRoofDrawingDraftRuntime && CALPINAGE_STATE.currentPhase === "ROOF_EDIT") {
+            if (!commitSmartRoofDrawingBeforeRoofValidation()) return;
+          }
           if (!canValidateRoofSurvey()) return;
           CALPINAGE_STATE.validatedRoofData = buildValidatedRoofData();
           CALPINAGE_STATE.roofSurveyLocked = true;
@@ -15940,9 +15883,6 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       var smartRoofDrawingSavedButtonState = null;
       var smartRoofDrawingApplying = false;
       var smartRoofDrawingLastApplyMessage = "";
-      var smartRoofDrawingHeightDraftValue = null;
-      var smartRoofDrawingHeightDraftSelectionKey = null;
-      var smartRoofDrawingFlatHeightDraftValue = null;
       var smartRoofDrawingLastProjectionCandidatePans = null;
 
       function isSmartRoofDrawingDraftActive() {
@@ -15964,6 +15904,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             traits: CALPINAGE_STATE.traits || [],
             ridges: CALPINAGE_STATE.ridges || [],
             pans: CALPINAGE_STATE.pans || [],
+            obstacles: CALPINAGE_STATE.obstacles || [],
+            shadowVolumes: CALPINAGE_STATE.shadowVolumes || [],
+            roofExtensions: CALPINAGE_STATE.roofExtensions || [],
+            parametricDormers: CALPINAGE_STATE.parametricDormers || [],
             placedPanels: CALPINAGE_STATE.placedPanels || [],
             pvBlocks: CALPINAGE_STATE.pvBlocks || CALPINAGE_STATE.placedBlocks || null,
             validatedRoofData: CALPINAGE_STATE.validatedRoofData || null,
@@ -15998,8 +15942,103 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         }
       }
 
+      function getSmartRoofDrawingToolbarLabelText() {
+        if (!smartRoofDrawingFlagEnabled) return "Dessin toiture";
+        return "Dessiner";
+      }
+
+      function shouldUseSmartRoofDrawingPhase2Status() {
+        return !!(
+          smartRoofDrawingFlagEnabled &&
+          smartRoofDrawingDraftRuntime &&
+          (!CALPINAGE_STATE.currentPhase || CALPINAGE_STATE.currentPhase === "ROOF_EDIT")
+        );
+      }
+
+      function readSmartRoofDrawingPhase2Status() {
+        var fallback = {
+          contourClosed: false,
+          ridgeDefined: false,
+          heightsDefined: false,
+          canValidate: false,
+          validateHint: "Dessin toiture à compléter.",
+          pansCount: 0,
+        };
+        if (!smartRoofDrawingDraftRuntime) return fallback;
+        var session = null;
+        try { session = smartRoofDrawingDraftRuntime.getState(); } catch (_) { session = null; }
+        var candidate = null;
+        try { candidate = prepareSmartRoofDrawingWorkingCandidate(); } catch (err) {
+          if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] smart roof phase2 status failed", err);
+        }
+        var legacy = candidate && candidate.legacyState ? candidate.legacyState : null;
+        var pans = legacy && Array.isArray(legacy.pans) ? legacy.pans : [];
+        var contours = legacy && Array.isArray(legacy.contours) ? legacy.contours : [];
+        var traits = legacy && Array.isArray(legacy.traits) ? legacy.traits : [];
+        var ridges = legacy && Array.isArray(legacy.ridges) ? legacy.ridges : [];
+        var graph = session && session.graph ? session.graph : null;
+        var graphSegments = graph && Array.isArray(graph.segments) ? graph.segments : [];
+        var graphNodes = graph && Array.isArray(graph.nodes) ? graph.nodes : [];
+        var hasClosedContour = contours.some(function (c) {
+          return c && c.roofRole !== "chienAssis" && c.points && c.points.length >= 3 && c.closed !== false;
+        });
+        var hasCandidateSurface = pans.length > 0 || hasClosedContour;
+        var hasStructuralLine = ridges.length > 0 || traits.length > 0 || pans.length > 1;
+        var allNodesHaveHeight = graphNodes.length > 0 && graphNodes.every(function (node) {
+          return node && node.height && typeof node.height.valueM === "number" && Number.isFinite(node.height.valueM);
+        });
+        var status = candidate && candidate.status ? candidate.status : (session && session.compile ? session.compile.status : "");
+        var canValidate = status === "ready" && pans.length > 0;
+        var hint = "";
+        if (canValidate) {
+          hint = "Toiture reconnue : vous pouvez valider le relevé toiture.";
+        } else if (candidate && candidate.blockingDiagnostics && candidate.blockingDiagnostics.length) {
+          hint = candidate.blockingDiagnostics[0].message || "Dessin toiture à compléter.";
+        } else if (session && session.compile && session.compile.message) {
+          hint = session.compile.message;
+        } else if (graphSegments.length > 0) {
+          hint = "Dessin en cours - complétez ou fermez la géométrie de toiture.";
+        } else {
+          hint = "Cliquez sur Dessiner puis tracez la toiture.";
+        }
+        return {
+          contourClosed: !!hasCandidateSurface,
+          ridgeDefined: !!hasStructuralLine,
+          heightsDefined: !!allNodesHaveHeight || canValidate,
+          canValidate: !!canValidate,
+          validateHint: hint,
+          pansCount: pans.length,
+        };
+      }
+
+      function getSmartRoofDrawingSessionTool() {
+        if (!smartRoofDrawingDraftRuntime) return null;
+        try {
+          var state = smartRoofDrawingDraftRuntime.getState();
+          return state && state.tool ? state.tool : null;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function isSmartRoofDrawingCanvasContext() {
+        if (!smartRoofDrawingDraftRuntime) return false;
+        if (CALPINAGE_STATE.currentPhase && CALPINAGE_STATE.currentPhase !== "ROOF_EDIT") return false;
+        if (window.CALPINAGE_MODE) return false;
+        var sessionTool = getSmartRoofDrawingSessionTool();
+        return drawState.activeTool === "smartRoofDrawing" || (drawState.activeTool === "select" && sessionTool === "select");
+      }
+
+      function isSmartRoofDrawingCommandContext() {
+        if (!smartRoofDrawingDraftRuntime) return false;
+        if (CALPINAGE_STATE.currentPhase && CALPINAGE_STATE.currentPhase !== "ROOF_EDIT") return false;
+        if (window.CALPINAGE_MODE) return false;
+        var sessionTool = getSmartRoofDrawingSessionTool();
+        return drawState.activeTool === "smartRoofDrawing" || (drawState.activeTool === "select" && sessionTool === "select");
+      }
+
       function readSmartRoofDrawingSelectionInfo(session) {
-        if (!session || !session.selected) return { type: null, node: null, segment: null, displayNode: null, displaySegment: null, height: null, heightSource: null };
+        if (!session || !session.selected) return { type: null, node: null, nodes: [], segment: null, displayNode: null, displayNodes: [], displaySegment: null, height: null, heightSource: null };
         var interpretedGraph = session.compile && session.compile.result && session.compile.result.normalizedGraph
           ? session.compile.result.normalizedGraph
           : null;
@@ -16020,11 +16059,33 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           return {
             type: "node",
             node: node,
+            nodes: node ? [node] : [],
             segment: null,
             displayNode: displayNode,
+            displayNodes: displayNode ? [displayNode] : [],
             displaySegment: null,
             height: nodeHeight ? nodeHeight.valueM : null,
             heightSource: nodeHeight ? nodeHeight.source : null,
+          };
+        }
+        if (session.selected.type === "nodes") {
+          var nodes = (session.selected.nodeIds || []).map(function (id) { return findNode(session.graph, id); }).filter(Boolean);
+          var displayNodes = (session.selected.nodeIds || []).map(function (id) { return findNode(interpretedGraph, id) || findNode(session.graph, id); }).filter(Boolean);
+          var nodeHeights = nodes.map(readHeightInfo).filter(Boolean);
+          var firstNodeHeight = nodeHeights.length ? nodeHeights[0] : null;
+          var sameHeight = !!firstNodeHeight && nodeHeights.length === nodes.length && nodeHeights.every(function (info) {
+            return info && Math.abs(info.valueM - firstNodeHeight.valueM) <= 1e-6;
+          });
+          return {
+            type: "nodes",
+            node: nodes[0] || null,
+            nodes: nodes,
+            segment: null,
+            displayNode: displayNodes[0] || null,
+            displayNodes: displayNodes,
+            displaySegment: null,
+            height: sameHeight && firstNodeHeight ? firstNodeHeight.valueM : null,
+            heightSource: sameHeight && firstNodeHeight ? firstNodeHeight.source : null,
           };
         }
         if (session.selected.type === "segment") {
@@ -16043,127 +16104,61 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           return {
             type: "segment",
             node: null,
+            nodes: [],
             segment: segment,
             displayNode: null,
+            displayNodes: [],
             displaySegment: displaySegment,
             height: segmentHeight ? segmentHeight.valueM : null,
             heightSource: segmentHeight ? segmentHeight.source : null,
           };
         }
-        return { type: null, node: null, segment: null, displayNode: null, displaySegment: null, height: null, heightSource: null };
-      }
-
-      function smartRoofDrawingSelectionKey(selectionInfo) {
-        if (!selectionInfo || !selectionInfo.type) return "";
-        if (selectionInfo.node && selectionInfo.node.id) return "node:" + selectionInfo.node.id;
-        if (selectionInfo.segment && selectionInfo.segment.id) return "segment:" + selectionInfo.segment.id;
-        return String(selectionInfo.type);
+        return { type: null, node: null, nodes: [], segment: null, displayNode: null, displayNodes: [], displaySegment: null, height: null, heightSource: null };
       }
 
       function refreshSmartRoofDrawingToolbar(opts) {
         opts = opts || {};
         var toolbar = container.querySelector("#zone-b-toolbar");
-        var openBtn = container.querySelector("#calpinage-smart-roof-open");
-        var sessionBar = container.querySelector("#calpinage-smart-roof-session-bar");
-        var drawBtn = container.querySelector("#calpinage-smart-roof-tool-draw");
-        var selectBtn = container.querySelector("#calpinage-smart-roof-tool-select");
-        var newVolumeBtn = container.querySelector("#calpinage-smart-roof-new-volume");
-        var undoBtn = container.querySelector("#calpinage-smart-roof-undo");
-        var redoBtn = container.querySelector("#calpinage-smart-roof-redo");
-        var deleteBtn = container.querySelector("#calpinage-smart-roof-delete");
-        var applyBtn = container.querySelector("#calpinage-smart-roof-apply");
-        var roleSelect = container.querySelector("#calpinage-smart-roof-role");
-        var heightInput = container.querySelector("#calpinage-smart-roof-height");
-        var setHeightBtn = container.querySelector("#calpinage-smart-roof-set-height");
-        var flatInput = container.querySelector("#calpinage-smart-roof-flat-height");
-        var setFlatBtn = container.querySelector("#calpinage-smart-roof-set-flat");
-        var statusEl = container.querySelector("#calpinage-smart-roof-status");
         var validateRoofBtn = container.querySelector("#btn-validate-roof");
         var validateCalpinageBtn = container.querySelector("#btn-validate-calpinage");
         var legacyDrawingBtn = container.querySelector("#calpinage-tool-dessin-toiture");
         var legacyHeightBtn = container.querySelector("#calpinage-btn-height-edit");
+        var legacyDrawingLabel = legacyDrawingBtn ? legacyDrawingBtn.querySelector(".calpinage-tool-label") : null;
+        var legacyDrawingChevron = legacyDrawingBtn ? legacyDrawingBtn.querySelector(".calpinage-tool-obstacle-chevron") : null;
+        var legacyDrawingDropdown = container.querySelector("#calpinage-dessin-toiture-dropdown");
         var active = isSmartRoofDrawingDraftActive();
-        var smartPersistedDrawing = !!readValidSmartRoofDrawingFromState();
         if (toolbar) toolbar.classList.toggle("smart-roof-drawing-active", active);
-        if (openBtn) openBtn.hidden = !smartRoofDrawingFlagEnabled || active;
-        if (openBtn) {
-          var openLabel = openBtn.querySelector(".calpinage-tool-label");
-          if (openLabel) openLabel.textContent = smartPersistedDrawing ? "Reprendre le dessin unique" : "Essayer le dessin unique";
-        }
-        if (sessionBar) sessionBar.hidden = !active;
         if (legacyDrawingBtn) {
-          legacyDrawingBtn.disabled = smartPersistedDrawing && !active;
-          legacyDrawingBtn.title = smartPersistedDrawing && !active
-            ? "Cette toiture utilise le dessin intelligent. Reprenez le dessin unique pour modifier les lignes."
+          legacyDrawingBtn.disabled = false;
+          legacyDrawingBtn.title = smartRoofDrawingFlagEnabled
+            ? "Dessiner la toiture"
             : "Dessin toiture (contour, trait, faîtage)";
+          legacyDrawingBtn.setAttribute("aria-haspopup", smartRoofDrawingFlagEnabled ? "false" : "true");
         }
+        if (legacyDrawingLabel) legacyDrawingLabel.textContent = getSmartRoofDrawingToolbarLabelText();
+        if (legacyDrawingChevron) legacyDrawingChevron.style.display = smartRoofDrawingFlagEnabled ? "none" : "";
+        if (legacyDrawingDropdown && smartRoofDrawingFlagEnabled) legacyDrawingDropdown.hidden = true;
         if (legacyHeightBtn) {
-          legacyHeightBtn.disabled = smartPersistedDrawing && !active;
-          legacyHeightBtn.title = smartPersistedDrawing && !active
-            ? "Cette toiture utilise le dessin intelligent. Reprenez le dessin unique pour modifier les hauteurs."
-            : "Mode éditer les hauteurs (contours, faîtages, traits)";
+          legacyHeightBtn.disabled = false;
+          legacyHeightBtn.title = "Mode éditer les hauteurs (contours, faîtages, traits)";
         }
         if (active && smartRoofDrawingDraftRuntime) {
           var session = smartRoofDrawingDraftRuntime.getState();
-          if (drawBtn) drawBtn.setAttribute("aria-pressed", session.tool === "draw" ? "true" : "false");
-          if (selectBtn) selectBtn.setAttribute("aria-pressed", session.tool === "select" ? "true" : "false");
-          if (newVolumeBtn) {
-            newVolumeBtn.classList.toggle("calpinage-tool-active", !!session.activeGroupId);
-            newVolumeBtn.setAttribute("aria-pressed", session.activeGroupId ? "true" : "false");
-            var activeGroup = session.activeGroupId && session.graph && session.graph.groups
-              ? session.graph.groups.find(function (g) { return g && g.id === session.activeGroupId; })
-              : null;
-            newVolumeBtn.title = activeGroup
-              ? "Volume distinct actif : " + (activeGroup.label || activeGroup.id)
-              : "Commencer un volume distinct sans fusionner les accroches avec le volume precedent";
-          }
-          if (undoBtn) undoBtn.disabled = session.undoStack.length === 0;
-          if (redoBtn) redoBtn.disabled = session.redoStack.length === 0;
-          if (deleteBtn) deleteBtn.disabled = !(session.selected && session.selected.type === "segment");
-          if (applyBtn) applyBtn.disabled = smartRoofDrawingApplying || session.compile.status === "empty" || session.compile.status === "source_stale";
-          var selectionInfo = readSmartRoofDrawingSelectionInfo(session);
-          var selectionKey = smartRoofDrawingSelectionKey(selectionInfo);
-          if (selectionKey !== smartRoofDrawingHeightDraftSelectionKey) {
-            smartRoofDrawingHeightDraftSelectionKey = selectionKey;
-            smartRoofDrawingHeightDraftValue = null;
-          }
-          if (roleSelect) {
-            roleSelect.disabled = !(selectionInfo.segment);
-            roleSelect.value = selectionInfo.displaySegment && selectionInfo.displaySegment.role ? selectionInfo.displaySegment.role.value : "unknown";
-            roleSelect.title = selectionInfo.displaySegment && selectionInfo.displaySegment.role && selectionInfo.displaySegment.role.source === "inferred"
-              ? "Role propose automatiquement - modifiable"
-              : "Role de la ligne selectionnee";
-          }
-          if (heightInput) {
-            heightInput.disabled = !(selectionInfo.node || selectionInfo.segment);
-            heightInput.title = selectionInfo.heightSource === "estimated" || selectionInfo.heightSource === "default" || selectionInfo.heightSource === "deduced"
-              ? "Hauteur proposee automatiquement - utilisez le bouton H selection pour la verrouiller comme correction"
-              : "Hauteur de la selection";
-            if (document.activeElement !== heightInput && smartRoofDrawingHeightDraftValue == null) heightInput.value = selectionInfo.height == null ? "" : String(selectionInfo.height);
-          }
-          if (setHeightBtn) setHeightBtn.disabled = !(selectionInfo.node || selectionInfo.segment);
-          if (setFlatBtn) setFlatBtn.disabled = !(session.graph && session.graph.nodes && session.graph.nodes.length > 0);
-          if (flatInput && document.activeElement !== flatInput && session.graph.nodes && session.graph.nodes.length > 0) {
-            var flatNodes = session.activeGroupId
-              ? session.graph.nodes.filter(function (n) { return n && (n.groupId || null) === session.activeGroupId; })
-              : session.graph.nodes;
-            var allHeights = flatNodes.map(function (n) { return n && n.height && typeof n.height.valueM === "number" ? n.height.valueM : null; });
-            var firstH = allHeights.length ? allHeights[0] : null;
-            var allSame = firstH != null && allHeights.every(function (h) { return h != null && Math.abs(h - firstH) <= 1e-6; });
-            if (allSame && smartRoofDrawingFlatHeightDraftValue == null) flatInput.value = String(firstH);
-          }
-          if (statusEl) statusEl.textContent = smartRoofDrawingLastApplyMessage || session.compile.message || "Dessin en cours";
           if (validateRoofBtn) {
-            validateRoofBtn.disabled = true;
-            validateRoofBtn.title = "Appliquez ou quittez le brouillon experimental avant de valider l'etude";
+            var smartPans = session.compile && session.compile.result && session.compile.result.legacyState
+              ? (session.compile.result.legacyState.pans || [])
+              : [];
+            var canSmartValidate = session.compile.status !== "empty" &&
+              session.compile.status !== "incomplete" &&
+              session.compile.status !== "source_stale" &&
+              smartPans.length > 0;
+            validateRoofBtn.disabled = !canSmartValidate;
+            validateRoofBtn.title = smartRoofDrawingLastApplyMessage || session.compile.message || "Cliquez pour figer le relevé et passer à l'implantation des panneaux.";
           }
           if (validateCalpinageBtn) {
-            validateCalpinageBtn.disabled = true;
-            validateCalpinageBtn.title = "Appliquez ou quittez le brouillon experimental avant de valider l'etude";
+            validateCalpinageBtn.title = validateCalpinageBtn.title || "";
           }
         } else {
-          if (statusEl) statusEl.textContent = "Dessin en cours";
-          if (applyBtn) applyBtn.disabled = true;
           if (opts.skipLegacyValidation) restoreSmartRoofDrawingButtonState();
         }
       }
@@ -16192,7 +16187,6 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           startNewGroup: function (label) {
             if (!smartRoofDrawingDraftRuntime) return null;
             var state = smartRoofDrawingDraftRuntime.startNewGroup(label);
-            smartRoofDrawingFlatHeightDraftValue = null;
             drawState.activeTool = "smartRoofDrawing";
             refreshSmartRoofDrawingToolbar();
             requestSmartRoofDrawingRender();
@@ -16247,7 +16241,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         if (!smartRoofDrawingDraftRuntime) return true;
         var state = smartRoofDrawingDraftRuntime.getState();
         if (!force && state.dirty && typeof window !== "undefined" && typeof window.confirm === "function") {
-          var ok = window.confirm("Quitter le dessin experimental ? Le brouillon non enregistre sera perdu.");
+          var ok = window.confirm("Quitter le dessin intelligent ? Le dessin non enregistre sera perdu.");
           if (!ok) return false;
         }
         try { smartRoofDrawingDraftRuntime.dispose(); } catch (_) {}
@@ -16275,6 +16269,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         if (command === "undo") state = smartRoofDrawingDraftRuntime.undo();
         else if (command === "redo") state = smartRoofDrawingDraftRuntime.redo();
         else if (command === "deleteSelection") state = smartRoofDrawingDraftRuntime.deleteSelection();
+        publishSmartRoofDrawingWorkingProjection({ skipUi: true });
+        updateUndoRedoUI();
         refreshSmartRoofDrawingToolbar();
         requestSmartRoofDrawingRender();
         return state;
@@ -16303,7 +16299,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         var state = null;
         if (command === "setSelectedHeight") {
           var current = smartRoofDrawingDraftRuntime.getState();
-          if (current.selected && current.selected.type === "node") state = smartRoofDrawingDraftRuntime.setSelectedNodeHeight(height);
+          if (current.selected && (current.selected.type === "node" || current.selected.type === "nodes")) state = smartRoofDrawingDraftRuntime.setSelectedNodeHeight(height);
           else if (current.selected && current.selected.type === "segment") state = smartRoofDrawingDraftRuntime.setSelectedSegmentHeight(height);
         } else if (command === "setFlatHeight") {
           state = smartRoofDrawingDraftRuntime.setAllNodeHeights(height);
@@ -16312,15 +16308,57 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           if (role !== "outline" && role !== "trait" && role !== "ridge" && role !== "unknown") role = "unknown";
           state = smartRoofDrawingDraftRuntime.setSelectedSegmentRole(role);
         }
+        publishSmartRoofDrawingWorkingProjection({ skipUi: true });
         refreshSmartRoofDrawingToolbar();
         requestSmartRoofDrawingRender();
         return state;
       }
 
+      function prepareSmartRoofDrawingWorkingCandidate() {
+        if (!smartRoofDrawingDraftRuntime) return null;
+        var session = smartRoofDrawingDraftRuntime.getState();
+        var currentRevision = smartRoofLegacyDrawingRevision(CALPINAGE_STATE);
+        var candidate = prepareSmartRoofDrawingApplication({
+          graph: session.graph,
+          sourceState: CALPINAGE_STATE,
+          sourceRevision: currentRevision,
+          currentSourceRevision: currentRevision,
+          draftRevision: session.compile.revision,
+          computePansFromGeometryCore: computePansFromGeometryCore,
+          modelTolerancePx: 0.01,
+        });
+        if (typeof window !== "undefined") window.__calpinageSmartRoofDrawingLastCandidate = candidate;
+        if (candidate && candidate.status !== "ready") {
+          var first = candidate.blockingDiagnostics && candidate.blockingDiagnostics.length ? candidate.blockingDiagnostics[0] : null;
+          smartRoofDrawingLastApplyMessage = first && first.message ? first.message : (session.compile.message || "Dessin à compléter");
+        } else if (candidate) {
+          smartRoofDrawingLastApplyMessage = "";
+        }
+        return candidate;
+      }
+
+      function publishSmartRoofDrawingWorkingProjection(opts) {
+        opts = opts || {};
+        if (!smartRoofDrawingDraftRuntime) return null;
+        var candidate = prepareSmartRoofDrawingWorkingCandidate();
+        if (candidate && candidate.status === "ready") {
+          smartRoofDrawingLastProjectionCandidatePans = cloneSmartRoofJson(candidate.legacyState && candidate.legacyState.pans ? candidate.legacyState.pans : []);
+          applySmartRoofDrawingCandidateProjection(candidate, { emitStructuralChange: opts.emitStructuralChange === true });
+          smartRoofDrawingActiveSourceSnapshot = getSmartRoofDrawingProtectedStateSnapshot();
+          if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+          if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
+        }
+        if (!opts.skipUi) {
+          refreshSmartRoofDrawingToolbar();
+          updateStateUI();
+          requestSmartRoofDrawingRender();
+        }
+        return candidate;
+      }
+
       function prepareSmartRoofDrawingCandidateForApply() {
         if (!smartRoofDrawingDraftRuntime) return null;
-        smartRoofDrawingDraftRuntime.checkSourceRevision(CALPINAGE_STATE);
-        var candidate = smartRoofDrawingDraftRuntime.prepareApplication(CALPINAGE_STATE);
+        var candidate = prepareSmartRoofDrawingWorkingCandidate();
         if (typeof window !== "undefined") window.__calpinageSmartRoofDrawingLastCandidate = candidate;
         if (candidate && candidate.status !== "ready") {
           var first = candidate.blockingDiagnostics && candidate.blockingDiagnostics.length ? candidate.blockingDiagnostics[0] : null;
@@ -16415,8 +16453,61 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         }
       }
 
+      function commitSmartRoofDrawingBeforeRoofValidation() {
+        if (!smartRoofDrawingDraftRuntime) return true;
+        if (smartRoofDrawingApplying) return false;
+        try { smartRoofDrawingDraftRuntime.finishChain(); } catch (_) {}
+        var beforeSnap = captureGeometrySnapshot();
+        var candidate = prepareSmartRoofDrawingWorkingCandidate();
+        if (!candidate || candidate.status !== "ready") {
+          try {
+            var first = candidate && candidate.blockingDiagnostics && candidate.blockingDiagnostics.length ? candidate.blockingDiagnostics[0] : null;
+            var msg = first && first.message ? first.message : "Dessin toiture à compléter avant validation.";
+            smartRoofDrawingLastApplyMessage = msg;
+            if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.warning) window.calpinageToast.warning(msg);
+            else if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE]", msg);
+          } catch (_) {}
+          refreshSmartRoofDrawingToolbar();
+          requestSmartRoofDrawingRender();
+          return false;
+        }
+        smartRoofDrawingApplying = true;
+        try {
+          if (beforeSnap) {
+            _undoStack.push(beforeSnap);
+            if (_undoStack.length > 50) _undoStack.shift();
+            _redoStack = [];
+            _pendingUndoSnap = null;
+          }
+          var ok = applySmartRoofDrawingCandidateProjection(candidate, { emitStructuralChange: true });
+          if (!ok) throw new Error("Le dessin toiture n'a pas pu etre publie.");
+          smartRoofDrawingActiveSourceSnapshot = getSmartRoofDrawingProtectedStateSnapshot();
+          updateUndoRedoUI();
+          try {
+            if (typeof window !== "undefined") window.__calpinageSmartRoofDrawingLastApply = { ok: true, candidate: candidate, protectedSnapshot: smartRoofDrawingActiveSourceSnapshot };
+          } catch (_) {}
+          closeSmartRoofDrawingDraftSession(true);
+          return true;
+        } catch (err) {
+          var restored = beforeSnap ? applyGeometrySnapshot(beforeSnap) : null;
+          resyncAfterGeometrySnapshotRestore(restored);
+          smartRoofDrawingLastApplyMessage = "Validation impossible - le dessin est conservé.";
+          if (typeof console !== "undefined" && console.error) console.error("[CALPINAGE] smart roof drawing validation commit failed", err);
+          try {
+            if (typeof window !== "undefined") {
+              window.__calpinageSmartRoofDrawingLastApply = { ok: false, candidate: candidate, error: err && err.message ? err.message : String(err) };
+            }
+          } catch (_) {}
+          refreshSmartRoofDrawingToolbar();
+          requestSmartRoofDrawingRender();
+          return false;
+        } finally {
+          smartRoofDrawingApplying = false;
+        }
+      }
+
       function handleSmartRoofDrawingKeydown(e) {
-        if (!smartRoofDrawingDraftRuntime) return false;
+        if (!isSmartRoofDrawingCommandContext()) return false;
         var tag = e && e.target && e.target.tagName ? String(e.target.tagName).toLowerCase() : "";
         if (tag === "input" || tag === "textarea" || tag === "select" || (e.target && e.target.isContentEditable)) return false;
         var handled = false;
@@ -16440,18 +16531,38 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         e.preventDefault();
         if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
         else if (typeof e.stopPropagation === "function") e.stopPropagation();
+        publishSmartRoofDrawingWorkingProjection({ skipUi: true });
         refreshSmartRoofDrawingToolbar();
         requestSmartRoofDrawingRender();
         return true;
       }
 
+      function getSmartRoofDrawingDraftSnapAt(imgPt) {
+        if (!smartRoofDrawingDraftRuntime) return null;
+        try {
+          var session = smartRoofDrawingDraftRuntime.getState();
+          return findSmartRoofDraftSnap(session.graph, imgPt, {
+            viewportScale: window.CALPINAGE_VIEWPORT_SCALE || 1,
+            screenSnapTolerancePx: SNAP_DIST_PX,
+            activeGroupId: session.activeGroupId,
+          });
+        } catch (_) {
+          return null;
+        }
+      }
+
       function handleSmartRoofDrawingPointerDown(e, imgPt) {
-        if (!smartRoofDrawingDraftRuntime) return false;
-        if (e.ctrlKey || e.metaKey) return false;
+        if (!isSmartRoofDrawingCanvasContext()) return false;
+        var current = smartRoofDrawingDraftRuntime.getState();
+        var preSnap = getSmartRoofDrawingDraftSnapAt(imgPt);
+        if (current.tool === "select" && (!preSnap || preSnap.kind === "free")) return false;
+        if (current.tool === "draw" && (e.ctrlKey || e.metaKey)) return false;
         smartRoofDrawingLastApplyMessage = "";
-        smartRoofDrawingDraftRuntime.checkSourceRevision(CALPINAGE_STATE);
-        smartRoofDrawingDraftRuntime.pointerDown(imgPt, window.CALPINAGE_VIEWPORT_SCALE || 1);
-        drawState.activeTool = "smartRoofDrawing";
+        smartRoofDrawingDraftRuntime.pointerDown(imgPt, window.CALPINAGE_VIEWPORT_SCALE || 1, {
+          toggleSelection: current.tool === "select" && (e.ctrlKey || e.metaKey || e.shiftKey),
+        });
+        if (current.tool === "draw") publishSmartRoofDrawingWorkingProjection({ skipUi: true });
+        updateUndoRedoUI();
         if (canvasEl && e.pointerId != null && typeof canvasEl.setPointerCapture === "function") {
           try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
         }
@@ -16463,11 +16574,16 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       }
 
       function handleSmartRoofDrawingPointerMove(e, imgPt) {
-        if (!smartRoofDrawingDraftRuntime) return false;
-        if (e.ctrlKey || e.metaKey) return false;
+        if (!isSmartRoofDrawingCanvasContext()) return false;
+        var current = smartRoofDrawingDraftRuntime.getState();
+        if (current.tool === "draw" && (e.ctrlKey || e.metaKey)) return false;
+        var preSnap = getSmartRoofDrawingDraftSnapAt(imgPt);
+        if (current.tool === "select" && !current.drag && (!preSnap || preSnap.kind === "free")) {
+          smartRoofDrawingDraftRuntime.updateHover(imgPt, window.CALPINAGE_VIEWPORT_SCALE || 1);
+          return false;
+        }
         smartRoofDrawingDraftRuntime.pointerMove(imgPt, window.CALPINAGE_VIEWPORT_SCALE || 1);
         drawState.lastMouseImage = imgPt;
-        drawState.activeTool = "smartRoofDrawing";
         e.preventDefault();
         if (typeof e.stopPropagation === "function") e.stopPropagation();
         refreshSmartRoofDrawingToolbar();
@@ -16476,9 +16592,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       }
 
       function handleSmartRoofDrawingPointerUp(e, imgPt) {
-        if (!smartRoofDrawingDraftRuntime) return false;
+        if (!isSmartRoofDrawingCanvasContext()) return false;
+        var before = smartRoofDrawingDraftRuntime.getState();
+        if (before.tool === "select" && !before.drag) return false;
         smartRoofDrawingDraftRuntime.pointerUp(imgPt);
-        drawState.activeTool = "smartRoofDrawing";
+        publishSmartRoofDrawingWorkingProjection({ skipUi: true });
+        updateUndoRedoUI();
         if (canvasEl && e.pointerId != null && typeof canvasEl.releasePointerCapture === "function") {
           try { canvasEl.releasePointerCapture(e.pointerId); } catch (_) {}
         }
@@ -16491,36 +16610,26 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
 
       updateStateUI();
 
-      /* Barre d?outils Phase 2 : un seul outil actif ? la fois ; Contour b??ti = crosshair, autres d?sactiv?s */
+      /* Barre d'outils Phase 2 : un seul outil actif a la fois. */
       (function initToolbar() {
         var toolbar = container.querySelector("#zone-b-toolbar");
         if (!toolbar) return;
-        var buttons = toolbar.querySelectorAll(".calpinage-tool-btn:not(#calpinage-tool-obstacle):not(#calpinage-btn-height-edit):not(#calpinage-tool-dessin-toiture):not(#calpinage-tool-roof-extension):not(.smart-roof-drawing-entry):not(.smart-roof-drawing-tool)");
+        var buttons = toolbar.querySelectorAll(".calpinage-tool-btn:not(#calpinage-tool-obstacle):not(#calpinage-btn-height-edit):not(#calpinage-tool-dessin-toiture):not(#calpinage-tool-roof-extension)");
         var obstacleBtn = container.querySelector("#calpinage-tool-obstacle");
         var heightEditBtn = container.querySelector("#calpinage-btn-height-edit");
         var obstacleDropdown = container.querySelector("#calpinage-obstacle-dropdown");
         var dessinToitureTrigger = container.querySelector("#calpinage-tool-dessin-toiture");
         var dessinToitureDropdown = container.querySelector("#calpinage-dessin-toiture-dropdown");
-        var smartRoofOpenBtn = container.querySelector("#calpinage-smart-roof-open");
-        var smartRoofDrawBtn = container.querySelector("#calpinage-smart-roof-tool-draw");
-        var smartRoofSelectBtn = container.querySelector("#calpinage-smart-roof-tool-select");
-        var smartRoofNewVolumeBtn = container.querySelector("#calpinage-smart-roof-new-volume");
-        var smartRoofUndoBtn = container.querySelector("#calpinage-smart-roof-undo");
-        var smartRoofRedoBtn = container.querySelector("#calpinage-smart-roof-redo");
-        var smartRoofDeleteBtn = container.querySelector("#calpinage-smart-roof-delete");
-        var smartRoofApplyBtn = container.querySelector("#calpinage-smart-roof-apply");
-        var smartRoofRoleSelect = container.querySelector("#calpinage-smart-roof-role");
-        var smartRoofHeightInput = container.querySelector("#calpinage-smart-roof-height");
-        var smartRoofSetHeightBtn = container.querySelector("#calpinage-smart-roof-set-height");
-        var smartRoofFlatHeightInput = container.querySelector("#calpinage-smart-roof-flat-height");
-        var smartRoofSetFlatBtn = container.querySelector("#calpinage-smart-roof-set-flat");
-        var smartRoofCloseBtn = container.querySelector("#calpinage-smart-roof-close");
         var ACTIVE = "calpinage-tool-active";
         var DESSIN_TOOLS = ["contour", "trait", "ridge"];
         function updateCursor() {
           if (!canvasEl) return;
           var t = drawState.activeTool;
           if (t === "heightEdit") { canvasEl.style.cursor = "cell"; return; }
+          if (t === "smartRoofDrawing") {
+            canvasEl.style.cursor = getSmartRoofDrawingSessionTool() === "select" ? "default" : "crosshair";
+            return;
+          }
           /* Select : default tant que le mousemove n'a pas affine */
           if (t === "select") { canvasEl.style.cursor = "default"; return; }
           /* Outils de dessin : mire */
@@ -16538,7 +16647,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             b.classList.toggle(ACTIVE, isActive);
           });
           if (dessinToitureTrigger) {
-            var dessinActive = !isHeightEdit && DESSIN_TOOLS.indexOf(toolName) >= 0;
+            var dessinActive = !isHeightEdit && (DESSIN_TOOLS.indexOf(toolName) >= 0 || toolName === "smartRoofDrawing");
             dessinToitureTrigger.setAttribute("aria-pressed", dessinActive ? "true" : "false");
             dessinToitureTrigger.classList.toggle(ACTIVE, dessinActive);
           }
@@ -16561,9 +16670,47 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         /** Exclusivité stricte : désactive TOUS les autres outils, cleanup, installe le nouvel outil. */
         function activateTool(toolName) {
           if (!toolName) toolName = "contour";
+          if (smartRoofDrawingFlagEnabled && (toolName === "contour" || toolName === "trait" || toolName === "ridge" || toolName === "smartRoofDrawing")) {
+            if (CALPINAGE_STATE.heightEditMode) exitHeightEdit(true);
+            clearTransientCanvasModeForToolSwitch();
+            if (!smartRoofDrawingDraftRuntime) openSmartRoofDrawingDraftSession();
+            if (smartRoofDrawingDraftRuntime) {
+              smartRoofDrawingDraftRuntime.setTool("draw");
+              drawState.activeTool = "smartRoofDrawing";
+              drawState.selectedObstacleIndex = null;
+              drawState.selectedShadowVolumeIndex = null;
+              smartRoofDrawingLastApplyMessage = "";
+              publishSmartRoofDrawingWorkingProjection({ skipUi: true });
+            }
+            updateToolbarActiveUI("smartRoofDrawing");
+            updateCursor();
+            refreshSmartRoofDrawingToolbar();
+            requestSmartRoofDrawingRender();
+            if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
+            return;
+          }
           if (typeof devLog !== "undefined" && devLog) console.log("[activateTool]", toolName);
           var prevHeightEdit = CALPINAGE_STATE.heightEditMode;
           var prevTool = drawState.activeTool;
+          if (
+            smartRoofDrawingFlagEnabled &&
+            toolName === "heightEdit" &&
+            !smartRoofDrawingDraftRuntime &&
+            readValidSmartRoofDrawingFromState()
+          ) {
+            openSmartRoofDrawingDraftSession();
+            if (smartRoofDrawingDraftRuntime) {
+              smartRoofDrawingDraftRuntime.setTool("select");
+              publishSmartRoofDrawingWorkingProjection({ skipUi: true });
+            }
+          }
+          if (smartRoofDrawingDraftRuntime) {
+            try { smartRoofDrawingDraftRuntime.finishChain(); } catch (_) {}
+            publishSmartRoofDrawingWorkingProjection({ skipUi: true });
+            if (toolName === "select") {
+              smartRoofDrawingDraftRuntime.setTool("select");
+            }
+          }
           clearTransientCanvasModeForToolSwitch();
           if (prevHeightEdit && toolName !== "heightEdit") {
             exitHeightEdit(true);
@@ -16629,6 +16776,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         }
         function setObstacleActive(shape, businessId) {
           if (CALPINAGE_STATE.heightEditMode) exitHeightEdit(true);
+          if (smartRoofDrawingDraftRuntime) {
+            try { smartRoofDrawingDraftRuntime.finishChain(); } catch (_) {}
+            publishSmartRoofDrawingWorkingProjection({ skipUi: true });
+          }
           clearTransientCanvasModeForToolSwitch();
           drawState.activeTool = "obstacle";
           drawState.obstacleShape = shape;
@@ -16660,97 +16811,6 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             setActive(btn);
           });
         });
-        if (smartRoofDrawingFlagEnabled) {
-          if (smartRoofOpenBtn) {
-            addSafeListener(smartRoofOpenBtn, "click", function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              if (obstacleDropdown) obstacleDropdown.hidden = true;
-              if (dessinToitureDropdown) dessinToitureDropdown.hidden = true;
-              if (roofExtensionDropdown) roofExtensionDropdown.hidden = true;
-              openSmartRoofDrawingDraftSession();
-            });
-          }
-          if (smartRoofDrawBtn) {
-            addSafeListener(smartRoofDrawBtn, "click", function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!smartRoofDrawingDraftRuntime) openSmartRoofDrawingDraftSession();
-              if (smartRoofDrawingDraftRuntime) smartRoofDrawingDraftRuntime.setTool("draw");
-              drawState.activeTool = "smartRoofDrawing";
-              refreshSmartRoofDrawingToolbar();
-              requestSmartRoofDrawingRender();
-            });
-          }
-          if (smartRoofSelectBtn) {
-            addSafeListener(smartRoofSelectBtn, "click", function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              if (smartRoofDrawingDraftRuntime) smartRoofDrawingDraftRuntime.setTool("select");
-              drawState.activeTool = "smartRoofDrawing";
-              refreshSmartRoofDrawingToolbar();
-              requestSmartRoofDrawingRender();
-            });
-          }
-          if (smartRoofNewVolumeBtn) {
-            addSafeListener(smartRoofNewVolumeBtn, "click", function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!smartRoofDrawingDraftRuntime) openSmartRoofDrawingDraftSession();
-              if (smartRoofDrawingDraftRuntime) smartRoofDrawingDraftRuntime.startNewGroup();
-              drawState.activeTool = "smartRoofDrawing";
-              smartRoofDrawingFlatHeightDraftValue = null;
-              refreshSmartRoofDrawingToolbar();
-              requestSmartRoofDrawingRender();
-            });
-          }
-          if (smartRoofUndoBtn) addSafeListener(smartRoofUndoBtn, "click", function (e) { e.preventDefault(); e.stopPropagation(); runSmartRoofDrawingDraftCommand("undo"); });
-          if (smartRoofRedoBtn) addSafeListener(smartRoofRedoBtn, "click", function (e) { e.preventDefault(); e.stopPropagation(); runSmartRoofDrawingDraftCommand("redo"); });
-          if (smartRoofDeleteBtn) addSafeListener(smartRoofDeleteBtn, "click", function (e) { e.preventDefault(); e.stopPropagation(); runSmartRoofDrawingDraftCommand("deleteSelection"); });
-          if (smartRoofApplyBtn) addSafeListener(smartRoofApplyBtn, "click", function (e) { e.preventDefault(); e.stopPropagation(); applySmartRoofDrawingDraftToStudy(); });
-          if (smartRoofRoleSelect) addSafeListener(smartRoofRoleSelect, "change", function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            runSmartRoofDrawingReliefCommand("setSelectedRole", smartRoofRoleSelect.value || "unknown");
-          });
-          if (smartRoofHeightInput) addSafeListener(smartRoofHeightInput, "input", function () {
-            smartRoofDrawingHeightDraftValue = smartRoofHeightInput.value;
-          });
-          if (smartRoofSetHeightBtn) addSafeListener(smartRoofSetHeightBtn, "click", function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            var rawHeight = smartRoofDrawingHeightDraftValue != null
-              ? smartRoofDrawingHeightDraftValue
-              : (smartRoofHeightInput ? smartRoofHeightInput.value : "");
-            var height = parseSmartRoofDrawingHeightRaw(rawHeight);
-            if (!height) {
-              smartRoofDrawingLastApplyMessage = "Hauteur de selection invalide";
-              refreshSmartRoofDrawingToolbar();
-              return;
-            }
-            runSmartRoofDrawingReliefCommand("setSelectedHeight", height);
-            smartRoofDrawingHeightDraftValue = null;
-          });
-          if (smartRoofFlatHeightInput) addSafeListener(smartRoofFlatHeightInput, "input", function () {
-            smartRoofDrawingFlatHeightDraftValue = smartRoofFlatHeightInput.value;
-          });
-          if (smartRoofSetFlatBtn) addSafeListener(smartRoofSetFlatBtn, "click", function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            var rawHeight = smartRoofDrawingFlatHeightDraftValue != null
-              ? smartRoofDrawingFlatHeightDraftValue
-              : (smartRoofFlatHeightInput ? smartRoofFlatHeightInput.value : "");
-            var height = parseSmartRoofDrawingHeightRaw(rawHeight);
-            if (!height) {
-              smartRoofDrawingLastApplyMessage = "Hauteur plate invalide";
-              refreshSmartRoofDrawingToolbar();
-              return;
-            }
-            runSmartRoofDrawingReliefCommand("setFlatHeight", height);
-            smartRoofDrawingFlatHeightDraftValue = null;
-          });
-          if (smartRoofCloseBtn) addSafeListener(smartRoofCloseBtn, "click", function (e) { e.preventDefault(); e.stopPropagation(); closeSmartRoofDrawingDraftSession(false); });
-        }
         publishSmartRoofDrawingDevApi();
         refreshSmartRoofDrawingToolbar();
         cleanupTasks.push(function () {
@@ -16766,6 +16826,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             console.log("[PHASE2 CLICK]", "calpinage-tool-dessin-toiture");
             if (obstacleDropdown) obstacleDropdown.hidden = true;
             if (roofExtensionDropdown) roofExtensionDropdown.hidden = true;
+            if (smartRoofDrawingFlagEnabled) {
+              e.preventDefault();
+              dessinToitureDropdown.hidden = true;
+              applyTool("smartRoofDrawing");
+              return;
+            }
             dessinToitureDropdown.hidden = !dessinToitureDropdown.hidden;
             if (!dessinToitureDropdown.hidden) {
               var rect = dessinToitureTrigger.getBoundingClientRect();
@@ -16789,12 +16855,22 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         if (undoBtn) {
           addSafeListener(undoBtn, "click", function () {
             console.log("[PHASE2 CLICK]", "calpinage-tool-undo");
+            if (isSmartRoofDrawingCommandContext()) {
+              runSmartRoofDrawingDraftCommand("undo");
+              updateUndoRedoUI();
+              return;
+            }
             undoCalpinage();
           });
         }
         if (redoBtn) {
           addSafeListener(redoBtn, "click", function () {
             console.log("[PHASE2 CLICK]", "calpinage-tool-redo");
+            if (isSmartRoofDrawingCommandContext()) {
+              runSmartRoofDrawingDraftCommand("redo");
+              updateUndoRedoUI();
+              return;
+            }
             redoCalpinage();
           });
         }
@@ -16812,9 +16888,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           /* V → Select ; C → Contour ; R → Ridge (faitage) ; T → Trait (aretier) ; O → Obstacle */
           if (!e.ctrlKey && !e.altKey && !e.metaKey) {
             if (e.key === "v" || e.key === "V") { e.preventDefault(); activateTool("select"); updateToolbarActiveUI("select"); updateCursor(); }
-            else if (e.key === "c" || e.key === "C") { e.preventDefault(); activateTool("contour"); updateToolbarActiveUI("contour"); updateCursor(); }
-            else if (e.key === "r" || e.key === "R") { e.preventDefault(); activateTool("ridge"); updateToolbarActiveUI("ridge"); updateCursor(); }
-            else if (e.key === "t" || e.key === "T") { e.preventDefault(); activateTool("trait"); updateToolbarActiveUI("trait"); updateCursor(); }
+            else if (e.key === "c" || e.key === "C") { e.preventDefault(); activateTool(smartRoofDrawingFlagEnabled ? "smartRoofDrawing" : "contour"); updateToolbarActiveUI(drawState.activeTool || "contour"); updateCursor(); }
+            else if (e.key === "r" || e.key === "R") { e.preventDefault(); activateTool(smartRoofDrawingFlagEnabled ? "smartRoofDrawing" : "ridge"); updateToolbarActiveUI(drawState.activeTool || "ridge"); updateCursor(); }
+            else if (e.key === "t" || e.key === "T") { e.preventDefault(); activateTool(smartRoofDrawingFlagEnabled ? "smartRoofDrawing" : "trait"); updateToolbarActiveUI(drawState.activeTool || "trait"); updateCursor(); }
             else if (e.key === "o" || e.key === "O") { e.preventDefault(); activateTool("obstacle"); updateToolbarActiveUI("obstacle"); updateCursor(); }
             else if (e.key === "Escape") { e.preventDefault(); activateTool("select"); updateToolbarActiveUI("select"); updateCursor(); }
             else if (e.key === "Delete" || e.key === "Backspace") {
@@ -16921,6 +16997,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var businessId = opt.getAttribute("data-shadow-business-id");
               if (businessId) {
                 if (CALPINAGE_STATE.heightEditMode) exitHeightEdit(true);
+                if (smartRoofDrawingDraftRuntime) {
+                  try { smartRoofDrawingDraftRuntime.finishChain(); } catch (_) {}
+                  publishSmartRoofDrawingWorkingProjection({ skipUi: true });
+                }
                 clearTransientCanvasModeForToolSwitch();
                 var payload = getShadowVolumeCreationPayload(businessId);
                 window.CALPINAGE_MODE = "CREATE_SHADOW_VOLUME";
@@ -16988,6 +17068,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 return;
               }
+              if (smartRoofDrawingDraftRuntime) {
+                try { smartRoofDrawingDraftRuntime.finishChain(); } catch (_) {}
+                publishSmartRoofDrawingWorkingProjection({ skipUi: true });
+              }
               var targetIdx = getDormerTargetIndexForTool();
               var target = targetIdx != null ? (CALPINAGE_STATE.roofExtensions || [])[targetIdx] : getDormerEditTarget();
               if (tool === "contour") {
@@ -17042,6 +17126,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         }
         var btnDelete = toolbar.querySelector(".calpinage-btn-delete");
         var onDeleteClick = function () {
+          if (isSmartRoofDrawingCommandContext() && smartRoofDrawingDraftRuntime) {
+            var session = smartRoofDrawingDraftRuntime.getState();
+            if (session.selected && session.selected.type === "segment") {
+              runSmartRoofDrawingDraftCommand("deleteSelection");
+              updateUndoRedoUI();
+              return;
+            }
+          }
           if (deleteCurrentSelection) deleteCurrentSelection();
         };
         if (btnDelete) addSafeListener(btnDelete, "click", function () { console.log("[PHASE2 CLICK]", "calpinage-btn-delete"); onDeleteClick(); });
@@ -20520,7 +20612,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 exitHeightEdit(false);
                 return;
               }
-              if (e.ctrlKey) {
+              if (e.ctrlKey || e.metaKey || e.shiftKey) {
                 var pts = CALPINAGE_STATE.selectedHeightPoints;
                 var exists = pts && pts.some(function (p) { return p.type === hit.type && p.index === hit.index && p.pointIndex === hit.pointIndex; });
                 if (exists) {
@@ -24396,6 +24488,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
 
           function drawSmartRoofDrawingDraftOverlay(ctx) {
             if (!smartRoofDrawingDraftRuntime || !ctx) return;
+            if (!isSmartRoofDrawingCanvasContext()) return;
             var session = null;
             try { session = smartRoofDrawingDraftRuntime.getState(); } catch (_) { return; }
             if (!session || !session.graph) return;
@@ -24475,7 +24568,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var n = graph.nodes[ni];
               if (!n) continue;
               var ns = imageToScreen(getSmartRoofDraftNodePoint(session, n.id) || n);
-              var isSelectedNode = session.selected && session.selected.type === "node" && session.selected.nodeId === n.id;
+              var isSelectedNode = session.selected && (
+                (session.selected.type === "node" && session.selected.nodeId === n.id) ||
+                (session.selected.type === "nodes" && (session.selected.nodeIds || []).indexOf(n.id) >= 0)
+              );
               ctx.beginPath();
               ctx.arc(ns.x, ns.y, isSelectedNode ? 5.6 : 4.2, 0, Math.PI * 2);
               ctx.fillStyle = snapFill;
@@ -24681,7 +24777,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             /* 1. Image d?j? dessin?e ci-dessus. */
             /* P4.0 — lecture du kill switch Konva (undefined si KonvaOverlay non monté) */
             var _konvaLayers = /** @type {Set<string>|undefined} */ (window.__CALPINAGE_KONVA_LAYERS__);
-            var smartRoofDrawingRenderActive = isSmartRoofDrawingDraftActive();
+            var smartRoofDrawingRenderActive = isSmartRoofDrawingCanvasContext();
             /* 2. Contours bati main - double stroke (halo blanc + trait bleu) + fill */
             /* P4.1 kill switch : si KonvaContoursLayer actif, ces couches sont dessinées par Konva */
             if (!smartRoofDrawingRenderActive && (!_konvaLayers || !_konvaLayers.has("contours"))) {

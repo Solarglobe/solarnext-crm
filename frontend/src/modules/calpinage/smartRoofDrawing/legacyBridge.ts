@@ -355,6 +355,10 @@ function nodeHeightForLegacy(node: SmartRoofNode): { readonly h?: number } {
   return node.height && Number.isFinite(node.height.valueM) ? { h: node.height.valueM } : {};
 }
 
+function nodeToLegacyPoint(node: SmartRoofNode): LegacyCalpinagePoint & { readonly smartSourceNodeId: string } {
+  return { x: node.x, y: node.y, smartSourceNodeId: node.id, ...nodeHeightForLegacy(node) };
+}
+
 function orderedOutlineComponents(
   graph: SmartRoofSketchGraph,
 ): SmartRoofOutlineComponent[] {
@@ -929,8 +933,8 @@ function segmentToLegacyLine(
   const attachB = endpointAttach(b, contours, tolerance);
   return {
     id: segment.id,
-    a: { x: a.x, y: a.y, ...nodeHeightForLegacy(a), ...(attachA ? { attach: attachA } : {}) },
-    b: { x: b.x, y: b.y, ...nodeHeightForLegacy(b), ...(attachB ? { attach: attachB } : {}) },
+    a: { ...nodeToLegacyPoint(a), ...(attachA ? { attach: attachA } : {}) },
+    b: { ...nodeToLegacyPoint(b), ...(attachB ? { attach: attachB } : {}) },
     roofRole: "main",
     smartRoofRole: segment.role.value,
     smartRoofRoleSource: segment.role.source,
@@ -1010,7 +1014,7 @@ export function compileSmartRoofSketchToLegacyState(
         id,
         roofRole: "contour",
         smartRoofInferredFromUnknown: component.inferredFromUnknown === true,
-        points: component.points.map((node) => ({ x: node.x, y: node.y, ...nodeHeightForLegacy(node) })),
+        points: component.points.map((node) => nodeToLegacyPoint(node)),
         smartSourceSegmentIds: component.segmentIds,
       };
     });

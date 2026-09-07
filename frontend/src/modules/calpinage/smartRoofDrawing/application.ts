@@ -503,7 +503,7 @@ export function prepareSmartRoofDrawingApplication(input: {
     diagnostics.push(diagnostic(
       "error",
       "DRAFT_SOURCE_REVISION_STALE",
-      "L'etude active a change depuis l'ouverture du brouillon. Quittez puis rouvrez l'essai pour eviter d'ecraser un autre dessin.",
+      "L'etude active a change depuis l'ouverture du dessin intelligent. Relancez le dessin intelligent pour eviter d'ecraser un autre dessin.",
     ));
   }
   diagnostics.push(...compile.diagnostics);

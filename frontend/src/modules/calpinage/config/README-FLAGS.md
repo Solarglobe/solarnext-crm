@@ -18,7 +18,7 @@ API `VITE_` : `isEnabled(flag: CalpinageFeatureFlag): boolean`
 | `AUTO_SHADING_ROWS` | `VITE_CALPINAGE_AUTO_SHADING_ROWS` | OFF | À venir   | Calcul automatique de l'espacement inter-rangée. |
 | `BIFACIAL`       | `VITE_CALPINAGE_BIFACIAL`         | OFF    | À venir      | Gain bifacial (face arrière des panneaux bifaciaux). |
 | `SMART_ROOF_COMPARISON` | `VITE_CALPINAGE_SMART_ROOF_COMPARISON` | OFF | Dev interne | Rapport expérimental lecture seule pour le dessin toiture intelligent. Ne remplace pas les outils existants. |
-| `SMART_ROOF_DRAWING` | `localStorage: calpinage_smart_roof_drawing` | OFF | Dev interne | Interface expérimentale du dessin toiture unique. Brouillon isolé, application explicite, persistance du graphe après validation. |
+| `SMART_ROOF_DRAWING` | `localStorage: calpinage_smart_roof_drawing` | OFF | Dev interne | Remplace localement le menu `Dessin toiture` par `Dessiner` en gardant le parcours Phase 2 habituel. |
 
 ---
 
@@ -52,7 +52,7 @@ VITE_CANONICAL_3D_NEAR_SHADING=true
 # Dessin toiture intelligent — comparaison interne lecture seule
 # VITE_CALPINAGE_SMART_ROOF_COMPARISON=true
 
-# Dessin toiture intelligent — outil unique experimental
+# Dessin toiture intelligent — outil unique
 # Activation locale navigateur uniquement, voir la section SMART_ROOF_DRAWING.
 ```
 
@@ -109,9 +109,9 @@ Le rapport compile une copie du dessin courant et ne remplace pas `state.pans`, 
 
 ### SMART_ROOF_DRAWING en local
 
-Ce flag affiche l'entrée `Essayer le dessin unique` dans la Phase 2. L'essai travaille dans une session de brouillon isolée : le graphe neutre est modifiable, puis compilé vers le moteur de pans actuel pour prévisualiser les surfaces candidates.
+Ce flag garde l'interface Phase 2 habituelle et remplace uniquement le menu `Dessin toiture` par le bouton `Dessiner`. Le dessin intelligent travaille derriere ce bouton : les traits neutres sont compilés vers le moteur de pans actuel, puis publiés dans les projections legacy cohérentes utilisées par la validation, la 3D et le placement.
 
-La toiture active n'est modifiée qu'avec `Appliquer le dessin`. Cette action prépare un candidat, vérifie le relief minimal, bloque les transferts de panneaux ambigus, publie les projections legacy cohérentes et persiste le graphe `smartRoofDrawing` via le chemin de sauvegarde existant.
+La validation reste le bouton produit `Valider le relevé toiture`. Les hauteurs, obstacles, obstacles ombrants et extensions restent accessibles par leurs outils habituels.
 
 Pour cette livraison contrôlée, ce flag n'est pas lu depuis une variable `VITE_` afin d'éviter toute activation globale au build ou au déploiement. L'activation est volontaire et locale au navigateur.
 
@@ -122,15 +122,12 @@ localStorage.setItem("calpinage_smart_roof_drawing", "true")
 location.reload()
 ```
 
-API de diagnostic pendant l'essai :
+API de diagnostic locale :
 
 ```js
-window.__calpinageSmartRoofDrawing.open()
 window.__calpinageSmartRoofDrawing.getState()
 window.__calpinageSmartRoofDrawing.prepareApplication()
-window.__calpinageSmartRoofDrawing.apply()
 window.__calpinageSmartRoofDrawing.activeStateUnchanged()
-window.__calpinageSmartRoofDrawing.close({ force: true })
 ```
 
 ---

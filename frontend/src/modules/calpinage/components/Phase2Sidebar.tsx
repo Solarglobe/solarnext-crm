@@ -58,6 +58,7 @@ function Phase2Toolbar() {
   const toolLabels: Record<string, string> = {
     select: "Sélection",
     contour: "Contour toiture",
+    smartRoofDrawing: "Dessiner",
     trait: "Trait",
     ridge: "Faîtage",
     heightEdit: "Éditer hauteurs",
@@ -85,6 +86,10 @@ function Phase2Toolbar() {
 function Phase2QuickTools() {
   const { captured, activeTool } = usePhase2Data();
   if (!captured) return null;
+  const smartRoofDrawingEnabled =
+    typeof window !== "undefined" &&
+    window.localStorage?.getItem("calpinage_smart_roof_drawing") === "true";
+  const drawButtonActive = activeTool === "contour" || activeTool === "smartRoofDrawing";
 
   const apply = (name: "select" | "contour" | "heightEdit") => {
     const win = window as unknown as { applyCalpinagePhase2Tool?: (n: string) => void };
@@ -108,12 +113,12 @@ function Phase2QuickTools() {
         </button>
         <button
           type="button"
-          className={`${styles.quickToolBtn} ${activeTool === "contour" ? styles.quickToolBtnActive : ""}`}
-          aria-pressed={activeTool === "contour"}
+          className={`${styles.quickToolBtn} ${drawButtonActive ? styles.quickToolBtnActive : ""}`}
+          aria-pressed={drawButtonActive}
           onClick={() => apply("contour")}
-          title="Contour bâti"
+          title={smartRoofDrawingEnabled ? "Dessiner la toiture" : "Contour bâti"}
         >
-          Contour
+          {smartRoofDrawingEnabled ? "Dessiner" : "Contour"}
         </button>
         <button
           type="button"

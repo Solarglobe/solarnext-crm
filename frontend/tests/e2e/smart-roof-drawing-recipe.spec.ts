@@ -8,8 +8,7 @@ const VERSION_NUMBER = 1;
 const ARTIFACT_DIR = path.join(process.cwd(), "test-results", "smart-roof-recipe");
 
 function fakeJwt() {
-  const enc = (o: Record<string, unknown>) =>
-    Buffer.from(JSON.stringify(o)).toString("base64url");
+  const enc = (o: Record<string, unknown>) => Buffer.from(JSON.stringify(o)).toString("base64url");
   return `${enc({ alg: "none", typ: "JWT" })}.${enc({
     exp: Math.floor(Date.now() / 1000) + 3600 * 24 * 365,
     id: "smart-roof-recipe-user",
@@ -42,21 +41,10 @@ function emptyGeometryFixture() {
   };
   const roofState = {
     gps: { lat: 48.8566, lon: 2.3522 },
-    map: {
-      provider: "google",
-      centerLatLng: { lat: 48.8566, lng: 2.3522 },
-      zoom: 19,
-      bearing: 0,
-    },
+    map: { provider: "google", centerLatLng: { lat: 48.8566, lng: 2.3522 }, zoom: 19, bearing: 0 },
     scale,
     canonical3DWorldContract,
-    image: {
-      dataUrl: roofImageDataUrl(),
-      width: 900,
-      height: 620,
-      cssWidth: 900,
-      cssHeight: 620,
-    },
+    image: { dataUrl: roofImageDataUrl(), width: 900, height: 620, cssWidth: 900, cssHeight: 620 },
     roof: { north: { angleDeg: 0 } },
     contoursBati: [],
     ridges: [],
@@ -68,24 +56,64 @@ function emptyGeometryFixture() {
     currentPhase: "ROOF_EDIT",
     roofSurveyLocked: false,
     roofState,
-    roof: {
-      scale,
-      roof: roofState.roof,
-      image: roofState.image,
-      gps: roofState.gps,
-      canonical3DWorldContract,
-      roofPans: [],
-    },
+    roof: { scale, roof: roofState.roof, image: roofState.image, gps: roofState.gps, canonical3DWorldContract, roofPans: [] },
     contours: [],
     ridges: [],
     traits: [],
     obstacles: [],
+    shadowVolumes: [],
+    roofExtensions: [],
     pans: [],
     placedPanels: [],
     frozenBlocks: [],
     validatedRoofData: null,
     smartRoofDrawing: null,
   };
+}
+
+function geometryWithExistingObstacleAndExtension() {
+  const geometry = emptyGeometryFixture();
+  const roofObstacle = {
+    id: "existing-roof-window",
+    type: "polygon",
+    businessId: "roof_window",
+    points: [
+      { x: 225, y: 220 },
+      { x: 255, y: 220 },
+      { x: 255, y: 245 },
+      { x: 225, y: 245 },
+    ],
+    shapeMeta: { originalType: "rect", centerX: 240, centerY: 232.5, width: 30, height: 25, angle: 0 },
+  };
+  const manualExtension = {
+    id: "existing-manual-extension",
+    type: "roof_extension",
+    kind: "dormer",
+    supportPanId: "pan-1",
+    visualModel: "manual_outline_gable",
+    contour: {
+      closed: true,
+      points: [
+        { x: 270, y: 220, h: 0 },
+        { x: 300, y: 220, h: 0 },
+        { x: 300, y: 250, h: 0 },
+        { x: 270, y: 250, h: 0 },
+      ],
+    },
+    ridge: {
+      a: { x: 285, y: 220, h: 1 },
+      b: { x: 285, y: 250, h: 1 },
+    },
+    ridgeHeightRelM: 1,
+    heightReference: "support_plane_normal",
+  };
+  geometry.obstacles = [roofObstacle];
+  geometry.roofState = {
+    ...(geometry.roofState as Record<string, unknown>),
+    obstacles: [roofObstacle],
+  };
+  geometry.roofExtensions = [manualExtension];
+  return geometry;
 }
 
 async function installRecipeMocks(context: BrowserContext, server: { geometry: Record<string, unknown>; saves: unknown[] }) {
@@ -109,21 +137,13 @@ async function installRecipeMocks(context: BrowserContext, server: { geometry: R
     });
   });
   await context.route("**/auth/permissions", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ permissions: ["study.manage"], superAdmin: false }),
-    });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ permissions: ["study.manage"], superAdmin: false }) });
   });
   await context.route("**/auth/refresh", async (route) => {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: fakeJwt() }) });
   });
   await context.route("**/api/organizations**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify([{ id: "smart-roof-recipe-org", name: "Smart roof recipe" }]),
-    });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ id: "smart-roof-recipe-org", name: "Smart roof recipe" }]) });
   });
   await context.route("**/api/public/pv/**", async (route) => {
     const url = route.request().url();
@@ -169,10 +189,7 @@ async function installRecipeMocks(context: BrowserContext, server: { geometry: R
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
-        ok: true,
-        calpinageData: { geometry_json: server.geometry },
-      }),
+      body: JSON.stringify({ ok: true, calpinageData: { geometry_json: server.geometry } }),
     });
   });
   await context.route("**/api/studies/**", async (route: Route) => {
@@ -189,16 +206,11 @@ async function installRecipeMocks(context: BrowserContext, server: { geometry: R
   });
 }
 
-async function installBrowserRuntime(context: BrowserContext, enableDrawing = true) {
-  await context.addInitScript((args) => {
+async function installBrowserRuntime(context: BrowserContext, enableDrawing: boolean) {
+  await context.addInitScript((enabled) => {
     const noop = () => undefined;
-    const forcedDrawing = localStorage.getItem("__smart_roof_recipe_force_drawing");
-    const effectiveDrawing = forcedDrawing === "false" ? false : (forcedDrawing === "true" ? true : args.enableDrawing);
-    if (effectiveDrawing) {
-      localStorage.setItem("calpinage_smart_roof_drawing", "true");
-    } else {
-      localStorage.setItem("calpinage_smart_roof_drawing", "false");
-    }
+    if (enabled) localStorage.setItem("calpinage_smart_roof_drawing", "true");
+    else localStorage.removeItem("calpinage_smart_roof_drawing");
     localStorage.setItem("calpinage_3d_runtime", "true");
     localStorage.setItem("calpinage_3d_preview", "true");
     (window as unknown as Record<string, unknown>).__CALPINAGE_3D_LIFECYCLE_DEBUG__ = true;
@@ -227,9 +239,7 @@ async function installBrowserRuntime(context: BrowserContext, enableDrawing = tr
       private heading = 0;
       constructor(readonly element: HTMLElement, readonly options: Record<string, unknown>) {
         const center = options.center as { lat?: number; lng?: number } | undefined;
-        if (typeof center?.lat === "number" && typeof center?.lng === "number") {
-          this.center = new FakeLatLng(center.lat, center.lng);
-        }
+        if (typeof center?.lat === "number" && typeof center?.lng === "number") this.center = new FakeLatLng(center.lat, center.lng);
         if (typeof options.zoom === "number") this.zoom = options.zoom;
         if (typeof options.heading === "number") this.heading = options.heading;
       }
@@ -239,9 +249,7 @@ async function installBrowserRuntime(context: BrowserContext, enableDrawing = tr
       getHeading() { return this.heading; }
       getTilt() { return 0; }
       getZoom() { return this.zoom; }
-      panTo(center: FakeLatLng | { lat: number; lng: number }) {
-        this.center = center instanceof FakeLatLng ? center : new FakeLatLng(center.lat, center.lng);
-      }
+      panTo(center: FakeLatLng | { lat: number; lng: number }) { this.center = center instanceof FakeLatLng ? center : new FakeLatLng(center.lat, center.lng); }
       setCenter(center: FakeLatLng | { lat: number; lng: number }) { this.panTo(center); }
       setHeading(heading: number) { this.heading = heading; }
       setMapTypeId() {}
@@ -259,27 +267,8 @@ async function installBrowserRuntime(context: BrowserContext, enableDrawing = tr
     }
     (window as unknown as Record<string, unknown>).google = {
       maps: {
-        ControlPosition: {
-          TOP_LEFT: 1,
-          TOP_CENTER: 2,
-          TOP_RIGHT: 3,
-          LEFT_TOP: 4,
-          RIGHT_TOP: 5,
-          LEFT_CENTER: 6,
-          RIGHT_CENTER: 7,
-          LEFT_BOTTOM: 8,
-          RIGHT_BOTTOM: 9,
-          BOTTOM_LEFT: 10,
-          BOTTOM_CENTER: 11,
-          BOTTOM_RIGHT: 12,
-        },
-        event: {
-          addListener: () => ({ remove: noop }),
-          addListenerOnce: () => ({ remove: noop }),
-          clearInstanceListeners: noop,
-          removeListener: noop,
-          trigger: noop,
-        },
+        ControlPosition: { TOP_LEFT: 1, TOP_CENTER: 2, TOP_RIGHT: 3, LEFT_TOP: 4, RIGHT_TOP: 5, LEFT_CENTER: 6, RIGHT_CENTER: 7, LEFT_BOTTOM: 8, RIGHT_BOTTOM: 9, BOTTOM_LEFT: 10, BOTTOM_CENTER: 11, BOTTOM_RIGHT: 12 },
+        event: { addListener: () => ({ remove: noop }), addListenerOnce: () => ({ remove: noop }), clearInstanceListeners: noop, removeListener: noop, trigger: noop },
         geometry: { spherical: { computeDistanceBetween: () => 200 } },
         LatLng: FakeLatLng,
         LatLngBounds: FakeLatLngBounds,
@@ -291,18 +280,18 @@ async function installBrowserRuntime(context: BrowserContext, enableDrawing = tr
         Point: FakePoint,
       },
     };
-  }, { enableDrawing });
+  }, enableDrawing);
 }
 
 async function openCalpinage(page: Page) {
   await page.goto(`/studies/${STUDY_ID}/versions/${STUDY_VERSION_ID}/calpinage`, { waitUntil: "domcontentloaded" });
-  await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 45000 });
-  await page.waitForSelector("#calpinage-canvas-el", { state: "visible", timeout: 45000 });
+  await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 45_000 });
+  await page.waitForSelector("#calpinage-canvas-el", { state: "visible", timeout: 45_000 });
   await page.waitForFunction(() => {
     const state = (window as unknown as { CALPINAGE_STATE?: { roof?: { image?: unknown } } }).CALPINAGE_STATE;
     const scale = (window as unknown as { CALPINAGE_VIEWPORT_SCALE?: number }).CALPINAGE_VIEWPORT_SCALE;
     return !!state?.roof?.image && Number.isFinite(scale) && scale! > 0;
-  }, { timeout: 45000 });
+  }, { timeout: 45_000 });
 }
 
 async function imageToClient(page: Page, point: { x: number; y: number }) {
@@ -318,120 +307,131 @@ async function imageToClient(page: Page, point: { x: number; y: number }) {
     const scale = w.CALPINAGE_VIEWPORT_SCALE ?? 1;
     const offset = w.CALPINAGE_VIEWPORT_OFFSET ?? { x: 0, y: 0 };
     const imgH = w.CALPINAGE_STATE?.roof?.image?.height ?? 0;
-    return {
-      x: rect.left + pt.x * scale + (offset.x ?? 0),
-      y: rect.top - (imgH - pt.y) * scale + (offset.y ?? 0),
-    };
+    return { x: rect.left + pt.x * scale + (offset.x ?? 0), y: rect.top - (imgH - pt.y) * scale + (offset.y ?? 0) };
   }, point);
 }
 
-async function clickImage(page: Page, point: { x: number; y: number }) {
+async function clickImage(page: Page, point: { x: number; y: number }, modifiers: ("Control" | "Shift")[] = []) {
   const client = await imageToClient(page, point);
   await page.mouse.move(client.x, client.y);
   await page.waitForTimeout(40);
+  for (const modifier of modifiers) await page.keyboard.down(modifier);
   await page.mouse.click(client.x, client.y);
-  await page.waitForTimeout(90);
+  for (const modifier of modifiers.slice().reverse()) await page.keyboard.up(modifier);
+  await page.waitForTimeout(100);
 }
 
 async function dragImage(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
   const a = await imageToClient(page, from);
-  await page.mouse.move(a.x, a.y);
-  await page.waitForTimeout(40);
-  await page.mouse.down();
   const b = await imageToClient(page, to);
+  await page.mouse.move(a.x, a.y);
+  await page.waitForTimeout(30);
+  await page.mouse.down();
   await page.mouse.move(b.x, b.y, { steps: 8 });
-  await page.waitForTimeout(40);
+  await page.waitForTimeout(60);
   await page.mouse.up();
-  await page.waitForTimeout(120);
-}
-
-async function openSmartRoofDraft(page: Page) {
-  await expect(page.locator("#calpinage-smart-roof-open")).toBeVisible({ timeout: 45000 });
-  await page.locator("#calpinage-smart-roof-open").click();
-  await expect(page.locator("#calpinage-smart-roof-session-bar")).toBeVisible({ timeout: 10000 });
-  await page.locator("#calpinage-smart-roof-tool-draw").click();
+  await page.waitForTimeout(150);
 }
 
 async function drawPolyline(page: Page, points: readonly { x: number; y: number }[], close = false) {
-  for (const point of points) {
-    await clickImage(page, point);
-  }
-  if (close && points.length > 0) {
-    await clickImage(page, points[0]!);
-  }
+  for (const point of points) await clickImage(page, point);
+  if (close && points.length > 0) await clickImage(page, points[0]!);
   await page.keyboard.press("Enter");
-}
-
-async function setFlatHeight(page: Page, value: string) {
-  await page.locator("#calpinage-smart-roof-flat-height").fill(value);
-  await page.locator("#calpinage-smart-roof-set-flat").click();
   await page.waitForTimeout(150);
 }
 
-async function setSelectedHeight(page: Page, value: string) {
-  const input = page.locator("#calpinage-smart-roof-height");
-  await input.fill(value);
-  await expect(input).toHaveValue(value);
-  await page.locator("#calpinage-smart-roof-set-height").click();
-  await page.waitForTimeout(150);
-}
-
-async function smartState(page: Page) {
-  return page.evaluate(() => (window as unknown as { __calpinageSmartRoofDrawing?: { getState: () => unknown } }).__calpinageSmartRoofDrawing?.getState());
-}
-
-async function activeSnapshot(page: Page) {
-  return page.evaluate(() => JSON.stringify((window as unknown as { CALPINAGE_STATE?: unknown }).CALPINAGE_STATE));
-}
-
-async function expectSmartRoofEssentialActionsVisible(page: Page) {
+async function expectToolbarControlsInsideViewport(page: Page) {
   const selectors = [
-    "#calpinage-smart-roof-tool-draw",
-    "#calpinage-smart-roof-tool-select",
-    "#calpinage-smart-roof-new-volume",
-    "#calpinage-smart-roof-height",
-    "#calpinage-smart-roof-set-height",
-    "#calpinage-smart-roof-flat-height",
-    "#calpinage-smart-roof-set-flat",
-    "#calpinage-smart-roof-apply",
-    "#calpinage-smart-roof-close",
+    "#calpinage-tool-select",
+    "#calpinage-tool-dessin-toiture",
+    "#calpinage-btn-height-edit",
+    "#calpinage-tool-obstacle",
+    "#calpinage-tool-shadow-volume",
+    "#calpinage-tool-roof-extension",
+    "#calpinage-tool-undo",
+    "#calpinage-tool-redo",
+    ".calpinage-btn-delete",
   ];
   const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
   for (const selector of selectors) {
-    const locator = page.locator(selector);
+    const locator = page.locator(selector).first();
     await expect(locator, selector).toBeVisible();
     const box = await locator.boundingBox();
     expect(box, `${selector} bounding box`).not.toBeNull();
-    expect(box!.x, `${selector} left`).toBeGreaterThanOrEqual(0);
-    expect(box!.y, `${selector} top`).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width, `${selector} right`).toBeLessThanOrEqual(viewport.width + 1);
     expect(box!.y + box!.height, `${selector} bottom`).toBeLessThanOrEqual(viewport.height + 1);
-    if (selector !== "#calpinage-smart-roof-height" && selector !== "#calpinage-smart-roof-flat-height") {
-      await locator.click({ trial: true });
-    }
+    const isDisabled = await locator.evaluate((el) => (el as HTMLButtonElement).disabled === true);
+    if (!isDisabled) await locator.click({ trial: true });
   }
+  const visibleValidate = page.getByRole("button", { name: "Valider le relevé toiture" });
+  await expect(visibleValidate).toBeVisible();
+  const validateBox = await visibleValidate.boundingBox();
+  expect(validateBox, "visible roof validation bounding box").not.toBeNull();
+  expect(validateBox!.x + validateBox!.width, "visible roof validation right").toBeLessThanOrEqual(viewport.width + 1);
+  expect(validateBox!.y + validateBox!.height, "visible roof validation bottom").toBeLessThanOrEqual(viewport.height + 1);
+}
+
+async function expectNormalOptionMenusPreserved(page: Page) {
+  await page.locator("#calpinage-tool-obstacle").click();
+  await expect(page.locator("#calpinage-obstacle-dropdown")).toBeVisible();
+  await expect(page.locator("#calpinage-obstacle-dropdown [data-obstacle-business-id]")).toHaveCount(4);
+  await expect.poll(async () =>
+    page.locator("#calpinage-obstacle-dropdown [data-obstacle-business-id]").evaluateAll((items) =>
+      items.map((item) => item.getAttribute("data-obstacle-business-id")),
+    ),
+  ).toEqual(["roof_window", "dormer_keepout", "keepout_zone", "generic_polygon_keepout"]);
+
+  await page.locator("#calpinage-tool-shadow-volume").click();
+  await expect(page.locator("#calpinage-shadow-volume-dropdown")).toBeVisible();
+  await expect(page.locator("#calpinage-shadow-volume-dropdown [data-shadow-business-id]")).toHaveCount(4);
+  await expect.poll(async () =>
+    page.locator("#calpinage-shadow-volume-dropdown [data-shadow-business-id]").evaluateAll((items) =>
+      items.map((item) => item.getAttribute("data-shadow-business-id")),
+    ),
+  ).toEqual(["chimney_square", "chimney_round", "vmc_round", "antenna"]);
+
+  await page.locator("#calpinage-tool-roof-extension").click();
+  await expect(page.locator("#calpinage-roof-extension-dropdown")).toBeVisible();
+  await expect(page.locator("#calpinage-roof-extension-dropdown [data-dormer-tool]")).toHaveCount(3);
+  await expect.poll(async () =>
+    page.locator("#calpinage-roof-extension-dropdown [data-dormer-tool]").evaluateAll((items) =>
+      items.map((item) => item.getAttribute("data-dormer-tool")),
+    ),
+  ).toEqual(["contour", "hips", "ridge"]);
+}
+
+async function chooseRoofObstacle(page: Page) {
+  await page.locator("#calpinage-tool-obstacle").click();
+  await expect(page.locator("#calpinage-obstacle-dropdown")).toBeVisible();
+  await page.locator('[data-obstacle-business-id="roof_window"]').click();
+}
+
+async function chooseShadowObstacle(page: Page) {
+  await page.locator("#calpinage-tool-shadow-volume").click();
+  await expect(page.locator("#calpinage-shadow-volume-dropdown")).toBeVisible();
+  await page.locator('[data-shadow-business-id="chimney_square"]').click();
+}
+
+async function saveScreenshot(page: Page, name: string) {
+  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+  await page.screenshot({ path: path.join(ARTIFACT_DIR, name), fullPage: true });
 }
 
 async function validateRoofAndEnterPhase3(page: Page) {
   const validateButton = page.getByRole("button", { name: "Valider le relevé toiture" });
-  await expect(validateButton).toBeEnabled({ timeout: 10000 });
+  await expect(validateButton).toBeEnabled({ timeout: 10_000 });
   await validateButton.click();
-  await expect.poll(async () => {
-    return page.evaluate(() => {
-      const state = (window as unknown as { CALPINAGE_STATE?: { currentPhase?: string; roofSurveyLocked?: boolean } }).CALPINAGE_STATE;
-      return {
-        currentPhase: state?.currentPhase ?? null,
-        roofSurveyLocked: state?.roofSurveyLocked ?? null,
-      };
-    });
-  }, { timeout: 15000 }).toEqual({ currentPhase: "PV_LAYOUT", roofSurveyLocked: true });
-  await expect(page.locator("#p3-topbar")).toBeVisible({ timeout: 10000 });
+  await expect.poll(async () => page.evaluate(() => {
+    const state = (window as unknown as { CALPINAGE_STATE?: { currentPhase?: string; roofSurveyLocked?: boolean } }).CALPINAGE_STATE;
+    return { currentPhase: state?.currentPhase ?? null, roofSurveyLocked: state?.roofSurveyLocked ?? null };
+  }), { timeout: 15_000 }).toEqual({ currentPhase: "PV_LAYOUT", roofSurveyLocked: true });
+  await expect(page.locator("#p3-topbar")).toBeVisible({ timeout: 10_000 });
 }
 
 async function chooseRecipePanel(page: Page) {
-  await expect.poll(async () => {
-    return page.evaluate(() => (window as unknown as { SOLARNEXT_PANELS?: unknown[] }).SOLARNEXT_PANELS?.length ?? 0);
-  }, { timeout: 15000 }).toBeGreaterThan(0);
+  await expect.poll(async () => page.evaluate(() =>
+    (window as unknown as { SOLARNEXT_PANELS?: unknown[] }).SOLARNEXT_PANELS?.length ?? 0,
+  ), { timeout: 15_000 }).toBeGreaterThan(0);
   await page.evaluate(() => {
     const w = window as unknown as {
       SOLARNEXT_PANELS?: Array<Record<string, unknown>>;
@@ -440,9 +440,9 @@ async function chooseRecipePanel(page: Page) {
     };
     const panel = w.SOLARNEXT_PANELS?.find((item) => item.id === "smart-roof-test-panel") ?? w.SOLARNEXT_PANELS?.[0];
     if (!panel) throw new Error("Recipe PV panel missing");
-    w.CALPINAGE_SELECTED_PANEL_ID = String(panel.id);
     const widthMm = Number(panel.width_mm ?? panel.widthMm);
     const heightMm = Number(panel.height_mm ?? panel.heightMm);
+    w.CALPINAGE_SELECTED_PANEL_ID = String(panel.id);
     w.PV_SELECTED_PANEL = {
       id: panel.id,
       brand: panel.brand,
@@ -460,33 +460,6 @@ async function chooseRecipePanel(page: Page) {
       select.dispatchEvent(new Event("change", { bubbles: true }));
     }
   });
-}
-
-async function placePanelWithProductTool(page: Page, point: { x: number; y: number }) {
-  await chooseRecipePanel(page);
-  const poseButton = page.getByRole("button", { name: "Poser" });
-  await expect(poseButton).toBeVisible({ timeout: 10000 });
-  await poseButton.click();
-  await expect.poll(async () => {
-    return page.evaluate(() => (window as unknown as { getPhase3ActiveTool?: () => string }).getPhase3ActiveTool?.() ?? null);
-  }).toBe("panels");
-  await clickImage(page, point);
-  await expect.poll(async () => {
-    return page.evaluate(() => {
-      const w = window as unknown as {
-        CALPINAGE_STATE?: { placedPanels?: unknown[]; frozenBlocks?: unknown[]; activeManipulationBlockId?: string | null };
-        pvPlacementEngine?: { getAllPanels?: () => unknown[]; getFrozenBlocks?: () => unknown[]; getFocusBlock?: () => unknown };
-      };
-      const enginePanels = w.pvPlacementEngine?.getAllPanels?.() ?? [];
-      const focusBlock = w.pvPlacementEngine?.getFocusBlock?.();
-      return {
-        enginePanels: enginePanels.length,
-        placedPanels: w.CALPINAGE_STATE?.placedPanels?.length ?? 0,
-        frozenBlocks: w.CALPINAGE_STATE?.frozenBlocks?.length ?? w.pvPlacementEngine?.getFrozenBlocks?.()?.length ?? 0,
-        hasFocusBlock: !!focusBlock,
-      };
-    });
-  }, { timeout: 15000 }).toMatchObject({ hasFocusBlock: true });
 }
 
 async function phase3PlacementSummary(page: Page) {
@@ -525,17 +498,19 @@ async function phase3PlacementSummary(page: Page) {
   });
 }
 
-function panHeightPairs(pans: unknown): number[][] {
-  if (!Array.isArray(pans)) return [];
-  return pans.map((pan) => {
-    const record = pan as Record<string, unknown>;
-    const points = (record.points ?? record.polygon ?? record.polygonPx ?? []) as Array<{ h?: unknown }>;
-    const values = points
-      .map((point) => Number(point.h))
-      .filter(Number.isFinite)
-      .sort((a, b) => a - b);
-    return [values[0] ?? null, values[values.length - 1] ?? null] as number[];
-  }).sort((a, b) => Number(a[0] ?? 0) - Number(b[0] ?? 0) || Number(a[1] ?? 0) - Number(b[1] ?? 0));
+async function placePanelWithProductTool(page: Page, point: { x: number; y: number }) {
+  await chooseRecipePanel(page);
+  const poseButton = page.getByRole("button", { name: "Poser" });
+  await expect(poseButton).toBeVisible({ timeout: 10_000 });
+  await poseButton.click();
+  await expect.poll(async () =>
+    page.evaluate(() => (window as unknown as { getPhase3ActiveTool?: () => string }).getPhase3ActiveTool?.() ?? null),
+  ).toBe("panels");
+  await clickImage(page, point);
+  await expect.poll(async () => {
+    const summary = await phase3PlacementSummary(page);
+    return { enginePanels: summary.enginePanels, hasFocusBlock: !!summary.focusBlock };
+  }, { timeout: 15_000 }).toMatchObject({ hasFocusBlock: true });
 }
 
 async function activeRoofSummary(page: Page) {
@@ -545,10 +520,7 @@ async function activeRoofSummary(page: Page) {
     const smart = state.smartRoofDrawing as { graph?: { groups?: unknown[]; nodes?: unknown[]; segments?: unknown[] } } | undefined;
     const heightPairs = pans.map((pan) => {
       const points = (pan.points ?? pan.polygon ?? pan.polygonPx ?? []) as Array<{ h?: unknown }>;
-      const values = points
-        .map((point) => Number(point.h))
-        .filter(Number.isFinite)
-        .sort((a, b) => a - b);
+      const values = points.map((point) => Number(point.h)).filter(Number.isFinite).sort((a, b) => a - b);
       return [values[0] ?? null, values[values.length - 1] ?? null];
     }).sort((a, b) => Number(a[0] ?? 0) - Number(b[0] ?? 0) || Number(a[1] ?? 0) - Number(b[1] ?? 0));
     return {
@@ -562,372 +534,214 @@ async function activeRoofSummary(page: Page) {
       smartGroups: smart?.graph?.groups?.length ?? 0,
       smartNodes: smart?.graph?.nodes?.length ?? 0,
       smartSegments: smart?.graph?.segments?.length ?? 0,
+      obstacles: Array.isArray(state.obstacles) ? state.obstacles.length : 0,
+      shadowVolumes: Array.isArray(state.shadowVolumes) ? state.shadowVolumes.length : 0,
+      roofExtensions: Array.isArray(state.roofExtensions) ? state.roofExtensions.length : 0,
       placedPanels: Array.isArray(state.placedPanels) ? state.placedPanels.length : 0,
       frozenBlocks: Array.isArray(state.frozenBlocks) ? state.frozenBlocks.length : 0,
+      smartPersisted: !!state.smartRoofDrawing,
     };
   });
 }
 
-async function applyCurrentSmartDraft(page: Page) {
-  await page.locator("#calpinage-smart-roof-apply").click();
-  await expect.poll(async () => {
-    return page.evaluate(() => (window as unknown as { __calpinageSmartRoofDrawingLastApply?: { ok?: boolean } }).__calpinageSmartRoofDrawingLastApply?.ok ?? false);
-  }, { timeout: 10000 }).toBe(true);
+async function expectSmartPansInSidebar(page: Page, count: number) {
+  for (let i = 1; i <= count; i += 1) {
+    await expect(page.locator("#zone-a-phase2").getByText(`Pan ${i}`, { exact: true })).toBeVisible({ timeout: 10_000 });
+  }
 }
 
-async function enterPhase3AndPlacePanel(
-  page: Page,
-  expectedPanCount: number,
-  point: { x: number; y: number },
-  screenshotName: string,
-) {
-  const applied = await activeRoofSummary(page);
-  expect(applied.panCount).toBe(expectedPanCount);
-  await validateRoofAndEnterPhase3(page);
+async function expectPhase3ReadyForPanels(page: Page, expectedPanCount: number) {
   await page.evaluate(() => {
     const w = window as unknown as { CALPINAGE_RENDER?: () => void };
-    if (w.CALPINAGE_RENDER) w.CALPINAGE_RENDER();
+    if (typeof w.CALPINAGE_RENDER === "function") w.CALPINAGE_RENDER();
   });
   await expect.poll(async () => {
     const summary = await phase3PlacementSummary(page);
-    return {
-      phase: summary.currentPhase,
-      safeZones: summary.safeZonePanIds.length,
-    };
-  }, { timeout: 15000 }).toEqual({ phase: "PV_LAYOUT", safeZones: expectedPanCount });
-  await placePanelWithProductTool(page, point);
-  const placement = await phase3PlacementSummary(page);
-  expect(placement.currentPhase).toBe("PV_LAYOUT");
-  expect(placement.safeZonePanIds).toEqual(expect.arrayContaining(applied.panIds));
-  expect(placement.enginePanels).toBeGreaterThan(0);
-  expect(placement.panelRefs.some((panel) => applied.panIds.includes(String(panel.panId)))).toBe(true);
-  await page.screenshot({ path: path.join(ARTIFACT_DIR, screenshotName), fullPage: true });
-  return { applied, placement };
+    return { phase: summary.currentPhase, safeZones: summary.safeZonePanIds.length };
+  }, { timeout: 15_000 }).toEqual({ phase: "PV_LAYOUT", safeZones: expectedPanCount });
 }
 
-test.describe("Smart roof drawing integrated recipe", () => {
-  test.beforeEach(async () => {
-    fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+test.describe("Smart roof drawing uses the normal Phase 2 interface", () => {
+  test("keeps the legacy toolbar untouched when the flag is off", async ({ page, context }) => {
+    await installBrowserRuntime(context, false);
+    await installRecipeMocks(context, { geometry: emptyGeometryFixture(), saves: [] });
+    await openCalpinage(page);
+
+    const drawingButton = page.locator("#calpinage-tool-dessin-toiture");
+    await expect(drawingButton).toContainText("Dessin toiture");
+    await drawingButton.click();
+    await expect(page.locator("#calpinage-dessin-toiture-dropdown")).toBeVisible();
+    await expect(page.locator('[data-tool="contour"]')).toBeVisible();
+    await expect(page.locator('[data-tool="trait"]')).toBeVisible();
+    await expect(page.locator('[data-tool="ridge"]')).toBeVisible();
+    await expect(page.locator("#calpinage-smart-roof-open")).toHaveCount(0);
+    await expect(page.locator("#calpinage-smart-roof-session-bar")).toHaveCount(0);
+    await saveScreenshot(page, "toolbar-flag-off.png");
   });
 
-  test("draws a measured two-slope roof with mouse, applies it, reopens it, and keeps the flag off path readable", async ({ page, context }) => {
-    const server = { geometry: emptyGeometryFixture(), saves: [] as unknown[] };
-    const consoleIssues: string[] = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") consoleIssues.push(msg.text());
-    });
-    page.on("pageerror", (err) => consoleIssues.push(err.message));
-    await installRecipeMocks(context, server);
+  test("draws, edits heights, keeps obstacle menus, validates normally and reaches Phase 3", async ({ page, context }) => {
+    const server = { geometry: emptyGeometryFixture(), saves: [] };
     await installBrowserRuntime(context, true);
-
+    await installRecipeMocks(context, server);
     await openCalpinage(page);
-    await openSmartRoofDraft(page);
-    const protectedBefore = await activeSnapshot(page);
 
-    await drawPolyline(page, [
-      { x: 200, y: 220 },
-      { x: 300, y: 220 },
-      { x: 300, y: 300 },
-      { x: 200, y: 300 },
-    ], true);
-    await expect.poll(async () => {
-      const state = await smartState(page) as { compile?: { status?: string; message?: string; result?: { legacyState?: { pans?: unknown[] } } } } | undefined;
-      return {
-        status: state?.compile?.status ?? null,
-        panCount: state?.compile?.result?.legacyState?.pans?.length ?? 0,
-        estimated: /relief estime/i.test(state?.compile?.message ?? ""),
-      };
-    }).toEqual({ status: "computed", panCount: 1, estimated: true });
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, "01-gable-rectangle.png"), fullPage: true });
-
-    const canvasCenter = await imageToClient(page, { x: 250, y: 260 });
-    await page.mouse.move(canvasCenter.x, canvasCenter.y);
-    await page.mouse.wheel(0, -420);
-    await page.waitForTimeout(250);
-
-    await drawPolyline(page, [{ x: 200, y: 260 }, { x: 300, y: 260 }]);
-    await expect.poll(async () => {
-      const state = await smartState(page) as { graph?: { segments?: unknown[] } } | undefined;
-      return state?.graph?.segments?.length ?? 0;
-    }).toBe(7);
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, "02-gable-inner-line-after-zoom.png"), fullPage: true });
-
-    await page.locator("#calpinage-smart-roof-tool-select").click();
-    const idsBeforeDrag = await page.evaluate(() => {
-      const state = (window as unknown as { __calpinageSmartRoofDrawing?: { getState: () => { graph: { segments: { id: string }[] } } } }).__calpinageSmartRoofDrawing?.getState();
-      return state?.graph.segments.map((s) => s.id).sort() ?? [];
-    });
-    await dragImage(page, { x: 200, y: 260 }, { x: 200, y: 240 });
-    const idsAfterDrag = await page.evaluate(() => {
-      const state = (window as unknown as { __calpinageSmartRoofDrawing?: { getState: () => { graph: { segments: { id: string }[] } } } }).__calpinageSmartRoofDrawing?.getState();
-      return state?.graph.segments.map((s) => s.id).sort() ?? [];
-    });
-    expect(idsAfterDrag).toEqual(idsBeforeDrag);
-    await expect.poll(async () => {
-      return page.evaluate(() => {
-        const state = (window as unknown as { __calpinageSmartRoofDrawing?: { getState: () => { graph: { nodes: { x: number; y: number }[] } } } }).__calpinageSmartRoofDrawing?.getState();
-        return state?.graph.nodes.some((n) => Math.abs(n.x - 200) <= 0.1 && Math.abs(n.y - 240) <= 0.1) ?? false;
-      });
-    }).toBe(true);
-    await page.locator("#calpinage-smart-roof-undo").click();
-    await expect.poll(async () => {
-      return page.evaluate(() => {
-        const state = (window as unknown as { __calpinageSmartRoofDrawing?: { getState: () => { graph: { nodes: { x: number; y: number }[]; segments: unknown[] } } } }).__calpinageSmartRoofDrawing?.getState();
-        return {
-          hasOriginalJunction: state?.graph.nodes.some((n) => Math.abs(n.x - 200) <= 0.1 && Math.abs(n.y - 260) <= 0.1) ?? false,
-          segments: state?.graph.segments.length ?? 0,
-        };
-      });
-    }).toEqual({ hasOriginalJunction: true, segments: 7 });
-
-    await clickImage(page, { x: 250, y: 260 });
-    await page.keyboard.press("Delete");
-    await expect.poll(async () => {
-      const state = await smartState(page) as { graph?: { segments?: unknown[] } } | undefined;
-      return state?.graph?.segments?.length ?? 0;
-    }).toBeLessThan(7);
-    await page.locator("#calpinage-smart-roof-undo").click();
-    await expect.poll(async () => {
-      const state = await smartState(page) as { graph?: { segments?: unknown[] } } | undefined;
-      return state?.graph?.segments?.length ?? 0;
-    }).toBe(7);
-
-    expect(await activeSnapshot(page)).toBe(protectedBefore);
-    await setFlatHeight(page, "3");
-    await clickImage(page, { x: 250, y: 260 });
-    await expect.poll(async () => {
-      const state = await smartState(page) as { selected?: { type?: string; segmentId?: string }; graph?: { segments?: Array<{ id: string }> } } | undefined;
-      return {
-        type: state?.selected?.type ?? null,
-        selectedExists: !!state?.graph?.segments?.some((s) => s.id === state?.selected?.segmentId),
-      };
-    }).toEqual({ type: "segment", selectedExists: true });
-    await setSelectedHeight(page, "5");
-    await expect.poll(async () => {
-      return page.evaluate(() => {
-        const state = (window as unknown as {
-          __calpinageSmartRoofDrawing?: {
-            getState: () => {
-              selected?: { type?: string; segmentId?: string };
-              graph: {
-                nodes: Array<{ id: string; height?: { valueM?: number } }>;
-                segments: Array<{ id: string; startNodeId: string; endNodeId: string; height?: { valueM?: number } }>;
-              };
-              diagnostics?: Array<{ code?: string; message?: string }>;
-            };
-          };
-        }).__calpinageSmartRoofDrawing?.getState();
-        if (!state?.selected || state.selected.type !== "segment") return null;
-        const segment = state.graph.segments.find((s) => s.id === state.selected?.segmentId);
-        if (!segment) return null;
-        const heights = [segment.startNodeId, segment.endNodeId]
-          .map((id) => state.graph.nodes.find((n) => n.id === id)?.height?.valueM ?? null)
-          .sort((a, b) => Number(a ?? 0) - Number(b ?? 0));
-        return {
-          selectedSegmentId: segment.id,
-          segmentHeight: segment.height?.valueM ?? null,
-          endpointHeights: heights,
-          diagnosticCodes: state.diagnostics?.map((item) => item.code).filter(Boolean) ?? [],
-        };
-      });
-    }).toMatchObject({ segmentHeight: 5, endpointHeights: [5, 5] });
-
-    const candidate = await page.evaluate(() => {
-      const api = (window as unknown as { __calpinageSmartRoofDrawing?: { prepareApplication: () => unknown } }).__calpinageSmartRoofDrawing;
-      return api?.prepareApplication();
-    }) as { status?: string; legacyState?: { pans?: Array<Record<string, unknown>> } };
-    expect(candidate.status).toBe("ready");
-    expect(candidate.legacyState?.pans?.length).toBe(2);
-    for (const pan of candidate.legacyState?.pans ?? []) {
-      expect(Number(pan.projectedSurfaceM2 ?? pan.surfaceM2)).toBeCloseTo(40, 2);
-      expect(Number(pan.inclinedSurfaceM2)).toBeCloseTo(44.72135955, 2);
-      expect(Number(pan.tiltDeg ?? pan.slopeDeg)).toBeCloseTo(26.56505118, 2);
+    for (const viewport of [{ width: 1366, height: 768 }, { width: 1536, height: 864 }, { width: 1920, height: 1080 }]) {
+      await page.setViewportSize(viewport);
+      await expectToolbarControlsInsideViewport(page);
+      await saveScreenshot(page, `toolbar-flag-on-${viewport.width}x${viewport.height}.png`);
     }
 
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, "03-gable-relief-ready.png"), fullPage: true });
-    await page.locator("#calpinage-smart-roof-apply").click();
-    await expect.poll(async () => {
-      return page.evaluate(() => {
-        const last = (window as unknown as { __calpinageSmartRoofDrawingLastApply?: { ok?: boolean } }).__calpinageSmartRoofDrawingLastApply;
-        return last?.ok === true;
-      });
-    }).toBe(true);
-    await expect.poll(() => {
-      const last = server.saves.at(-1) as { smartRoofDrawing?: { kind?: string } } | undefined;
-      return last?.smartRoofDrawing?.kind ?? null;
-    }, { timeout: 8000 }).toBe("smartRoofDrawing");
+    const drawingButton = page.locator("#calpinage-tool-dessin-toiture");
+    await expect(drawingButton).toContainText("Dessiner");
+    await expect(page.locator("#calpinage-smart-roof-open")).toHaveCount(0);
+    await expect(page.locator("#calpinage-smart-roof-session-bar")).toHaveCount(0);
+    await expect(page.locator("#calpinage-smart-roof-apply")).toHaveCount(0);
+    await expect(page.locator("#calpinage-smart-roof-new-volume")).toHaveCount(0);
+    await expectNormalOptionMenusPreserved(page);
 
-    const applied = await page.evaluate(() => {
-      const state = (window as unknown as { CALPINAGE_STATE?: Record<string, unknown>; __CALPINAGE_VIEW_MODE__?: string }).CALPINAGE_STATE!;
-      const last = (window as unknown as { __calpinageSmartRoofDrawingLastApply?: { candidate?: { legacyState?: { pans?: Array<Record<string, unknown>> } } } }).__calpinageSmartRoofDrawingLastApply;
-      const restoreDebug = (window as unknown as { __calpinageSmartRoofDrawingLastMetricRestore?: unknown }).__calpinageSmartRoofDrawingLastMetricRestore;
-      const pans = state.pans as Array<Record<string, unknown>>;
-      return {
-        smartKind: (state.smartRoofDrawing as { kind?: string } | undefined)?.kind,
-        panCount: pans.length,
-        restoreDebug,
-        candidatePanDebug: (last?.candidate?.legacyState?.pans ?? []).map((p) => ({
-          id: p.id,
-          keys: Object.keys(p).sort(),
-          surfaceM2: p.surfaceM2,
-          projectedSurfaceM2: p.projectedSurfaceM2,
-          inclinedSurfaceM2: p.inclinedSurfaceM2,
-          tiltDeg: p.tiltDeg,
-          smartSourceSegmentIds: p.smartSourceSegmentIds,
-        })),
-        panDebug: pans.map((p) => ({
-          id: p.id,
-          keys: Object.keys(p).sort(),
-          surfaceM2: p.surfaceM2,
-          projectedSurfaceM2: p.projectedSurfaceM2,
-          inclinedSurfaceM2: p.inclinedSurfaceM2,
-          tiltDeg: p.tiltDeg,
-          slopeDeg: p.slopeDeg,
-          physical: p.physical,
-        })),
-        projected: pans.map((p) => Number(p.projectedSurfaceM2 ?? p.surfaceM2)),
-        inclined: pans.map((p) => Number(p.inclinedSurfaceM2)),
-        slopes: pans.map((p) => Number(p.tiltDeg ?? p.slopeDeg)),
-        graphNodes: (state.smartRoofDrawing as { graph?: { nodes?: unknown[] } } | undefined)?.graph?.nodes?.length ?? 0,
-        graphSegments: (state.smartRoofDrawing as { graph?: { segments?: unknown[] } } | undefined)?.graph?.segments?.length ?? 0,
-        viewMode: (window as unknown as { __CALPINAGE_VIEW_MODE__?: string }).__CALPINAGE_VIEW_MODE__,
-      };
-    });
-    expect(applied.smartKind).toBe("smartRoofDrawing");
-    expect(applied.panCount).toBe(2);
-    expect(applied.graphNodes).toBe(6);
-    expect(applied.graphSegments).toBe(7);
-    expect(applied.projected, JSON.stringify({ active: applied.panDebug, candidate: applied.candidatePanDebug, restoreDebug: applied.restoreDebug }, null, 2)).toEqual(expect.arrayContaining([expect.closeTo(40, 2), expect.closeTo(40, 2)]));
-    expect(applied.inclined, JSON.stringify(applied.panDebug, null, 2)).toEqual(expect.arrayContaining([expect.closeTo(44.72135955, 2), expect.closeTo(44.72135955, 2)]));
-    expect(applied.slopes, JSON.stringify(applied.panDebug, null, 2)).toEqual(expect.arrayContaining([expect.closeTo(26.56505118, 2), expect.closeTo(26.56505118, 2)]));
-
-    const switchedTo3D = await page.evaluate(() => {
-      const w = window as unknown as { __calpinageSwitchTo3D?: () => void };
-      if (typeof w.__calpinageSwitchTo3D !== "function") return false;
-      w.__calpinageSwitchTo3D();
-      return true;
-    });
-    if (switchedTo3D) {
-      await page.waitForFunction(() => (window as unknown as { __CALPINAGE_VIEW_MODE__?: string }).__CALPINAGE_VIEW_MODE__ === "3D", { timeout: 15000 });
-      await expect(page.locator("#zone-c-3d.visible")).toBeVisible({ timeout: 45000 });
-      await page.screenshot({ path: path.join(ARTIFACT_DIR, "04-gable-3d.png"), fullPage: true });
-      await page.evaluate(() => {
-        (window as unknown as { __calpinageSwitchTo2D?: () => void }).__calpinageSwitchTo2D?.();
-      });
-      await page.waitForFunction(() => (window as unknown as { __CALPINAGE_VIEW_MODE__?: string }).__CALPINAGE_VIEW_MODE__ === "2D", { timeout: 15000 });
-    }
-
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await openCalpinage(page);
-    const reopenDebug = await page.evaluate((ids) => {
-      const state = (window as unknown as { CALPINAGE_STATE?: Record<string, unknown> }).CALPINAGE_STATE ?? {};
-      const keys = Object.keys(localStorage).filter((key) => key.includes(ids.studyId) || key.includes(ids.versionNumber) || key.includes(ids.versionId)).sort();
-      return {
-        stateSmartKind: (state.smartRoofDrawing as { kind?: string } | undefined)?.kind ?? null,
-        invalidSmartKind: (state.smartRoofDrawingInvalid as { kind?: string } | undefined)?.kind ?? null,
-        diagnostics: state.smartRoofDrawingLoadDiagnostics ?? null,
-        openButtons: Array.from(document.querySelectorAll<HTMLButtonElement>("#calpinage-smart-roof-open")).map((button) => {
-          const rect = button.getBoundingClientRect();
-          return {
-            text: button.textContent?.trim() ?? "",
-            hidden: button.hidden,
-            display: getComputedStyle(button).display,
-            visibleBox: rect.width > 0 && rect.height > 0,
-          };
-        }),
-        localStorageKeys: keys,
-        localStorageSmartKinds: keys.map((key) => {
-          const raw = localStorage.getItem(key);
-          try {
-            const parsed = raw ? JSON.parse(raw) : null;
-            return { key, kind: parsed?.smartRoofDrawing?.kind ?? null, hasPans: Array.isArray(parsed?.pans) ? parsed.pans.length : null };
-          } catch {
-            return { key, kind: null, hasPans: null };
-          }
-        }),
-      };
-    }, { studyId: STUDY_ID, versionId: STUDY_VERSION_ID, versionNumber: String(VERSION_NUMBER) });
-    expect(await page.locator("#calpinage-smart-roof-open").textContent(), JSON.stringify({ reopenDebug, serverGeometrySmartKind: (server.geometry.smartRoofDrawing as { kind?: string } | undefined)?.kind }, null, 2)).toContain("Reprendre le dessin unique");
-    await page.locator("#calpinage-smart-roof-open").click();
-    await expect.poll(async () => {
-      const state = await smartState(page) as { sourceImportCount?: number; graph?: { nodes?: unknown[]; segments?: unknown[] } } | undefined;
-      return {
-        sourceImportCount: state?.sourceImportCount,
-        nodes: state?.graph?.nodes?.length,
-        segments: state?.graph?.segments?.length,
-      };
-    }).toEqual({ sourceImportCount: 0, nodes: 6, segments: 7 });
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, "05-gable-reopened-draft.png"), fullPage: true });
-    await page.locator("#calpinage-smart-roof-close").click();
-
-    await page.evaluate(() => {
-      localStorage.setItem("__smart_roof_recipe_force_drawing", "false");
-      localStorage.setItem("calpinage_smart_roof_drawing", "false");
-    });
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await openCalpinage(page);
-    const flagOff = await page.evaluate(() => ({
-      hasApi: typeof (window as unknown as { __calpinageSmartRoofDrawing?: unknown }).__calpinageSmartRoofDrawing !== "undefined",
-      smartKind: ((window as unknown as { CALPINAGE_STATE?: { smartRoofDrawing?: { kind?: string } } }).CALPINAGE_STATE?.smartRoofDrawing)?.kind,
-      openHidden: (document.querySelector<HTMLButtonElement>("#calpinage-smart-roof-open")?.hidden ?? null),
-      legacyDrawDisabled: document.querySelector<HTMLButtonElement>("#calpinage-tool-dessin-toiture")?.disabled ?? false,
-    }));
-    expect(flagOff).toMatchObject({
-      hasApi: false,
-      smartKind: "smartRoofDrawing",
-      openHidden: true,
-      legacyDrawDisabled: true,
-    });
-
-    expect(consoleIssues.filter((text) => !/Dimensions image/i.test(text))).toEqual([]);
-  });
-
-  test("draws and applies a flat L without filling the concavity", async ({ page, context }) => {
-    const server = { geometry: emptyGeometryFixture(), saves: [] as unknown[] };
-    await installRecipeMocks(context, server);
-    await installBrowserRuntime(context, true);
-
-    await openCalpinage(page);
-    await openSmartRoofDraft(page);
+    await drawingButton.click();
     await drawPolyline(page, [
-      { x: 200, y: 200 },
-      { x: 320, y: 200 },
-      { x: 320, y: 240 },
-      { x: 240, y: 240 },
-      { x: 240, y: 320 },
-      { x: 200, y: 320 },
+      { x: 180, y: 150 },
+      { x: 620, y: 150 },
+      { x: 620, y: 330 },
+      { x: 620, y: 500 },
+      { x: 180, y: 500 },
+      { x: 180, y: 330 },
     ], true);
-    await setFlatHeight(page, "3");
+    await drawPolyline(page, [{ x: 180, y: 330 }, { x: 620, y: 330 }]);
+    await drawPolyline(page, [
+      { x: 365, y: 385 },
+      { x: 435, y: 385 },
+      { x: 435, y: 455 },
+      { x: 365, y: 455 },
+    ], true);
+    await drawPolyline(page, [{ x: 400, y: 385 }, { x: 400, y: 455 }]);
+    await clickImage(page, { x: 120, y: 260 });
+    await page.keyboard.press("Enter");
 
-    const candidate = await page.evaluate(() => {
-      const api = (window as unknown as { __calpinageSmartRoofDrawing?: { prepareApplication: () => unknown } }).__calpinageSmartRoofDrawing;
-      return api?.prepareApplication();
-    }) as { status?: string; legacyState?: { pans?: Array<Record<string, unknown>> } };
-    expect(candidate.status).toBe("ready");
-    expect(candidate.legacyState?.pans?.length).toBe(1);
-    const pan = candidate.legacyState?.pans?.[0] ?? {};
-    expect(Number(pan.projectedSurfaceM2 ?? pan.surfaceM2)).toBeCloseTo(80, 2);
-    expect(Number(pan.inclinedSurfaceM2)).toBeCloseTo(80, 2);
-    expect(((pan.polygon ?? pan.polygonPx ?? pan.points) as unknown[])?.length).toBe(6);
+    await expect.poll(async () => page.evaluate(() => {
+      const w = window as unknown as {
+        __calpinageSmartRoofDrawing?: { getState: () => { compile?: { result?: { legacyState?: { pans?: unknown[]; roofExtensions?: unknown[] } } } } };
+        getPhase2Data?: () => { canValidate?: boolean };
+        CALPINAGE_STATE?: { pans?: unknown[]; roofExtensions?: unknown[] };
+      };
+      const smart = w.__calpinageSmartRoofDrawing?.getState();
+      return {
+        smartPans: smart?.compile?.result?.legacyState?.pans?.length ?? 0,
+        smartExtensions: smart?.compile?.result?.legacyState?.roofExtensions?.length ?? 0,
+        activePans: w.CALPINAGE_STATE?.pans?.length ?? 0,
+        activeExtensions: w.CALPINAGE_STATE?.roofExtensions?.length ?? 0,
+        canValidate: w.getPhase2Data?.().canValidate ?? false,
+      };
+    }), { timeout: 15_000 }).toEqual({ smartPans: 2, smartExtensions: 1, activePans: 2, activeExtensions: 1, canValidate: true });
+    await saveScreenshot(page, "smart-roof-drawn-with-dormer.png");
 
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, "06-flat-l-ready.png"), fullPage: true });
-    await page.locator("#calpinage-smart-roof-apply").click();
-    await expect.poll(async () => {
-      return page.evaluate(() => (window as unknown as { CALPINAGE_STATE?: { pans?: unknown[] } }).CALPINAGE_STATE?.pans?.length ?? 0);
-    }).toBe(1);
-    await expect.poll(() => {
-      const last = server.saves.at(-1) as { smartRoofDrawing?: { kind?: string } } | undefined;
-      return last?.smartRoofDrawing?.kind ?? null;
-    }, { timeout: 8000 }).toBe("smartRoofDrawing");
+    await page.locator("#calpinage-btn-height-edit").click();
+    await clickImage(page, { x: 180, y: 150 });
+    await clickImage(page, { x: 620, y: 150 }, ["Control"]);
+    await expect.poll(async () => page.evaluate(() => {
+      const state = (window as unknown as { CALPINAGE_STATE?: { selectedHeightPoints?: unknown[] } }).CALPINAGE_STATE;
+      return state?.selectedHeightPoints?.length ?? 0;
+    }), { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
+    await saveScreenshot(page, "height-multipoint-selection.png");
+    const heightInput = page.locator("#height-edit-inplace-container input").first();
+    await expect(heightInput).toBeVisible();
+    await heightInput.fill("3.8");
+    await page.keyboard.press("Enter");
+    await expect.poll(async () => page.evaluate(() => {
+      const smart = (window as unknown as { __calpinageSmartRoofDrawing?: { getState: () => { graph: { nodes: Array<{ height?: { valueM?: number } }> } } } }).__calpinageSmartRoofDrawing?.getState();
+      return smart?.graph.nodes.filter((node) => node.height?.valueM === 3.8).length ?? 0;
+    }), { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
+
+    await chooseRoofObstacle(page);
+    await dragImage(page, { x: 250, y: 240 }, { x: 310, y: 290 });
+    await expect.poll(async () => page.evaluate(() => {
+      const state = (window as unknown as { CALPINAGE_STATE?: { obstacles?: unknown[] } }).CALPINAGE_STATE;
+      return state?.obstacles?.length ?? 0;
+    }), { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+
+    await chooseShadowObstacle(page);
+    await dragImage(page, { x: 535, y: 240 }, { x: 585, y: 290 });
+    await expect.poll(async () => page.evaluate(() => {
+      const state = (window as unknown as { CALPINAGE_STATE?: { shadowVolumes?: unknown[] } }).CALPINAGE_STATE;
+      return state?.shadowVolumes?.length ?? 0;
+    }), { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+    await saveScreenshot(page, "roof-and-shadow-obstacles-added.png");
+
+    await drawingButton.click();
+    await expect.poll(async () => page.evaluate(() => {
+      const state = (window as unknown as { CALPINAGE_STATE?: { obstacles?: unknown[]; shadowVolumes?: unknown[] } }).CALPINAGE_STATE;
+      return { obstacles: state?.obstacles?.length ?? 0, shadowVolumes: state?.shadowVolumes?.length ?? 0 };
+    }), { timeout: 10_000 }).toEqual({ obstacles: 1, shadowVolumes: 1 });
+
+    await page.locator("#calpinage-tool-undo").click();
+    await page.locator("#calpinage-tool-redo").click();
+
+    const validateButton = page.getByRole("button", { name: "Valider le relevé toiture" });
+    await expect(validateButton).toBeEnabled({ timeout: 10_000 });
+    await validateButton.click();
+    await expect.poll(async () => page.evaluate(() => {
+      const state = (window as unknown as { CALPINAGE_STATE?: { currentPhase?: string; roofSurveyLocked?: boolean } }).CALPINAGE_STATE;
+      return { currentPhase: state?.currentPhase ?? null, roofSurveyLocked: state?.roofSurveyLocked ?? null };
+    }), { timeout: 15_000 }).toEqual({ currentPhase: "PV_LAYOUT", roofSurveyLocked: true });
+    await expect(page.locator("#p3-topbar")).toBeVisible();
+    await saveScreenshot(page, "phase3-after-normal-validation.png");
+
+    const exported = await page.evaluate(() => {
+      const win = window as unknown as {
+        getCalpinageGeometryForPersist?: () => { geometry_json?: unknown } | null;
+      };
+      return win.getCalpinageGeometryForPersist?.()?.geometry_json ?? null;
+    });
+    const g = exported as {
+      smartRoofDrawing?: unknown;
+      roofState?: { obstacles?: unknown[] };
+      shadowVolumes?: unknown[];
+      roofExtensions?: unknown[];
+      pans?: unknown[];
+    };
+    expect(g.smartRoofDrawing).toBeTruthy();
+    expect(g.roofState?.obstacles?.length ?? 0).toBeGreaterThanOrEqual(1);
+    expect(g.shadowVolumes?.length ?? 0).toBeGreaterThanOrEqual(1);
+    expect(g.roofExtensions?.length ?? 0).toBeGreaterThanOrEqual(1);
+    expect(g.pans?.length ?? 0).toBeGreaterThanOrEqual(2);
+
+    await expect.poll(() => server.saves.length, { timeout: 12_000 }).toBeGreaterThan(0);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await openCalpinage(page);
+    await expect.poll(async () => activeRoofSummary(page), { timeout: 15_000 }).toMatchObject({
+      currentPhase: "PV_LAYOUT",
+      panCount: 2,
+      obstacles: 1,
+      shadowVolumes: 1,
+      roofExtensions: 1,
+      smartPersisted: true,
+    });
+
+    await page.evaluate(() => localStorage.removeItem("calpinage_smart_roof_drawing"));
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await openCalpinage(page);
+    await expect.poll(async () => activeRoofSummary(page), { timeout: 15_000 }).toMatchObject({
+      currentPhase: "PV_LAYOUT",
+      panCount: 2,
+      smartPersisted: true,
+    });
+    const flagOffExport = await page.evaluate(() =>
+      (window as unknown as { getCalpinageGeometryForPersist?: () => { geometry_json?: Record<string, unknown> } | null })
+        .getCalpinageGeometryForPersist?.()?.geometry_json ?? null,
+    );
+    expect(flagOffExport?.smartRoofDrawing).toBeTruthy();
   });
 
-  test("draws an unknown four-pan roof and receives ridge/hip interpretation", async ({ page, context }) => {
-    const server = { geometry: emptyGeometryFixture(), saves: [] as unknown[] };
-    await installRecipeMocks(context, server);
+  test("draws a four-pan roof with the single button and reaches Phase 3 with panel safe zones", async ({ page, context }) => {
+    const server = { geometry: emptyGeometryFixture(), saves: [] };
     await installBrowserRuntime(context, true);
-
+    await installRecipeMocks(context, server);
+    await page.setViewportSize({ width: 1536, height: 864 });
     await openCalpinage(page);
-    await openSmartRoofDraft(page);
+
+    const drawingButton = page.locator("#calpinage-tool-dessin-toiture");
+    await drawingButton.click();
     await drawPolyline(page, [
       { x: 200, y: 200 },
       { x: 300, y: 200 },
@@ -940,45 +754,39 @@ test.describe("Smart roof drawing integrated recipe", () => {
     await drawPolyline(page, [{ x: 300, y: 200 }, { x: 260, y: 240 }]);
     await drawPolyline(page, [{ x: 300, y: 280 }, { x: 260, y: 240 }]);
 
-    await expect.poll(async () => {
-      const state = await smartState(page) as {
-        compile?: {
-          status?: string;
-          message?: string;
-          result?: {
-            legacyState?: { pans?: unknown[]; ridges?: unknown[]; traits?: unknown[] };
-            normalizedGraph?: { segments?: Array<{ role?: { value?: string; source?: string } }> };
-          };
-        };
-      } | undefined;
-      const roles = state?.compile?.result?.normalizedGraph?.segments?.map((s) => s.role?.value).filter(Boolean) ?? [];
+    await expect.poll(async () => page.evaluate(() => {
+      const state = (window as unknown as {
+        __calpinageSmartRoofDrawing?: { getState: () => { compile?: { message?: string; result?: { legacyState?: { pans?: unknown[]; ridges?: unknown[]; traits?: unknown[] } } } } };
+      }).__calpinageSmartRoofDrawing?.getState();
       return {
-        status: state?.compile?.status ?? null,
         panCount: state?.compile?.result?.legacyState?.pans?.length ?? 0,
         ridgeCount: state?.compile?.result?.legacyState?.ridges?.length ?? 0,
-        hipCount: roles.filter((role) => role === "hip").length,
+        traitCount: state?.compile?.result?.legacyState?.traits?.length ?? 0,
         estimated: /relief estime/i.test(state?.compile?.message ?? ""),
       };
-    }, { timeout: 10000 }).toEqual({ status: "computed", panCount: 4, ridgeCount: 1, hipCount: 4, estimated: true });
+    }), { timeout: 10_000 }).toEqual({ panCount: 4, ridgeCount: 1, traitCount: 4, estimated: true });
+    await expectSmartPansInSidebar(page, 4);
+    await saveScreenshot(page, "four-pan-single-button-ready.png");
 
-    const candidate = await page.evaluate(() => {
-      return (window as unknown as { __calpinageSmartRoofDrawing?: { prepareApplication: () => { status?: string } } }).__calpinageSmartRoofDrawing?.prepareApplication();
-    });
-    expect(candidate?.status).toBe("ready");
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, "07-four-pan-ready.png"), fullPage: true });
-    await applyCurrentSmartDraft(page);
-    const phase3 = await enterPhase3AndPlacePanel(page, 4, { x: 250, y: 218 }, "07-four-pan-phase3-panel.png");
-    expect(phase3.applied.slopes.every((slope) => slope > 0)).toBe(true);
-    expect(phase3.applied.inclined.every((area, index) => area >= (phase3.applied.projected[index] ?? 0))).toBe(true);
+    await validateRoofAndEnterPhase3(page);
+    await expectPhase3ReadyForPanels(page, 4);
+    await placePanelWithProductTool(page, { x: 250, y: 218 });
+    const placement = await phase3PlacementSummary(page);
+    const roof = await activeRoofSummary(page);
+    expect(placement.safeZonePanIds).toEqual(expect.arrayContaining(roof.panIds));
+    expect(placement.panelRefs.some((panel) => roof.panIds.includes(String(panel.panId)))).toBe(true);
+    await saveScreenshot(page, "four-pan-phase3-panel.png");
   });
 
-  test("draws the reference L multipan roof without filling the missing corner", async ({ page, context }) => {
-    const server = { geometry: emptyGeometryFixture(), saves: [] as unknown[] };
-    await installRecipeMocks(context, server);
+  test("draws a multipan L without filling the empty corner and keeps Phase 3 limits", async ({ page, context }) => {
+    const server = { geometry: emptyGeometryFixture(), saves: [] };
     await installBrowserRuntime(context, true);
-
+    await installRecipeMocks(context, server);
+    await page.setViewportSize({ width: 1536, height: 864 });
     await openCalpinage(page);
-    await openSmartRoofDraft(page);
+
+    const drawingButton = page.locator("#calpinage-tool-dessin-toiture");
+    await drawingButton.click();
     await drawPolyline(page, [
       { x: 200, y: 200 },
       { x: 320, y: 200 },
@@ -992,373 +800,68 @@ test.describe("Smart roof drawing integrated recipe", () => {
     await drawPolyline(page, [{ x: 200, y: 260 }, { x: 230, y: 230 }]);
     await drawPolyline(page, [{ x: 260, y: 260 }, { x: 230, y: 230 }]);
 
-    await expect.poll(async () => {
-      const state = await smartState(page) as {
-        compile?: {
-          status?: string;
-          message?: string;
-          result?: {
-            legacyState?: { pans?: Array<Record<string, unknown>>; ridges?: unknown[]; traits?: unknown[] };
-            normalizedGraph?: { segments?: Array<{ role?: { value?: string; source?: string } }> };
-          };
-        };
-      } | undefined;
-      const roles = state?.compile?.result?.normalizedGraph?.segments?.map((s) => s.role?.value).filter(Boolean) ?? [];
-      const polygonAreaPx2 = (points: Array<{ x?: number; y?: number }>) => Math.abs(points.reduce((sum, point, index) => {
-        const next = points[(index + 1) % points.length] ?? points[0] ?? {};
-        return sum + Number(point.x ?? 0) * Number(next.y ?? 0) - Number(point.y ?? 0) * Number(next.x ?? 0);
-      }, 0) / 2);
-      const area = (state?.compile?.result?.legacyState?.pans ?? []).reduce((sum, pan) => {
-        const points = (pan.polygon ?? pan.polygonPx ?? pan.points ?? []) as Array<{ x?: number; y?: number }>;
-        return sum + polygonAreaPx2(points) * 0.01;
-      }, 0);
+    await expect.poll(async () => page.evaluate(() => {
+      const api = (window as any).__calpinageSmartRoofDrawing;
+      const state = api?.getState();
+      const candidate = api?.prepareApplication();
+      const panArea = (candidate?.legacyState?.pans ?? []).reduce((sum, pan) => sum + Number(pan.projectedSurfaceM2 ?? pan.surfaceM2 ?? 0), 0);
+      const valleyCount = (state?.compile?.result?.legacyState?.traits ?? []).filter((trait) => trait.smartRoofRole === "valley").length;
       return {
-        status: state?.compile?.status ?? null,
         panCount: state?.compile?.result?.legacyState?.pans?.length ?? 0,
         ridgeCount: state?.compile?.result?.legacyState?.ridges?.length ?? 0,
-        valleyCount: roles.filter((role) => role === "valley").length,
-        area: Math.round(area),
+        valleyCount,
+        area: Math.round(panArea),
         estimated: /relief estime/i.test(state?.compile?.message ?? ""),
       };
-    }, { timeout: 10000 }).toEqual({ status: "computed", panCount: 5, ridgeCount: 3, valleyCount: 2, area: 108, estimated: true });
-
-    const candidate = await page.evaluate(() => {
-      return (window as unknown as { __calpinageSmartRoofDrawing?: { prepareApplication: () => { status?: string } } }).__calpinageSmartRoofDrawing?.prepareApplication();
-    });
-    expect(candidate?.status).toBe("ready");
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, "08-l-multipan-ready.png"), fullPage: true });
-    await applyCurrentSmartDraft(page);
-    const phase3 = await enterPhase3AndPlacePanel(page, 5, { x: 285, y: 215 }, "08-l-multipan-phase3-panel.png");
-    const beforeForbidden = phase3.placement.enginePanels;
-    await clickImage(page, { x: 295, y: 295 });
-    await page.waitForTimeout(300);
-    const afterForbidden = await phase3PlacementSummary(page);
-    expect(afterForbidden.enginePanels).toBe(beforeForbidden);
-  });
-
-  test("draws a simple dormer as unknown nested lines and publishes it to the existing 3D extension model", async ({ page, context }) => {
-    const server = { geometry: emptyGeometryFixture(), saves: [] as unknown[] };
-    await installRecipeMocks(context, server);
-    await installBrowserRuntime(context, true);
-
-    await openCalpinage(page);
-    await openSmartRoofDraft(page);
-    await drawPolyline(page, [
-      { x: 200, y: 200 },
-      { x: 300, y: 200 },
-      { x: 300, y: 280 },
-      { x: 200, y: 280 },
-    ], true);
-    await drawPolyline(page, [
-      { x: 230, y: 220 },
-      { x: 250, y: 220 },
-      { x: 250, y: 250 },
-      { x: 230, y: 250 },
-    ], true);
-    await drawPolyline(page, [{ x: 240, y: 220 }, { x: 240, y: 250 }]);
-
-    await expect.poll(async () => {
-      const state = await smartState(page) as {
-        compile?: {
-          status?: string;
-          message?: string;
-          result?: { legacyState?: { pans?: unknown[]; roofExtensions?: Array<Record<string, unknown>> } };
-        };
-      } | undefined;
-      const extension = state?.compile?.result?.legacyState?.roofExtensions?.[0];
-      return {
-        status: state?.compile?.status ?? null,
-        panCount: state?.compile?.result?.legacyState?.pans?.length ?? 0,
-        extensionCount: state?.compile?.result?.legacyState?.roofExtensions?.length ?? 0,
-        supportPanIdPresent: typeof extension?.supportPanId === "string" && extension.supportPanId.length > 0,
-        estimated: /relief estime/i.test(state?.compile?.message ?? ""),
-      };
-    }, { timeout: 10000 }).toEqual({
-      status: "computed",
-      panCount: 1,
-      extensionCount: 1,
-      supportPanIdPresent: true,
-      estimated: true,
-    });
-
-    const candidate = await page.evaluate(() => {
-      return (window as unknown as { __calpinageSmartRoofDrawing?: { prepareApplication: () => {
-        status?: string;
-        legacyState?: { roofExtensions?: Array<Record<string, unknown>> };
-      } } }).__calpinageSmartRoofDrawing?.prepareApplication();
-    }) as {
-      status?: string | null;
-      legacyState?: { roofExtensions?: Array<{ supportPanId?: string; ridgeHeightRelM?: number; heightReference?: string }> };
-    };
-    expect(candidate.status).toBe("ready");
-    const extension = candidate.legacyState?.roofExtensions?.[0];
-    expect(extension).toMatchObject({
-      ridgeHeightRelM: 1,
-      heightReference: "support_plane_normal",
-    });
-    expect(extension?.supportPanId).toBeTruthy();
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, "09-dormer-ready.png"), fullPage: true });
-
-    await page.locator("#calpinage-smart-roof-apply").click();
-    await expect.poll(async () => {
-      return page.evaluate(() => {
-        const state = (window as unknown as { CALPINAGE_STATE?: { roofExtensions?: unknown[] } }).CALPINAGE_STATE;
-        return state?.roofExtensions?.length ?? 0;
-      });
-    }).toBe(1);
-    const switchedTo3D = await page.evaluate(() => {
-      const w = window as unknown as { __calpinageSwitchTo3D?: () => void };
-      if (typeof w.__calpinageSwitchTo3D !== "function") return false;
-      w.__calpinageSwitchTo3D();
-      return true;
-    });
-    if (switchedTo3D) {
-      await page.waitForFunction(() => (window as unknown as { __CALPINAGE_VIEW_MODE__?: string }).__CALPINAGE_VIEW_MODE__ === "3D", { timeout: 15000 });
-      await expect(page.locator("#zone-c-3d.visible")).toBeVisible({ timeout: 45000 });
-      await expect(page.locator("[data-extension-volume-count='1']")).toBeVisible({ timeout: 45000 });
-      await page.screenshot({ path: path.join(ARTIFACT_DIR, "10-dormer-3d.png"), fullPage: true });
-    }
-  });
-
-  test("keeps essential smart drawing actions visible with the side panel open", async ({ page, context }) => {
-    const server = { geometry: emptyGeometryFixture(), saves: [] as unknown[] };
-    page.on("dialog", (dialog) => dialog.accept());
-    await installRecipeMocks(context, server);
-    await installBrowserRuntime(context, true);
-
-    for (const size of [
-      { width: 1366, height: 768, name: "1366x768" },
-      { width: 1536, height: 864, name: "1536x864" },
-    ]) {
-      await page.setViewportSize({ width: size.width, height: size.height });
-      await openCalpinage(page);
-      await openSmartRoofDraft(page);
-      await drawPolyline(page, [
-        { x: 200, y: 220 },
-        { x: 300, y: 220 },
-        { x: 300, y: 300 },
-        { x: 200, y: 300 },
-      ], true);
-      await drawPolyline(page, [{ x: 200, y: 260 }, { x: 300, y: 260 }]);
-      await setFlatHeight(page, "3");
-      await page.locator("#calpinage-smart-roof-tool-select").click();
-      await clickImage(page, { x: 250, y: 260 });
-      await setSelectedHeight(page, "5");
-
-      await expect.poll(async () => {
-        const state = await smartState(page) as { compile?: { status?: string; result?: { legacyState?: { pans?: unknown[] } } } } | undefined;
-        return {
-          status: state?.compile?.status ?? null,
-          panCount: state?.compile?.result?.legacyState?.pans?.length ?? 0,
-        };
-      }).toEqual({ status: "computed", panCount: 2 });
-      await expectSmartRoofEssentialActionsVisible(page);
-      await page.screenshot({ path: path.join(ARTIFACT_DIR, `11-toolbar-${size.name}.png`), fullPage: true });
-      await page.locator("#calpinage-smart-roof-close").click();
-      await expect(page.locator("#calpinage-smart-roof-session-bar")).toBeHidden({ timeout: 10000 });
-      await page.reload({ waitUntil: "domcontentloaded" });
-    }
-  });
-
-  test("draws adjacent distinct volumes without height fusion, then reaches Phase 3 with setbacks and panels", async ({ page, context }) => {
-    const server = { geometry: emptyGeometryFixture(), saves: [] as unknown[] };
-    const consoleIssues: string[] = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") consoleIssues.push(msg.text());
-    });
-    page.on("pageerror", (err) => consoleIssues.push(err.message));
-    await installRecipeMocks(context, server);
-    await installBrowserRuntime(context, true);
-
-    await page.setViewportSize({ width: 1536, height: 864 });
-    await openCalpinage(page);
-    await openSmartRoofDraft(page);
-
-    await drawPolyline(page, [
-      { x: 200, y: 220 },
-      { x: 300, y: 220 },
-      { x: 300, y: 300 },
-      { x: 200, y: 300 },
-    ], true);
-    await drawPolyline(page, [{ x: 200, y: 260 }, { x: 300, y: 260 }]);
-    await setFlatHeight(page, "3");
-    await page.locator("#calpinage-smart-roof-tool-select").click();
-    await clickImage(page, { x: 250, y: 260 });
-    await setSelectedHeight(page, "5");
-
-    await page.locator("#calpinage-smart-roof-new-volume").click();
-    await page.locator("#calpinage-smart-roof-tool-draw").click();
-    await drawPolyline(page, [
-      { x: 300, y: 220 },
-      { x: 400, y: 220 },
-      { x: 400, y: 300 },
-      { x: 300, y: 300 },
-    ], true);
-    await drawPolyline(page, [{ x: 300, y: 260 }, { x: 400, y: 260 }]);
-    await setFlatHeight(page, "5");
-    await page.locator("#calpinage-smart-roof-tool-select").click();
-    await clickImage(page, { x: 350, y: 260 });
-    await setSelectedHeight(page, "7");
-
-    const beforeCandidate = await page.evaluate(() => {
-      const api = (window as unknown as { __calpinageSmartRoofDrawing?: { prepareApplication: () => unknown; getState: () => unknown } }).__calpinageSmartRoofDrawing;
-      const candidate = api?.prepareApplication() as { status?: string; legacyState?: { contours?: unknown[]; ridges?: unknown[]; pans?: Array<Record<string, unknown>> }; blockingDiagnostics?: Array<{ code?: string }> } | undefined;
-      const state = api?.getState() as { graph?: { groups?: unknown[]; nodes?: Array<{ id: string; x: number; y: number; groupId?: string | null; height?: { valueM?: number } }>; segments?: Array<{ id: string; groupId?: string | null; height?: { valueM?: number } }> } } | undefined;
-      const pans = candidate?.legacyState?.pans ?? [];
-      const heightPairs = pans.map((pan) => {
-        const values = ((pan.points ?? pan.polygon ?? []) as Array<{ h?: number }>).map((point) => Number(point.h)).filter(Number.isFinite).sort((a, b) => a - b);
-        return [values[0] ?? null, values[values.length - 1] ?? null];
-      }).sort((a, b) => Number(a[0] ?? 0) - Number(b[0] ?? 0) || Number(a[1] ?? 0) - Number(b[1] ?? 0));
-      const contactNodes = (state?.graph?.nodes ?? [])
-        .filter((node) => Math.abs(node.x - 300) <= 0.1)
-        .map((node) => ({ groupId: node.groupId ?? null, y: node.y, h: node.height?.valueM ?? null }))
-        .sort((a, b) => String(a.groupId).localeCompare(String(b.groupId)) || a.y - b.y || Number(a.h ?? 0) - Number(b.h ?? 0));
-      return {
-        status: candidate?.status ?? null,
-        contourCount: candidate?.legacyState?.contours?.length ?? 0,
-        ridgeCount: candidate?.legacyState?.ridges?.length ?? 0,
-        panCount: pans.length,
-        heightPairs,
-        groupCount: state?.graph?.groups?.length ?? 0,
-        segmentGroups: Array.from(new Set((state?.graph?.segments ?? []).map((segment) => segment.groupId ?? null))).sort(),
-        contactNodes,
-        blockingCodes: candidate?.blockingDiagnostics?.map((item) => item.code).filter(Boolean) ?? [],
-      };
-    });
-    expect(beforeCandidate).toMatchObject({
-      status: "ready",
-      contourCount: 2,
-      ridgeCount: 2,
-      panCount: 4,
-      groupCount: 2,
-      heightPairs: [[3, 5], [3, 5], [5, 7], [5, 7]],
-    });
-    expect((beforeCandidate as { blockingCodes?: string[] }).blockingCodes ?? []).not.toContain("SMART_ROOF_NODE_HEIGHT_CONFLICT");
-    expect((beforeCandidate as { contactNodes?: Array<{ groupId: string | null; h: number | null }> }).contactNodes ?? []).toEqual(expect.arrayContaining([
-      expect.objectContaining({ h: 3 }),
-      expect.objectContaining({ h: 5 }),
-      expect.objectContaining({ h: 7 }),
-    ]));
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, "13-two-distinct-volumes-ready.png"), fullPage: true });
-
-    await clickImage(page, { x: 350, y: 260 });
-    await setSelectedHeight(page, "7.5");
-    const afterBHeightChange = await page.evaluate(() => {
-      const api = (window as unknown as { __calpinageSmartRoofDrawing?: { prepareApplication: () => unknown } }).__calpinageSmartRoofDrawing;
-      const candidate = api?.prepareApplication() as { status?: string; legacyState?: { pans?: Array<Record<string, unknown>> } } | undefined;
-      const pairs = (candidate?.legacyState?.pans ?? []).map((pan) => {
-        const values = ((pan.points ?? pan.polygon ?? []) as Array<{ h?: number }>).map((point) => Number(point.h)).filter(Number.isFinite).sort((a, b) => a - b);
-        return [values[0] ?? null, values[values.length - 1] ?? null];
-      }).sort((a, b) => Number(a[0] ?? 0) - Number(b[0] ?? 0) || Number(a[1] ?? 0) - Number(b[1] ?? 0));
-      return { status: candidate?.status ?? null, pairs };
-    });
-    expect(afterBHeightChange).toEqual({ status: "ready", pairs: [[3, 5], [3, 5], [5, 7.5], [5, 7.5]] });
-
-    await page.locator("#calpinage-smart-roof-apply").click();
-    await expect.poll(async () => {
-      return page.evaluate(() => (window as unknown as { __calpinageSmartRoofDrawingLastApply?: { ok?: boolean } }).__calpinageSmartRoofDrawingLastApply?.ok ?? false);
-    }).toBe(true);
-    const applied = await page.evaluate(() => {
-      const state = (window as unknown as { CALPINAGE_STATE?: Record<string, unknown> }).CALPINAGE_STATE ?? {};
-      const pans = Array.isArray(state.pans) ? state.pans as Array<Record<string, unknown>> : [];
-      return {
-        panCount: pans.length,
-        smartGroups: ((state.smartRoofDrawing as { graph?: { groups?: unknown[] } } | undefined)?.graph?.groups ?? []).length,
-        panIds: pans.map((pan) => pan.id).sort(),
-        heightPairs: pans.map((pan) => {
-          const values = ((pan.points ?? pan.polygon ?? []) as Array<{ h?: number }>).map((point) => Number(point.h)).filter(Number.isFinite).sort((a, b) => a - b);
-          return [values[0] ?? null, values[values.length - 1] ?? null];
-        }).sort((a, b) => Number(a[0] ?? 0) - Number(b[0] ?? 0) || Number(a[1] ?? 0) - Number(b[1] ?? 0)),
-      };
-    });
-    expect(applied).toMatchObject({
-      panCount: 4,
-      smartGroups: 2,
-      heightPairs: [[3, 5], [3, 5], [5, 7.5], [5, 7.5]],
-    });
+    }), { timeout: 10_000 }).toEqual({ panCount: 5, ridgeCount: 3, valleyCount: 2, area: 108, estimated: true });
+    await expectSmartPansInSidebar(page, 5);
+    await saveScreenshot(page, "l-multipan-single-button-ready.png");
 
     await validateRoofAndEnterPhase3(page);
-    await page.evaluate(() => {
-      const w = window as unknown as { CALPINAGE_RENDER?: () => void };
-      if (w.CALPINAGE_RENDER) w.CALPINAGE_RENDER();
-    });
-    await expect.poll(async () => {
-      const summary = await phase3PlacementSummary(page);
-      return {
-        phase: summary.currentPhase,
-        safeZones: summary.safeZonePanIds.length,
-      };
-    }, { timeout: 15000 }).toEqual({ phase: "PV_LAYOUT", safeZones: 4 });
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, "14-two-distinct-phase3.png"), fullPage: true });
-
-    await placePanelWithProductTool(page, { x: 225, y: 240 });
-    const placement = await phase3PlacementSummary(page);
-    expect(placement.currentPhase).toBe("PV_LAYOUT");
-    expect(placement.safeZonePanIds).toEqual(expect.arrayContaining((applied as { panIds: string[] }).panIds));
-    expect(placement.enginePanels).toBeGreaterThan(0);
-    expect(placement.panelRefs.some((panel) => (applied as { panIds: string[] }).panIds.includes(String(panel.panId)))).toBe(true);
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, "15-two-distinct-panel-placement.png"), fullPage: true });
-
-    await expect.poll(() => {
-      const last = server.saves.at(-1) as { smartRoofDrawing?: { graph?: { groups?: unknown[]; nodes?: unknown[]; segments?: unknown[] } }; placedPanels?: unknown[]; frozenBlocks?: unknown[] } | undefined;
-      return {
-        smartKind: last?.smartRoofDrawing ? "smartRoofDrawing" : null,
-        groups: last?.smartRoofDrawing?.graph?.groups?.length ?? 0,
-        nodes: last?.smartRoofDrawing?.graph?.nodes?.length ?? 0,
-        segments: last?.smartRoofDrawing?.graph?.segments?.length ?? 0,
-        panels: Math.max(last?.placedPanels?.length ?? 0, last?.frozenBlocks?.length ?? 0),
-      };
-    }, { timeout: 12000 }).toMatchObject({ smartKind: "smartRoofDrawing", groups: 2, panels: expect.any(Number) });
-    expect(Math.max(...server.saves.map((save) => {
-      const item = save as { placedPanels?: unknown[]; frozenBlocks?: unknown[] };
-      return Math.max(item.placedPanels?.length ?? 0, item.frozenBlocks?.length ?? 0);
-    }))).toBeGreaterThan(0);
-
-    const persisted = server.geometry as {
-      smartRoofDrawing?: { graph?: { groups?: unknown[]; nodes?: unknown[]; segments?: unknown[] } };
-      pans?: unknown[];
-      placedPanels?: unknown[];
-      frozenBlocks?: unknown[];
-    };
-    expect(persisted.smartRoofDrawing?.graph?.groups).toHaveLength(2);
-    expect(panHeightPairs(persisted.pans)).toEqual([[3, 5], [3, 5], [5, 7.5], [5, 7.5]]);
-    expect(Math.max(persisted.placedPanels?.length ?? 0, persisted.frozenBlocks?.length ?? 0)).toBeGreaterThan(0);
-
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await openCalpinage(page);
-    await expect.poll(async () => activeRoofSummary(page), { timeout: 15000 }).toMatchObject({
-      panCount: 4,
-      smartGroups: 2,
-      heightPairs: [[3, 5], [3, 5], [5, 7.5], [5, 7.5]],
-    });
-    const restored = await activeRoofSummary(page);
-    expect(restored.currentPhase).toBe("PV_LAYOUT");
-    expect(Math.max(restored.placedPanels, restored.frozenBlocks)).toBeGreaterThan(0);
-    expect(restored.slopes.every((slope) => slope > 20)).toBe(true);
-    expect(restored.inclined.every((area, index) => area >= (restored.projected[index] ?? 0))).toBe(true);
-
-    expect(consoleIssues.filter((text) => !/Dimensions image/i.test(text))).toEqual([]);
+    await expectPhase3ReadyForPanels(page, 5);
+    await placePanelWithProductTool(page, { x: 285, y: 215 });
+    const beforeForbidden = (await phase3PlacementSummary(page)).enginePanels;
+    await clickImage(page, { x: 295, y: 295 });
+    await page.waitForTimeout(300);
+    expect((await phase3PlacementSummary(page)).enginePanels).toBe(beforeForbidden);
+    await saveScreenshot(page, "l-multipan-phase3-panel.png");
   });
 
-  test("keeps an incomplete draft blocked and leaves the active study untouched", async ({ page, context }) => {
-    const server = { geometry: emptyGeometryFixture(), saves: [] as unknown[] };
-    await installRecipeMocks(context, server);
+  test("keeps existing roof obstacles and manual extensions when smart drawing publishes the roof", async ({ page, context }) => {
+    const server = { geometry: geometryWithExistingObstacleAndExtension(), saves: [] };
     await installBrowserRuntime(context, true);
-
+    await installRecipeMocks(context, server);
+    await page.setViewportSize({ width: 1536, height: 864 });
     await openCalpinage(page);
-    await openSmartRoofDraft(page);
-    const before = await activeSnapshot(page);
-    await drawPolyline(page, [{ x: 200, y: 220 }, { x: 300, y: 220 }]);
-    await setFlatHeight(page, "3");
-    const candidate = await page.evaluate(() => {
-      const api = (window as unknown as { __calpinageSmartRoofDrawing?: { prepareApplication: () => unknown } }).__calpinageSmartRoofDrawing;
-      return api?.prepareApplication();
-    }) as { status?: string; blockingDiagnostics?: Array<{ code?: string; message?: string }> };
-    expect(candidate.status).not.toBe("ready");
-    expect(candidate.blockingDiagnostics?.length ?? 0).toBeGreaterThan(0);
-    await page.locator("#calpinage-smart-roof-apply").click();
-    await page.waitForTimeout(200);
-    expect(await activeSnapshot(page)).toBe(before);
-    expect(server.saves).toHaveLength(0);
+
+    await expect.poll(async () => activeRoofSummary(page), { timeout: 10_000 }).toMatchObject({
+      obstacles: 1,
+      roofExtensions: 1,
+    });
+
+    const drawingButton = page.locator("#calpinage-tool-dessin-toiture");
+    await drawingButton.click();
+    await drawPolyline(page, [
+      { x: 200, y: 200 },
+      { x: 320, y: 200 },
+      { x: 320, y: 300 },
+      { x: 200, y: 300 },
+    ], true);
+    await drawPolyline(page, [{ x: 200, y: 250 }, { x: 320, y: 250 }]);
+
+    await expect.poll(async () => activeRoofSummary(page), { timeout: 10_000 }).toMatchObject({
+      panCount: 2,
+      obstacles: 1,
+      roofExtensions: 1,
+    });
+    await validateRoofAndEnterPhase3(page);
+    const exported = await page.evaluate(() =>
+      (window as unknown as { getCalpinageGeometryForPersist?: () => { geometry_json?: Record<string, unknown> } | null })
+        .getCalpinageGeometryForPersist?.()?.geometry_json ?? null,
+    );
+    expect(exported?.smartRoofDrawing).toBeTruthy();
+    expect(((exported?.roofState as { obstacles?: unknown[] } | undefined)?.obstacles ?? []).length).toBe(1);
+    expect((exported?.roofExtensions as unknown[] | undefined)?.length).toBe(1);
+    await saveScreenshot(page, "existing-obstacle-extension-preserved.png");
   });
 });

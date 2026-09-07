@@ -13,6 +13,7 @@ import {
   removeSketchSegment,
   setAllSketchNodeHeights,
   setSketchNodeHeight,
+  setSketchNodeHeights,
   setSketchNodeHeightsForGroup,
   setSketchSegmentHeight,
   setSketchSegmentRole,
@@ -54,6 +55,7 @@ export type SmartRoofDraftSnap =
 
 export type SmartRoofDraftSelection =
   | { readonly type: "node"; readonly nodeId: string }
+  | { readonly type: "nodes"; readonly nodeIds: readonly string[] }
   | { readonly type: "segment"; readonly segmentId: string };
 
 export interface SmartRoofDraftCompileSnapshot {
@@ -95,13 +97,15 @@ export interface SmartRoofDrawingDraftRuntimeApi {
   readonly getState: () => SmartRoofDrawingDraftSession;
   readonly setTool: (tool: SmartRoofDraftTool) => SmartRoofDrawingDraftSession;
   readonly updateHover: (point: { readonly x: number; readonly y: number }, viewportScale: number) => SmartRoofDrawingDraftSession;
-  readonly pointerDown: (point: { readonly x: number; readonly y: number }, viewportScale: number) => SmartRoofDrawingDraftSession;
+  readonly pointerDown: (point: { readonly x: number; readonly y: number }, viewportScale: number, options?: { readonly toggleSelection?: boolean }) => SmartRoofDrawingDraftSession;
   readonly pointerMove: (point: { readonly x: number; readonly y: number }, viewportScale: number) => SmartRoofDrawingDraftSession;
   readonly pointerUp: (point: { readonly x: number; readonly y: number }) => SmartRoofDrawingDraftSession;
   readonly finishChain: () => SmartRoofDrawingDraftSession;
   readonly cancelOrSelect: () => SmartRoofDrawingDraftSession;
   readonly deleteSelection: () => SmartRoofDrawingDraftSession;
+  readonly selectNode: (nodeId: string, options?: { readonly toggle?: boolean }) => SmartRoofDrawingDraftSession;
   readonly setSelectedNodeHeight: (height: SmartRoofHeight | null) => SmartRoofDrawingDraftSession;
+  readonly setNodeHeights: (nodeIds: readonly string[], height: SmartRoofHeight | null) => SmartRoofDrawingDraftSession;
   readonly setSelectedSegmentHeight: (height: SmartRoofHeight | null) => SmartRoofDrawingDraftSession;
   readonly setAllNodeHeights: (height: SmartRoofHeight | null) => SmartRoofDrawingDraftSession;
   readonly startNewGroup: (label?: string) => SmartRoofDrawingDraftSession;
@@ -160,6 +164,20 @@ export function smartRoofDraftGraphRevision(graph: SmartRoofSketchGraph): string
 
 function nodeById(graph: SmartRoofSketchGraph, id: string): SmartRoofNode | null {
   return graph.nodes.find((node) => node.id === id) ?? null;
+}
+
+function selectedNodeIds(selection: SmartRoofDraftSelection | null): readonly string[] {
+  if (!selection) return [];
+  if (selection.type === "node") return [selection.nodeId];
+  if (selection.type === "nodes") return [...selection.nodeIds];
+  return [];
+}
+
+function nodeSelectionFromIds(ids: readonly string[]): SmartRoofDraftSelection | null {
+  const unique = [...new Set(ids.filter(Boolean))].sort();
+  if (unique.length === 0) return null;
+  if (unique.length === 1) return { type: "node", nodeId: unique[0]! };
+  return { type: "nodes", nodeIds: unique };
 }
 
 function nextUnusedId(prefix: string, items: readonly { readonly id: string }[]): string {
@@ -570,7 +588,7 @@ export function createSmartRoofDrawingDraftRuntimeApi(options: {
       session = { ...session, hover: snapAt(point, viewportScale) };
       return session;
     },
-    pointerDown(point, viewportScale) {
+    pointerDown(point, viewportScale, options = {}) {
       assertAlive();
       const snap = snapAt(point, viewportScale);
       if (session.tool === "draw") {
@@ -617,6 +635,20 @@ export function createSmartRoofDrawingDraftRuntimeApi(options: {
       }
 
       if (snap.kind === "node") {
+        if (options.toggleSelection) {
+          const currentIds = selectedNodeIds(session.selected);
+          const hasNode = currentIds.includes(snap.nodeId);
+          const nextIds = hasNode
+            ? currentIds.filter((id) => id !== snap.nodeId)
+            : [...currentIds, snap.nodeId];
+          session = {
+            ...session,
+            hover: snap,
+            selected: nodeSelectionFromIds(nextIds),
+            drag: null,
+          };
+          return session;
+        }
         session = {
           ...session,
           hover: snap,
@@ -688,13 +720,48 @@ export function createSmartRoofDrawingDraftRuntimeApi(options: {
       });
       return session;
     },
+    selectNode(nodeId, options = {}) {
+      assertAlive();
+      if (!nodeById(session.graph, nodeId)) return session;
+      if (options.toggle) {
+        const currentIds = selectedNodeIds(session.selected);
+        const hasNode = currentIds.includes(nodeId);
+        session = {
+          ...session,
+          selected: nodeSelectionFromIds(hasNode ? currentIds.filter((id) => id !== nodeId) : [...currentIds, nodeId]),
+          chain: null,
+          drag: null,
+        };
+        return session;
+      }
+      session = { ...session, selected: { type: "node", nodeId }, chain: null, drag: null };
+      return session;
+    },
     setSelectedNodeHeight(height) {
       assertAlive();
-      if (!session.selected || session.selected.type !== "node") return session;
-      const changed = setSketchNodeHeight(session.graph, session.selected.nodeId, height);
+      if (!session.selected || (session.selected.type !== "node" && session.selected.type !== "nodes")) return session;
+      const ids = selectedNodeIds(session.selected);
+      const changed = ids.length === 1
+        ? setSketchNodeHeight(session.graph, ids[0]!, height)
+        : setSketchNodeHeights(session.graph, ids, height);
       session = withGraphOperation(session, changed, {
         ...compileOptions(),
         selected: session.selected,
+        chain: null,
+        hover: null,
+      });
+      return session;
+    },
+    setNodeHeights(nodeIds, height) {
+      assertAlive();
+      const ids = [...new Set(nodeIds.filter((id) => !!nodeById(session.graph, id)))].sort();
+      if (ids.length === 0) return session;
+      const changed = ids.length === 1
+        ? setSketchNodeHeight(session.graph, ids[0]!, height)
+        : setSketchNodeHeights(session.graph, ids, height);
+      session = withGraphOperation(session, changed, {
+        ...compileOptions(),
+        selected: nodeSelectionFromIds(ids),
         chain: null,
         hover: null,
       });
@@ -820,7 +887,7 @@ export function createSmartRoofDrawingDraftRuntimeApi(options: {
       if (currentRevision === session.sourceRevision) return session;
       session = {
         ...session,
-        compile: { ...session.compile, status: "source_stale", message: "Dessin source modifie - quittez puis rouvrez l'essai" },
+        compile: { ...session.compile, status: "source_stale", message: "Dessin source modifie - relancez le dessin intelligent" },
         diagnostics: [
           ...session.diagnostics,
           diagnostic("warning", "DRAFT_SOURCE_REVISION_STALE", "The active drawing changed after the draft session was opened; the draft remains isolated and must not be mixed silently."),
