@@ -42,7 +42,7 @@ const geometry = { frozenBlocks: [{ panels: [panel] }] };
 
   // --- combined.totalLossPct cohérent avec totalLossPct calculé ---
   console.log("\n--- 4) combined.totalLossPct cohérent ---");
-  assert(Math.abs(shading.combined.totalLossPct - shadingResult.totalLossPct) < 0.5, "combined ≈ totalLossPct (<0.5%)");
+  assert(shading.combined.totalLossPct === shadingResult.totalLossPct, "combined ≈ totalLossPct (<0.5%)");
 
   // --- ratio ∈ [0..1] ---
   console.log("\n--- 5) dataCoverage.ratio ∈ [0..1] ---");
@@ -51,7 +51,7 @@ const geometry = { frozenBlocks: [{ panels: [panel] }] };
 
   // --- totalLossPct >= 0 ---
   console.log("\n--- 6) totalLossPct >= 0 ---");
-  assert(shading.near.totalLossPct >= 0 && shading.far.totalLossPct >= 0 && shading.combined.totalLossPct >= 0, "pertes >= 0");
+  assert([shading.near.totalLossPct, shading.far.totalLossPct, shading.combined.totalLossPct].every(v => v === null || (Number.isFinite(v) && v >= 0)), "pertes >= 0");
 
   console.log("\n--- RÉSUMÉ ---");
   console.log("Passed: " + passed + ", Failed: " + failed);

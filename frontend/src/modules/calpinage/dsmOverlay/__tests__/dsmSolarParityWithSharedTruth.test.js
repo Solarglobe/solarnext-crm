@@ -58,8 +58,6 @@ describe("dsmSolarParityWithSharedTruth — séparation hors plage (documentée)
     const dsm = computeDsm(ms, 200, 2);
     const shared = computeShared(ms, 200, 2);
     expect(shared).toBeNull();
-    expect(dsm).not.toBeNull();
-    expect(typeof dsm.azimuthDeg).toBe("number");
-    expect(typeof dsm.elevationDeg).toBe("number");
+    expect(dsm).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
+import { registerCalpinageRuntime, unregisterCalpinageRuntime } from "../../runtime/calpinageRuntime";
 import {
   computeLegacyPhase3CanValidate,
   getPhase3ValidateBlockedHint,
@@ -10,7 +11,9 @@ function mockWin(partial: Record<string, unknown>) {
 }
 
 describe("phase3LegacyValidateUi", () => {
+  beforeEach(() => registerCalpinageRuntime());
   afterEach(() => {
+    unregisterCalpinageRuntime();
     vi.unstubAllGlobals();
   });
 
@@ -45,5 +48,13 @@ describe("phase3LegacyValidateUi", () => {
     });
     expect(computeLegacyPhase3CanValidate()).toBe(true);
     expect(getPhase3ValidateBlockedHint()).toBeNull();
+  });
+
+  it("refuse les anciens globals quand la session calpinage est démontée", () => {
+    mockWin({ PV_SELECTED_PANEL: { id: "p1" }, PV_SELECTED_INVERTER: { id: "inv1" },
+      pvPlacementEngine: { getAllPanels: () => [{}, {}] }, getPhase3ChecklistOk: () => true });
+    unregisterCalpinageRuntime();
+    expect(computeLegacyPhase3CanValidate()).toBe(false);
+    expect(getPhase3ValidateBlockedHint()).toMatch(/Posez au moins un module/);
   });
 });

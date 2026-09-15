@@ -9,7 +9,7 @@ import { resolveShadingTotalLossPct } from "../services/shading/resolveShadingTo
 
 function testCombinedWinsOverForm() {
   const v = resolveShadingTotalLossPct(
-    { combined: { totalLossPct: 8.2 }, totalLossPct: 8.2, far: { source: "RELIEF_ONLY" } },
+    { assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed', reasons: [] }, near: { totalLossPct: 8.2 }, combined: { totalLossPct: 8.2 }, totalLossPct: 8.2, far: { totalLossPct: 0, source: "RELIEF_ONLY" } },
     { installation: { shading_loss_pct: 99 } }
   );
   assert.strictEqual(v, 8.2);
@@ -39,7 +39,7 @@ function testGpsBlockIgnoresForm() {
 
 function testFormFallbackWhenNoShadingCombined() {
   const v = resolveShadingTotalLossPct({}, { installation: { shading_loss_pct: 11 } });
-  assert.strictEqual(v, 11);
+  assert.strictEqual(v, null);
 }
 
 let failed = 0;

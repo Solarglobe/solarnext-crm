@@ -93,13 +93,13 @@ async function run() {
     metersPerPixel: 1,
   });
 
-  const GOLDEN_TOTAL = 0.010203482917434354;
-  const GOLDEN_P0_LOSS = 0.009835026687642535;
-  const GOLDEN_P1_LOSS = 0.01057193914722623;
+  const GOLDEN_TOTAL = 0.008770986245181188;
+  const GOLDEN_P0_LOSS = 0.008403962684415522;
+  const GOLDEN_P1_LOSS = 0.00913800980594675;
   const eps = 1e-12;
   assertNear(
     Math.abs(nominal.totalLossPct - GOLDEN_TOTAL) < eps,
-    "cas nominal : totalLossPct inchange (golden pre-extraction)"
+    "cas nominal : totalLossPct référence solaire corrigée et intersection du prisme"
   );
   assertNear(
     Math.abs(nominal.perPanel[0].lossPct - GOLDEN_P0_LOSS) < eps && Math.abs(nominal.perPanel[1].lossPct - GOLDEN_P1_LOSS) < eps,

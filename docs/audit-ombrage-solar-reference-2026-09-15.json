@@ -1,0 +1,297 @@
+{
+  "reference": "pvlib spa.solar_position NREL SPA",
+  "pvlibVersion": "0.15.2",
+  "pressurePa": 0,
+  "altitudeM": 0,
+  "deltaTSeconds": 69,
+  "cases": [
+    {
+      "date": "2026-03-20T08:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 113.97630597168734,
+      "elevationDeg": 19.404860256082436,
+      "equationOfTimeMin": -7.482122556204558
+    },
+    {
+      "date": "2026-03-20T12:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 180.65430382520276,
+      "elevationDeg": 41.09428389114629,
+      "equationOfTimeMin": -7.433095742992009
+    },
+    {
+      "date": "2026-03-20T16:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 246.94051788283969,
+      "elevationDeg": 18.915019402854686,
+      "equationOfTimeMin": -7.384008574292238
+    },
+    {
+      "date": "2026-06-21T08:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 97.56824821900273,
+      "elevationDeg": 38.21173556543834,
+      "equationOfTimeMin": -1.777618603540759
+    },
+    {
+      "date": "2026-06-21T12:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 184.05278726399584,
+      "elevationDeg": 64.53608991390817,
+      "equationOfTimeMin": -1.8140198830951704
+    },
+    {
+      "date": "2026-06-21T16:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 265.48813668075616,
+      "elevationDeg": 35.728162523259805,
+      "equationOfTimeMin": -1.8503945882694097
+    },
+    {
+      "date": "2026-09-22T08:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 116.89979667969936,
+      "elevationDeg": 21.887866971126936,
+      "equationOfTimeMin": 7.219604355646879
+    },
+    {
+      "date": "2026-09-22T12:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 185.54776158245664,
+      "elevationDeg": 41.20462807011801,
+      "equationOfTimeMin": 7.278542698149977
+    },
+    {
+      "date": "2026-09-22T16:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 250.06908054622355,
+      "elevationDeg": 16.74958058239949,
+      "equationOfTimeMin": 7.337436260211689
+    },
+    {
+      "date": "2026-12-21T08:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 129.55333545445262,
+      "elevationDeg": 1.6018294062131901,
+      "equationOfTimeMin": 2.0213375345338136
+    },
+    {
+      "date": "2026-12-21T12:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 182.73072211462377,
+      "elevationDeg": 17.659651127247564,
+      "equationOfTimeMin": 1.9388003974891035
+    },
+    {
+      "date": "2026-12-21T16:00:00Z",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "azimuthDeg": 234.7239317322586,
+      "elevationDeg": -1.362788292079241,
+      "equationOfTimeMin": 1.85624639884918
+    },
+    {
+      "date": "2026-03-20T08:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 114.09697395318562,
+      "elevationDeg": 19.29051549588144,
+      "equationOfTimeMin": -7.482122556204558
+    },
+    {
+      "date": "2026-03-20T12:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 180.68183318881688,
+      "elevationDeg": 40.779279035578625,
+      "equationOfTimeMin": -7.433095742992009
+    },
+    {
+      "date": "2026-03-20T16:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 246.86120883934922,
+      "elevationDeg": 18.777500540991078,
+      "equationOfTimeMin": -7.384008574292238
+    },
+    {
+      "date": "2026-06-21T08:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 97.83288918325655,
+      "elevationDeg": 38.184627807349166,
+      "equationOfTimeMin": -1.777618603540759
+    },
+    {
+      "date": "2026-06-21T12:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 184.0555392885907,
+      "elevationDeg": 64.22094996534712,
+      "equationOfTimeMin": -1.8140198830951704
+    },
+    {
+      "date": "2026-06-21T16:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 265.28094700913925,
+      "elevationDeg": 35.687658588361444,
+      "equationOfTimeMin": -1.8503945882694097
+    },
+    {
+      "date": "2026-09-22T08:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 117.03245575240965,
+      "elevationDeg": 21.758659181129637,
+      "equationOfTimeMin": 7.219604355646879
+    },
+    {
+      "date": "2026-09-22T12:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 185.55195085751163,
+      "elevationDeg": 40.88978341147404,
+      "equationOfTimeMin": 7.278542698149977
+    },
+    {
+      "date": "2026-09-22T16:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 249.99942416053392,
+      "elevationDeg": 16.627771075882546,
+      "equationOfTimeMin": 7.337436260211689
+    },
+    {
+      "date": "2026-12-21T08:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 129.57750308739804,
+      "elevationDeg": 1.4130199968419366,
+      "equationOfTimeMin": 2.0213375345338136
+    },
+    {
+      "date": "2026-12-21T12:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 182.7482847441562,
+      "elevationDeg": 17.344439512366993,
+      "equationOfTimeMin": 1.9388003974891035
+    },
+    {
+      "date": "2026-12-21T16:00:00Z",
+      "lat": 49.17144,
+      "lon": 2.375402,
+      "azimuthDeg": 234.74776307800772,
+      "elevationDeg": -1.556985441148139,
+      "equationOfTimeMin": 1.85624639884918
+    },
+    {
+      "date": "2026-03-20T08:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 114.49270503804388,
+      "elevationDeg": 23.598310436533716,
+      "equationOfTimeMin": -7.482122556204558
+    },
+    {
+      "date": "2026-03-20T12:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 185.10782791147503,
+      "elevationDeg": 46.5425003531999,
+      "equationOfTimeMin": -7.433095742992009
+    },
+    {
+      "date": "2026-03-20T16:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 251.15622717424742,
+      "elevationDeg": 18.947107621093853,
+      "equationOfTimeMin": -7.384008574292238
+    },
+    {
+      "date": "2026-06-21T08:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 95.37044733345942,
+      "elevationDeg": 40.922648219047126,
+      "equationOfTimeMin": -1.777618603540759
+    },
+    {
+      "date": "2026-06-21T12:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 193.11669797465248,
+      "elevationDeg": 69.73039298819428,
+      "equationOfTimeMin": -1.8140198830951704
+    },
+    {
+      "date": "2026-06-21T16:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 271.5613665882725,
+      "elevationDeg": 33.77522999920661,
+      "equationOfTimeMin": -1.8503945882694097
+    },
+    {
+      "date": "2026-09-22T08:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 117.28835839424835,
+      "elevationDeg": 26.286084410914455,
+      "equationOfTimeMin": 7.219604355646879
+    },
+    {
+      "date": "2026-09-22T12:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 190.4587583517699,
+      "elevationDeg": 46.420132818919534,
+      "equationOfTimeMin": 7.278542698149977
+    },
+    {
+      "date": "2026-09-22T16:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 254.01723521345818,
+      "elevationDeg": 16.47098307795741,
+      "equationOfTimeMin": 7.337436260211689
+    },
+    {
+      "date": "2026-12-21T08:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 131.518801157116,
+      "elevationDeg": 6.806971702785704,
+      "equationOfTimeMin": 2.0213375345338136
+    },
+    {
+      "date": "2026-12-21T12:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 185.83663018657364,
+      "elevationDeg": 23.04730825510454,
+      "equationOfTimeMin": 1.9388003974891035
+    },
+    {
+      "date": "2026-12-21T16:00:00Z",
+      "lat": 43.2965,
+      "lon": 5.3698,
+      "azimuthDeg": 236.8333957969352,
+      "elevationDeg": 0.03296980709313271,
+      "equationOfTimeMin": 1.85624639884918
+    }
+  ]
+}

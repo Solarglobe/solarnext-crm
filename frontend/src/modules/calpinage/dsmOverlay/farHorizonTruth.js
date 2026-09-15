@@ -2,7 +2,7 @@
  * POINT 6B — Vérité produit : relief mesuré vs horizon estimé (aucun impact sur les calculs physiques).
  */
 
-const REAL_PROVIDERS = new Set(["IGN_RGE_ALTI", "HTTP_GEOTIFF", "DSM_REAL"]);
+const REAL_PROVIDERS = new Set(["IGN_RGE_ALTI", "HTTP_GEOTIFF", "DSM_REAL", "IGN_GEOPLATEFORME", "PVGIS_HORIZON"]);
 
 /**
  * @param {{ dataCoverage?: { provider?: string }, meta?: { source?: string } } | null | undefined} horizonData

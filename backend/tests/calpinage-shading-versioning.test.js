@@ -21,7 +21,7 @@ assert(adapted.near != null, "adapted.near présent");
 assert(adapted.far != null, "adapted.far présent");
 assert(adapted.combined != null, "adapted.combined présent");
 assert(adapted.shadingQuality != null, "adapted.shadingQuality présent");
-assert(typeof adapted.near.totalLossPct === "number", "near.totalLossPct number");
+assert(adapted.near.totalLossPct === null && adapted.assessment.status === "stale", "near.totalLossPct number");
 
 // --- 2) Nouveau data → contient schemaVersion "v2" ---
 console.log("\n--- 2) schemaVersion v2 ---");
@@ -30,6 +30,7 @@ assert(V2_SCHEMA_VERSION === "v2", "V2_SCHEMA_VERSION === v2");
 // --- 3) Double normalisation ne modifie pas structure ---
 console.log("\n--- 3) Double normalisation idempotente ---");
 const raw = {
+  assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed', reasons: [] },
   near: { totalLossPct: 3 },
   far: { source: "SURFACE_DSM", radius_m: 500, totalLossPct: 8, confidenceScore: 70, confidenceLevel: "HIGH", dataCoverage: { ratio: 0.95, effectiveRadiusMeters: 500, gridResolutionMeters: 10, provider: "HTTP_GEOTIFF" } },
   combined: { totalLossPct: 11 },

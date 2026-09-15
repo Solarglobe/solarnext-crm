@@ -5,15 +5,17 @@
  * Données issues de getDsmAnalysisData() + buildSolarNextPayload().
  */
 
+import { presentShading } from '../services/pdf/shadingPresentation.js';
+import { formatShadingLossPct } from '../../shared/shading/shadingAssessment.js';
+
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jui", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
 
 function fmtN(v) {
   if (v == null || !isFinite(v)) return "—";
   return Math.round(v).toLocaleString("fr-FR");
 }
-function fmtPct(v) {
-  if (v == null || !isFinite(v)) return "—";
-  return v.toFixed(1) + " %";
+function fmtPct(v, status = 'computed') {
+  return formatShadingLossPct(v, status);
 }
 function lossColor(pct) {
   if (pct == null || !isFinite(pct)) return "#E8ECF8";
@@ -30,23 +32,22 @@ export function buildShadingReportHtml(data, orgBranding = {}) {
   const { address, date, shading, lat, lon, orientationDeg, tiltDeg, horizonMask, org, lead } = data;
 
   // ── Données d'ombrage ─────────────────────────────────────────────────────
-  const combinedPct  = shading?.combined?.totalLossPct ?? shading?.totalLossPct ?? null;
-  const farPct       = shading?.far?.totalLossPct      ?? shading?.far_loss_pct ?? null;
-  const nearPct      = shading?.near?.totalLossPct     ?? shading?.near_loss_pct ?? null;
-  const annualLossKwh = shading?.annualLossKwh ?? null;
+  const presentation = presentShading(shading);
+  const { assessment, combinedLossPct: combinedPct, farLossPct: farPct, nearLossPct: nearPct, annualLossKwh } = presentation;
   const pvgisRef     = shading?.pvgisReference ?? {};
-  const monthlyFactors  = Array.isArray(shading?.monthlyFactors)  ? shading.monthlyFactors  : null;
-  const monthlyKwhStats = Array.isArray(shading?.monthlyKwhStats) ? shading.monthlyKwhStats : null;
+  const monthlyFactors = presentation.monthlyFactors;
+  const monthlyKwhStats = presentation.monthlyKwhStats;
 
   // Production totale théorique / réelle
-  const prodNoShading   = monthlyKwhStats ? Math.round(monthlyKwhStats.reduce((s, m) => s + (m.productionNoShadingKwh  ?? 0), 0)) : null;
-  const prodWithShading = monthlyKwhStats ? Math.round(monthlyKwhStats.reduce((s, m) => s + (m.productionWithShadingKwh ?? 0), 0)) : null;
+  const prodNoShading = presentation.prodNoShadingKwh;
+  const prodWithShading = presentation.prodWithShadingKwh;
 
   const farHorizonKind = shading?.horizonMask?.farHorizonKind ?? horizonMask?.source ?? "UNAVAILABLE";
   const badgeColor = farHorizonKind === "REAL_TERRAIN" ? "#4ade80" : farHorizonKind === "SYNTHETIC" ? "#F59E0B" : "#E57373";
   const badgeText  = farHorizonKind === "REAL_TERRAIN" ? "ÉLEVÉE" : farHorizonKind === "SYNTHETIC" ? "ESTIMÉE" : "LIMITÉE";
 
-  const maskArray  = horizonMask?.mask ?? [];
+  const rawMask = horizonMask?.mask;
+  const maskArray = Array.isArray(rawMask) && rawMask.every(value => typeof value === 'number' && Number.isFinite(value)) ? rawMask : [];
   const clientName = lead?.first_name && lead?.last_name ? `${lead.first_name} ${lead.last_name}` : address || "—";
   const orgName    = orgBranding.name || org?.name || "SolarNext";
   const logoHtml   = orgBranding.logoBase64
@@ -56,9 +57,9 @@ export function buildShadingReportHtml(data, orgBranding = {}) {
   // ── Séries pour les barres mensuelles ─────────────────────────────────────
   const factorsJson = monthlyFactors
     ? JSON.stringify(monthlyFactors.map(m => ({
-        f: parseFloat(((m.farLossFraction  ?? 0) * 100).toFixed(1)),
-        n: parseFloat(((m.nearLossFraction ?? 0) * 100).toFixed(1)),
-        c: parseFloat(((m.combinedLossFraction ?? 0) * 100).toFixed(1)),
+        f: m.farLossFraction * 100,
+        n: m.nearLossFraction * 100,
+        c: m.combinedLossFraction * 100,
       })))
     : "null";
 
@@ -164,7 +165,7 @@ body{background:#0B0F1E;color:#E8ECF8;font-family:system-ui,'Segoe UI',Arial,san
     <div class="kpi-sub">Sans ombrage · PVGIS réf.</div>
   </div>
   <div class="kpi" style="border-color:rgba(195,152,71,0.3)">
-    <div class="kpi-label">Production réelle</div>
+    <div class="kpi-label">Production estimée après ombrage</div>
     <div class="kpi-value hero">${prodWithShading != null ? prodWithShading.toLocaleString("fr-FR") + " kWh" : "—"}</div>
     <div class="kpi-sub">Après pertes d'ombrage</div>
   </div>
@@ -174,12 +175,12 @@ body{background:#0B0F1E;color:#E8ECF8;font-family:system-ui,'Segoe UI',Arial,san
   </div>
   <div class="kpi">
     <div class="kpi-label">Perte d'ombrage</div>
-    <div class="kpi-value" style="color:${lossColor(combinedPct)}">${fmtPct(combinedPct)}</div>
-    <div class="kpi-tech">Horizon : ${fmtPct(farPct)}</div>
-    <div class="kpi-tech">Masques : ${fmtPct(nearPct)}</div>
+    <div class="kpi-value" style="color:${lossColor(combinedPct)}">${fmtPct(combinedPct, assessment.status)}</div>
+    <div class="kpi-tech">Horizon : ${fmtPct(farPct, assessment.farStatus)}</div>
+    <div class="kpi-tech">Masques : ${fmtPct(nearPct, assessment.nearStatus)}</div>
   </div>
   <div class="kpi">
-    <div class="kpi-label">Qualité données</div>
+    <div class="kpi-label">Qualité des données d’horizon</div>
     <div class="kpi-value" style="font-size:12pt;font-weight:600;color:${badgeColor}">● ${badgeText}</div>
     <div class="kpi-sub">${farHorizonKind === "REAL_TERRAIN" ? "GeoTIFF terrain réel" : farHorizonKind === "SYNTHETIC" ? "Modèle synthétique" : "Données insuffisantes"}</div>
   </div>
@@ -203,7 +204,7 @@ body{background:#0B0F1E;color:#E8ECF8;font-family:system-ui,'Segoe UI',Arial,san
     <div class="legend">
       <div class="leg-item">
         <span style="width:12px;height:7px;background:linear-gradient(to bottom,rgba(195,152,71,0.4),rgba(195,152,71,0.08));border:1px solid #D4AC5A;border-radius:2px;display:inline-block"></span>
-        Horizon terrain / bâti
+        Profil d’horizon disponible
       </div>
     </div>
   </div>

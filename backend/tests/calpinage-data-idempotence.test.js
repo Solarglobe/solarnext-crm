@@ -20,6 +20,7 @@ function deepEqual(a, b) {
 // --- 1) normalize(normalize(data)) deepEqual normalize(data) ---
 console.log("\n--- 1) Double normalisation idempotente ---");
 const v2Data = {
+  assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed', reasons: [] },
   near: { totalLossPct: 3 },
   far: { source: "SURFACE_DSM", algorithm: "LEGACY", radius_m: 500, step_deg: 2, resolution_m: 10, totalLossPct: 8, confidenceScore: 70, confidenceLevel: "HIGH", confidenceBreakdown: {}, dataCoverage: { ratio: 0.95, effectiveRadiusMeters: 500, gridResolutionMeters: 10, provider: "HTTP_GEOTIFF" } },
   combined: { totalLossPct: 11 },

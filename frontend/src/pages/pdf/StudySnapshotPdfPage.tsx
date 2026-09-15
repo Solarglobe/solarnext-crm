@@ -1,3 +1,4 @@
+import { getClientStudyExportBlock } from '../../../../shared/shading/clientStudyExport.js';
 /**
  * PDF V2 — Page React standalone de rendu PDF
  * CP-PDF-V2-019 : si renderToken dans l'URL → route interne (Playwright).
@@ -76,7 +77,7 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version
         return res.json();
       })
       .then((data: { ok?: boolean; viewModel?: PdfViewModel }) => {
-        if (data?.ok === true && data.viewModel) {
+        if (data?.ok === true && data.viewModel && !getClientStudyExportBlock(data.viewModel).blocked) {
           setViewModel(data.viewModel);
           setStatus("success");
         } else {
@@ -90,7 +91,7 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version
   useEffect(() => {
     setRenderComplete(false);
     window.__pdf_render_ready=false;
-    if (status === "success" && viewModel != null) {
+    if (status === "success" && viewModel != null && !getClientStudyExportBlock(viewModel).blocked) {
       const root=document.getElementById('pdf-root');
       if(!root)return;
       const check=()=>{

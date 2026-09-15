@@ -12,6 +12,8 @@ describe("getOfficialGlobalShadingLossPct", () => {
   it("lit combined.totalLossPct en priorité", () => {
     expect(
       getOfficialGlobalShadingLossPct({
+        assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed' },
+        far: { totalLossPct: 7 },
         combined: { totalLossPct: 8 },
         totalLossPct: 3,
         near: { totalLossPct: 1 },
@@ -20,7 +22,7 @@ describe("getOfficialGlobalShadingLossPct", () => {
   });
 
   it("racine seulement si pas de clé totalLossPct sur combined", () => {
-    expect(getOfficialGlobalShadingLossPct({ totalLossPct: 6.2 })).toBe(6.2);
+    expect(getOfficialGlobalShadingLossPct({ totalLossPct: 6.2 })).toBeNull();
   });
 
   it("combined null explicite → null (pas la racine)", () => {
@@ -54,6 +56,7 @@ describe("getGlobalShadingLossPctForCalpinageShadingState", () => {
     expect(
       getGlobalShadingLossPctForCalpinageShadingState({
         normalized: {
+          assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed' },
           near: { totalLossPct: 20, official: { engine: "x" } },
           far: { totalLossPct: 3, source: "RELIEF_ONLY" },
           combined: { totalLossPct: 12 },
@@ -69,7 +72,7 @@ describe("getGlobalShadingLossPctForCalpinageShadingState", () => {
         normalized: null,
         lastResult: { annualLossPercent: 7.25, nearLossPct: 2, farLossPct: 5 },
       })
-    ).toBe(7.25);
+    ).toBeNull();
   });
 
   it("near.totalLossPct seul dans lastResult ne sert pas de global", () => {

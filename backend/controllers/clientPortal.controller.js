@@ -1,3 +1,4 @@
+import { assertStudyPdfDocumentDeliverable } from '../services/shading/clientStudyDocumentGuard.service.js';
 /**
  * Portail client SolarGlobe — routes publiques + création de jeton (staff).
  */
@@ -114,6 +115,7 @@ export async function getClientPortalDocumentFile(req, res) {
       return res.status(403).json({ error: "Accès refusé", code: "PORTAL_DOCUMENT_FORBIDDEN" });
     }
 
+    await assertStudyPdfDocumentDeliverable(doc, row.organization_id);
     const abs = getAbsolutePath(doc.storage_key);
     if (!fs.existsSync(abs)) {
       return res.status(404).json({ error: "Fichier introuvable", code: "FILE_NOT_FOUND" });
@@ -132,6 +134,7 @@ export async function getClientPortalDocumentFile(req, res) {
     });
     stream.pipe(res);
   } catch (e) {
+    if (e.status === 409) return res.status(409).json({ error: e.code, code: e.code, message: e.message });
     console.error("[clientPortal] getClientPortalDocumentFile", e);
     return res.status(500).json({ error: "Erreur serveur", code: "PORTAL_ERROR" });
   }

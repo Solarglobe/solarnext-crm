@@ -6,6 +6,12 @@ import { inspectMigrationHistory, assertMigrationIntegrity, prepareMigrationRun,
 
 const directory = path.resolve(import.meta.dirname, "../migrations");
 const fixture = JSON.parse(fs.readFileSync(new URL("./fixtures/migrations/production-history-2026-09-15.json", import.meta.url)));
+test("recovered long-term migration retains exact deployed bytes without inventing a historical checksum", () => {
+  const name = "1788900000000_add_long_term_follow_up_stage";
+  assert.equal(hashMigration(fs.readFileSync(path.join(directory, name + ".js"))), "a543afac496938ca79e9f92a091e43083e15a4163202b3b4f384a867094c3737");
+  assert.ok(fixture.applied.some(row => row.name === name));
+  assert.equal(fixture.checksums.some(row => row.migration_name === name), false);
+});
 function snapshotDb(data = fixture) {
   const statements = [];
   return { statements, async query(sql) {
@@ -46,13 +52,13 @@ test("missing historical metadata is not silently generated for an existing data
 });
 test("unknown and missing references are reported, never registered by inspection", async () => {
   const db = snapshotDb(), report = await inspectMigrationHistory(db, directory);
-  assert.equal(report.comparison.filter(x => x.status === "checksum_unregistered").length, 69);
-  assert.deepEqual(report.comparison.filter(x => x.status === "applied_file_missing").map(x => x.name), ["1788900000000_add_long_term_follow_up_stage"]);
+  assert.equal(report.comparison.filter(x => x.status === "checksum_unregistered").length, 70);
+  assert.deepEqual(report.comparison.filter(x => x.status === "applied_file_missing").map(x => x.name), []);
   assert.equal(db.statements.some(sql => /INSERT|UPDATE|ALTER|CREATE/.test(sql)), false);
 });
 test("fresh databases alone receive the metadata table before historical migrations", async () => {
   const statements = [], db = { async query(sql) { statements.push(sql); return { rows: sql.startsWith("SELECT") ? [{ applied: null, checksums: null }] : [] }; } };
   const report = await prepareMigrationRun(db, directory);
-  assert.equal(report.applied.length, 0); assert.equal(report.pending.length, 215);
+  assert.equal(report.applied.length, 0); assert.equal(report.pending.length, 216);
   assert.equal(statements.filter(sql => sql.startsWith("CREATE TABLE")).length, 1);
 });

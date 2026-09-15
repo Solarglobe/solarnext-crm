@@ -95,6 +95,19 @@ describe("clusterRoofPlanes — cas du brief", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("clusterRoofPlanes — seuil exact", () => {
+  it.each([0, 8, 45, 90])("seuil %s° : inclut la borne et distingue 1e-10° au-delà", (epsilon) => {
+    expect(clusterRoofPlanes([makePan("A", 10), makePan("B", 10 + epsilon)], { clusterEpsilonDeg: epsilon })).toHaveLength(1);
+    expect(clusterRoofPlanes([makePan("A", 10), makePan("B", 10 + epsilon + 1e-10)], { clusterEpsilonDeg: epsilon })).toHaveLength(2);
+  });
+
+  it("la longueur des normales ne change pas l'angle et une normale nulle est rejetée", () => {
+    const a = makePan("A", 10), b = makePan("B", 18);
+    const scaled = { ...b, normal: { x: b.normal.x * 3, y: b.normal.y * 3, z: b.normal.z * 3 } };
+    const invalid = { ...a, id: "invalid", normal: { x: 0, y: 0, z: 0 } };
+    const result = clusterRoofPlanes([invalid, a, scaled], { clusterEpsilonDeg: 8 });
+    expect(result).toHaveLength(1);
+    expect(result[0]!.planes.map(p => p.id)).toEqual(["A", "B"]);
+  });
   it("angle exactement égal à ε → même cluster (≤)", () => {
     // Deux pans séparés de exactement 8° → doivent être dans le même cluster
     const clusters = clusterRoofPlanes(

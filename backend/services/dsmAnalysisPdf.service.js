@@ -1,3 +1,4 @@
+import { assertClientStudyExportable } from '../../shared/shading/clientStudyExport.js';
 /**
  * CP-DSM-PDF-004/005 — Service export PDF "Analyse Ombres" Premium
  * Données backend uniquement : installation.shading V2, perPanel, horizon mask.
@@ -8,8 +9,6 @@ import logger from "../app/core/logger.js";
 import { pool } from "../config/db.js";
 import * as studiesService from "../routes/studies/service.js";
 import { buildSolarNextPayload } from "./solarnextPayloadBuilder.service.js";
-import { getOrComputeHorizonMask } from "./horizon/horizonMaskCache.js";
-import { computeHorizonMaskAuto } from "./horizon/providers/horizonProviderSelector.js";
 import { hasPanelsInGeometry } from "./shading/shadingStructureBuilder.js";
 
 /**
@@ -26,6 +25,7 @@ export async function getDsmAnalysisData({ studyId, versionId, orgId }) {
   const payload = await buildSolarNextPayload({ studyId, versionId: versionNum, orgId });
   const installation = payload.installation || {};
   const shading = installation.shading || {};
+  assertClientStudyExportable({ ...payload, shading });
   const lat = payload.lead?.lat ?? null;
   const lon = payload.lead?.lon ?? null;
   const orientationDeg = installation.orientation_deg ?? null;
@@ -97,23 +97,14 @@ export async function getDsmAnalysisData({ studyId, versionId, orgId }) {
     }
   }
 
-  let horizonMask = null;
-  let horizonMeta = {};
-  if (typeof lat === "number" && typeof lon === "number" && !isNaN(lat) && !isNaN(lon)) {
-    try {
-      const { value } = await getOrComputeHorizonMask(
-        { tenantKey: orgId, lat, lon, radius_m: 500, step_deg: 2 },
-        () => computeHorizonMaskAuto({ organizationId: orgId, lat, lon, radius_m: 500, step_deg: 2 })
-      );
-      horizonMask = value;
-      horizonMeta = {
-        source: value?.source ?? "RELIEF_ONLY",
-        confidence: value?.confidence ?? null,
-      };
-    } catch (_) {
-      horizonMask = { mask: [], source: "RELIEF_ONLY" };
-    }
-  }
+  // Use the mask that produced these losses; a second provider call could display
+  // a different horizon or silently turn a provider failure into a flat profile.
+  const horizonMask = shading.horizonMask ?? null;
+  const horizonMeta = {
+    source: horizonMask?.source ?? shading.far?.source ?? 'UNAVAILABLE',
+    confidence: horizonMask?.confidence ?? shading.far?.confidenceLevel ?? null,
+    status: shading.assessment?.farStatus ?? shading.far?.status ?? 'not_calculated',
+  };
 
   const orgRes = await pool.query(
     `SELECT name, settings_json FROM organizations WHERE id = $1`,

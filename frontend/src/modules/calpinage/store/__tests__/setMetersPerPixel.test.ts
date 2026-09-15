@@ -138,8 +138,9 @@ describe("simulation resize debounce 300ms", () => {
   it("resize rapide puis silence : une seule mise à jour store (pas N)", () => {
     let updateCount = 0;
     const unsub = useCalpinageStore.subscribe(
-      (s) => s.metersPerPixel,
-      () => { updateCount++; },
+      (state, previous) => {
+        if (state.metersPerPixel !== previous.metersPerPixel) updateCount++;
+      },
     );
 
     let timer: ReturnType<typeof setTimeout> | null = null;

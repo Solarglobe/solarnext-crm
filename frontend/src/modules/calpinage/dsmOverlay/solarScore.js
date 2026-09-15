@@ -11,7 +11,7 @@
  * @returns {{ label: string, hasOrientationTilt: boolean }}
  */
 export function computeSolarScore({ totalLossPct, orientation_deg, tilt_deg }) {
-  const loss = typeof totalLossPct === "number" && !isNaN(totalLossPct) ? Math.max(0, totalLossPct) : null;
+  const loss = typeof totalLossPct === "number" && Number.isFinite(totalLossPct) && totalLossPct >= 0 && totalLossPct <= 100 ? totalLossPct : null;
   const orient = typeof orientation_deg === "number" && !isNaN(orientation_deg) ? orientation_deg : null;
   const tilt = typeof tilt_deg === "number" && !isNaN(tilt_deg) ? tilt_deg : null;
 

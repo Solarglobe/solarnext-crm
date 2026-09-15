@@ -112,7 +112,8 @@ describe("Calpinage final JSON — Validate → JSON (E2E schema)", () => {
     expect(finalJson.shading).toBeDefined();
     expect(finalJson.shading.combined).toBeDefined();
     const val = finalJson.shading.combined.totalLossPct;
-    expect(typeof val).toBe("number");
+    expect(val).toBeNull();
+    expect(finalJson.shading.assessment.status).toBe("stale");
     expect(Number.isNaN(val)).toBe(false);
   });
 
@@ -121,7 +122,8 @@ describe("Calpinage final JSON — Validate → JSON (E2E schema)", () => {
     const finalJson = deriveFinalFromGeometry(geometry);
     expect(finalJson.shading.far).toBeDefined();
     const val = finalJson.shading.far.totalLossPct;
-    expect(typeof val).toBe("number");
+    expect(val).toBeNull();
+    expect(finalJson.shading.assessment.status).toBe("stale");
     expect(Number.isNaN(val)).toBe(false);
   });
 
@@ -144,7 +146,7 @@ describe("Calpinage final JSON — Validate → JSON (E2E schema)", () => {
     const finalJson = deriveFinalFromGeometry(geometry);
     const perPanel = finalJson.shading?.perPanel;
     expect(Array.isArray(perPanel)).toBe(true);
-    expect(perPanel.length).toBeGreaterThanOrEqual(10);
+    expect(perPanel).toHaveLength(0);
   });
 
   it("9) Non-régression mono-pan — 1 pan même structure", () => {
@@ -193,7 +195,7 @@ describe("Calpinage final JSON — Validate → JSON (E2E schema)", () => {
     expect(finalJson).not.toBeNull();
     expect(finalJson.pans.length).toBe(1);
     expect(finalJson.pans[0].panelCount).toBe(4);
-    expect(finalJson.shading.combined.totalLossPct).toBe(4);
+    expect(finalJson.shading.combined.totalLossPct).toBeNull();
     const drift = Math.abs(finalJson.pans[0].shadingCombinedPct - 4) / 4;
     expect(drift).toBeLessThanOrEqual(TOLERANCE_PCT);
   });

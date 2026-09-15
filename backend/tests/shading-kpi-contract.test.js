@@ -16,6 +16,7 @@ const SQ = {
 
 function test1_officialPathsOnNormalizedV2() {
   const raw = {
+    assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed', reasons: [] },
     near: { totalLossPct: 3 },
     far: {
       totalLossPct: 5,
@@ -56,6 +57,7 @@ function test1_officialPathsOnNormalizedV2() {
 function test2_displayTruthIsCombinedNotSumOfComponents() {
   const n = normalizeCalpinageShading(
     {
+      assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed', reasons: [] },
       near: { totalLossPct: 3 },
       far: {
         totalLossPct: 5,
@@ -83,6 +85,7 @@ function test2_displayTruthIsCombinedNotSumOfComponents() {
 function test2b_officialNearDoesNotOverrideCombined() {
   const n = normalizeCalpinageShading(
     {
+      assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed', reasons: [] },
       near: {
         totalLossPct: 10,
         official: { engine: "legacy_polygon", officialLossPct: 10, fallbackTriggered: false },
@@ -123,6 +126,7 @@ function test3_weightedKpiIsSeparateAggregatorNotEngineOutput() {
 function test3b_gpsBlockYieldsNullOfficial() {
   const n = normalizeCalpinageShading(
     {
+      assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed', reasons: [] },
       near: { totalLossPct: 5 },
       far: {
         source: "UNAVAILABLE_NO_GPS",

@@ -8,6 +8,7 @@ import {
   warnIfOfficialShadingRootMismatch,
 } from "../services/shading/officialShadingTruth.js";
 
+import { assessedShading } from './fixtures/assessedShading.js';
 let passed = 0;
 let failed = 0;
 function ok(l) {
@@ -25,15 +26,15 @@ function assert(c, l, m) {
 
 assert(getOfficialGlobalShadingLossPct(null) === null, "null input");
 assert(
-  getOfficialGlobalShadingLossPct({ combined: { totalLossPct: 12.3 } }) === 12.3,
+  getOfficialGlobalShadingLossPct(assessedShading(12.3)) === 12.3,
   "combined.totalLossPct"
 );
 assert(
-  getOfficialGlobalShadingLossPct({ combined: { totalLossPct: 150 } }) === 100,
+  getOfficialGlobalShadingLossPct(assessedShading(150)) === null,
   "clamp haut"
 );
 assert(
-  getOfficialGlobalShadingLossPct({ totalLossPct: 7, near: { totalLossPct: 99 } }) === 7,
+  getOfficialGlobalShadingLossPct({ totalLossPct: 7, near: { totalLossPct: 99 } }) === null,
   "ne lit pas near comme global"
 );
 assert(

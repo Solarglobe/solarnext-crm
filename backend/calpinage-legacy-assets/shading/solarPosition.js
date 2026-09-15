@@ -34,7 +34,7 @@ const DEG = PI / 180;
  */
 function computeSunPosition(date, latDeg, lonDeg, timezone) {
   const ms = typeof date === "number" ? date : (date && date.getTime ? date.getTime() : NaN);
-  if (Number.isNaN(ms)) return null;
+  if (!Number.isFinite(ms)) return null;
   return computeSunPositionUTC(ms, latDeg, lonDeg);
 }
 
@@ -47,7 +47,7 @@ function computeSunPosition(date, latDeg, lonDeg, timezone) {
  */
 function computeSunPositionUTC(msUtc, latDeg, lonDeg) {
   if (typeof latDeg !== "number" || typeof lonDeg !== "number" ||
-      Number.isNaN(latDeg) || Number.isNaN(lonDeg)) return null;
+      !Number.isFinite(latDeg) || !Number.isFinite(lonDeg) || !Number.isFinite(msUtc)) return null;
   const lat = Math.max(-90, Math.min(90, latDeg));
   const lon = Math.max(-180, Math.min(180, lonDeg));
   if (lat !== latDeg || lon !== lonDeg) return null;
@@ -60,7 +60,7 @@ function computeSunPositionUTC(msUtc, latDeg, lonDeg) {
   const eqTimeMin = _equationOfTime(jc);
 
   const utcMin = d.getUTCHours() * 60 + d.getUTCMinutes() + d.getUTCSeconds() / 60;
-  const localSolarTimeMin = utcMin + 4 * lon + eqTimeMin;
+  const localSolarTimeMin = ((utcMin + 4 * lon + eqTimeMin) % 1440 + 1440) % 1440;
   const hourAngleDeg = (localSolarTimeMin / 4) - 180;
 
   const latRad = lat * DEG;
@@ -113,37 +113,29 @@ function _julianCentury(jd) {
   return (jd - 2451545) / 36525;
 }
 
+function _obliquityCorrected(jc) {
+  const seconds = 21.448 - jc * (46.815 + jc * (0.00059 - jc * 0.001813));
+  const mean = 23 + (26 + seconds / 60) / 60;
+  return DEG * (mean + 0.00256 * Math.cos(DEG * (125.04 - 1934.136 * jc)));
+}
+
 function _solarDeclination(jc) {
-  const g = DEG * (357.52911 + 35999.05029 * jc - 0.0001537 * jc * jc);
-  const q =
-    280.46646 +
-    36000.77183 * jc +
-    0.0003032 * jc * jc -
-    (1.914602 - 0.004817 * jc - 0.000014 * jc * jc) * Math.sin(g) -
-    (0.019993 - 0.000101 * jc) * Math.sin(2 * g) -
-    0.00029 * Math.sin(3 * g);
-  const e = 0.016708634 - 0.000042037 * jc - 0.0000001267 * jc * jc;
-  const ob = DEG * (23 + 26 / 60 + 21.448 / 3600 - 46.815 / 3600 * jc);
-  const l = q + (1.914602 - 0.004817 * jc) * Math.sin(g) + 0.019993 * Math.sin(2 * g);
-  return Math.asin(Math.sin(ob) * Math.sin(DEG * l));
+  const g = DEG * (357.52911 + jc * (35999.05029 - 0.0001537 * jc));
+  const meanLongitude = 280.46646 + jc * (36000.76983 + 0.0003032 * jc);
+  const center = Math.sin(g) * (1.914602 - jc * (0.004817 + 0.000014 * jc))
+    + Math.sin(2 * g) * (0.019993 - 0.000101 * jc) + 0.000289 * Math.sin(3 * g);
+  const apparentLongitude = meanLongitude + center - 0.00569 - 0.00478 * Math.sin(DEG * (125.04 - 1934.136 * jc));
+  return Math.asin(Math.sin(_obliquityCorrected(jc)) * Math.sin(DEG * apparentLongitude));
 }
 
 function _equationOfTime(jc) {
   const g = DEG * (357.52911 + 35999.05029 * jc - 0.0001537 * jc * jc);
   const e = 0.016708634 - 0.000042037 * jc - 0.0000001267 * jc * jc;
-  const ob = DEG * (23 + 26 / 60 + 21.448 / 3600 - 46.815 / 3600 * jc);
-  const l =
-    DEG *
-    (280.46646 +
-      36000.77183 * jc +
-      0.0003032 * jc * jc -
-      (1.914602 - 0.004817 * jc - 0.000014 * jc * jc) * Math.sin(g) -
-      (0.019993 - 0.000101 * jc) * Math.sin(2 * g) -
-      0.00029 * Math.sin(3 * g));
-  const ra =
-    Math.atan2(Math.cos(ob) * Math.sin(l), Math.cos(l)) / DEG;
-  const eot = 4 * (l / DEG - 0.0057183 - ra + 0.000000001 * jc);
-  return eot;
+  const l = DEG * (280.46646 + jc * (36000.76983 + 0.0003032 * jc));
+  const y = Math.tan(_obliquityCorrected(jc) / 2) ** 2;
+  return 4 / DEG * (y * Math.sin(2 * l) - 2 * e * Math.sin(g)
+    + 4 * e * y * Math.sin(g) * Math.cos(2 * l)
+    - 0.5 * y * y * Math.sin(4 * l) - 1.25 * e * e * Math.sin(2 * g));
 }
 
 const _internal = {

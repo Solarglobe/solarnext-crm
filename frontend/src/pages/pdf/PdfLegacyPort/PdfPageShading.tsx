@@ -1,3 +1,4 @@
+import { getShadingAssessment, getShadingComponentLossPct, formatShadingLossPct, type ShadingAssessment } from "../../../../../shared/shading/shadingAssessment.js";
 /**
  * CP-PDF — Page "Analyse d'ombrage"
  * Sprint 1 : KPI + tableau mensuel kWh.
@@ -28,6 +29,7 @@ function getStorageUrl(
 }
 
 interface PShadingData {
+  assessment?: ShadingAssessment;
   meta?: { client?: string; ref?: string; date?: string };
   prodNoShadingKwh?: number | null;
   prodWithShadingKwh?: number | null;
@@ -55,10 +57,6 @@ function fmtKwh(v: number | null | undefined): string {
   return `${Math.round(v).toLocaleString("fr-FR")} kWh`;
 }
 
-function fmtPct(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "—";
-  return `${v.toFixed(1)} %`;
-}
 
 function fmtEur(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "";
@@ -66,14 +64,14 @@ function fmtEur(v: number | null | undefined): string {
 }
 
 function shadingLossColor(pct: number | null | undefined): string {
-  if (pct == null || !Number.isFinite(pct)) return "#E8ECF8";
-  if (pct < 5)  return "#9FA8C7";
+  if (pct == null || !Number.isFinite(pct)) return "#243747";
+  if (pct < 5)  return "#465b6c";
   if (pct < 15) return "#C39847";
   return "#E57373";
 }
 
 const BADGE_MAP: Record<string, { color: string; text: string }> = {
-  REAL_TERRAIN: { color: "#4ade80", text: "ÉLEVÉE"  },
+  REAL_TERRAIN: { color: "#167445", text: "ÉLEVÉE"  },
   SYNTHETIC:    { color: "#F59E0B", text: "ESTIMÉE" },
   UNAVAILABLE:  { color: "#E57373", text: "LIMITÉE" },
 };
@@ -101,19 +99,22 @@ export default function PdfPageShading({
   const fr = (viewModel?.fullReport ?? {}) as Record<string, unknown>;
   const ps = (fr.p_shading ?? {}) as PShadingData;
 
+  const shading = { assessment: ps.assessment, near: { totalLossPct: ps.nearLossPct }, far: { totalLossPct: ps.farLossPct }, combined: { totalLossPct: ps.combinedLossPct } };
+  const assessment = getShadingAssessment(shading);
+  const complete = assessment.status === "computed";
   const meta               = ps.meta ?? {};
   const prodNoShading      = ps.prodNoShadingKwh   ?? null;
-  const prodWithShading    = ps.prodWithShadingKwh ?? null;
-  const annualLossKwh      = ps.annualLossKwh      ?? null;
-  const annualLossEur      = ps.annualLossEur      ?? null;
-  const combinedLossPct    = ps.combinedLossPct    ?? null;
-  const farLossPct         = ps.farLossPct         ?? null;
-  const nearLossPct        = ps.nearLossPct        ?? null;
+  const prodWithShading    = complete ? ps.prodWithShadingKwh ?? null : null;
+  const annualLossKwh      = complete ? ps.annualLossKwh ?? null : null;
+  const annualLossEur      = complete ? ps.annualLossEur ?? null : null;
+  const combinedLossPct    = getShadingComponentLossPct(shading, "combined");
+  const farLossPct         = getShadingComponentLossPct(shading, "far");
+  const nearLossPct        = getShadingComponentLossPct(shading, "near");
   const farHorizonKind     = ps.farHorizonKind     ?? "UNAVAILABLE";
   const farConfidenceLevel = ps.farConfidenceLevel ?? null;
   const farSource          = ps.farSource          ?? null;
-  const monthlyKwhStats    = ps.monthlyKwhStats    ?? null;
-  const monthlyFactors     = ps.monthlyFactors     ?? null;
+  const monthlyKwhStats    = complete ? ps.monthlyKwhStats ?? null : null;
+  const monthlyFactors     = complete ? ps.monthlyFactors ?? null : null;
   const horizonMaskArray   = ps.horizonMaskArray   ?? null;
   const pvgisSource        = ps.pvgisSource        ?? null;
   const pvgisTiltDeg       = ps.pvgisTiltDeg       ?? null;
@@ -123,8 +124,8 @@ export default function PdfPageShading({
   const badge = BADGE_MAP[farHorizonKind] ?? BADGE_MAP.UNAVAILABLE;
 
   const techLinesKPI4: string[] = [
-    farLossPct != null ? `Horizon : ${fmtPct(farLossPct)}` : "Horizon : N/D",
-    `Masques : ${fmtPct(nearLossPct)}`,
+    `Horizon : ${formatShadingLossPct(farLossPct, assessment.farStatus)}`,
+    `Ombrage local : ${formatShadingLossPct(nearLossPct, assessment.nearStatus)}`,
   ];
   const techLinesQuality: string[] = farConfidenceLevel
     ? [`Confiance : ${farConfidenceLevel}`]
@@ -183,12 +184,12 @@ export default function PdfPageShading({
                   textAlign: "right",
                   lineHeight: 1.3,
                   fontSize: "8.5pt",
-                  color: "#9FA8C7",
+                  color: "#465b6c",
                 }}
               >
-                <div><b style={{ color: "#E8ECF8" }}>Client</b> : {meta.client ?? "—"}</div>
-                <div><b style={{ color: "#E8ECF8" }}>Réf.</b> : {meta.ref ?? "—"}</div>
-                <div><b style={{ color: "#E8ECF8" }}>Date</b> : {meta.date ?? "—"}</div>
+                <div><b style={{ color: "#243747" }}>Client</b> : {meta.client ?? "—"}</div>
+                <div><b style={{ color: "#243747" }}>Réf.</b> : {meta.ref ?? "—"}</div>
+                <div><b style={{ color: "#243747" }}>Date</b> : {meta.date ?? "—"}</div>
               </div>
             }
           />
@@ -209,12 +210,12 @@ export default function PdfPageShading({
           label="Production théorique"
           value={fmtKwh(prodNoShading)}
           sublabel="Sans ombrage · PVGIS réf."
-          valueColor="#E8ECF8"
+          valueColor="#243747"
         />
 
         {/* KPI 2 — Production réelle [hero] */}
         <ShadingKpiCard
-          label="Production réelle"
+          label="Production modélisée"
           value={fmtKwh(prodWithShading)}
           sublabel="Après pertes d'ombrage"
           valueColor="#C39847"
@@ -232,7 +233,7 @@ export default function PdfPageShading({
         {/* KPI 4 — Perte (%) avec décomposition far/near */}
         <ShadingKpiCard
           label="Perte d'ombrage"
-          value={fmtPct(combinedLossPct)}
+          value={formatShadingLossPct(combinedLossPct, assessment.status)}
           valueColor={lossColor}
           techLines={techLinesKPI4}
         />
@@ -264,13 +265,13 @@ export default function PdfPageShading({
             display: "flex",
             flexDirection: "column",
             background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.06)",
+            border: "1px solid rgba(36,55,71,0.15)",
             borderRadius: 6,
             padding: "8px 10px 4px",
             overflow: "hidden",
           }}
         >
-          <div style={{ fontSize: "8pt", color: "#9FA8C7", fontWeight: 500, marginBottom: 4, letterSpacing: "0.03em", textTransform: "uppercase" }}>
+          <div style={{ fontSize: "8pt", color: "#465b6c", fontWeight: 500, marginBottom: 4, letterSpacing: "0.03em", textTransform: "uppercase" }}>
             Pertes mensuelles (%)
           </div>
           <div style={{ flex: 1, minHeight: 0 }}>
@@ -285,13 +286,13 @@ export default function PdfPageShading({
             display: "flex",
             flexDirection: "column",
             background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.06)",
+            border: "1px solid rgba(36,55,71,0.15)",
             borderRadius: 6,
             padding: "8px 10px 4px",
             overflow: "hidden",
           }}
         >
-          <div style={{ fontSize: "8pt", color: "#9FA8C7", fontWeight: 500, marginBottom: 4, letterSpacing: "0.03em", textTransform: "uppercase" }}>
+          <div style={{ fontSize: "8pt", color: "#465b6c", fontWeight: 500, marginBottom: 4, letterSpacing: "0.03em", textTransform: "uppercase" }}>
             Profil horizon
           </div>
           <div style={{ flex: 1, minHeight: 0 }}>
@@ -315,14 +316,12 @@ export default function PdfPageShading({
               textAlign: "center",
               padding: "18px 0",
               fontSize: "8.5pt",
-              color: "#9FA8C7",
+              color: "#465b6c",
               opacity: 0.6,
               lineHeight: 1.6,
             }}
           >
-            Données énergétiques mensuelles indisponibles
-            <br />
-            (puissance crête non renseignée ou données PVGIS inaccessibles)
+            La conversion des pertes d’ombrage en kWh électriques n’est pas disponible pour ce calcul.
           </div>
         )}
       </div>

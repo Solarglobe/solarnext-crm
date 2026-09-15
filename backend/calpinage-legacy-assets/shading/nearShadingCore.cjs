@@ -126,9 +126,27 @@ function isPanelPointShadedByObstacle(params) {
   var t = zTopLocal / sunDir.dz;
   if (t <= 0) return false;
   var mpp = resolveMetersPerPixel(params && params.metersPerPixel);
-  var ix = panelPoint.x + (t * sunDir.dx) / mpp;
-  var iy = panelPoint.y + (t * sunDir.dy) / mpp;
-  return pointInPolygon({ x: ix, y: iy }, poly);
+  var zBaseLocal = useZLocal ? obstacleBaseZ - zPlaneWorld : obstacleBaseZ;
+  var tBase = Math.max(0, zBaseLocal / sunDir.dz);
+  var start = { x: panelPoint.x + tBase * sunDir.dx / mpp, y: panelPoint.y + tBase * sunDir.dy / mpp };
+  var end = { x: panelPoint.x + t * sunDir.dx / mpp, y: panelPoint.y + t * sunDir.dy / mpp };
+  if (pointInPolygon(start, poly) || pointInPolygon(end, poly)) return true;
+  // A vertical prism can block the ray through its sides even when the
+  // intersection with the top plane falls beyond its footprint.
+  var cross = function (a, b, c) { return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x); };
+  var eps = 1e-9;
+  var onSegment = function (a, b, p) {
+    return Math.abs(cross(a, b, p)) <= eps && p.x >= Math.min(a.x, b.x) - eps && p.x <= Math.max(a.x, b.x) + eps && p.y >= Math.min(a.y, b.y) - eps && p.y <= Math.max(a.y, b.y) + eps;
+  };
+  for (var i = 0; i < poly.length; i++) {
+    var a = poly[i], b = poly[(i + 1) % poly.length];
+    var c1 = cross(start, end, a), c2 = cross(start, end, b);
+    var c3 = cross(a, b, start), c4 = cross(a, b, end);
+    if (((c1 > eps && c2 < -eps) || (c1 < -eps && c2 > eps)) &&
+        ((c3 > eps && c4 < -eps) || (c3 < -eps && c4 > eps))) return true;
+    if (onSegment(start, end, a) || onSegment(start, end, b) || onSegment(a, b, start) || onSegment(a, b, end)) return true;
+  }
+  return false;
 }
 
 /** Retourne { obstacleId, t, distance } pour le premier obstacle qui bloque, ou null. */
@@ -255,7 +273,7 @@ function normalizeObstacles(obstacles, getZWorldAtXY) {
     } else if (o.ridgeHeightRelM != null && typeof o.ridgeHeightRelM === "number" && o.ridgeHeightRelM >= 0) {
       heightM = o.ridgeHeightRelM;
     }
-    if (heightM <= 0) heightM = 1;
+    // A known zero-height volume casts no shadow. Never silently grow it to 1 m.
     var center = polygonCentroid(polygonPx);
     var baseZWorld = 0;
     if (typeof o.baseZ === "number" && Number.isFinite(o.baseZ)) {

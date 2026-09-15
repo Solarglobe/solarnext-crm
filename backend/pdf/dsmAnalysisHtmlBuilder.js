@@ -4,7 +4,8 @@
  * Légende : jaune (modérée), orange (significative), rouge (importante).
  */
 
-import { resolveShadingTotalLossPct } from "../services/shading/resolveShadingTotalLossPct.js";
+import { presentShading } from '../services/pdf/shadingPresentation.js';
+import { formatShadingLossPct, getShadingStatusLabel } from '../../shared/shading/shadingAssessment.js';
 
 /**
  * Paragraphe d’accroche commercial / pédagogique — inchangé côté calculs, uniquement lecture.
@@ -19,16 +20,16 @@ export function buildDsmShadingPdfIntroHtml() {
  * @param {{ totalLoss: number|null, nearLoss: number, farLossStr: string, score: number, grade: string }} p
  */
 function buildDsmShadingStatCardsFragment(p) {
-  const { totalLoss, nearLoss, farLossStr, score, grade } = p;
+  const { totalLoss, nearLoss, farLossStr, score, grade, assessment } = p;
   return `
       <div class="stat-card">
         <div class="stat-label">Impact global estimé</div>
-        <div class="stat-value">${formatPct(totalLoss)}</div>
+        <div class="stat-value">${escapeHtml(formatShadingLossPct(totalLoss, assessment.status))}</div>
         <div class="stat-hint">Synthèse retenue par l’étude (proche + lointain). Estimation annuelle modèle, ordre de grandeur comparable entre projets.</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Obstacles à proximité</div>
-        <div class="stat-value">${formatPct(nearLoss)}</div>
+        <div class="stat-value">${escapeHtml(formatShadingLossPct(nearLoss, assessment.nearStatus))}</div>
         <div class="stat-hint">Composante « proche » : obstacles sur ou immédiatement autour du plan de pose.</div>
       </div>
       <div class="stat-card">
@@ -38,7 +39,7 @@ function buildDsmShadingStatCardsFragment(p) {
       </div>
       <div class="stat-card">
         <div class="stat-label">Score d’exposition estimé</div>
-        <div class="stat-value">${score} / 100</div>
+        <div class="stat-value">${score == null ? escapeHtml(getShadingStatusLabel(assessment.status)) : `${score} / 100`}</div>
         <div class="stat-hint">Indicateur 0–100 issu du modèle d’ombrage / exposition — aide à la comparaison, pas une garantie de production.</div>
       </div>
       <div class="stat-card">
@@ -79,7 +80,7 @@ function extractPanelsWithLoss(geometry, perPanel) {
     for (const p of perPanel) {
       const id = p.panelId ?? p.id;
       if (id != null) {
-        const loss = typeof p.lossPct === "number" && !isNaN(p.lossPct) ? p.lossPct : 0;
+        const loss = typeof p.lossPct === "number" && Number.isFinite(p.lossPct) ? p.lossPct : null;
         lossMap.set(String(id), loss);
       }
     }
@@ -96,7 +97,7 @@ function extractPanelsWithLoss(geometry, perPanel) {
       const poly = p.polygonPx || p.polygon || p.points || p.projection?.points;
       if (!Array.isArray(poly) || poly.length < 3) continue;
       const panelId = p.id ?? `p-${panels.length}`;
-      const lossPct = lossMap.get(String(panelId)) ?? 0;
+      const lossPct = lossMap.get(String(panelId)) ?? null;
       let points;
       try {
         points = poly.map((pt) => ({
@@ -193,17 +194,21 @@ export function buildPage2Content(data) {
   const far = shading?.far || {};
   const combined = shading?.combined || {};
   const sq = shading?.shadingQuality || {};
-  const perPanel = shading?.perPanel || [];
+  const presentation = presentShading(shading);
+  const assessment = presentation.assessment;
+  const perPanel = presentation.perPanel;
 
   /** Perte totale affichée : même résolution que getOfficial + repli installation (voir resolveShadingTotalLossPct). */
-  const totalLoss = resolveShadingTotalLossPct(shading, { installation }) ?? null;
-  const nearLoss = Number(near.totalLossPct ?? 0) || 0;
-  const farLossStr = formatFarLossPctForPdf(far, sq);
-  const score = Number(sq.score ?? 0) || 0;
-  const grade = String(sq.grade ?? "—").toUpperCase() || "—";
+  const totalLoss = presentation.combinedLossPct;
+  const nearLoss = presentation.nearLossPct;
+  const farLossStr = escapeHtml(formatShadingLossPct(presentation.farLossPct, assessment.farStatus));
+  const score = assessment.status === 'computed' && Number.isFinite(sq.score) ? sq.score : null;
+  const grade = assessment.status === 'computed' ? String(sq.grade ?? '—') : getShadingStatusLabel(assessment.status);
 
   const top5 = getTop5Panels(perPanel);
-  const heatmapSvg = buildHeatmapSvg(geometry || {}, perPanel);
+  const heatmapSvg = assessment.status === 'computed' && perPanel.length > 0
+    ? buildHeatmapSvg(geometry || {}, perPanel)
+    : '<div class="heatmap-placeholder">Analyse par panneau non évaluée</div>';
 
   return `
     <section class="page a4 page-break">
@@ -219,7 +224,7 @@ export function buildPage2Content(data) {
       ${buildDsmShadingHeatmapNoteHtml()}
 
       <div class="stats-grid">
-        ${buildDsmShadingStatCardsFragment({ totalLoss, nearLoss, farLossStr, score, grade })}
+        ${buildDsmShadingStatCardsFragment({ totalLoss, nearLoss, farLossStr, score, grade, assessment })}
       </div>
 
       <section class="top-panels">
@@ -250,21 +255,22 @@ export function buildPage2Content(data) {
 export function buildDsmAnalysisHtml(data) {
   const { address, date, installation, geometry, shading } = data || {};
 
-  const near = shading.near || {};
-  const far = shading.far || {};
-  const combined = shading.combined || {};
-  const sq = shading.shadingQuality || {};
-  const perPanel = shading.perPanel || [];
+  const sq = shading?.shadingQuality || {};
+  const presentation = presentShading(shading);
+  const assessment = presentation.assessment;
+  const perPanel = presentation.perPanel;
 
   /** Perte totale PDF : même chaîne que `getOfficialGlobalShadingLossPct` (+ repli installation). */
-  const totalLoss = resolveShadingTotalLossPct(shading, { installation }) ?? null;
-  const nearLoss = Number(near.totalLossPct ?? 0) || 0;
-  const farLossStr = formatFarLossPctForPdf(far, sq);
-  const score = Number(sq.score ?? 0) || 0;
-  const grade = String(sq.grade ?? "—").toUpperCase() || "—";
+  const totalLoss = presentation.combinedLossPct;
+  const nearLoss = presentation.nearLossPct;
+  const farLossStr = escapeHtml(formatShadingLossPct(presentation.farLossPct, assessment.farStatus));
+  const score = assessment.status === 'computed' && Number.isFinite(sq.score) ? sq.score : null;
+  const grade = assessment.status === 'computed' ? String(sq.grade ?? '—') : getShadingStatusLabel(assessment.status);
 
   const top5 = getTop5Panels(perPanel);
-  const heatmapSvg = buildHeatmapSvg(geometry, perPanel);
+  const heatmapSvg = assessment.status === 'computed' && perPanel.length > 0
+    ? buildHeatmapSvg(geometry || {}, perPanel)
+    : '<div class="heatmap-placeholder">Analyse par panneau non évaluée</div>';
 
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -315,7 +321,7 @@ export function buildDsmAnalysisHtml(data) {
     ${buildDsmShadingHeatmapNoteHtml()}
 
     <section class="stats-grid">
-      ${buildDsmShadingStatCardsFragment({ totalLoss, nearLoss, farLossStr, score, grade })}
+      ${buildDsmShadingStatCardsFragment({ totalLoss, nearLoss, farLossStr, score, grade, assessment })}
     </section>
 
     <section class="top-panels">
@@ -350,8 +356,7 @@ function escapeHtml(s) {
 }
 
 function formatPct(n) {
-  if (typeof n !== "number" || isNaN(n)) return "—";
-  return `${Math.round(n * 100) / 100} %`;
+  return escapeHtml(formatShadingLossPct(n));
 }
 
 /** Far : pas afficher 0 % trompeur si GPS absent / UNAVAILABLE_NO_GPS */

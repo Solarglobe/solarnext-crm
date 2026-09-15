@@ -4,6 +4,7 @@
  * Interface prête pour évolution Redis.
  */
 
+import { isCompleteHorizonMask } from "../shading/shadingAssessment.service.js";
 import { getHorizonCacheDsmSuffix } from "./horizonDsmGate.js";
 
 const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 jours
@@ -15,8 +16,8 @@ function getConfig() {
   const maxItems = process.env.HORIZON_CACHE_MAX_ITEMS;
   const tileDeg = process.env.HORIZON_CACHE_TILE_DEG;
   return {
-    ttlMs: ttl != null && ttl !== "" ? parseInt(ttl, 10) : DEFAULT_TTL_MS,
-    maxItems: maxItems != null && maxItems !== "" ? parseInt(maxItems, 10) : DEFAULT_MAX_ITEMS,
+    ttlMs: Number.isFinite(Number(ttl)) && Number(ttl) > 0 ? Math.min(Number(ttl), DEFAULT_TTL_MS) : DEFAULT_TTL_MS,
+    maxItems: Number.isInteger(Number(maxItems)) && Number(maxItems) > 0 ? Math.min(Number(maxItems), DEFAULT_MAX_ITEMS) : DEFAULT_MAX_ITEMS,
     tileDeg: tileDeg != null && tileDeg !== "" ? parseFloat(tileDeg) : DEFAULT_TILE_DEG,
   };
 }
@@ -56,7 +57,9 @@ export function tileKey(lat, lon, radius_m, step_deg, tileSizeDeg, tenantKey = "
         ? parseInt(process.env.FAR_HORIZON_HD_MAX_DIST_M, 10)
         : 4000)
     : radius_m;
-  return `${tenantKey}:${tileLat.toFixed(5)}:${tileLon.toFixed(5)}:${effRadius}:${step_deg}:tile=${tileSizeDeg}${getDsmSuffix()}${getHdSuffix(enableHD, step_deg, effRadius)}`;
+  // A ~1 km tile does not share a single horizon, especially beside a hill.
+  // Keep tile metadata for diagnostics but distinguish the observation point.
+  return `${tenantKey}:${tileLat.toFixed(5)}:${tileLon.toFixed(5)}:${effRadius}:${step_deg}:tile=${tileSizeDeg}:point=${lat},${lon}:v=2${getDsmSuffix()}${getHdSuffix(enableHD, step_deg, effRadius)}`;
 }
 
 const cacheStore = new Map();
@@ -111,18 +114,24 @@ export async function getOrComputeHorizonMask(params, computeFn) {
     return result;
   }
 
+  if (inflight.size >= 32) throw new Error('HORIZON_CACHE_BUSY');
   statsMisses++;
   statsComputes++;
 
   const computePromise = (async () => {
     try {
-      const value = await Promise.resolve(computeFn());
+      const value = await Promise.resolve().then(computeFn);
+      const mask = value?.mask;
+      if (value?.error || value?.status === 'error' || !isCompleteHorizonMask(mask)) {
+        throw new Error('HORIZON_INVALID_OR_INCOMPLETE');
+      }
       const expiresAt = now + ttlMs;
       cacheStore.set(key, {
         value,
         expiresAt,
         createdAt: now,
       });
+      purge();
       return { value, cached: false };
     } finally {
       inflight.delete(key);
@@ -139,6 +148,7 @@ export async function getOrComputeHorizonMask(params, computeFn) {
  */
 export function __testGetStats() {
   return {
+    entries: cacheStore.size, inflight: inflight.size,
     computes: statsComputes,
     hits: statsHits,
     misses: statsMisses,

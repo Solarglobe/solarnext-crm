@@ -55,9 +55,13 @@ function dot3(a: Vector3, b: Vector3): number {
 
 /** Angle (degrés) entre deux normales unitaires. Retourne [0, 180]. */
 function angleBetweenNormalsDeg(a: Vector3, b: Vector3): number {
-  // clamp pour robustesse numérique (dot hors [-1,1] si normales légèrement non-unitaires)
-  const d = Math.max(-1, Math.min(1, dot3(a, b)));
-  return (Math.acos(d) * 180) / Math.PI;
+  // atan2 conserve la précision près de 0° et ne suppose pas des normales unitaires.
+  const scaleA = Math.hypot(a.x, a.y, a.z);
+  const scaleB = Math.hypot(b.x, b.y, b.z);
+  const u = { x: a.x / scaleA, y: a.y / scaleA, z: a.z / scaleA };
+  const v = { x: b.x / scaleB, y: b.y / scaleB, z: b.z / scaleB };
+  const crossLength = Math.hypot(u.y * v.z - u.z * v.y, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x);
+  return (Math.atan2(crossLength, dot3(u, v)) * 180) / Math.PI;
 }
 
 /** Surface projetée d'un plan (0 si champ absent ou non-fini). */
@@ -85,11 +89,14 @@ export function clusterRoofPlanes(
 
   for (const plane of planes) {
     const n = plane.normal;
-    if (!Number.isFinite(n.x) || !Number.isFinite(n.y) || !Number.isFinite(n.z)) continue;
+    if (!Number.isFinite(n.x) || !Number.isFinite(n.y) || !Number.isFinite(n.z) || Math.hypot(n.x, n.y, n.z) === 0) continue;
 
     let assigned = false;
     for (const cl of clusters) {
-      if (angleBetweenNormalsDeg(n, cl.repNormal) <= epsilonDeg) {
+      const angleDeg = angleBetweenNormalsDeg(n, cl.repNormal);
+      // Huit epsilon machine absorbent les arrondis trigonométriques, pas un écart métier.
+      const roundingDeg = 8 * Number.EPSILON * Math.max(1, Math.abs(angleDeg), Math.abs(epsilonDeg));
+      if (angleDeg <= epsilonDeg + roundingDeg) {
         cl.planes.push(plane);
         cl.totalArea += projectedAreaM2(plane);
         assigned = true;

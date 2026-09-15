@@ -24,6 +24,11 @@ const backendRoot = path.resolve(__dirname, '..');
 // ─── Liste exhaustive des tests purs (pas de connexion DB) ───────────────────
 
 const UNIT_TEST_FILES = [
+  'tests/flatRoofCertification.test.mjs',
+  'tests/horizonFixtureSafety.test.mjs',
+  'tests/shadingClientExport.test.mjs',
+  'tests/shadingPdfAssessment.test.mjs',
+  'tests/shadingAssessmentReference.test.mjs',
   'tests/mailEncryptionRotation.test.mjs',
   'tests/migrationIntegrity.test.mjs',
   'tests/currentElectricityContract.test.mjs',

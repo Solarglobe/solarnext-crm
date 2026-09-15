@@ -68,7 +68,7 @@ function _isLocalSurfaceConfigured() {
 }
 
 function _isUnitHorizonFixtureEnabled() {
-  return process.env.SOLARNEXT_UNIT_HORIZON_FIXTURE === "true";
+  return process.env.NODE_ENV === "test" && process.env.SOLARNEXT_UNIT_HORIZON_FIXTURE === "true";
 }
 
 function _buildUnitHorizonFixture(params) {

@@ -975,7 +975,7 @@ export async function mintClientPortalToken(db, { leadId, organizationId, expire
  */
 export async function assertDocumentInPortalScope(db, { organizationId, leadId, documentId }) {
   const r = await db.query(
-    `SELECT ed.id, ed.storage_key, ed.file_name, ed.mime_type, ed.entity_type, ed.document_type, ed.entity_id
+    `SELECT ed.id, ed.storage_key, ed.file_name, ed.mime_type, ed.entity_type, ed.document_type, ed.entity_id, ed.metadata_json
      FROM entity_documents ed
      INNER JOIN leads l ON l.id = $3 AND l.organization_id = $2
      WHERE ed.id = $1

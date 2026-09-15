@@ -34,9 +34,9 @@ function hasNoInternalFields(obj) {
     : {};
   const shading = normalizeCalpinageShading(rawShading, meta);
 
-  assert(shading.near != null && typeof shading.near.totalLossPct === "number", "shading.near.totalLossPct");
-  assert(shading.far != null && typeof shading.far.totalLossPct === "number", "shading.far.totalLossPct");
-  assert(shading.combined != null && typeof shading.combined.totalLossPct === "number", "shading.combined.totalLossPct");
+  assert(shading.near != null && shading.near.totalLossPct === null, "shading.near.totalLossPct");
+  assert(shading.far != null && shading.far.totalLossPct === null, "shading.far.totalLossPct");
+  assert(shading.combined != null && shading.combined.totalLossPct === null, "shading.combined.totalLossPct");
   assert(shading.shadingQuality != null && typeof shading.shadingQuality.score === "number", "shading.shadingQuality");
   assert(shading.far.algorithm != null, "far.algorithm présent");
   assert(shading.far.dataCoverage != null && typeof shading.far.dataCoverage.ratio === "number", "far.dataCoverage.ratio");

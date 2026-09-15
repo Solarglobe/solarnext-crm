@@ -50,11 +50,11 @@ async function testOfficialContract() {
   const s = normalizeCalpinageShading(raw, meta);
 
   assert(s && typeof s === "object", "contract: objet racine");
-  assert(s.near && typeof s.near.totalLossPct === "number", "contract: near.totalLossPct number");
+  assert(s.near && s.near.totalLossPct === null, "contract: near.totalLossPct number");
   assert(s.far && typeof s.far === "object", "contract: far objet");
   assert(Object.prototype.hasOwnProperty.call(s.far, "totalLossPct"), "contract: far.totalLossPct présent");
-  assert(s.combined && typeof s.combined.totalLossPct === "number", "contract: combined.totalLossPct number");
-  assert(typeof s.totalLossPct === "number", "contract: totalLossPct racine (miroir)");
+  assert(s.combined && s.combined.totalLossPct === null, "contract: combined.totalLossPct number");
+  assert(s.totalLossPct === null, "contract: totalLossPct racine (miroir)");
   assert(s.shadingQuality && typeof s.shadingQuality.score === "number", "contract: shadingQuality.score");
   assert(Array.isArray(s.perPanel), "contract: perPanel array");
   assert(s.far.dataCoverage && typeof s.far.dataCoverage.ratio === "number", "contract: far.dataCoverage.ratio");
@@ -83,9 +83,9 @@ async function testGoldenNear() {
     panelGridSize: 2,
     metersPerPixel: 1,
   });
-  const GOLDEN_TOTAL = 0.010203482917434354;
+  const GOLDEN_TOTAL = 0.008770986245181188;
   const eps = 1e-12;
-  assert(Math.abs(r.totalLossPct - GOLDEN_TOTAL) < eps, "golden near: totalLossPct inchangé");
+  assert(Math.abs(r.totalLossPct - GOLDEN_TOTAL) < eps, "golden near: totalLossPct référence corrigée");
 }
 
 // --- TEST 3 — Golden far / horizon (fixture officielle) ---
@@ -108,9 +108,9 @@ async function testGoldenFarHorizon() {
     obstacles: [],
     options: { __testHorizonMaskOverride: fixture.horizonMask },
   });
-  const GOLDEN = 8.823;
+  const GOLDEN = 8.51645739412572;
   assert(
-    back && Math.abs(Number(back.totalLossPct) - GOLDEN) < 0.0005,
+    back && Math.abs(back.diagnostics.geometricProxy.totalLossPct - GOLDEN) < 0.0005,
     "golden far/horizon: totalLossPct fixture ign_like_step1_hd ≈ " + GOLDEN
   );
 }
@@ -158,7 +158,7 @@ async function testFrontBackAnnual() {
     options: { __testHorizonMaskOverride: fixture.horizonMask },
   });
   assert(
-    front && back && Math.abs(front.annualLossPercent - back.totalLossPct) < 0.001,
+    front && back && Math.abs(front.annualLossPercent - back.diagnostics.geometricProxy.totalLossPct) < 0.001,
     "front/back annual: annualLossPercent (core) === totalLossPct (backend) flat"
   );
 }

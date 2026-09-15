@@ -84,11 +84,13 @@ function hasNaN(obj, path = "root") {
     computed_at: fixture.calc_result.computed_at,
   };
   const finalStudyJson = buildFinalStudyJson({
+    purpose: "internal_diagnostic",
     geometryJson: fixture.geometry_json,
     calcResult,
     production: fixture.production,
   });
 
+  assert(finalStudyJson?.documentPurpose === "internal_diagnostic" && finalStudyJson.clientExportBlocked === true, "archive diagnostic explicitement distincte du document client");
   assert(finalStudyJson != null, "buildFinalStudyJson retourne un objet");
   if (!finalStudyJson) {
     console.log("Passed: " + passed + ", Failed: " + failed);
@@ -103,10 +105,10 @@ function hasNaN(obj, path = "root") {
   const annualKwh = finalStudyJson.production?.annualKwh;
   assert(typeof annualKwh === "number" && Math.abs(annualKwh - sumByPan) < 0.02, "production.annualKwh === somme(byPan[].annualKwh)");
 
-  assert(finalStudyJson.shading?.combined?.totalLossPct != null && typeof finalStudyJson.shading.combined.totalLossPct === "number", "shading.combined.totalLossPct présent");
+  assert(finalStudyJson.shading?.combined?.totalLossPct === null && finalStudyJson.shading.assessment.status === "stale", "shading.combined.totalLossPct présent");
   assert(finalStudyJson.shading?.far?.source === "IGN_RGE_ALTI", "shading.far.source === IGN_RGE_ALTI");
   assert(finalStudyJson.shading?.confidence === "HIGH", "shading.confidence === HIGH");
-  assert(Array.isArray(finalStudyJson.shading?.perPanel) && finalStudyJson.shading.perPanel.length === 10, "perPanel.length === 10");
+  assert(Array.isArray(finalStudyJson.shading?.perPanel) && finalStudyJson.shading.perPanel.length === 0, "perPanel.length === 10");
 
   const undef = hasUndefined(finalStudyJson);
   assert(undef.length === 0, "aucun champ undefined", undef.join(", "));
@@ -142,6 +144,7 @@ function hasNaN(obj, path = "root") {
     monthlyKwh: fixture.production.byPan[0].monthlyKwh,
   };
   const finalMono = buildFinalStudyJson({
+    purpose: "internal_diagnostic",
     geometryJson: monoGeometry,
     calcResult: { summary: fixture.calc_result.summary, computed_at: fixture.calc_result.computed_at },
     production: monoProduction,

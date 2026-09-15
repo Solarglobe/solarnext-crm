@@ -55,10 +55,15 @@ export async function computeMask({ lat, lon }) {
     throw new Error("PVGIS: réponse inattendue — horizon_profile absent ou vide");
   }
 
-  const mask = data.outputs.horizon_profile.map((p) => ({
-    az: Number(p.A),
-    elev: Math.max(0, Number(p.H_hor) || 0),
-  }));
+  const mask = data.outputs.horizon_profile.map((p) => {
+    const az = p?.A == null || p.A === '' ? NaN : Number(p.A);
+    const elev = p?.H_hor == null || p.H_hor === '' ? NaN : Number(p.H_hor);
+    if (!Number.isFinite(az) || az < -180 || az > 180 || !Number.isFinite(elev) || elev < 0 || elev > 90) {
+      throw new Error('PVGIS: invalid horizon azimuth or height');
+    }
+    // PVGIS A: 0=south, -90=east. Engine: 0=north, 90=east.
+    return { az: (az + 180) % 360, elev };
+  }).sort((a,b) => a.az - b.az);
 
   return {
     source: "SURFACE_DSM",

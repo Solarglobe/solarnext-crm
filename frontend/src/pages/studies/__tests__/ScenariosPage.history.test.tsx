@@ -1,3 +1,4 @@
+import { surveyedClearShading } from "./fixtures/surveyedClearShading";
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import {it,expect,vi,afterEach} from 'vitest';
@@ -6,7 +7,7 @@ import {MemoryRouter,Route,Routes} from 'react-router-dom';
 import Page from '../ScenariosPage';
 vi.mock('../../../contexts/OrganizationContext',()=>({useSuperAdminReadOnly:()=>false}));
 vi.mock('../../../services/api',async original=>({...await original<typeof import('../../../services/api')>(),apiFetch:(url:string,opts?:RequestInit)=>fetch(url,opts)}));
-const scenario=(gain:number)=>({id:'BASE',consumption_source:'IMPORTED_DAILY_RECONSTRUCTED',energy:{production_kwh:5000},finance:{economie_total:gain,economie_year_1:1000}});
+const scenario=(gain:number)=>({id: "BASE", shading: surveyedClearShading(),consumption_source:'IMPORTED_DAILY_RECONSTRUCTED',energy:{production_kwh:5000},finance:{economie_total:gain,economie_year_1:1000}});
 const mount=()=>render(<MemoryRouter initialEntries={['/studies/study/versions/version/scenarios']}><Routes><Route path="/studies/:studyId/versions/:versionId/scenarios" element={<Page/>}/></Routes></MemoryRouter>);
 afterEach(()=>{cleanup();vi.restoreAllMocks();});
 it('charge l’index à l’ouverture, le détail à la demande et bloque les exports historiques',async()=>{

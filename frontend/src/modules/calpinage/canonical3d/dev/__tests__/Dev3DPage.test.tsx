@@ -92,7 +92,7 @@ describe("Dev3DPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText(/dev\/3d/i)).toBeTruthy();
+    expect(await screen.findByText(/dev\/3d/i)).toBeTruthy();
     expect(screen.getByText(/mode=demo/i)).toBeTruthy();
 
     await vi.waitFor(

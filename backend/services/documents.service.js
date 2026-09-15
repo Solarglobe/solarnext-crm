@@ -1,3 +1,4 @@
+import { buildStudyPdfExportReceipt } from './shading/clientStudyDocumentGuard.service.js';
 /**
  * CP-032C — Service Documents (logique delete pour tests d'intégrité)
  * PDF V2 — saveStudyPdfDocument pour persister les PDF générés par Playwright.
@@ -519,6 +520,7 @@ export async function patchEntityDocument(organizationId, documentId, body) {
  * @returns {Promise<{ id: string, file_name: string, storage_key: string }>}
  */
 export async function saveStudyPdfDocument(pdfBuffer, organizationId, studyId, versionId, userId, opts = {}) {
+  const exportReceipt = buildStudyPdfExportReceipt(opts.clientSnapshot);
   let fileName;
   const preferred = opts.fileName && String(opts.fileName).trim();
   if (preferred) {
@@ -544,8 +546,8 @@ export async function saveStudyPdfDocument(pdfBuffer, organizationId, studyId, v
   const ins = await pool.query(
     `INSERT INTO entity_documents
      (organization_id, entity_type, entity_id, file_name, file_size, mime_type, storage_key, url, uploaded_by, document_type,
-      document_category, source_type, is_client_visible, display_name, description, file_hash)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      document_category, source_type, is_client_visible, display_name, description, file_hash, metadata_json)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb)
      RETURNING id, file_name, storage_key`,
     [
       organizationId,
@@ -564,6 +566,7 @@ export async function saveStudyPdfDocument(pdfBuffer, organizationId, studyId, v
       bm.display_name,
       bm.description,
       fileHash,
+      JSON.stringify({ study_id: studyId, study_version_id: versionId, shading_export_receipt: exportReceipt }),
     ]
   );
 

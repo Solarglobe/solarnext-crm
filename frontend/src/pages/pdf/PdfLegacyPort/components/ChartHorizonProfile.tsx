@@ -31,10 +31,10 @@ const CH      = VH - PAD_T - PAD_B;   // 176
 const C_FILL_STOP0 = "#C39847";  // gold opaque en haut
 const C_FILL_STOP1 = "#C39847";  // gold transparent en bas
 const C_STROKE     = "#D4AC5A";
-const C_GRID       = "rgba(255,255,255,0.07)";
-const C_CARDINAL   = "rgba(255,255,255,0.20)";
-const C_LABEL      = "#9FA8C7";
-const C_BASE       = "rgba(255,255,255,0.15)";
+const C_GRID       = "rgba(36,55,71,0.15)";
+const C_CARDINAL   = "rgba(36,55,71,0.35)";
+const C_LABEL      = "#465b6c";
+const C_BASE       = "rgba(36,55,71,0.35)";
 
 // Cardinaux : azimut → label
 const CARDINALS: Array<{ az: number; label: string }> = [
@@ -110,8 +110,8 @@ export default function ChartHorizonProfile({ horizonMaskArray }: ChartHorizonPr
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center", gap: 4,
       }}>
-        <div style={{ fontSize: "10pt", color: "#9FA8C7", fontWeight: 500 }}>Profil horizon</div>
-        <div style={{ fontSize: "8pt", color: "#9FA8C7", opacity: 0.5 }}>
+        <div style={{ fontSize: "10pt", color: "#465b6c", fontWeight: 500 }}>Profil horizon</div>
+        <div style={{ fontSize: "8pt", color: "#465b6c", opacity: 0.5 }}>
           Données non disponibles pour ce site
         </div>
       </div>
@@ -122,7 +122,7 @@ export default function ChartHorizonProfile({ horizonMaskArray }: ChartHorizonPr
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
       <svg
         viewBox={`0 0 ${VW} ${VH}`}
-        style={{ width: "100%", flex: 1, display: "block", overflow: "visible" }}
+        style={{ width: "100%", height: 0, minHeight: 0, flex: "1 1 0px", display: "block" }}
         aria-label="Profil d'horizon du site"
       >
         <defs>

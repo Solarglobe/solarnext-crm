@@ -251,6 +251,7 @@ export async function runStudyCalc(req, res) {
       );
       if (calpinageRes.rows.length > 0 && calpinageRes.rows[0].geometry_json) {
         finalStudyJson = buildFinalStudyJson({
+          purpose: "internal_diagnostic",
           geometryJson: calpinageRes.rows[0].geometry_json,
           calcResult: { summary, computed_at: calcResult.computed_at },
           production: ctxFinal.production ?? undefined,

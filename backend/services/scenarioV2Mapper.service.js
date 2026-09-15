@@ -451,9 +451,15 @@ export function mapScenarioToV2(scenario, ctx) {
 
   const shadingSrc = ctx?.shading ?? ctx?.form?.installation?.shading ?? {};
   const shading = {
+    assessment: shadingSrc.assessment ?? null,
+    distribution: shadingSrc.distribution ?? null,
+    near: shadingSrc.near ?? null,
+    far: shadingSrc.far ?? null,
+    combined: shadingSrc.combined ?? null,
+    horizonMask: shadingSrc.horizonMask ?? null,
     commercial_audit: ctx?.meta?.shading_commercial_audit ?? null,
-    near_loss_pct:  shadingSrc.nearLossPct ?? shadingSrc.near_loss_pct ?? null,
-    far_loss_pct:   shadingSrc.farLossPct  ?? shadingSrc.far_loss_pct  ?? null,
+    near_loss_pct:  shadingSrc.near?.totalLossPct ?? shadingSrc.nearLossPct ?? shadingSrc.near_loss_pct ?? null,
+    far_loss_pct:   shadingSrc.far?.totalLossPct ?? shadingSrc.farLossPct ?? shadingSrc.far_loss_pct ?? null,
     total_loss_pct: resolveShadingTotalLossPct(shadingSrc, ctx?.form)  ?? null,
     quality:        shadingSrc.shadingQuality ?? shadingSrc.quality    ?? null,
     // ── champs enrichis — propagés depuis payload.installation.shading ──────

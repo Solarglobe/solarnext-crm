@@ -1,3 +1,4 @@
+import { sealServerShading } from '../shading/shadingServerReceipt.js';
 /**
  * Ombrage officiel serveur (parallèle au legacy payload) — même entrée que computeCalpinageShading + normalize.
  * Ne remplace aucun KPI consommé par le moteur ; exposé sous feature flag USE_OFFICIAL_SHADING.
@@ -8,7 +9,7 @@ import { buildStructuredShading, hasPanelsInGeometry } from "../shading/shadingS
 import { normalizeCalpinageShading } from "./calpinageShadingNormalizer.js";
 
 const OFFICIAL_SOURCE = "SERVER_CANONICAL";
-const OFFICIAL_VERSION = "OFFICIAL_V1";
+const OFFICIAL_VERSION = "OFFICIAL_V2_ASSESSED";
 
 function numOrNull(v) {
   if (v == null || v === "") return null;
@@ -36,7 +37,7 @@ export function buildOfficialShadingFromComputeResult(shadingResult, hasGps, has
   if (Array.isArray(shadingResult.perPanelBreakdown) && shadingResult.perPanelBreakdown.length > 0) {
     rawBase.perPanel = shadingResult.perPanelBreakdown.map((r) => ({
       panelId: String(r.panelId),
-      lossPct: typeof r.lossPct === "number" ? r.lossPct : Number(r.lossPct) || 0,
+      lossPct: numOrNull(r.lossPct),
     }));
   }
   const meta = shadingResult.farMetadata
@@ -48,18 +49,26 @@ export function buildOfficialShadingFromComputeResult(shadingResult, hasGps, has
     : {};
   const normalized = normalizeCalpinageShading(rawBase, meta);
   const computedAt = new Date().toISOString();
-  return {
+  return sealServerShading({
     totalLossPct: normalized.totalLossPct,
     near: normalized.near,
     far: normalized.far,
     combined: normalized.combined,
     perPanel: normalized.perPanel ?? [],
+    assessment: normalized.assessment,
+    diagnostics: normalized.diagnostics,
+    distribution: normalized.distribution,
+    horizonMask: normalized.horizonMask,
+    shadingQuality: normalized.shadingQuality,
+    monthlyFactors: normalized.monthlyFactors,
+    monthlyKwhStats: normalized.monthlyKwhStats,
+    annualLossKwh: normalized.annualLossKwh,
     meta: {
       source: OFFICIAL_SOURCE,
       version: OFFICIAL_VERSION,
       computedAt,
     },
-  };
+  });
 }
 
 /**

@@ -1,4 +1,6 @@
 {
+  "documentPurpose": "internal_diagnostic",
+  "clientExportBlocked": true,
   "meta": {
     "version": "study_v1_final",
     "generatedAt": "<ISO>",
@@ -30,9 +32,9 @@
           "panelCount": 6,
           "surface": 15.2,
           "geometryRef": "pan-A",
-          "shadingNearPct": 2.5,
-          "shadingFarPct": 7,
-          "shadingCombinedPct": 4.8
+          "shadingNearPct": null,
+          "shadingFarPct": null,
+          "shadingCombinedPct": null
         },
         {
           "id": "pan-B",
@@ -41,9 +43,9 @@
           "panelCount": 4,
           "surface": 10.1,
           "geometryRef": "pan-B",
-          "shadingNearPct": 3,
-          "shadingFarPct": 6.5,
-          "shadingCombinedPct": 5.2
+          "shadingNearPct": null,
+          "shadingFarPct": null,
+          "shadingCombinedPct": null
         }
       ]
     },
@@ -55,9 +57,9 @@
         "panelCount": 6,
         "surface": 15.2,
         "geometryRef": "pan-A",
-        "shadingNearPct": 2.5,
-        "shadingFarPct": 7,
-        "shadingCombinedPct": 4.8
+        "shadingNearPct": null,
+        "shadingFarPct": null,
+        "shadingCombinedPct": null
       },
       {
         "id": "pan-B",
@@ -66,9 +68,9 @@
         "panelCount": 4,
         "surface": 10.1,
         "geometryRef": "pan-B",
-        "shadingNearPct": 3,
-        "shadingFarPct": 6.5,
-        "shadingCombinedPct": 5.2
+        "shadingNearPct": null,
+        "shadingFarPct": null,
+        "shadingCombinedPct": null
       }
     ],
     "panels": [
@@ -186,65 +188,37 @@
       "efficiency": null
     },
     "shading": {
+      "assessment": {
+        "status": "stale",
+        "nearStatus": "stale",
+        "farStatus": "stale",
+        "reasons": []
+      },
+      "distribution": null,
+      "monthlyFactors": null,
+      "monthlyKwhStats": null,
+      "annualLossKwh": null,
       "near": {
-        "totalLossPct": 2.8
+        "totalLossPct": null,
+        "status": "stale"
       },
       "far": {
-        "totalLossPct": 6.8,
+        "totalLossPct": null,
         "source": "IGN_RGE_ALTI",
         "coverage": 1,
-        "confidenceLevel": "HIGH"
+        "confidenceLevel": "HIGH",
+        "status": "stale"
       },
       "combined": {
-        "totalLossPct": 5
+        "totalLossPct": null,
+        "status": "stale"
       },
-      "totalLossPct": 5,
+      "totalLossPct": null,
       "confidence": "HIGH",
       "source": "IGN_RGE_ALTI",
       "farHorizonKind": "SYNTHETIC",
       "computedAt": "<ISO>",
-      "perPanel": [
-        {
-          "panelId": "b1_0",
-          "lossPct": 4.2
-        },
-        {
-          "panelId": "b1_1",
-          "lossPct": 4.5
-        },
-        {
-          "panelId": "b1_2",
-          "lossPct": 5
-        },
-        {
-          "panelId": "b1_3",
-          "lossPct": 5.1
-        },
-        {
-          "panelId": "b1_4",
-          "lossPct": 4.8
-        },
-        {
-          "panelId": "b1_5",
-          "lossPct": 5.2
-        },
-        {
-          "panelId": "b2_0",
-          "lossPct": 5
-        },
-        {
-          "panelId": "b2_1",
-          "lossPct": 5.4
-        },
-        {
-          "panelId": "b2_2",
-          "lossPct": 5.1
-        },
-        {
-          "panelId": "b2_3",
-          "lossPct": 5.3
-        }
-      ],
+      "perPanel": [],
       "shadingQuality": {
         "confidence": "HIGH",
         "score": 0.9
@@ -277,65 +251,37 @@
     "dcAcRatio": null
   },
   "shading": {
+    "assessment": {
+      "status": "stale",
+      "nearStatus": "stale",
+      "farStatus": "stale",
+      "reasons": []
+    },
+    "distribution": null,
+    "monthlyFactors": null,
+    "monthlyKwhStats": null,
+    "annualLossKwh": null,
     "near": {
-      "totalLossPct": 2.8
+      "totalLossPct": null,
+      "status": "stale"
     },
     "far": {
-      "totalLossPct": 6.8,
+      "totalLossPct": null,
       "source": "IGN_RGE_ALTI",
       "coverage": 1,
-      "confidenceLevel": "HIGH"
+      "confidenceLevel": "HIGH",
+      "status": "stale"
     },
     "combined": {
-      "totalLossPct": 5
+      "totalLossPct": null,
+      "status": "stale"
     },
-    "totalLossPct": 5,
+    "totalLossPct": null,
     "confidence": "HIGH",
     "source": "IGN_RGE_ALTI",
     "farHorizonKind": "SYNTHETIC",
     "computedAt": "<ISO>",
-    "perPanel": [
-      {
-        "panelId": "b1_0",
-        "lossPct": 4.2
-      },
-      {
-        "panelId": "b1_1",
-        "lossPct": 4.5
-      },
-      {
-        "panelId": "b1_2",
-        "lossPct": 5
-      },
-      {
-        "panelId": "b1_3",
-        "lossPct": 5.1
-      },
-      {
-        "panelId": "b1_4",
-        "lossPct": 4.8
-      },
-      {
-        "panelId": "b1_5",
-        "lossPct": 5.2
-      },
-      {
-        "panelId": "b2_0",
-        "lossPct": 5
-      },
-      {
-        "panelId": "b2_1",
-        "lossPct": 5.4
-      },
-      {
-        "panelId": "b2_2",
-        "lossPct": 5.1
-      },
-      {
-        "panelId": "b2_3",
-        "lossPct": 5.3
-      }
-    ]
+    "perPanel": []
   },
   "production": {
     "byPan": [

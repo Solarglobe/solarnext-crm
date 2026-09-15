@@ -1,0 +1,1148 @@
+{
+  "lat": 49,
+  "lon": 2,
+  "panelsCount": 10,
+  "powerKwc": 5,
+  "geometry": {
+    "meta": {
+      "engine": {
+        "shading": "near+far+HD",
+        "production": "multi-pan"
+      },
+      "version": "calpinage_v1_final",
+      "generatedAt": "2020-01-01T00:00:00.000Z"
+    },
+    "pans": [
+      {
+        "id": "fictional-reference-1",
+        "name": "Fictional geometry fixture",
+        "points": [
+          {
+            "h": 3.3,
+            "x": 320.8724925867783,
+            "y": 271.39934916274194,
+            "id": "fictional-reference-2",
+            "hPhysicsSource": "explicit_pan_vertex"
+          },
+          {
+            "h": 3.3,
+            "x": 251.87545787545793,
+            "y": 461.697622318158,
+            "id": "fictional-reference-3",
+            "hPhysicsSource": "explicit_pan_vertex"
+          },
+          {
+            "h": 3.1,
+            "x": 357.0402930402931,
+            "y": 499.5347058695272,
+            "id": "fictional-reference-4",
+            "hPhysicsSource": "explicit_pan_vertex"
+          },
+          {
+            "h": 3.1,
+            "x": 407.67521367521374,
+            "y": 349.8556547619047,
+            "id": "fictional-reference-5",
+            "hPhysicsSource": "explicit_pan_vertex"
+          },
+          {
+            "h": 3,
+            "x": 464.98726670155247,
+            "y": 368.2177688383045,
+            "id": "fictional-reference-6",
+            "hPhysicsSource": "explicit_pan_vertex"
+          },
+          {
+            "h": 3,
+            "x": 478.34153148438867,
+            "y": 330.93711298622003,
+            "id": "fictional-reference-7",
+            "hPhysicsSource": "explicit_pan_vertex"
+          }
+        ],
+        "polygon": [
+          {
+            "h": 3.3,
+            "x": 320.8724925867783,
+            "y": 271.39934916274194
+          },
+          {
+            "h": 3.3,
+            "x": 251.87545787545793,
+            "y": 461.697622318158
+          },
+          {
+            "h": 3.1,
+            "x": 357.0402930402931,
+            "y": 499.5347058695272
+          },
+          {
+            "h": 3.1,
+            "x": 407.67521367521374,
+            "y": 349.8556547619047
+          },
+          {
+            "h": 3,
+            "x": 464.98726670155247,
+            "y": 368.2177688383045
+          },
+          {
+            "h": 3,
+            "x": 478.34153148438867,
+            "y": 330.93711298622003
+          }
+        ],
+        "tiltDeg": 1.060669274118962,
+        "physical": {
+          "slope": {
+            "mode": "auto",
+            "valueDeg": 1.060669274118962,
+            "computedDeg": 1.060669274118962
+          },
+          "orientation": {
+            "label": "ESE",
+            "azimuthDeg": 110.22840430399117
+          },
+          "slopeDirectionLabel": "ESE"
+        },
+        "ridgeIds": [],
+        "obstacles": [],
+        "polygonPx": [
+          {
+            "h": 3.3,
+            "x": 320.8724925867783,
+            "y": 271.39934916274194
+          },
+          {
+            "h": 3.3,
+            "x": 251.87545787545793,
+            "y": 461.697622318158
+          },
+          {
+            "h": 3.1,
+            "x": 357.0402930402931,
+            "y": 499.5347058695272
+          },
+          {
+            "h": 3.1,
+            "x": 407.67521367521374,
+            "y": 349.8556547619047
+          },
+          {
+            "h": 3,
+            "x": 464.98726670155247,
+            "y": 368.2177688383045
+          },
+          {
+            "h": 3,
+            "x": 478.34153148438867,
+            "y": 330.93711298622003
+          }
+        ],
+        "azimuthDeg": 110.22840430399117
+      }
+    ],
+    "panel": {
+      "id": "fictional-reference-8",
+      "name": "Fictional geometry fixture",
+      "brand": "AIKO",
+      "model": "AIO-A500-MAH60Db",
+      "panel_id": "fictional-reference-8",
+      "power_wc": 500,
+      "width_mm": 1134,
+      "height_mm": 1954,
+      "model_ref": "AIO-A500-MAH60Db",
+      "efficiency_pct": "23.80",
+      "degradation_annual_pct": 0.35,
+      "temp_coeff_pct_per_deg": 0.26,
+      "degradation_first_year_pct": 1
+    },
+    "phase": 3,
+    "phase3": {
+      "activePanId": "fictional-reference-1"
+    },
+    "totals": {
+      "panels_count": 10,
+      "total_power_wc": 5000,
+      "total_power_kwc": 5,
+      "module_breakdown": [
+        {
+          "count": 10,
+          "label": "AIKO AIKO Neostar 2S+ 500W",
+          "panel_id": "fictional-reference-8",
+          "power_wc": 500,
+          "total_power_wc": 5000
+        }
+      ]
+    },
+    "shading": {
+      "far": {
+        "source": "IGN_GEOPLATEFORME",
+        "radius_m": null,
+        "step_deg": null,
+        "algorithm": "LEGACY",
+        "dataCoverage": {
+          "notes": [
+            "RGE ALTI via IGN Géoplateforme API (ign_rge_alti_wld) — couverture 100%"
+          ],
+          "ratio": 1,
+          "provider": "IGN_GEOPLATEFORME",
+          "gridResolutionMeters": 1,
+          "effectiveRadiusMeters": 500
+        },
+        "resolution_m": 1,
+        "totalLossPct": 0,
+        "farHorizonKind": "SYNTHETIC",
+        "confidenceLevel": "LOW",
+        "confidenceScore": 0,
+        "confidenceBreakdown": {}
+      },
+      "near": {
+        "official": {
+          "engine": "LEGACY_POLYGON",
+          "canonicalUsable": false,
+          "officialLossPct": 0,
+          "selectionReason": "Near officiel = legacy polygon (flag canonical 3D désactivé).",
+          "fallbackTriggered": false,
+          "legacyReferenceLossPct": 0
+        },
+        "totalLossPct": 0
+      },
+      "combined": {
+        "totalLossPct": 0
+      },
+      "perPanel": [
+        {
+          "lossPct": 0,
+          "panelId": "fictional-reference-9"
+        },
+        {
+          "lossPct": 0,
+          "panelId": "fictional-reference-10"
+        },
+        {
+          "lossPct": 0,
+          "panelId": "fictional-reference-11"
+        },
+        {
+          "lossPct": 0,
+          "panelId": "fictional-reference-12"
+        },
+        {
+          "lossPct": 0,
+          "panelId": "fictional-reference-13"
+        },
+        {
+          "lossPct": 0,
+          "panelId": "fictional-reference-14"
+        },
+        {
+          "lossPct": 0,
+          "panelId": "fictional-reference-15"
+        },
+        {
+          "lossPct": 0,
+          "panelId": "fictional-reference-16"
+        },
+        {
+          "lossPct": 0,
+          "panelId": "fictional-reference-17"
+        },
+        {
+          "lossPct": 0,
+          "panelId": "fictional-reference-18"
+        }
+      ],
+      "totalLossPct": 0,
+      "shadingQuality": {
+        "grade": "D",
+        "score": 0,
+        "inputs": {
+          "far": null,
+          "near": null,
+          "coveragePct": null,
+          "resolution_m": null
+        },
+        "provider": "IGN_GEOPLATEFORME",
+        "modelType": "SYNTHETIC",
+        "confidence": "LOW",
+        "farHorizonKind": "SYNTHETIC",
+        "resolutionMeters": 1,
+        "effectiveRadiusMeters": 500
+      }
+    },
+    "inverter": {
+      "id": "fictional-reference-19",
+      "name": "Fictional geometry fixture",
+      "brand": "ATMOCE",
+      "model_ref": "MI-500",
+      "nominal_va": 500,
+      "inverter_id": "fictional-reference-19",
+      "inverter_type": "micro",
+      "inverter_family": "MICRO",
+      "nominal_power_kw": null,
+      "euro_efficiency_pct": null,
+      "modules_per_inverter": 1
+    },
+    "pvParams": {
+      "margesCm": {
+        "riveCm": 20,
+        "egoutCm": 20,
+        "aretierCm": 20,
+        "faitageCm": 20,
+        "obstacleCm": 20
+      },
+      "distanceLimitesCm": 20,
+      "orientationPanneaux": "landscape",
+      "espacementVerticalCm": 4.5,
+      "espacementHorizontalCm": 2
+    },
+    "panelSpec": {
+      "id": "fictional-reference-8",
+      "brand": "AIKO",
+      "model": "AIO-A500-MAH60Db",
+      "panel_id": "fictional-reference-8",
+      "power_wc": 500,
+      "width_mm": 1134,
+      "height_mm": 1954,
+      "model_ref": "AIO-A500-MAH60Db",
+      "degradation_annual_pct": 0.35,
+      "temp_coeff_pct_per_deg": 0.26,
+      "degradation_first_year_pct": 1
+    },
+    "roofState": {
+      "gps": {
+        "lat": 49,
+        "lon": 2
+      },
+      "map": {
+        "zoom": 20,
+        "bearing": 0,
+        "provider": "google",
+        "centerLatLng": {
+          "lat": 49.171292695489875,
+          "lng": 2.375355061342219
+        }
+      },
+      "roof": {
+        "north": {
+          "mode": "auto-google",
+          "angleDeg": 0
+        }
+      },
+      "image": {
+        "width": 1088,
+        "height": 638,
+        "cssWidth": 1088,
+        "cssHeight": 637.453125
+      },
+      "scale": {
+        "source": "google-dp4",
+        "metersPerPixel": 0.09760647294454221
+      },
+      "planes": [
+        {
+          "points": [
+            {
+              "x": 320.8724925867783,
+              "y": 271.39934916274194
+            },
+            {
+              "x": 251.87545787545793,
+              "y": 461.697622318158
+            },
+            {
+              "x": 357.0402930402931,
+              "y": 499.5347058695272
+            },
+            {
+              "x": 407.67521367521374,
+              "y": 349.8556547619047
+            },
+            {
+              "x": 464.98726670155247,
+              "y": 368.2177688383045
+            },
+            {
+              "x": 478.34153148438867,
+              "y": 330.93711298622003
+            }
+          ],
+          "derivedFromPanId": "fictional-reference-1",
+          "derivedTopologySource": "computePansFromGeometryCore_v1"
+        }
+      ],
+      "ridges": [],
+      "traits": [],
+      "mesures": [],
+      "obstacles": [],
+      "contoursBati": [
+        {
+          "id": "fictional-reference-20",
+          "points": [
+            {
+              "h": 3.3,
+              "x": 320.8724925867783,
+              "y": 271.39934916274194,
+              "heightSource": "default"
+            },
+            {
+              "h": 3.3,
+              "x": 251.87545787545793,
+              "y": 461.697622318158,
+              "heightSource": "default"
+            },
+            {
+              "h": 3.1,
+              "x": 357.0402930402931,
+              "y": 499.5347058695272,
+              "heightSource": "default"
+            },
+            {
+              "h": 3.1,
+              "x": 407.67521367521374,
+              "y": 349.8556547619047,
+              "heightSource": "default"
+            },
+            {
+              "h": 3,
+              "x": 464.98726670155247,
+              "y": 368.2177688383045,
+              "heightSource": "default"
+            },
+            {
+              "h": 3,
+              "x": 478.34153148438867,
+              "y": 330.93711298622003,
+              "heightSource": "default"
+            }
+          ],
+          "roofRole": "contour"
+        }
+      ],
+      "canonical3DWorldContract": {
+        "northAngleDeg": 0,
+        "schemaVersion": 1,
+        "metersPerPixel": 0.09760647294454221,
+        "referenceFrame": "LOCAL_IMAGE_ENU"
+      }
+    },
+    "geometry3d": null,
+    "activePanId": "fictional-reference-1",
+    "featureFlags": {},
+    "frozenBlocks": [
+      {
+        "id": "fictional-reference-21",
+        "panId": "fictional-reference-1",
+        "panels": [
+          {
+            "id": "fictional-reference-22",
+            "name": "Fictional geometry fixture",
+            "brand": "AIKO",
+            "state": "valid",
+            "center": {
+              "x": 330.5306459698865,
+              "y": 288.18116308022604
+            },
+            "enabled": true,
+            "panelId": "fictional-reference-8",
+            "powerWc": 500,
+            "panel_id": "fictional-reference-8",
+            "power_wc": 500,
+            "model_ref": "AIO-A500-MAH60Db",
+            "projection": {
+              "points": [
+                {
+                  "x": 319.1458469537142,
+                  "y": 290.257572995504
+                },
+                {
+                  "x": 323.07839526859505,
+                  "y": 279.32740194384996
+                },
+                {
+                  "x": 341.9154449860588,
+                  "y": 286.1047531649481
+                },
+                {
+                  "x": 337.98289667117797,
+                  "y": 297.0349242166021
+                }
+              ],
+              "perpAxis": {
+                "x": 0.9409508616185369,
+                "y": 0.33854316714317706
+              },
+              "slopeAxis": {
+                "x": 0.33854316714317706,
+                "y": -0.9409508616185369
+              },
+              "halfLengthPerpPx": 10.00958205461547,
+              "halfLengthAlongSlopePx": 5.8080456150776
+            },
+            "panelWidthMm": 1134,
+            "panelHeightMm": 1954,
+            "panelCatalogId": "fictional-reference-8",
+            "localRotationDeg": 0,
+            "panelOrientation": "PAYSAGE"
+          },
+          {
+            "id": "fictional-reference-23",
+            "name": "Fictional geometry fixture",
+            "brand": "AIKO",
+            "state": "valid",
+            "center": {
+              "x": 349.5605006998115,
+              "y": 295.0278833005165
+            },
+            "enabled": true,
+            "panelId": "fictional-reference-8",
+            "powerWc": 500,
+            "panel_id": "fictional-reference-8",
+            "power_wc": 500,
+            "model_ref": "AIO-A500-MAH60Db",
+            "projection": {
+              "points": [
+                {
+                  "x": 338.1757016836392,
+                  "y": 297.1042932157945
+                },
+                {
+                  "x": 342.10824999852,
+                  "y": 286.17412216414044
+                },
+                {
+                  "x": 360.94529971598377,
+                  "y": 292.95147338523856
+                },
+                {
+                  "x": 357.01275140110295,
+                  "y": 303.8816444368926
+                }
+              ],
+              "perpAxis": {
+                "x": 0.9409508616185369,
+                "y": 0.33854316714317706
+              },
+              "slopeAxis": {
+                "x": 0.33854316714317706,
+                "y": -0.9409508616185369
+              },
+              "halfLengthPerpPx": 10.00958205461547,
+              "halfLengthAlongSlopePx": 5.8080456150776
+            },
+            "panelWidthMm": 1134,
+            "panelHeightMm": 1954,
+            "panelCatalogId": "fictional-reference-8",
+            "localRotationDeg": 0,
+            "panelOrientation": "PAYSAGE"
+          },
+          {
+            "id": "fictional-reference-24",
+            "name": "Fictional geometry fixture",
+            "brand": "AIKO",
+            "state": "valid",
+            "center": {
+              "x": 326.44201740682274,
+              "y": 299.5451454099179
+            },
+            "enabled": true,
+            "panelId": "fictional-reference-8",
+            "powerWc": 500,
+            "panel_id": "fictional-reference-8",
+            "power_wc": 500,
+            "model_ref": "AIO-A500-MAH60Db",
+            "projection": {
+              "points": [
+                {
+                  "x": 315.05721839065046,
+                  "y": 301.62155532519586
+                },
+                {
+                  "x": 318.9897667055313,
+                  "y": 290.6913842735418
+                },
+                {
+                  "x": 337.826816422995,
+                  "y": 297.46873549463993
+                },
+                {
+                  "x": 333.8942681081142,
+                  "y": 308.398906546294
+                }
+              ],
+              "perpAxis": {
+                "x": 0.9409508616185369,
+                "y": 0.33854316714317706
+              },
+              "slopeAxis": {
+                "x": 0.33854316714317706,
+                "y": -0.9409508616185369
+              },
+              "halfLengthPerpPx": 10.00958205461547,
+              "halfLengthAlongSlopePx": 5.8080456150776
+            },
+            "panelWidthMm": 1134,
+            "panelHeightMm": 1954,
+            "panelCatalogId": "fictional-reference-8",
+            "localRotationDeg": 0,
+            "panelOrientation": "PAYSAGE"
+          },
+          {
+            "id": "fictional-reference-25",
+            "name": "Fictional geometry fixture",
+            "brand": "AIKO",
+            "state": "valid",
+            "center": {
+              "x": 345.4718721367477,
+              "y": 306.3918656302084
+            },
+            "enabled": true,
+            "panelId": "fictional-reference-8",
+            "powerWc": 500,
+            "panel_id": "fictional-reference-8",
+            "power_wc": 500,
+            "model_ref": "AIO-A500-MAH60Db",
+            "projection": {
+              "points": [
+                {
+                  "x": 334.08707312057544,
+                  "y": 308.46827554548634
+                },
+                {
+                  "x": 338.01962143545626,
+                  "y": 297.5381044938323
+                },
+                {
+                  "x": 356.85667115292,
+                  "y": 304.3154557149304
+                },
+                {
+                  "x": 352.9241228380392,
+                  "y": 315.24562676658445
+                }
+              ],
+              "perpAxis": {
+                "x": 0.9409508616185369,
+                "y": 0.33854316714317706
+              },
+              "slopeAxis": {
+                "x": 0.33854316714317706,
+                "y": -0.9409508616185369
+              },
+              "halfLengthPerpPx": 10.00958205461547,
+              "halfLengthAlongSlopePx": 5.8080456150776
+            },
+            "panelWidthMm": 1134,
+            "panelHeightMm": 1954,
+            "panelCatalogId": "fictional-reference-8",
+            "localRotationDeg": 0,
+            "panelOrientation": "PAYSAGE"
+          },
+          {
+            "id": "fictional-reference-26",
+            "name": "Fictional geometry fixture",
+            "brand": "AIKO",
+            "state": "valid",
+            "center": {
+              "x": 322.353388843759,
+              "y": 310.90912773960974
+            },
+            "enabled": true,
+            "panelId": "fictional-reference-8",
+            "powerWc": 500,
+            "panel_id": "fictional-reference-8",
+            "power_wc": 500,
+            "model_ref": "AIO-A500-MAH60Db",
+            "projection": {
+              "points": [
+                {
+                  "x": 310.9685898275867,
+                  "y": 312.9855376548877
+                },
+                {
+                  "x": 314.9011381424675,
+                  "y": 302.05536660323367
+                },
+                {
+                  "x": 333.73818785993126,
+                  "y": 308.8327178243318
+                },
+                {
+                  "x": 329.80563954505044,
+                  "y": 319.7628888759858
+                }
+              ],
+              "perpAxis": {
+                "x": 0.9409508616185369,
+                "y": 0.33854316714317706
+              },
+              "slopeAxis": {
+                "x": 0.33854316714317706,
+                "y": -0.9409508616185369
+              },
+              "halfLengthPerpPx": 10.00958205461547,
+              "halfLengthAlongSlopePx": 5.8080456150776
+            },
+            "panelWidthMm": 1134,
+            "panelHeightMm": 1954,
+            "panelCatalogId": "fictional-reference-8",
+            "localRotationDeg": 0,
+            "panelOrientation": "PAYSAGE"
+          },
+          {
+            "id": "fictional-reference-27",
+            "name": "Fictional geometry fixture",
+            "brand": "AIKO",
+            "state": "valid",
+            "center": {
+              "x": 341.38324357368396,
+              "y": 317.7558479599002
+            },
+            "enabled": true,
+            "panelId": "fictional-reference-8",
+            "powerWc": 500,
+            "panel_id": "fictional-reference-8",
+            "power_wc": 500,
+            "model_ref": "AIO-A500-MAH60Db",
+            "projection": {
+              "points": [
+                {
+                  "x": 329.9984445575117,
+                  "y": 319.8322578751782
+                },
+                {
+                  "x": 333.9309928723925,
+                  "y": 308.90208682352414
+                },
+                {
+                  "x": 352.76804258985624,
+                  "y": 315.67943804462226
+                },
+                {
+                  "x": 348.8354942749754,
+                  "y": 326.6096090962763
+                }
+              ],
+              "perpAxis": {
+                "x": 0.9409508616185369,
+                "y": 0.33854316714317706
+              },
+              "slopeAxis": {
+                "x": 0.33854316714317706,
+                "y": -0.9409508616185369
+              },
+              "halfLengthPerpPx": 10.00958205461547,
+              "halfLengthAlongSlopePx": 5.8080456150776
+            },
+            "panelWidthMm": 1134,
+            "panelHeightMm": 1954,
+            "panelCatalogId": "fictional-reference-8",
+            "localRotationDeg": 0,
+            "panelOrientation": "PAYSAGE"
+          },
+          {
+            "id": "fictional-reference-28",
+            "name": "Fictional geometry fixture",
+            "brand": "AIKO",
+            "state": "valid",
+            "center": {
+              "x": 337.2946150106202,
+              "y": 329.1198302895921
+            },
+            "enabled": true,
+            "panelId": "fictional-reference-8",
+            "powerWc": 500,
+            "panel_id": "fictional-reference-8",
+            "power_wc": 500,
+            "model_ref": "AIO-A500-MAH60Db",
+            "projection": {
+              "points": [
+                {
+                  "x": 325.9098159944479,
+                  "y": 331.19624020487004
+                },
+                {
+                  "x": 329.84236430932873,
+                  "y": 320.266069153216
+                },
+                {
+                  "x": 348.6794140267925,
+                  "y": 327.0434203743141
+                },
+                {
+                  "x": 344.74686571191165,
+                  "y": 337.97359142596815
+                }
+              ],
+              "perpAxis": {
+                "x": 0.9409508616185369,
+                "y": 0.33854316714317706
+              },
+              "slopeAxis": {
+                "x": 0.33854316714317706,
+                "y": -0.9409508616185369
+              },
+              "halfLengthPerpPx": 10.00958205461547,
+              "halfLengthAlongSlopePx": 5.8080456150776
+            },
+            "panelWidthMm": 1134,
+            "panelHeightMm": 1954,
+            "panelCatalogId": "fictional-reference-8",
+            "localRotationDeg": 0,
+            "panelOrientation": "PAYSAGE"
+          },
+          {
+            "id": "fictional-reference-29",
+            "name": "Fictional geometry fixture",
+            "brand": "AIKO",
+            "state": "valid",
+            "center": {
+              "x": 318.2647602806952,
+              "y": 322.2731100693016
+            },
+            "enabled": true,
+            "panelId": "fictional-reference-8",
+            "powerWc": 500,
+            "panel_id": "fictional-reference-8",
+            "power_wc": 500,
+            "model_ref": "AIO-A500-MAH60Db",
+            "projection": {
+              "points": [
+                {
+                  "x": 306.87996126452293,
+                  "y": 324.34951998457956
+                },
+                {
+                  "x": 310.81250957940375,
+                  "y": 313.4193489329255
+                },
+                {
+                  "x": 329.6495592968675,
+                  "y": 320.19670015402363
+                },
+                {
+                  "x": 325.7170109819867,
+                  "y": 331.1268712056777
+                }
+              ],
+              "perpAxis": {
+                "x": 0.9409508616185369,
+                "y": 0.33854316714317706
+              },
+              "slopeAxis": {
+                "x": 0.33854316714317706,
+                "y": -0.9409508616185369
+              },
+              "halfLengthPerpPx": 10.00958205461547,
+              "halfLengthAlongSlopePx": 5.8080456150776
+            },
+            "panelWidthMm": 1134,
+            "panelHeightMm": 1954,
+            "panelCatalogId": "fictional-reference-8",
+            "localRotationDeg": 0,
+            "panelOrientation": "PAYSAGE"
+          },
+          {
+            "id": "fictional-reference-30",
+            "name": "Fictional geometry fixture",
+            "brand": "AIKO",
+            "state": "valid",
+            "center": {
+              "x": 333.2059864475564,
+              "y": 340.4838126192839
+            },
+            "enabled": true,
+            "panelId": "fictional-reference-8",
+            "powerWc": 500,
+            "panel_id": "fictional-reference-8",
+            "power_wc": 500,
+            "model_ref": "AIO-A500-MAH60Db",
+            "projection": {
+              "points": [
+                {
+                  "x": 321.82118743138415,
+                  "y": 342.5602225345619
+                },
+                {
+                  "x": 325.75373574626497,
+                  "y": 331.63005148290785
+                },
+                {
+                  "x": 344.5907854637287,
+                  "y": 338.40740270400596
+                },
+                {
+                  "x": 340.6582371488479,
+                  "y": 349.33757375566
+                }
+              ],
+              "perpAxis": {
+                "x": 0.9409508616185369,
+                "y": 0.33854316714317706
+              },
+              "slopeAxis": {
+                "x": 0.33854316714317706,
+                "y": -0.9409508616185369
+              },
+              "halfLengthPerpPx": 10.00958205461547,
+              "halfLengthAlongSlopePx": 5.8080456150776
+            },
+            "panelWidthMm": 1134,
+            "panelHeightMm": 1954,
+            "panelCatalogId": "fictional-reference-8",
+            "localRotationDeg": 0,
+            "panelOrientation": "PAYSAGE"
+          },
+          {
+            "id": "fictional-reference-31",
+            "name": "Fictional geometry fixture",
+            "brand": "AIKO",
+            "state": "valid",
+            "center": {
+              "x": 314.17613171763145,
+              "y": 333.63709239899345
+            },
+            "enabled": true,
+            "panelId": "fictional-reference-8",
+            "powerWc": 500,
+            "panel_id": "fictional-reference-8",
+            "power_wc": 500,
+            "model_ref": "AIO-A500-MAH60Db",
+            "projection": {
+              "points": [
+                {
+                  "x": 302.79133270145917,
+                  "y": 335.7135023142714
+                },
+                {
+                  "x": 306.72388101634,
+                  "y": 324.78333126261737
+                },
+                {
+                  "x": 325.56093073380373,
+                  "y": 331.5606824837155
+                },
+                {
+                  "x": 321.6283824189229,
+                  "y": 342.4908535353695
+                }
+              ],
+              "perpAxis": {
+                "x": 0.9409508616185369,
+                "y": 0.33854316714317706
+              },
+              "slopeAxis": {
+                "x": 0.33854316714317706,
+                "y": -0.9409508616185369
+              },
+              "halfLengthPerpPx": 10.00958205461547,
+              "halfLengthAlongSlopePx": 5.8080456150776
+            },
+            "panelWidthMm": 1134,
+            "panelHeightMm": 1954,
+            "panelCatalogId": "fictional-reference-8",
+            "localRotationDeg": 0,
+            "panelOrientation": "PAYSAGE"
+          }
+        ],
+        "rotation": 0,
+        "orientation": "PAYSAGE",
+        "useScreenAxes": false
+      }
+    ],
+    "placedPanels": [
+      {
+        "x": 330.5306459698865,
+        "y": 288.18116308022604,
+        "panId": "fictional-reference-1",
+        "widthPx": 20.01916410923094,
+        "heightPx": 11.6160912301552
+      },
+      {
+        "x": 349.5605006998115,
+        "y": 295.0278833005165,
+        "panId": "fictional-reference-1",
+        "widthPx": 20.01916410923094,
+        "heightPx": 11.6160912301552
+      },
+      {
+        "x": 326.44201740682274,
+        "y": 299.5451454099179,
+        "panId": "fictional-reference-1",
+        "widthPx": 20.01916410923094,
+        "heightPx": 11.6160912301552
+      },
+      {
+        "x": 345.4718721367477,
+        "y": 306.3918656302084,
+        "panId": "fictional-reference-1",
+        "widthPx": 20.01916410923094,
+        "heightPx": 11.6160912301552
+      },
+      {
+        "x": 322.353388843759,
+        "y": 310.90912773960974,
+        "panId": "fictional-reference-1",
+        "widthPx": 20.01916410923094,
+        "heightPx": 11.6160912301552
+      },
+      {
+        "x": 341.38324357368396,
+        "y": 317.7558479599002,
+        "panId": "fictional-reference-1",
+        "widthPx": 20.01916410923094,
+        "heightPx": 11.6160912301552
+      },
+      {
+        "x": 337.2946150106202,
+        "y": 329.1198302895921,
+        "panId": "fictional-reference-1",
+        "widthPx": 20.01916410923094,
+        "heightPx": 11.6160912301552
+      },
+      {
+        "x": 318.2647602806952,
+        "y": 322.2731100693016,
+        "panId": "fictional-reference-1",
+        "widthPx": 20.01916410923094,
+        "heightPx": 11.6160912301552
+      },
+      {
+        "x": 333.2059864475564,
+        "y": 340.4838126192839,
+        "panId": "fictional-reference-1",
+        "widthPx": 20.01916410923094,
+        "heightPx": 11.6160912301552
+      },
+      {
+        "x": 314.17613171763145,
+        "y": 333.63709239899345,
+        "panId": "fictional-reference-1",
+        "widthPx": 20.01916410923094,
+        "heightPx": 11.6160912301552
+      }
+    ],
+    "geometry_hash": "fictional-unverified-legacy-digest",
+    "schemaVersion": "v2",
+    "selectedPanId": "fictional-reference-1",
+    "shadowVolumes": [],
+    "calpinage_meta": {
+      "savedAt": "2020-01-01T00:00:00.000Z",
+      "version": "CALPINAGE_V1",
+      "panelsHash": "fictional-unverified-legacy-digest",
+      "shadingHash": "fictional-unverified-legacy-digest",
+      "geometryHash": "fictional-unverified-legacy-digest",
+      "shadingSource": "recomputed",
+      "shadingComputedAt": 1789456465177
+    },
+    "roofExtensions": [],
+    "shadingSummary": {
+      "confidence": null,
+      "totalLossPct": 0,
+      "annualLossKwh": 0,
+      "annualLossEuro": 0,
+      "confidenceSource": "IGN_GEOPLATEFORME"
+    },
+    "inverter_totals": {
+      "isMpptOk": true,
+      "warnings": [],
+      "isCurrentOk": true,
+      "isDcPowerOk": true,
+      "isVoltageOk": true,
+      "units_required": 10
+    },
+    "roofSurveyLocked": true,
+    "smartRoofDrawing": null,
+    "pansStructuralSig": "fictional-unverified-legacy-digest",
+    "parametricDormers": [],
+    "validatedRoofData": {
+      "pans": [
+        {
+          "id": "fictional-reference-1",
+          "name": "Fictional geometry fixture",
+          "tilt": 1.060669274118962,
+          "azimuth": 110.22840430399117,
+          "polygon": [
+            {
+              "x": 320.8724925867783,
+              "y": 271.39934916274194
+            },
+            {
+              "x": 251.87545787545793,
+              "y": 461.697622318158
+            },
+            {
+              "x": 357.0402930402931,
+              "y": 499.5347058695272
+            },
+            {
+              "x": 407.67521367521374,
+              "y": 349.8556547619047
+            },
+            {
+              "x": 464.98726670155247,
+              "y": 368.2177688383045
+            },
+            {
+              "x": 478.34153148438867,
+              "y": 330.93711298622003
+            }
+          ],
+          "surface": 234.15877399103914,
+          "tiltDeg": 1.060669274118962,
+          "ridgeIds": [],
+          "roofType": "PITCHED",
+          "traitIds": [],
+          "surfaceM2": 234.15877399103914,
+          "panelCount": 10,
+          "geometryRef": "fictional-reference-1",
+          "obstacleIds": [],
+          "shadingFarPct": 0,
+          "orientationDeg": 110.22840430399117,
+          "shadingNearPct": 0,
+          "shadingCombinedPct": 0,
+          "slopeDirectionLabel": "ESE"
+        }
+      ],
+      "north": {
+        "north": {
+          "mode": "auto-google",
+          "angleDeg": 0
+        }
+      },
+      "scale": {
+        "metersPerPixel": 0.09760647294454221
+      }
+    },
+    "calpinageCheckpoint": {
+      "phase": 3,
+      "savedAt": "2020-01-01T00:00:00.000Z",
+      "hasDrawing": true,
+      "captureDone": true,
+      "currentPhase": "PV_LAYOUT",
+      "schemaVersion": 1,
+      "roofSurveyLocked": true
+    },
+    "backendCommercialGeometry": {
+      "source": "BACKEND_DERIVED_FROM_PERSISTED_GEOMETRY",
+      "status": "INVALID",
+      "panVerdicts": [
+        {
+          "kind": "UNKNOWN",
+          "panId": "fictional-reference-1",
+          "status": "INVALID",
+          "provenance": "UNRESOLVED",
+          "blockingCodes": [
+            "COMMERCIAL_ROOF_KIND_UNRESOLVED"
+          ],
+          "officialNearShadingAllowed": false,
+          "officialPvPlacementAllowed": false
+        }
+      ],
+      "contractVersion": "backend-commercial-geometry-v1",
+      "officialNearShadingAllowed": false,
+      "officialPvPlacementAllowed": false
+    }
+  }
+}

@@ -127,7 +127,10 @@ describe("PROMPT 8 — vérités produit (pipeline runtime → SolarScene3D)", (
         ],
       },
     };
-    const res = buildSolarScene3DFromCalpinageRuntime(minimalCalpinageRuntimeFixture, {
+    const measuredRuntime = { ...minimalCalpinageRuntimeFixture,
+      pans: minimalCalpinageRuntimeFixture.pans.map(p => ({ ...p, roofType: "FLAT", polygonPx: p.polygonPx.map(point => ({ ...point, h: 5 })) })),
+    };
+    const res = buildSolarScene3DFromCalpinageRuntime(measuredRuntime, {
       getAllPanels: () => [panel],
     });
     expect(res.ok).toBe(true);

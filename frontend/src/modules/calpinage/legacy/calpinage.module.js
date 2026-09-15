@@ -9,6 +9,7 @@ import {
   setCalpinageItem,
 } from "../calpinageStorage";
 import { apiFetch } from "@/services/api";
+import { getShadingComponentLossPct } from '../../../../../shared/shading/shadingAssessment.js';
 import { loadScriptOnce } from "./loadCalpinageDeps";
 import {
   normalizeCalpinageGeometry3DReady,
@@ -3118,9 +3119,15 @@ export function initCalpinage(container, options = {}) {
       function calpinageLegacyEmitOfficialStructuralChange(partial) {
         try {
           if (typeof window === "undefined") return;
+          if (!partial || typeof partial.reason !== "string" || !Array.isArray(partial.changedDomains)) return;
+          if (partial.reason !== "SHADING_NORMALIZED" && partial.changedDomains.some(function (domain) { return domain !== "shading" && domain !== "selection" && domain !== "view"; })) {
+            var oldShading = window.CALPINAGE_STATE?.shading?.normalized;
+            if (oldShading) oldShading.assessment = Object.assign({}, oldShading.assessment, {
+              status: "stale", nearStatus: "stale", farStatus: "stale", reasons: ["geometry_changed"],
+            });
+          }
           var fn = window.emitOfficialRuntimeStructuralChange;
           if (typeof fn !== "function") return;
-          if (!partial || typeof partial.reason !== "string" || !Array.isArray(partial.changedDomains)) return;
           var sid = window.CALPINAGE_STUDY_ID != null ? window.CALPINAGE_STUDY_ID : null;
           var vid = window.CALPINAGE_VERSION_ID != null ? window.CALPINAGE_VERSION_ID : null;
           fn({
@@ -3297,6 +3304,9 @@ export function initCalpinage(container, options = {}) {
         if (!CALPINAGE_STATE.shading) CALPINAGE_STATE.shading = { lastResult: null, normalized: null, lastAbortReason: null, lastComputedAt: null, enabled: true };
         CALPINAGE_STATE.shading.lastAbortReason = null;
         CALPINAGE_STATE.shading.lastError = undefined;
+        // A new computation invalidates the previous payload even if this attempt aborts.
+        CALPINAGE_STATE.shading.normalized = null;
+        CALPINAGE_STATE.shading.lastResult = null;
         if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE] computeCalpinageShading ENTER", JSON.stringify({ ts: Date.now() }));
 
         var trace = { gps: null, panelCountRaw: 0, panelCountValid: 0, obstacleCountRaw: 0, obstacleCountValid: 0, nearLossPct: null, farLossPct: null, totalLossPct: null, reasonIfAbort: null, abortReason: null, zMode: null };
@@ -3348,6 +3358,7 @@ export function initCalpinage(container, options = {}) {
           if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE] EXIT");
           var resultNoGps = {
             gpsUnavailable: true,
+            assessment: { status: "insufficient_data", nearStatus: "insufficient_data", farStatus: "insufficient_data", reasons: ["missing_gps"] },
             annualLossPercent: null,
             nearLossPct: null,
             farLossPct: null,
@@ -3483,15 +3494,15 @@ export function initCalpinage(container, options = {}) {
               }),
             },
           });
-          var farPct = (resultFar && typeof resultFar.annualLossPercent === "number") ? resultFar.annualLossPercent : 0;
+          var farPct = (horizonMask && resultFar && typeof resultFar.annualLossPercent === "number" && Number.isFinite(resultFar.annualLossPercent) && resultFar.annualLossPercent >= 0 && resultFar.annualLossPercent <= 100) ? resultFar.annualLossPercent : null;
           // null = near shading indisponible (bundle non chargé) — NE PAS remplacer par 0 silencieusement
-          var nearPct = (nearResult && typeof nearResult.totalLossPct === "number") ? nearResult.totalLossPct : null;
+          var nearPct = (nearResult && typeof nearResult.totalLossPct === "number" && Number.isFinite(nearResult.totalLossPct) && nearResult.totalLossPct >= 0 && nearResult.totalLossPct <= 100) ? nearResult.totalLossPct : null;
           var nearUnavailable = nearPct === null && !!(nearResult && nearResult.unavailable);
           // Si near indisponible, combined = far seul (pas 0 × far qui serait faux)
-          var combinedPct = nearPct != null
+          var combinedPct = nearPct != null && farPct != null
             ? 100 * (1 - (1 - farPct / 100) * (1 - nearPct / 100))
-            : farPct;
-          var panelStats = (Array.isArray(nearResult.perPanel) ? nearResult.perPanel : []).map(function (p) {
+            : null;
+          var panelStats = (Array.isArray(nearResult?.perPanel) ? nearResult.perPanel : []).map(function (p) {
             var stepMin = (shadingConfig && shadingConfig.stepMinutes) || 30;
             return {
               panelId: p.panelId,
@@ -3507,16 +3518,16 @@ export function initCalpinage(container, options = {}) {
             shadingMetaNear.nearOfficial = nearResult.officialNear;
           }
           result = resultFar ? {
-            annualLossPercent: Number(combinedPct.toFixed(3)),
-            nearLossPct: nearPct != null ? Number(nearPct.toFixed(3)) : null,
+            annualLossPercent: combinedPct,
+            nearLossPct: nearPct,
             nearUnavailable: nearUnavailable ? true : undefined,
-            farLossPct: Number(farPct.toFixed(3)),
+            farLossPct: farPct,
             annualLossKWh: resultFar.annualLossKWh,
             meta: shadingMetaNear,
             panelStats: panelStats
-          } : { annualLossPercent: 0, nearLossPct: 0, farLossPct: 0, annualLossKWh: undefined, meta: Object.assign({ samples: 0, model: "annual-raycast-weighted-v2", year: shadingConfig.year, stepMinutes: shadingConfig.stepMinutes }, (function () { var m = {}; if (nearResult && nearResult.canonicalNear) m.nearCanonical3d = nearResult.canonicalNear; if (nearResult && nearResult.officialNear) m.nearOfficial = nearResult.officialNear; return m; })()), panelStats: panelStats };
+          } : { annualLossPercent: null, nearLossPct: null, farLossPct: null, annualLossKWh: undefined, meta: Object.assign({ samples: 0, model: "annual-raycast-weighted-v2", year: shadingConfig.year, stepMinutes: shadingConfig.stepMinutes }, (function () { var m = {}; if (nearResult && nearResult.canonicalNear) m.nearCanonical3d = nearResult.canonicalNear; if (nearResult && nearResult.officialNear) m.nearOfficial = nearResult.officialNear; return m; })()), panelStats: panelStats };
           if (typeof window !== "undefined" && window.SHADING_DEBUG && nearResult && nearResult.debugInfo) {
-            console.log("[SHADING_DEBUG] near=" + (nearPct != null ? nearPct.toFixed(2) + "%" : "N/A (indisponible)") + " combined=" + combinedPct.toFixed(2) + "% samples=" + (nearResult.debugInfo.sunVectorCount || 0));
+            console.log("[SHADING_DEBUG] near=" + (nearPct != null ? nearPct.toFixed(2) + "%" : "N/A (indisponible)") + " combined=" + (combinedPct == null ? "N/A" : combinedPct.toFixed(2)) + "% samples=" + (nearResult.debugInfo.sunVectorCount || 0));
           }
         } else {
           result = null;
@@ -3533,6 +3544,25 @@ export function initCalpinage(container, options = {}) {
         if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE]", JSON.stringify(trace));
         if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE] EXIT");
 
+        if (result) {
+          // The browser engine uses geometric irradiance proxies, not annual weather data.
+          // Keep those diagnostics for inspection without calling them annual energy losses.
+          result.diagnostics = { geometricProxy: {
+            nearLossPct: result.nearLossPct, farLossPct: result.farLossPct,
+            totalLossPct: result.annualLossPercent, perPanel: result.panelStats,
+          } };
+          var hasLocalSurvey = CALPINAGE_STATE.localObstacleSurvey?.status === "complete"
+            && CALPINAGE_STATE.localObstacleSurvey?.source === "manual_survey";
+          result.assessment = {
+            status: "insufficient_data", nearStatus: "insufficient_data", farStatus: "insufficient_data",
+            reasons: hasLocalSurvey ? ["annual_irradiance_missing"] : ["local_obstacle_survey_missing", "annual_irradiance_missing"],
+          };
+          result.annualLossPercent = null;
+          result.nearLossPct = null;
+          result.farLossPct = null;
+          result.annualLossKWh = null;
+          result.panelStats = [];
+        }
         CALPINAGE_STATE.shading.lastResult = result;
         CALPINAGE_STATE.shading.lastComputedAt = Date.now();
         if (result != null) {
@@ -3545,6 +3575,7 @@ export function initCalpinage(container, options = {}) {
           var excTrace = { gps: trace.gps, panelCountRaw: trace.panelCountRaw, panelCountValid: trace.panelCountValid, obstacleCountRaw: trace.obstacleCountRaw, obstacleCountValid: trace.obstacleCountValid, zMode: trace.zMode, nearLossPct: null, farLossPct: null, totalLossPct: null, reasonIfAbort: "EXCEPTION", abortReason: "EXCEPTION" };
           if (CALPINAGE_STATE.shading) {
             CALPINAGE_STATE.shading.lastAbortReason = "EXCEPTION";
+            CALPINAGE_STATE.shading.normalized = { assessment: { status: "error", nearStatus: "error", farStatus: "error", reasons: ["calculation_exception"] }, near: { totalLossPct: null }, far: { totalLossPct: null }, combined: { totalLossPct: null }, totalLossPct: null, perPanel: [] };
             CALPINAGE_STATE.shading.lastResult = null;
             CALPINAGE_STATE.shading.lastError = { message: (err && err.message) || String(err), stack: (err && err.stack) || undefined };
           }
@@ -3561,6 +3592,7 @@ export function initCalpinage(container, options = {}) {
 
         if (raw.gpsUnavailable === true || raw.meta?.blockingReason === "missing_gps") {
           const normalizedMissing = {
+            assessment: raw.assessment,
             computedAt: Date.now(),
             totalLossPct: null,
             near: { totalLossPct: null },
@@ -3614,7 +3646,7 @@ export function initCalpinage(container, options = {}) {
             })
           : [];
 
-        var nearNorm = { totalLossPct: nearPct };
+        var nearNorm = { totalLossPct: nearPct, status: raw.assessment?.nearStatus || "stale" };
         if (raw.meta && raw.meta.nearCanonical3d) {
           nearNorm.canonical3d = raw.meta.nearCanonical3d;
         }
@@ -3623,12 +3655,14 @@ export function initCalpinage(container, options = {}) {
         }
 
         const normalized = {
+          assessment: raw.assessment || { status: "stale", nearStatus: "stale", farStatus: "stale", reasons: ["legacy_result"] },
+          diagnostics: raw.diagnostics,
           computedAt: Date.now(),
           /** Miroir de combined.totalLossPct — même sémantique que le normalizer backend / payload étude. */
           totalLossPct: totalLossPct,
           near: nearNorm,
-          far: { totalLossPct: farPct },
-          combined: { totalLossPct: totalLossPct != null ? totalLossPct : null },
+          far: { totalLossPct: farPct, status: raw.assessment?.farStatus || "stale" },
+          combined: { totalLossPct: totalLossPct != null ? totalLossPct : null, status: raw.assessment?.status || "stale" },
           annualLossKWh: null,
           panelCount: perPanel.length,
           perPanel: perPanel
@@ -3794,8 +3828,8 @@ export function initCalpinage(container, options = {}) {
       window.applyShadingToEnergyProduction = function (annualKWh) {
         if (typeof annualKWh !== "number") return annualKWh;
         const shading = CALPINAGE_STATE.shading?.normalized;
-        const pct = shading ? getOfficialGlobalShadingLossPctOr(shading, 0) : 0;
-        if (typeof pct !== "number") return annualKWh;
+        const pct = getOfficialGlobalShadingLossPct(shading);
+        if (typeof pct !== "number") return null;
         const lossFactor = 1 - Math.min(Math.max(pct, 0), 100) / 100;
         return annualKWh * lossFactor;
       };
@@ -6569,9 +6603,9 @@ export function initCalpinage(container, options = {}) {
           });
         }
         var gpsBlocked = !!(shadingNorm && ((shadingNorm.shadingQuality && shadingNorm.shadingQuality.blockingReason === "missing_gps") || (shadingNorm.far && shadingNorm.far.source === "UNAVAILABLE_NO_GPS")));
-        var globalNear = gpsBlocked ? null : ((shadingNorm && shadingNorm.near && typeof shadingNorm.near.totalLossPct === "number") ? shadingNorm.near.totalLossPct : (typeof (shadingNorm && shadingNorm.nearLossPct) === "number" ? shadingNorm.nearLossPct : 0));
-        var globalFar = gpsBlocked ? null : ((shadingNorm && shadingNorm.far && typeof shadingNorm.far.totalLossPct === "number") ? shadingNorm.far.totalLossPct : (typeof (shadingNorm && shadingNorm.farLossPct) === "number" ? shadingNorm.farLossPct : 0));
-        var globalCombined = gpsBlocked ? null : getOfficialGlobalShadingLossPctOr(shadingNorm, 0);
+        var globalNear = getShadingComponentLossPct(shadingNorm, 'near');
+        var globalFar = getShadingComponentLossPct(shadingNorm, 'far');
+        var globalCombined = getOfficialGlobalShadingLossPct(shadingNorm);
         var panelsByPanId = {};
         panels.forEach(function (panel) {
           var panId = panel.panId != null ? panel.panId : (panel.pan_id != null ? panel.pan_id : null);
@@ -12894,7 +12928,7 @@ export function initCalpinage(container, options = {}) {
               var totals = (function () {
                 return computePlacedPanelsPowerSummary(getAllPlacedPvPanels(), getSelectedPanelForPower());
               })();
-              var totalLossPct = norm ? getOfficialGlobalShadingLossPctOr(norm, 0) : 0;
+              var totalLossPct = getOfficialGlobalShadingLossPct(norm);
               var horizonData = (CALPINAGE_STATE.horizonMask && CALPINAGE_STATE.horizonMask.data) ? CALPINAGE_STATE.horizonMask.data : {};
               var horizonMeta = horizonData.meta || {};
               var isRealHorizon = isFarHorizonRealTerrain(horizonData);
@@ -12904,7 +12938,7 @@ export function initCalpinage(container, options = {}) {
               try {
                 return buildShadingSummary({
                   totalLossPct: totalLossPct,
-                  annualProductionKwh: annualProductionKwh,
+                  annualLossKwh: norm && norm.annualLossKwh,
                   pricePerKwh: 0.2,
                   qualityScore: isRealHorizon ? qualityScore : null,
                   source: source
@@ -14406,7 +14440,7 @@ updateValidateButton();
                   var powerSummary = computePlacedPanelsPowerSummary(getAllPlacedPvPanels(), getSelectedPanelForPower());
                   var panelCount = powerSummary.panels_count;
                   var _norm = CALPINAGE_STATE && CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.normalized;
-var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
+var shadingLossPct = getOfficialGlobalShadingLossPct(_norm);
                   var totalPowerKwc = panelCount > 0 ? powerSummary.total_power_kwc : null;
                   var gps = (CALPINAGE_STATE && CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.gps) ? CALPINAGE_STATE.roof.gps : null;
                   var apiRoot = (window.CALPINAGE_API_BASE != null ? window.CALPINAGE_API_BASE : (window.location && window.location.origin)) || "";

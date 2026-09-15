@@ -15,6 +15,7 @@
  * - `shading.totalLossPct`, `shading.total_loss_pct` — doivent refléter combined ; sinon warning dev.
  */
 
+import { getShadingComponentLossPct } from "../../../shared/shading/shadingAssessment.js";
 const TOL = 0.02;
 
 /**
@@ -22,31 +23,8 @@ const TOL = 0.02;
  * @returns {number|null} Pourcentage [0,100], ou null si inconnu / non applicable.
  */
 export function getOfficialGlobalShadingLossPct(shading) {
-  if (!shading || typeof shading !== "object") return null;
+  return getShadingComponentLossPct(shading, "combined");
 
-  if (
-    shading.shadingQuality?.blockingReason === "missing_gps" ||
-    shading.far?.source === "UNAVAILABLE_NO_GPS" ||
-    shading.far?.source === "FAR_UNAVAILABLE_ERROR" ||
-    shading.shadingQuality?.farShadingUnavailable === true
-  ) {
-    return null;
-  }
-
-  const combined = shading.combined;
-  if (combined && typeof combined === "object" && Object.prototype.hasOwnProperty.call(combined, "totalLossPct")) {
-    const v = combined.totalLossPct;
-    if (v == null || v === "") return null;
-    const n = Number(v);
-    if (!Number.isFinite(n)) return null;
-    return Math.max(0, Math.min(100, n));
-  }
-
-  const legacy = shading.totalLossPct ?? shading.total_loss_pct;
-  if (legacy == null || legacy === "") return null;
-  const n = Number(legacy);
-  if (!Number.isFinite(n)) return null;
-  return Math.max(0, Math.min(100, n));
 }
 
 /**

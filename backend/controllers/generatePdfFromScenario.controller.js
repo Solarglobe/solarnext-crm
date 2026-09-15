@@ -1,3 +1,4 @@
+import { getClientStudyExportBlock } from '../../shared/shading/clientStudyExport.js';
 /**
  * POST /api/studies/:studyId/versions/:versionId/generate-pdf-from-scenario
  * PDF à partir d'un scénario scenarios_v2 — snapshot en mémoire uniquement (pas de lock, pas d'UPDATE study_versions).
@@ -103,6 +104,8 @@ export async function generatePdfFromScenario(req, res) {
     // STEP 2a — GARDE SÉLECTIONNABILITÉ : absent / _skipped / incomplet (données manquantes).
     // Ne bloque JAMAIS sur une économie faible/nulle/négative ni un ROI non rentable calculé.
     const selectedV2 = (scenariosV2 || []).find((s) => (s.id || s.name) === scenarioId) || null;
+    const shadingBlock = getClientStudyExportBlock({ ...dataJson, selected_scenario_snapshot: selectedV2 });
+    if (shadingBlock.blocked) return res.status(409).json({ error: shadingBlock.code, message: shadingBlock.message, reasons: shadingBlock.reasons });
     const selectable = evaluateScenarioSelectable(selectedV2, scenarioId);
     if (!selectable.selectable) {
       const status = selectable.reason === "SCENARIO_ABSENT" ? 400 : 409;
@@ -329,6 +332,8 @@ export async function setPortalOfferFromScenario(req, res) {
     }
 
     const selectedV2 = (scenariosV2 || []).find((s) => (s.id || s.name) === scenarioId) || null;
+    const shadingBlock = getClientStudyExportBlock({ ...dataJson, selected_scenario_snapshot: selectedV2 });
+    if (shadingBlock.blocked) return res.status(409).json({ error: shadingBlock.code, message: shadingBlock.message, reasons: shadingBlock.reasons });
     const selectable = evaluateScenarioSelectable(selectedV2, scenarioId);
     if (!selectable.selectable) {
       const status = selectable.reason === "SCENARIO_ABSENT" ? 400 : 409;

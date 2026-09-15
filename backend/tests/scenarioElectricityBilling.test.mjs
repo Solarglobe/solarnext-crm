@@ -1,3 +1,4 @@
+import { computedClearShading } from './fixtures/computed-clear-shading.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { attachScenarioElectricityBilling, resolveVirtualSupplyPricing } from '../services/scenarioElectricityBilling.service.js';
@@ -187,6 +188,7 @@ test('computed bills survive the V2 mapping and export validation, including neg
   const out = await computeFinance(ctx, scenarios);
   for (const key of ['BASE', 'BATTERY_VIRTUAL']) {
     const mapped = mapScenarioToV2(out.scenarios[key], ctx);
+    mapped.shading = computedClearShading(); // Nominal surveyed-clear assumption; billing assertions below remain unchanged.
     const result = validateStudyScenarioForExport(mapped, key);
     assert.deepEqual(result.errors, []);
     assert.equal(mapped.finance.estimated_annual_bill_eur, mapped.finance.electricity_billing.bill_after_eur);

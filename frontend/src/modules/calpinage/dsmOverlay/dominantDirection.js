@@ -78,8 +78,8 @@ function generateAnnualSamples(opts, latDeg, lonDeg) {
   const minSunElevationDeg = Math.max(0, opts?.minSunElevationDeg ?? 3);
 
   const samples = [];
-  const startMs = new Date(year, 0, 1, 0, 0, 0).getTime();
-  const endMs = new Date(year, 11, 31, 23, 59, 0).getTime();
+  const startMs = Date.UTC(year, 0, 1);
+  const endMs = Date.UTC(year + 1, 0, 1) - 1;
   const stepMs = stepMinutes * 60 * 1000;
 
   for (let t = startMs; t <= endMs; t += stepMs) {
@@ -154,7 +154,7 @@ function accumulateHorizonShadowEnergy(horizonMask, latDeg, lonDeg, opts = {}) {
     const proxyIrradiance = Math.max(0, Math.sin((elDeg * Math.PI) / 180));
     if (proxyIrradiance <= 0) continue;
 
-    const month = date ? date.getMonth() : 0;
+    const month = date ? date.getUTCMonth() : 0;
     availableEnergyByMonth[month] += proxyIrradiance;
 
     const horizonElev = interpolateHorizonElevation(mask, azDeg);
@@ -166,7 +166,7 @@ function accumulateHorizonShadowEnergy(horizonMask, latDeg, lonDeg, opts = {}) {
       sectorLoss.set(sector.label, (sectorLoss.get(sector.label) ?? 0) + proxyIrradiance);
       totalLoss += proxyIrradiance;
 
-      const hour = date ? date.getHours() + date.getMinutes() / 60 : 12;
+      const hour = date ? ((date.getUTCHours() + date.getUTCMinutes() / 60 + lonDeg / 15) % 24 + 24) % 24 : 12;
       for (const p of PERIOD_SLICES) {
         if (hour >= p.min && hour < p.max) {
           periodLoss.set(p.label, (periodLoss.get(p.label) ?? 0) + proxyIrradiance);
@@ -194,6 +194,7 @@ export function getHorizonTemporalUiProfile(horizonMask, latDeg, lonDeg, opts = 
   if (!acc || acc.totalLoss <= 0) {
     return {
       hasSignal: false,
+      status: acc ? "computed_zero" : "insufficient_data",
       dayParts: [
         { key: "matin", label: "Matin", value: 0 },
         { key: "midi", label: "Midi", value: 0 },
@@ -213,9 +214,9 @@ export function getHorizonTemporalUiProfile(horizonMask, latDeg, lonDeg, opts = 
     (periodLoss.get("Après-midi") ?? 0) + (periodLoss.get("Soir") ?? 0) + (periodLoss.get("Nuit") ?? 0);
 
   const dayParts = [
-    { key: "matin", label: "Matin", value: matin },
-    { key: "midi", label: "Midi", value: midi },
-    { key: "apresmidi", label: "Après-midi", value: apresmidi },
+    { key: "matin", label: "Matin", value: matin / acc.totalLoss * 100 },
+    { key: "midi", label: "Midi", value: midi / acc.totalLoss * 100 },
+    { key: "apresmidi", label: "Après-midi", value: apresmidi / acc.totalLoss * 100 },
   ];
   let dominantDayKey = "matin";
   let maxDay = -1;
@@ -226,18 +227,10 @@ export function getHorizonTemporalUiProfile(horizonMask, latDeg, lonDeg, opts = 
     }
   }
 
-  const ratioByMonth = availableEnergyByMonth.map((av, m) => (av > 0 ? lostEnergyByMonth[m] / av : 0));
-
-  function seasonAvgRatio(months) {
-    const vals = months.filter((m) => availableEnergyByMonth[m] > 0).map((m) => ratioByMonth[m]);
-    if (vals.length === 0) return 0;
-    return vals.reduce((a, r) => a + r, 0) / vals.length;
-  }
-
   const seasons = SEASON_UI_BUCKETS.map((b) => ({
     key: b.key,
     label: b.label,
-    value: seasonAvgRatio(b.months),
+    value: b.months.reduce((sum, month) => sum + lostEnergyByMonth[month], 0) / acc.totalLoss * 100,
   }));
 
   let dominantSeasonKey = "hiver";
@@ -251,6 +244,7 @@ export function getHorizonTemporalUiProfile(horizonMask, latDeg, lonDeg, opts = 
 
   return {
     hasSignal: true,
+    status: "computed_positive",
     dayParts,
     seasons,
     dominantDayKey,
@@ -272,13 +266,13 @@ export function getDominantDirection(horizonMask, latDeg, lonDeg, opts = {}) {
 
   const acc = accumulateHorizonShadowEnergy(horizonMask, latDeg, lonDeg, opts);
   if (!acc) {
-    return getDominantDirectionFallback(mask);
+    return null;
   }
 
   const { sectorLoss, periodLoss, availableEnergyByMonth, lostEnergyByMonth, totalLoss } = acc;
 
   if (totalLoss <= 0) {
-    return getDominantDirectionFallback(mask);
+    return null;
   }
 
   let maxSectorLabel = "Nord";

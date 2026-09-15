@@ -1,3 +1,4 @@
+import { assertClientStudyExportable, getClientStudyExportBlock } from '../../shared/shading/clientStudyExport.js';
 /**
  * PDF V2 — POST /api/studies/:studyId/versions/:versionId/generate-pdf
  * Génération server-side du PDF SolarNext via Playwright + persistance dans documents CRM.
@@ -81,6 +82,7 @@ export async function generatePdfForVersion(params, options = {}) {
   const freshnessParams = { studyId, versionId, organizationId,
     snapshot: ephemeralSnapshot ?? version.selected_scenario_snapshot };
   await assertCurrent({ ...freshnessParams, data: dataJsonPdf });
+  assertClientStudyExportable({ ...dataJsonPdf, selected_scenario_snapshot: ephemeralSnapshot ?? version.selected_scenario_snapshot });
   const ccPdf = dataJsonPdf.calculation_confidence;
   console.log("PDF_CONFIDENCE_CHECK", JSON.stringify({
     versionId,
@@ -142,7 +144,7 @@ export async function generatePdfForVersion(params, options = {}) {
   logger.info("PDF generation started", { studyId, versionId, ephemeral: !!ephemeralSnapshot });
 
   console.log("STEP 6 BEFORE: Playwright generatePdfFromRendererUrl (PDF buffer)");
-  let pdfBuffer = await generatePdfFromRendererUrl(rendererUrl);
+  let pdfBuffer = await generatePdfFromRendererUrl(rendererUrl, { clientSnapshot: ephemeralSnapshot ?? version.selected_scenario_snapshot });
   console.log("STEP 6 OK: PDF buffer generated", {
     byteLength: pdfBuffer?.length,
   });
@@ -170,7 +172,7 @@ export async function generatePdfForVersion(params, options = {}) {
     studyId,
     versionId,
     uid,
-    { fileName: pdfDisplayName }
+    { fileName: pdfDisplayName, clientSnapshot: snapshotForName }
   );
 
   logger.info("generate-pdf: document saved", {

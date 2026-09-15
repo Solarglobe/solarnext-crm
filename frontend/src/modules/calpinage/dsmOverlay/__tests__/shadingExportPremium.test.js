@@ -13,6 +13,7 @@ function isValidIsoDateString(str) {
 
 describe("CP-FAR-C-10 shading export premium", () => {
   const normalized = {
+    assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed' },
     near: { totalLossPct: 3.5 },
     far: { totalLossPct: 8.2, source: "IGN_RGE_ALTI", confidenceLevel: "HIGH" },
     combined: { totalLossPct: 11.7 },
@@ -74,16 +75,17 @@ describe("buildPremiumShadingExport null / legacy fallback", () => {
     };
     const out = buildPremiumShadingExport(legacy);
     expect(out).not.toBeNull();
-    expect(out.near.totalLossPct).toBe(2);
-    expect(out.far.totalLossPct).toBe(3.5);
+    expect(out.near.totalLossPct).toBeNull();
+    expect(out.far.totalLossPct).toBeNull();
     expect(out.far.source).toBe("RELIEF_ONLY");
-    expect(out.combined.totalLossPct).toBe(5.5);
+    expect(out.combined.totalLossPct).toBeNull();
+    expect(out.assessment.status).toBe('stale');
     expect(out.confidence).toBe("LOW");
     expect(out.source).toBe("RELIEF_ONLY");
     expect(out.shadingQuality?.confidence).toBe("LOW");
     expect(out.shadingQuality?.confidenceScore).toBeLessThanOrEqual(0.3);
     expect(out.shadingQuality?.note).toBe("synthetic_relief");
-    expect(isValidIsoDateString(out.computedAt)).toBe(true);
+    expect(out.computedAt).toBeNull();
   });
 
   it("UNAVAILABLE_NO_GPS : farHorizonKind UNAVAILABLE, far.totalLossPct null", () => {

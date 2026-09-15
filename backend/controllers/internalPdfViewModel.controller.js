@@ -27,6 +27,7 @@ export async function getInternalPdfViewModel(req, res) {
     try {
       decoded = verifyPdfRenderToken(renderToken, studyId, versionId);
     } catch (e) {
+    if (e.status === 409) return res.status(409).json({ ok: false, error: e.code, message: e.message });
       if (e.code === "RENDER_TOKEN_EXPIRED") {
         return res.status(401).json({ ok: false, error: "RENDER_TOKEN_EXPIRED" });
       }

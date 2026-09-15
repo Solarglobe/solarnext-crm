@@ -178,7 +178,7 @@ export function buildRoofExtensionVolume3D(
       miniRoof,
       architecturalParts: {
         walls: mesh.faces.filter((face) => face.id.includes(":face:wall:")).map((face) => face.id),
-        cheekWalls: mesh.faces.filter((face) => face.id.includes(":face:wall:cheek:")).map((face) => face.id),
+        cheekWalls: miniRoof.faceRoles.filter((face) => face.role === "cheek_wall").map((face) => face.faceId),
         dormerRoof: mesh.faces.filter((face) => face.id.includes(":face:roof:")).map((face) => face.id),
         seams: mesh.edges.filter((edge) => edge.id.includes(":edge:base:") || edge.id.includes(":edge:outline:")).map((edge) => edge.id),
         flashing: [

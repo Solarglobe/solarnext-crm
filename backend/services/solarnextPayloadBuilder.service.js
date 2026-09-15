@@ -288,7 +288,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
   }
   const roofState = geometry.roofState || {};
   const roof = geometry.roof || {};
-  const pans = roof.pans || geometry.validatedRoofData?.pans || [];
+  const pans = geometry.geometryContractVersion ? geometry.pans : roof.pans || geometry.validatedRoofData?.pans || [];
 
   let lat = null;
   let lon = null;
@@ -308,6 +308,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     throw new Error("Adresse non géolocalisée (lat/lon requis)");
   }
 
+  if (geometry.geometryContractVersion) { lat=geometry.gps?.lat; lon=geometry.gps?.lon; }
   let orientationDeg = 180;
   let tiltDeg = 30;
   if (Array.isArray(pans) && pans.length > 0) {
@@ -368,39 +369,33 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
         id: p.id,
         azimuth: typeof p.azimuth === "number" ? p.azimuth : (p.orientationDeg ?? 180),
         tilt: typeof p.tilt === "number" ? p.tilt : (p.tiltDeg ?? 30),
-        panelCount: Math.max(0, Math.floor(Number(p.panelCount ?? p.panel_count) || 0)),
+        panelCount: geometry.geometryContractVersion ? geometry.frozenBlocks.filter(b=>b.panId===p.id).reduce((n,b)=>n+b.panels.length,0) : Math.max(0, Math.floor(Number(p.panelCount ?? p.panel_count) || 0)),
         powerKwc: p.id != null ? panelPowerByPanId[String(p.id)]?.total_power_kwc ?? null : null,
-        shadingCombinedPct: Math.max(0, Math.min(100, Number(p.shadingCombinedPct ?? p.shading_combined_pct) || 0)),
+        shadingCombinedPct: geometry.geometryContractVersion ? shadingResult.totalLossPct : Math.max(0, Math.min(100, Number(p.shadingCombinedPct ?? p.shading_combined_pct) || 0)),
         ...(Array.isArray(p.shading_hourly) ? { shading_hourly: p.shading_hourly.slice() } : {}),
       }))
     : [];
-  const productionShadingFallbackPct =
-    Number.isFinite(Number(shadingResult.totalLossPct)) && Number(shadingResult.totalLossPct) > 0
-      ? Number(shadingResult.totalLossPct)
-      : (Number.isFinite(Number(storedNearLossPct)) && Number(storedNearLossPct) > 0
-          ? Number(storedNearLossPct)
-          : null);
+  const shadingComputed = shading.assessment?.status === 'computed';
+  const productionShadingFallbackPct = shadingComputed ? shadingResult.totalLossPct : null;
   const roofPansForKpi = ensureRoofPansCarryProductionShading(
     rawRoofPansForProduction,
     productionShadingFallbackPct
   );
   const weightedCombinedKpi = computeWeightedShadingCombinedPct(roofPansForKpi);
   let shadingLossPct = productionShadingFallbackPct ?? shadingResult.totalLossPct;
-  if (weightedCombinedKpi != null) {
-    shadingLossPct = weightedCombinedKpi;
-    shading = {
-      ...shading,
-      combined: { ...shading.combined, totalLossPct: weightedCombinedKpi },
-      /** Miroir obligatoire de la vérité officielle (combined.totalLossPct) — évite divergences lecteurs legacy. */
-      totalLossPct: weightedCombinedKpi,
-    };
-  }
+  // A module-count mean of persisted pan values cannot replace the current
+  // energy-weighted assessment, or revive an unavailable result as zero.
+  shadingLossPct = shadingComputed ? shadingResult.totalLossPct : null;
 
   const shadingCommercialAudit = {
     blocking_warnings: [],
     non_blocking_warnings: [],
     flags: {},
   };
+  if (!shadingComputed) {
+    shadingCommercialAudit.non_blocking_warnings.push('SHADING_NOT_EVALUATED');
+    shadingCommercialAudit.flags.assessment = shading.assessment;
+  }
   if (shadingResult.farHorizonStatus === "FAR_UNAVAILABLE_ERROR" || shadingResult.farShadingUnavailable === true) {
     shadingCommercialAudit.non_blocking_warnings.push("FAR_SHADING_UNAVAILABLE");
     shadingCommercialAudit.blocking_warnings.push("FAR_SHADING_UNAVAILABLE_BLOCK_PDF");

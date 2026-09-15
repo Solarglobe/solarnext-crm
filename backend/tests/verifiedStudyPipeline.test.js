@@ -1,3 +1,4 @@
+import { computedClearShading } from './fixtures/computed-clear-shading.mjs';
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {powerIntervalsToHourly} from "../services/intervalEnergy.service.js";
@@ -37,7 +38,7 @@ test("IRR uses full flows; no-payback and non-conventional series are explicit",
 
 function exampleScenario(id="BASE"){
   const reference=buildEnergyReference({pv:Array(8760).fill(1),load:Array(8760).fill(2),scenarioId:id});
-  return {id,energy:{reference},finance:{capex_ttc:100,annual_cashflows:[{year:1,total_eur:110,cumul_eur:10}],economie_total:10,irr_pct:10}};
+  return {id,shading:computedClearShading(),energy:{reference},finance:{capex_ttc:100,annual_cashflows:[{year:1,total_eur:110,cumul_eur:10}],economie_total:10,irr_pct:10}};
 }
 
 test('export balances chronological virtual periods, expiration, cashout and signed finance',()=>{
@@ -164,7 +165,7 @@ test('verified snapshots bypass inferred display repairs and reject a different 
 
 import {putEphemeralSnapshot,getEphemeralSnapshot} from '../services/pdfEphemeralSnapshot.service.js';
 test('concurrent export tokens isolate snapshots from later selection and render mutations',async()=>{
- const a={scenario_type:'BASE',energy:{value:1}},b={scenario_type:'BATTERY_PHYSICAL',energy:{value:2}};
+ const a={shading:computedClearShading(),scenario_type:'BASE',energy:{value:1}},b={shading:computedClearShading(),scenario_type:'BATTERY_PHYSICAL',energy:{value:2}};
  const [ka,kb]=await Promise.all([Promise.resolve().then(()=>putEphemeralSnapshot(a,a.scenario_type)),Promise.resolve().then(()=>putEphemeralSnapshot(b,b.scenario_type))]);
  a.energy.value=999;b.scenario_type='BASE';
  assert.notEqual(ka,kb);assert.equal(getEphemeralSnapshot(ka).snapshot.energy.value,1);

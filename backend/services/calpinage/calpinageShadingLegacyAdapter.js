@@ -1,9 +1,12 @@
+import { hasValidServerShadingReceipt } from '../shading/shadingServerReceipt.js';
+import { deriveBackendCommercialGeometryVerdict } from './calpinageCommercialIntegrity.js';
 /**
  * CP-FAR-013 — Adaptateur legacy shading → V2
  * Si schemaVersion absent, adapter vers V2 en lecture.
  */
 
 import { normalizeCalpinageShading } from "./calpinageShadingNormalizer.js";
+import { markShadingStaleIfInputsChanged } from "../shading/shadingAssessment.service.js";
 
 /**
  * Adapte un shading legacy (sans schemaVersion) vers structure V2.
@@ -39,7 +42,17 @@ export function getNormalizedShadingFromGeometry(geometry) {
     return { shading: normalizeCalpinageShading(null), schemaVersion: null };
   }
   const schemaVersion = geometry.schemaVersion ?? null;
-  const rawShading = geometry.shading;
+  let rawShading = markShadingStaleIfInputsChanged(geometry.shading, geometry);
+  // A client-supplied computed status cannot overrule the server's geometric verdict.
+  const integrity = geometry.geometryContractVersion != null ? deriveBackendCommercialGeometryVerdict(geometry) : geometry.backendCommercialGeometry ?? geometry.commercialGeometry;
+  const untrusted = geometry.geometryContractVersion != null && !hasValidServerShadingReceipt(rawShading);
+  if (rawShading?.assessment?.status === 'computed' && (untrusted || integrity?.status === 'INVALID' || integrity?.officialNearShadingAllowed === false)) {
+    const { historicalResult, ...unverifiedResult } = rawShading;
+    rawShading = { ...rawShading, historicalResult: unverifiedResult, totalLossPct: null,
+      near: { ...rawShading.near, status: 'insufficient_data', totalLossPct: null },
+      combined: { ...rawShading.combined, status: 'insufficient_data', totalLossPct: null },
+      assessment: { ...rawShading.assessment, status: 'insufficient_data', nearStatus: 'insufficient_data', reasons: [...new Set([...(rawShading.assessment.reasons ?? []), 'commercial_geometry_invalid'])] } };
+  }
   const shading = adaptLegacyShadingToV2(rawShading, schemaVersion);
   return { shading, schemaVersion };
 }

@@ -1,3 +1,4 @@
+import { assertStudyPdfDocumentDeliverable } from '../services/shading/clientStudyDocumentGuard.service.js';
 /**
  * CP-032 — Routes Documents (Stockage Local VPS)
  * CP-032C — withTx, assertOrgEntity (archived → 404)
@@ -167,7 +168,7 @@ router.get(
       const { id } = req.params;
 
       const doc = await pool.query(
-        `SELECT id, storage_key, file_name, organization_id, mime_type, file_hash FROM entity_documents WHERE id = $1 AND (archived_at IS NULL)`,
+        `SELECT id, storage_key, file_name, organization_id, mime_type, file_hash, document_type, entity_type, entity_id, metadata_json FROM entity_documents WHERE id = $1 AND (archived_at IS NULL)`,
         [id]
       );
 
@@ -178,6 +179,7 @@ router.get(
         return res.status(403).json({ error: "Document n'appartient pas à votre organisation" });
       }
 
+      await assertStudyPdfDocumentDeliverable(doc.rows[0], org);
       const storageKey = doc.rows[0].storage_key;
       const displayName = path.basename(String(doc.rows[0].file_name || "document"));
       const mimeType = String(doc.rows[0].mime_type || "").trim() || "application/octet-stream";
@@ -226,6 +228,7 @@ router.get(
       });
       stream.pipe(res);
     } catch (e) {
+      if (e.status === 409) return res.status(409).json({ error: e.code, message: e.message });
       if (e.code === "ENOENT") {
         return res.status(404).json({ error: "Fichier non trouvé sur le disque" });
       }

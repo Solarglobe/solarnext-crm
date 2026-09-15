@@ -1,3 +1,4 @@
+import PdfPageShading from './PdfPageShading';
 import PdfPageVerifiedAssumptions from './PdfPageVerifiedAssumptions';
 /**
  * CP-PDF-V2-020 — Portage fidèle du PDF legacy Solarglobe
@@ -89,6 +90,7 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
       <PdfPage1 organization={organization} viewModel={viewModel} />
       <PdfPage2 organization={organization} viewModel={viewModel} />
       <PdfPage3 organization={organization} viewModel={viewModel} />
+      <PdfPageShading organization={organization} viewModel={viewModel} />
       <PdfPage4 organization={organization} viewModel={viewModel} />
       <PdfPage5 organization={organization} viewModel={viewModel} />
       <PdfPage6 organization={organization} viewModel={viewModel} />

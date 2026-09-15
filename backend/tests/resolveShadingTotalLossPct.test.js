@@ -5,6 +5,7 @@
 
 import { resolveShadingTotalLossPct } from "../services/shading/resolveShadingTotalLossPct.js";
 
+import { assessedShading } from './fixtures/assessedShading.js';
 let passed = 0;
 let failed = 0;
 function ok(l) {
@@ -23,42 +24,42 @@ function assert(c, l, m) {
 assert(resolveShadingTotalLossPct(null, null) == null, "vide → null");
 
 assert(
-  resolveShadingTotalLossPct({ combined: { totalLossPct: 9 } }, {}) === 9,
+  resolveShadingTotalLossPct(assessedShading(9), {}) === 9,
   "priorité 1 : combined.totalLossPct (vérité officielle)"
 );
 
 assert(
-  resolveShadingTotalLossPct({ total_loss_pct: 7.5, combined: { totalLossPct: 4 } }, {}) === 4,
+  resolveShadingTotalLossPct({ ...assessedShading(4), total_loss_pct: 7.5 }, {}) === 4,
   "combined bat total_loss_pct racine (anti-divergence)"
 );
 
 assert(
-  resolveShadingTotalLossPct({ total_loss_pct: 7.5 }, {}) === 7.5,
+  resolveShadingTotalLossPct({ total_loss_pct: 7.5 }, {}) === null,
   "legacy snake seul → total_loss_pct"
 );
 
 assert(
-  resolveShadingTotalLossPct({ totalLossPct: 8 }, {}) === 8,
+  resolveShadingTotalLossPct({ totalLossPct: 8 }, {}) === null,
   "legacy camel seul → totalLossPct"
 );
 
 assert(
-  resolveShadingTotalLossPct({}, { installation: { shading_loss_pct: 10 } }) === 10,
+  resolveShadingTotalLossPct({}, { installation: { shading_loss_pct: 10 } }) === null,
   "form.installation.shading_loss_pct si pas de shading numérique"
 );
 
 assert(
-  resolveShadingTotalLossPct({}, { shadingLossPct: 11 }) === 11,
+  resolveShadingTotalLossPct({}, { shadingLossPct: 11 }) === null,
   "form.shadingLossPct en dernier recours"
 );
 
 assert(
-  resolveShadingTotalLossPct({ totalLossPct: 1 }, { shadingLossPct: 99 }) === 1,
+  resolveShadingTotalLossPct({ totalLossPct: 1 }, { shadingLossPct: 99 }) === null,
   "racine camel bat form si pas de combined"
 );
 
 assert(
-  resolveShadingTotalLossPct({ combined: { totalLossPct: 5 } }, { installation: { shading_loss_pct: 99 } }) === 5,
+  resolveShadingTotalLossPct(assessedShading(5), { installation: { shading_loss_pct: 99 } }) === 5,
   "combined bat installation même si form a une autre valeur"
 );
 
@@ -76,7 +77,7 @@ assert(
 );
 
 assert(
-  resolveShadingTotalLossPct({ total_loss_pct: 0 }, { shadingLossPct: 50 }) === 0,
+  resolveShadingTotalLossPct(assessedShading(0), { shadingLossPct: 50 }) === 0,
   "0% est une valeur valide (racine)"
 );
 

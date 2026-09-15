@@ -1,7 +1,9 @@
+import { deriveBackendCommercialGeometryVerdict } from '../calpinage/calpinageCommercialIntegrity.js';
+import { validateFlatRoofSurvey } from '../calpinage/flatRoofSurveyContract.js';
 /**
  * CP-FAR-003 — Service shading backend (near + far).
  * Calcul complet côté backend uniquement.
- * Si GPS absent (mais panneaux présents): farLossPct = null, far indisponible, totalLossPct = near stocké.
+ * Si les données nécessaires manquent, les pertes restent null avec un statut explicite.
  *
  * Gouvernance near pur : shared/shading/nearShadingCore.cjs — docs/shading-governance.md
  */
@@ -14,7 +16,8 @@ import { interpolateHorizonElevation } from "../horizon/horizonMaskCore.js";
 import { computeHorizonMaskAuto } from "../horizon/providers/horizonProviderSelector.js";
 import { farHorizonKindFromProvider, REAL_TERRAIN_PROVIDERS } from "./farHorizonTruth.js";
 import { capConfidence01ForSource, SYNTHETIC_MAX_CONFIDENCE_01 } from "./syntheticReliefConfidence.js";
-import { fetchPvgisEnergy } from "./pvgisEnergyApiClient.js";
+import { isCompleteHorizonMask } from "./shadingAssessment.service.js";
+import { SHADING_MODEL_VERSION, computeShadingInputFingerprint, aggregateShadingEnergy } from "./shadingAssessment.service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -209,7 +212,7 @@ function extractFromGeometry(geometry, metersPerPixel, strictCommercial = false)
         rawH != null &&
         rawH !== "" &&
         Number.isFinite(Number(rawH));
-      if (strictCommercial && !hasExplicit) {
+      if (!hasExplicit || Number(rawH) < 0) {
         warnings.push("OBSTACLE_HEIGHT_MISSING");
       }
       obstacles.push({
@@ -217,9 +220,9 @@ function extractFromGeometry(geometry, metersPerPixel, strictCommercial = false)
         points: pts,
         polygon: pts.map((p) => ({ x: Number(p.x) || 0, y: Number(p.y) || 0 })),
         polygonPx: pts,
-        heightM: hasExplicit ? Number(rawH) : 1,
+        heightM: hasExplicit ? Number(rawH) : null,
       });
-    }
+    } else warnings.push("OBSTACLE_GEOMETRY_INVALID");
   }
 
   const shadowVolumes = geometry.shadowVolumes || [];
@@ -233,7 +236,8 @@ function extractFromGeometry(geometry, metersPerPixel, strictCommercial = false)
     if (!o) continue;
     let polygonPx = o.polygonPx || o.points || o.polygon;
     if (!polygonPx && o.x != null && o.y != null) {
-      if (mpp == null) continue;
+      if (mpp == null) { warnings.push("SHADING_SCALE_MISSING"); continue; }
+      if (!(o.width > 0) || !((o.depth ?? o.depthM) > 0)) warnings.push("OBSTACLE_DIMENSIONS_MISSING");
       const wPx = (o.width || 0.6) / mpp;
       const dPx = (o.depth || o.depthM || 0.6) / mpp;
       const hw = wPx / 2;
@@ -251,16 +255,16 @@ function extractFromGeometry(geometry, metersPerPixel, strictCommercial = false)
         rawH != null &&
         rawH !== "" &&
         Number.isFinite(Number(rawH));
-      if (strictCommercial && !hasExplicit) {
+      if (!hasExplicit || Number(rawH) < 0) {
         warnings.push("OBSTACLE_HEIGHT_MISSING");
       }
       obstacles.push({
         id: o.id || "sv-" + obstacles.length,
         polygon: polygonPx.map((p) => ({ x: Number(p.x) || 0, y: Number(p.y) || 0 })),
         polygonPx,
-        heightM: hasExplicit ? Number(rawH) : 1,
+        heightM: hasExplicit ? Number(rawH) : null,
       });
-    }
+    } else warnings.push("OBSTACLE_GEOMETRY_INVALID");
   }
 
   const frozenBlocks = geometry.frozenBlocks || [];
@@ -270,12 +274,13 @@ function extractFromGeometry(geometry, metersPerPixel, strictCommercial = false)
       const poly = p.polygonPx || p.polygon || p.points || p.projection?.points;
       if (Array.isArray(poly) && poly.length >= 3) {
         panels.push({
+          ...p,
           id: p.id || "p-" + panels.length,
           polygon: poly.map((pt) => ({ x: Number(pt.x) || 0, y: Number(pt.y) || 0 })),
           polygonPx: poly,
           points: poly,
         });
-      }
+      } else warnings.push("PANEL_GEOMETRY_INVALID");
     }
   }
 
@@ -307,13 +312,14 @@ function _extractPanelNormal(geometry) {
     geometry?.roof?.pans ??
     geometry?.validatedRoofData?.pans ??
     geometry?.roofState?.pans ??
+    geometry?.pans ??
     [];
   if (!Array.isArray(pans) || pans.length === 0) {
     return { normalX: 0, normalY: 0, normalZ: 1 }; // plan horizontal
   }
   const pan     = pans[0];
-  const tiltDeg = pan.tiltDeg ?? pan.slopeDeg ?? pan.tilt_deg ?? 0;
-  const azDeg   = pan.orientationDeg ?? pan.azimuthDeg ?? pan.azimuth_deg ?? 180;
+  const tiltDeg = pan.tiltDeg ?? pan.slopeDeg ?? pan.tilt_deg ?? pan.tilt ?? 0;
+  const azDeg   = pan.orientationDeg ?? pan.azimuthDeg ?? pan.azimuth_deg ?? pan.azimuth ?? 180;
   if (!tiltDeg || tiltDeg <= 0) {
     return { normalX: 0, normalY: 0, normalZ: 1 };
   }
@@ -347,6 +353,13 @@ function _extractPanFirstPan(geometry) {
 }
 
 export async function computeCalpinageShading(params) {
+  const canonical = params?.geometry?.geometryContractVersion != null;
+  if (canonical) {
+    const g=params.geometry, scene=validateFlatRoofSurvey(g);
+    // No explicit parameter or client verdict overrides canonical physical inputs.
+    params={...params,lat:g.gps?.lat,lon:g.gps?.lon,panels:scene.panels,obstacles:scene.obstacles,
+      metersPerPixel:g.scale?.metersPerPixel,localObstacleSurvey:g.localObstacleSurvey,irradianceSamples:g.irradianceSamples};
+  }
   const {
     lat,
     lon,
@@ -390,28 +403,55 @@ export async function computeCalpinageShading(params) {
   }
 
   const hasGps = typeof lat === "number" && typeof lon === "number" && !isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+  const fingerprint = computeShadingInputFingerprint(canonical ? {geometry} : params);
+  const assessmentBase = { modelVersion: SHADING_MODEL_VERSION, inputFingerprint: fingerprint, geometryFingerprint: computeShadingInputFingerprint({ geometry }), computedAt: new Date().toISOString() };
 
   if (panels.length === 0) {
     return {
-      farLossPct: 0,
-      nearLossPct: storedNearLossPct,
-      totalLossPct: storedNearLossPct,
+      farLossPct: null,
+      nearLossPct: null,
+      totalLossPct: null,
+      assessment: { ...assessmentBase, status: "not_calculated", nearStatus: "not_calculated", farStatus: "not_calculated", reasons: ["missing_panel_geometry"] },
     };
   }
 
   if (!hasGps) {
     return {
       farLossPct: null,
-      nearLossPct: storedNearLossPct,
-      totalLossPct: storedNearLossPct,
+      nearLossPct: null,
+      totalLossPct: null,
+      assessment: { ...assessmentBase, status: "insufficient_data", nearStatus: "insufficient_data", farStatus: "insufficient_data", reasons: ["missing_gps"] },
       farUnavailable: true,
       blockingReason: "missing_gps",
     };
   }
 
+  const validPolygon = (o) => {
+    const poly = o?.polygonPx ?? o?.polygon ?? o?.points ?? o?.projection?.points;
+    return Array.isArray(poly) && poly.length >= 3 && poly.every((p) => p && typeof p.x === "number" && Number.isFinite(p.x) && typeof p.y === "number" && Number.isFinite(p.y)) && Math.abs(poly.reduce((sum,p,i) => sum + p.x * poly[(i+1)%poly.length].y - poly[(i+1)%poly.length].x * p.y, 0)) > 1e-8;
+  };
+  if (panels.some((p) => !validPolygon(p))) geometryCommercialWarnings.push("PANEL_GEOMETRY_INVALID");
+  if (obstacles.some((o) => !validPolygon(o) || o.heightM == null || !Number.isFinite(Number(o.heightM)) || Number(o.heightM) < 0)) geometryCommercialWarnings.push("OBSTACLE_GEOMETRY_INVALID");
+  if (metersPerPixelMeta.isDefault) geometryCommercialWarnings.push("SHADING_SCALE_MISSING");
+  const survey = params.localObstacleSurvey ?? geometry?.localObstacleSurvey ?? geometry?.roofState?.localObstacleSurvey;
+  // An empty default list, an orthophoto or a terrain DTM is not an obstacle survey.
+  const localSurveyComplete = survey?.status === "complete" && survey?.source === "manual_survey";
   const normObstacles = nearShadingCore.normalizeObstacles(obstacles, undefined);
   const config = { year: 2026, stepMinutes: 60, minSunElevationDeg: 3 };
-  const samples = generateAnnualSamples(config, lat, lon);
+  let samples = generateAnnualSamples(config, lat, lon);
+  let energyInputError = null;
+  const irradiation = params.irradianceSamples ?? geometry?.irradianceSamples;
+  let hasAnnualIrradiance = false;
+  if (irradiation != null) {
+    const ms = Array.isArray(irradiation) ? irradiation.map((r) => new Date(r?.timestamp).getTime()) : [];
+    const year = ms.length > 0 ? new Date(ms[0]).getUTCFullYear() : NaN;
+    const expectedHours = (Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / 3600000;
+    hasAnnualIrradiance = ms.length === expectedHours && ms[0] >= Date.UTC(year, 0, 1) && ms[0] < Date.UTC(year, 0, 1, 1) &&
+      ms.every((t, i) => Number.isFinite(t) && (i === 0 || t - ms[i - 1] === 3600000)) &&
+      irradiation.every((r) => [r.directWh, r.diffuseWh, r.reflectedWh].every((v) => typeof v === "number" && Number.isFinite(v) && v >= 0));
+    if (!hasAnnualIrradiance) energyInputError = "invalid_or_incomplete_hourly_irradiance";
+    else samples = irradiation.map((r) => ({ date: new Date(r.timestamp), ...computeSunPosition(new Date(r.timestamp), lat, lon), energy: r }));
+  }
 
   let horizonMask = options.__testHorizonMaskOverride || null;
   let farMetadata = null;
@@ -420,14 +460,14 @@ export async function computeCalpinageShading(params) {
       if (options.__testForceHorizonFailure === true) {
         throw new Error("__test_force_horizon_failure");
       }
-      const hdEnabled = process.env.FAR_HORIZON_HD_ENABLE === "true";
+      const hdEnabled = process.env.FAR_HORIZON_HD_ENABLED === "true";
       const stepDeg = 2;
       const radius = 500;
       const effectiveStepDeg = hdEnabled
         ? Number(process.env.FAR_HORIZON_HD_STEP_DEG || 1)
         : stepDeg;
       const effectiveRadius = hdEnabled
-        ? Number(process.env.FAR_HORIZON_HD_RADIUS_M || 800)
+        ? Number(process.env.FAR_HORIZON_HD_MAX_DIST_M || 4000)
         : radius;
       const t0 = performance.now();
       const result = await computeHorizonMaskAuto({
@@ -475,13 +515,9 @@ export async function computeCalpinageShading(params) {
     }
   }
 
-  const validHorizonMask =
-    horizonMask &&
-    Array.isArray(horizonMask.mask) &&
-    horizonMask.mask.length > 0;
+  const validHorizonMask = !horizonMask?.error && horizonMask?.status !== "error" && horizonMask?.source !== "FAR_UNAVAILABLE_ERROR" && isCompleteHorizonMask(horizonMask?.mask);
   const farHorizonUnavailable =
     hasGps &&
-    options.__testHorizonMaskOverride == null &&
     !validHorizonMask;
   if (horizonMask && options.__testHorizonMaskOverride) {
     const dc = horizonMask.dataCoverage || {};
@@ -517,6 +553,8 @@ export async function computeCalpinageShading(params) {
   const monthlyBaseline = new Array(12).fill(0);
   const monthlyFar      = new Array(12).fill(0);
   const monthlyFarNear  = new Array(12).fill(0);
+  const energyRows = [];
+  const periodLoss = { morning: 0, midday: 0, afternoon: 0 };
 
   // Normale panneau pour pondération GTI (cos angle d'incidence)
   const _panelNormal = _extractPanelNormal(params.geometry ?? params.geom ?? null);
@@ -529,7 +567,9 @@ export async function computeCalpinageShading(params) {
     const _cosInc = sunDir.dx * _panelNormal.normalX
                   + sunDir.dy * _panelNormal.normalY
                   + sunDir.dz * _panelNormal.normalZ;
-    const weight = Math.max(0, _cosInc);
+    const energy = sample.energy;
+    if (energy?.directWh > 0 && elDeg <= 0) energyInputError = "direct_irradiance_when_sun_below_horizon";
+    const weight = energy ? energy.directWh + energy.diffuseWh + energy.reflectedWh : Math.max(0, _cosInc);
     if (weight <= 0) continue;
 
     const month = date ? date.getUTCMonth() : 0;
@@ -540,12 +580,19 @@ export async function computeCalpinageShading(params) {
     const horizonElev = horizonMask?.mask
       ? interpolateHorizonElevation(horizonMask.mask, azDeg)
       : 0;
-    const aboveHorizon = elDeg >= horizonElev;
-
-    if (!aboveHorizon) continue;
-
-    totalWeightFar += weight;
-    monthlyFar[month]      += weight;
+    const aboveHorizon = elDeg > 0 && elDeg >= horizonElev;
+    const isClear = normObstacles.length === 0 && validHorizonMask && horizonMask.mask.every((p) => p.elev === 0);
+    function transmission(component, stage) {
+      if (!energy || energy[`${component}Wh`] === 0) return 1;
+      const value = energy[`${component}${stage}Transmission`];
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1) return value;
+      if (isClear) return 1;
+      energyInputError = "missing_diffuse_or_reflected_transmission";
+      return 1; // Diagnostic only; assessment below makes every annual KPI unavailable.
+    }
+    const farWeight = energy ? energy.directWh * (aboveHorizon ? 1 : 0) + energy.diffuseWh * transmission("diffuse", "Far") + energy.reflectedWh * transmission("reflected", "Far") : (aboveHorizon ? weight : 0);
+    totalWeightFar += farWeight;
+    monthlyFar[month] += farWeight;
 
     let panelFractionSum = 0;
     // NEAR-NS-FIX : le raycast near travaille en pixels image (polygonPx) -> convertir le
@@ -554,7 +601,7 @@ export async function computeCalpinageShading(params) {
     const sunDirPx = geoSunDirToImagePixelDir(sunDir, northAngleDeg);
     for (let pi = 0; pi < panels.length; pi++) {
       const panel = panels[pi];
-      const fraction = nearShadingCore.computePanelShadedFraction({
+      const fraction = aboveHorizon ? nearShadingCore.computePanelShadedFraction({
         panel,
         obstacles: normObstacles,
         sunDir: sunDirPx,
@@ -562,16 +609,19 @@ export async function computeCalpinageShading(params) {
         useZLocal: false,
         panelGridSize: 2,
         metersPerPixel,
-      });
+      }) : 0;
       panelFractionSum += fraction;
       if (perPanelFarNear) {
-        perPanelFarNear[pi] += weight * (1 - fraction);
+        perPanelFarNear[pi] += energy ? energy.directWh * (aboveHorizon ? 1 - fraction : 0) + energy.diffuseWh * transmission("diffuse", "Combined") + energy.reflectedWh * transmission("reflected", "Combined") : farWeight * (1 - fraction);
       }
     }
     const avgFraction = panels.length > 0 ? panelFractionSum / panels.length : 0;
-    const farNearWeight = weight * (1 - avgFraction);
+    const farNearWeight = energy ? energy.directWh * (aboveHorizon ? 1 - avgFraction : 0) + energy.diffuseWh * transmission("diffuse", "Combined") + energy.reflectedWh * transmission("reflected", "Combined") : farWeight * (1 - avgFraction);
     totalWeightFarNear += farNearWeight;
     monthlyFarNear[month]  += farNearWeight;
+    const period = azDeg < 150 ? "morning" : azDeg > 210 ? "afternoon" : "midday";
+    periodLoss[period] += weight - farNearWeight;
+    if (energy) energyRows.push({ timestamp: date.toISOString(), baselineWh: weight, farWh: farWeight, combinedWh: farNearWeight, period });
   }
 
   let farLossPct = 0;
@@ -591,9 +641,9 @@ export async function computeCalpinageShading(params) {
   }
 
   const result = {
-    farLossPct: farHorizonUnavailable ? null : Number(farLossPct.toFixed(3)),
-    nearLossPct: Number(nearLossPct.toFixed(3)),
-    totalLossPct: Number(totalLossPct.toFixed(3)),
+    farLossPct: farHorizonUnavailable ? null : farLossPct,
+    nearLossPct,
+    totalLossPct,
   };
   if (farHorizonUnavailable) {
     result.farHorizonStatus = "FAR_UNAVAILABLE_ERROR";
@@ -644,54 +694,67 @@ export async function computeCalpinageShading(params) {
   if (perPanelFarNear && panels.length > 0 && totalWeightBaseline > 0) {
     result.perPanelBreakdown = panels.map((p, i) => ({
       panelId: String(p.id ?? `p-${i}`),
-      lossPct: Number((clamp01(1 - perPanelFarNear[i] / totalWeightBaseline) * 100).toFixed(2)),
+      lossPct: clamp01(1 - perPanelFarNear[i] / totalWeightBaseline) * 100,
     }));
   }
   if (geometryCommercialWarnings.length > 0) {
     result.geometryCommercialWarnings = geometryCommercialWarnings;
   }
 
-  // ─── PVGIS énergie — kWh mensuels/annuels avec/sans ombrage ─────────────
-  // Activé uniquement si peakPowerKwc fourni ET GPS valide.
-  // Erreur PVGIS non bloquante (résultat partiel avec pvgisReference.source=UNAVAILABLE).
-  if (
-    hasGps &&
-    typeof params.peakPowerKwc === "number" &&
-    params.peakPowerKwc > 0
-  ) {
-    try {
-      const { tiltDeg, azimuthDeg } = _extractPanFirstPan(params.geometry ?? params.geom ?? null);
-      const pvgisData = await fetchPvgisEnergy({ lat, lon, tiltDeg, azimuthDeg, usehorizon: 0 });
-
-      result.monthlyKwhStats = pvgisData.monthly.map((m, i) => {
-        const ref    = m.E_m * params.peakPowerKwc;
-        const factor = result.monthlyFactors?.[i]?.combinedLossFraction ?? 0;
-        const kwhLoss = ref * factor;
-        return {
-          month:                    i + 1,
-          productionNoShadingKwh:   Number(ref.toFixed(1)),
-          productionWithShadingKwh: Number((ref - kwhLoss).toFixed(1)),
-          kwhLoss:                  Number(kwhLoss.toFixed(1)),
-          gtiKwhM2perDay:           m.H_i,
-          combinedLossFraction:     factor,
-        };
-      });
-
-      result.annualLossKwh = Number(
-        result.monthlyKwhStats.reduce((s, m) => s + m.kwhLoss, 0).toFixed(0)
-      );
-      result.pvgisReference = {
-        source:       "PVGIS_V5_3_PVCALC",
-        annualE_y:    pvgisData.annual.E_y,
-        peakPowerKwc: params.peakPowerKwc,
-        tiltDeg,
-        azimuthDeg,
-      };
-    } catch (pvgisErr) {
-      console.warn("[PVGIS ENERGY]", pvgisErr.message);
-      result.pvgisReference = { source: "PVGIS_UNAVAILABLE", error: pvgisErr.message };
-    }
+  // Preserve the geometric calculation for diagnostics; it is not annual energy.
+  result.diagnostics = { geometricProxy: {
+    method: "incidence_weighted_direct_beam_flat_roof", nearLossPct, farLossPct, totalLossPct,
+    monthlyFactors: result.monthlyFactors, perPanel: result.perPanelBreakdown ?? [],
+    periodLoss, baseline: totalWeightBaseline,
+  } };
+  const reasons = [];
+  let nearStatus = "computed", farStatus = "computed";
+  if (!localSurveyComplete) { nearStatus = "insufficient_data"; reasons.push("local_obstacle_survey_missing"); }
+  const integrity = canonical ? deriveBackendCommercialGeometryVerdict(geometry) : geometry?.backendCommercialGeometry ?? geometry?.commercialGeometry;
+  if (integrity?.status === 'INVALID' || integrity?.officialNearShadingAllowed === false) {
+    nearStatus = 'insufficient_data'; reasons.push('commercial_geometry_invalid');
   }
+  if (geometryCommercialWarnings.length > 0) { nearStatus = "insufficient_data"; reasons.push(...geometryCommercialWarnings); }
+  if (normObstacles.length > 0 && _panelNormal.normalZ < 0.999999) { nearStatus = "insufficient_data"; reasons.push("sloped_roof_intersections_not_modelled"); }
+  if (farHorizonUnavailable) { farStatus = "error"; reasons.push("horizon_provider_unavailable"); }
+  if (!farHorizonUnavailable && !REAL_TERRAIN_PROVIDERS.has(farMetadata?.source) && !options.__testHorizonMaskOverride) {
+    farStatus = 'insufficient_data'; reasons.push('horizon_source_unverified');
+  }
+  if (totalWeightBaseline <= 0) { nearStatus = farStatus = "insufficient_data"; reasons.push("no_reference_energy"); }
+  if (canonical && !hasAnnualIrradiance) energyInputError = "hourly_irradiance_missing";
+  if (!hasAnnualIrradiance) {
+    if (normObstacles.length > 0) nearStatus = "insufficient_data";
+    if (!farHorizonUnavailable && horizonMask.mask.some(p => p.elev > 0)) farStatus = "insufficient_data";
+    if (normObstacles.length > 0 || horizonMask?.mask?.some(p => p.elev > 0)) reasons.push("hourly_irradiance_missing");
+  }
+  const energyResult = hasAnnualIrradiance ? aggregateShadingEnergy(energyRows) : null;
+  if (hasAnnualIrradiance && (geometry?.pans?.length > 1 || geometry?.validatedRoofData?.pans?.length > 1 || geometry?.roof?.pans?.length > 1 || geometry?.roofState?.pans?.length > 1)) energyInputError = "per_plane_irradiance_not_modelled";
+  if (energyInputError || (hasAnnualIrradiance && !energyResult)) {
+    nearStatus = "insufficient_data";
+    if (farStatus !== "error") farStatus = "insufficient_data";
+    reasons.push(energyInputError ?? "invalid_energy_balance");
+  }
+  if (totalWeightFar <= 0) { nearStatus = "insufficient_data"; reasons.push("no_energy_after_horizon"); }
+  const status = farStatus === "error" ? "error" : nearStatus === "computed" && farStatus === "computed" ? "computed" : "insufficient_data";
+  result.assessment = { ...assessmentBase, geometryContractVersion: canonical ? geometry.geometryContractVersion : undefined, status, nearStatus, farStatus, reasons: [...new Set(reasons)],
+    energyMethod: hasAnnualIrradiance ? "hourly_poa_components" : "zero_loss_only_no_energy_model",
+    localDataSource: localSurveyComplete ? survey.source : null,
+    limitations: ["flat_roof_local_raycast", "no_electrical_mismatch_or_bypass_diode_model", "no_automatic_orthophoto_shadow_detection"] };
+  result.nearLossPct = nearStatus === "computed" ? nearLossPct : null;
+  result.farLossPct = farStatus === "computed" ? farLossPct : null;
+  result.totalLossPct = status === "computed" ? totalLossPct : null;
+  if (status !== "computed") {
+    result.monthlyFactors = null;
+    result.perPanelBreakdown = [];
+  } else if (energyResult) {
+    result.monthlyFactors = energyResult.monthlyFactors;
+    result.distribution = energyResult.distribution;
+  }
+
+  // POA irradiation is not electrical production. A separate monthly PVGIS series
+  // would change the annual weighting; no kWh estimate without the same hourly baseline.
+  result.monthlyKwhStats = null;
+  result.annualLossKwh = null;
 
   return result;
 }

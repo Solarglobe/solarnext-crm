@@ -82,7 +82,8 @@ async function runParityTest() {
     obstacles,
     metersPerPixel: 1,
   });
-  const backNear = backResult != null ? backResult.nearLossPct : null;
+  assert(backResult.nearLossPct === null, "annual near unavailable without energy and survey");
+  const backNear = backResult.diagnostics.geometricProxy.nearLossPct;
   assert(typeof backNear === "number", "backend nearLossPct number", "got " + backNear);
 
   const sunVectors = getAnnualSunVectorsForNear(LAT, LON, CONFIG);

@@ -1,3 +1,4 @@
+import { computedClearShading } from "./fixtures/computed-clear-shading.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildScenarioElectricitySnapshotFields, getScenarioElectricityBilling } from "../services/scenarioElectricitySnapshot.service.js";
@@ -53,7 +54,7 @@ for (const status of ["FULL", "INCOMPLETE"]) {
       scenario_type: "BATTERY_VIRTUAL", scenario_result: structuredClone(repaired),
       client: { full_name: "Client test" }, site: {},
       installation: { puissance_kwc: 6, panneaux_nombre: 12 },
-      equipment: { panneau: {}, onduleur: {}, batterie: {} }, shading: {},
+      equipment: { panneau: {}, onduleur: {}, batterie: {} }, shading: computedClearShading(),
       energy: repaired.energy, production: repaired.production,
       finance: { ...repaired.finance, ...fields.finance },
       electricity_billing: fields.electricity_billing,

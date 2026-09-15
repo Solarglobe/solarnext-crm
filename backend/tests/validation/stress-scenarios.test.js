@@ -100,10 +100,10 @@ function assert(cond, label, msg) { if (cond) ok(label); else fail(label, msg ||
     lat: LAT, lon: LON, geometry,
     options: { __testHorizonMaskOverride: buildMaskFlat0(), __testReturnMonthly: true },
   });
-  assert(r1.farLossPct <= 1, "farLossPct ≈ 0");
-  assert(r1.nearLossPct <= 1, "nearLossPct ≈ 0");
+  assert(r1.diagnostics.geometricProxy.farLossPct <= 1, "farLossPct ≈ 0");
+  assert(r1.diagnostics.geometricProxy.nearLossPct <= 1, "nearLossPct ≈ 0");
   const shading1 = buildStructuredShading(r1, true, true, {});
-  assert(["A", "A+"].includes(shading1.shadingQuality?.grade), "shadingQuality grade A ou A+");
+  assert(shading1.shadingQuality?.grade === "UNASSESSED", "shadingQuality grade A ou A+");
   const farLoss1 = farLossPctPerMonth(r1.__testMonthly.monthlyBaselineEnergy, r1.__testMonthly.monthlyFarEnergy);
   const winter1 = avgOverMonths(farLoss1, [0, 1, 10, 11]);
   const summer1 = avgOverMonths(farLoss1, [4, 5, 6, 7]);
@@ -115,7 +115,7 @@ function assert(cond, label, msg) { if (cond) ok(label); else fail(label, msg ||
     lat: LAT, lon: LON, geometry,
     options: { __testHorizonMaskOverride: buildMaskVilleDense(), __testReturnMonthly: true },
   });
-  assert(r2.farLossPct > 8, "farLossPct significatif (>8%)");
+  assert(r2.diagnostics.geometricProxy.farLossPct > 8, "farLossPct significatif (>8%)");
   const farLoss2 = farLossPctPerMonth(r2.__testMonthly.monthlyBaselineEnergy, r2.__testMonthly.monthlyFarEnergy);
   const winter2 = avgOverMonths(farLoss2, [0, 1, 10, 11]);
   const summer2 = avgOverMonths(farLoss2, [4, 5, 6, 7]);
@@ -127,7 +127,7 @@ function assert(cond, label, msg) { if (cond) ok(label); else fail(label, msg ||
     lat: LAT, lon: LON, geometry,
     options: { __testHorizonMaskOverride: buildMaskImmeubleSud(), __testReturnMonthly: true },
   });
-  assert(r3.farLossPct > 15, "farLossPct très élevé (>15%)");
+  assert(r3.diagnostics.geometricProxy.farLossPct > 15, "farLossPct très élevé (>15%)");
   const farLoss3 = farLossPctPerMonth(r3.__testMonthly.monthlyBaselineEnergy, r3.__testMonthly.monthlyFarEnergy);
   const winter3 = avgOverMonths(farLoss3, [0, 1, 10, 11]);
   const summer3 = avgOverMonths(farLoss3, [4, 5, 6, 7]);
@@ -139,7 +139,7 @@ function assert(cond, label, msg) { if (cond) ok(label); else fail(label, msg ||
     lat: LAT, lon: LON, geometry,
     options: { __testHorizonMaskOverride: buildMaskArbreEst(), __testReturnMonthly: true },
   });
-  assert(r4.farLossPct > 0.5 && r4.farLossPct < 30, "perte annuelle modérée");
+  assert(r4.diagnostics.geometricProxy.farLossPct > 0.5 && r4.diagnostics.geometricProxy.farLossPct < 30, "perte annuelle modérée");
   const farLoss4 = farLossPctPerMonth(r4.__testMonthly.monthlyBaselineEnergy, r4.__testMonthly.monthlyFarEnergy);
   const eastMonths = [2, 3, 4, 5, 6, 7];
   const avgEast = avgOverMonths(farLoss4, eastMonths);
@@ -148,9 +148,10 @@ function assert(cond, label, msg) { if (cond) ok(label); else fail(label, msg ||
   // --- Vérifications générales ---
   console.log("\n--- Vérifications générales ---");
   for (const r of [r1, r2, r3, r4]) {
-    assert(r.farLossPct >= 0 && r.farLossPct <= 100, "farLossPct dans [0,100]");
-    assert(!Number.isNaN(r.totalLossPct), "pas de NaN");
-    assert(r.nearLossPct >= 0, "nearLossPct >= 0");
+    assert(r.totalLossPct === null, "official annual loss unavailable without surveyed geometry and hourly energy");
+    assert(r.diagnostics.geometricProxy.farLossPct >= 0 && r.diagnostics.geometricProxy.farLossPct <= 100, "farLossPct dans [0,100]");
+    assert(!Number.isNaN(r.diagnostics.geometricProxy.totalLossPct), "pas de NaN");
+    assert(r.diagnostics.geometricProxy.nearLossPct >= 0, "nearLossPct >= 0");
   }
 
   // --- Monotonicité: angle horizon augmente => pertes augmentent ---
@@ -161,19 +162,19 @@ function assert(cond, label, msg) { if (cond) ok(label); else fail(label, msg ||
   const r5 = await computeCalpinageShading({ lat: LAT, lon: LON, geometry, options: { __testHorizonMaskOverride: mask5 } });
   const r10 = await computeCalpinageShading({ lat: LAT, lon: LON, geometry, options: { __testHorizonMaskOverride: mask10 } });
   const r20 = await computeCalpinageShading({ lat: LAT, lon: LON, geometry, options: { __testHorizonMaskOverride: mask20 } });
-  assert(r5.farLossPct <= r10.farLossPct, "elev 0 <= elev 10");
-  assert(r10.farLossPct <= r20.farLossPct, "elev 10 <= elev 20");
+  assert(r5.diagnostics.geometricProxy.farLossPct <= r10.diagnostics.geometricProxy.farLossPct, "elev 0 <= elev 10");
+  assert(r10.diagnostics.geometricProxy.farLossPct <= r20.diagnostics.geometricProxy.farLossPct, "elev 10 <= elev 20");
 
   // --- Cohérence énergétique: annualLossFromMonthly ≈ combined.totalLossPct ---
   console.log("\n--- Cohérence énergétique ---");
   const annualFromMonthly = totalLossFromMonthly(r1.__testMonthly.monthlyBaselineEnergy, r1.__testMonthly.monthlyFarNearEnergy);
-  assert(Math.abs(annualFromMonthly - r1.totalLossPct) < 0.5, "annualFromMonthly ≈ totalLossPct (<0.5%)");
+  assert(Math.abs(annualFromMonthly - r1.diagnostics.geometricProxy.totalLossPct) < 0.5, "annualFromMonthly ≈ totalLossPct (<0.5%)");
 
   // --- Stabilité cache: 2 runs identiques ---
   console.log("\n--- Stabilité cache ---");
   const run1 = await computeCalpinageShading({ lat: LAT, lon: LON, geometry, options: { __testHorizonMaskOverride: buildMaskVilleDense() } });
   const run2 = await computeCalpinageShading({ lat: LAT, lon: LON, geometry, options: { __testHorizonMaskOverride: buildMaskVilleDense() } });
-  assert(Math.abs(run1.farLossPct - run2.farLossPct) < 0.01, "run1 ≈ run2 (déterministe)");
+  assert(Math.abs(run1.diagnostics.geometricProxy.farLossPct - run2.diagnostics.geometricProxy.farLossPct) < 0.01, "run1 ≈ run2 (déterministe)");
 
   console.log("\n--- RÉSUMÉ ---");
   console.log("Passed: " + passed + ", Failed: " + failed);

@@ -34,11 +34,16 @@ describe("ConfirmDialog", () => {
       />
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("⚠️ Action importante")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Supprimer ce bloc ?" })).toBeInTheDocument();
     expect(screen.getByText("Supprimer ce bloc ?")).toBeInTheDocument();
     expect(screen.getByText("Le bloc sera définitivement supprimé.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Annuler" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Supprimer" })).toBeInTheDocument();
+  });
+
+  it("utilise le titre par défaut seulement quand aucun titre n'est fourni", () => {
+    render(<ConfirmDialog open description="Action irréversible." onConfirm={() => {}} onCancel={() => {}} />);
+    expect(screen.getByRole("dialog", { name: "⚠️ Action importante" })).toBeInTheDocument();
   });
 
   it("appelle onCancel quand on clique Annuler", () => {

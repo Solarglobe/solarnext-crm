@@ -1,3 +1,4 @@
+import { assertClientStudyExportable, getClientStudyExportBlock } from '../../shared/shading/clientStudyExport.js';
 /**
  * Construction du snapshot complet figé au clic "Choisir ce scénario".
  * Agrège : lead/site_address (client, site), quote-prep (installation, equipment),
@@ -35,6 +36,7 @@ export async function buildSelectedScenarioSnapshot({
   if (!scenario) {
     throw new Error(`Scénario ${scenarioId} introuvable dans scenarios_v2`);
   }
+  assertClientStudyExportable({ ...scenario, needs_recompute: dataJson?.needs_recompute === true || scenario.needs_recompute === true, display_blocked: dataJson?.display_blocked === true || scenario.display_blocked === true });
   const electricitySnapshot = buildScenarioElectricitySnapshotFields(scenario);
   const electricityBilling = electricitySnapshot.electricity_billing;
 
@@ -299,6 +301,13 @@ export async function buildSelectedScenarioSnapshot({
   };
 
   const shading = {
+    assessment: scenario.shading?.assessment ?? null,
+    distribution: scenario.shading?.distribution ?? null,
+    near: scenario.shading?.near ?? null,
+    far: scenario.shading?.far ?? null,
+    combined: scenario.shading?.combined ?? null,
+    horizonMask: scenario.shading?.horizonMask ?? null,
+    shadingQuality: scenario.shading?.quality ?? null,
     near_loss_pct:  scenario.shading?.near_loss_pct  ?? null,
     far_loss_pct:   scenario.shading?.far_loss_pct   ?? null,
     total_loss_pct: scenario.shading?.total_loss_pct ?? null,

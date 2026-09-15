@@ -19,7 +19,7 @@ import {
   signedDistanceToPlane,
 } from "./roofExtensionVolumeTestUtils";
 
-/** Grand rectangle CCW : séparation ≥ 15 px (tolérée merge apex/faîtage) entre apex et extrémités du faîtage. */
+/** Grand rectangle CCW ; le faîtage se termine au sommet commun aux deux arêtiers. */
 const RECT_WIDE_CHIEN_ASSIS: readonly { x: number; y: number; h?: number }[] = [
   { x: 10, y: 10, h: 0 },
   { x: 50, y: 10, h: 0 },
@@ -28,9 +28,8 @@ const RECT_WIDE_CHIEN_ASSIS: readonly { x: number; y: number; h?: number }[] = [
 ];
 
 const RIDGE_WIDE_TOP = { x: 30, y: 45 };
-const RIDGE_WIDE_BOT = { x: 30, y: 12 };
 
-/** Apex décalé du trait de faîtage (évite apex strictement sur la ligne → fallback maillage). */
+/** Sommet décentré, mesuré et partagé par le faîtage et les deux arêtiers. */
 const APEX_WIDE_TYPICAL = { x: 38, y: 28 };
 
 /** Trapèze étendu (base large). */
@@ -42,10 +41,9 @@ const TRAPEZE_WIDE_CHIEN_ASSIS: readonly { x: number; y: number; h?: number }[] 
 ];
 
 const RIDGE_TRAP_TOP = { x: 31, y: 45 };
-const RIDGE_TRAP_BOT = { x: 31, y: 12 };
 const APEX_TRAP_TYPICAL = { x: 42, y: 28 };
 
-/** Milieu « géométrique » du faîtage : décalé latéralement pour rester hips-aware (≠ apex sur la ligne du trait). */
+/** Variante avec sommet plus proche du centre du contour. */
 const APEX_WIDE_NEAR_RIDGE_MID = { x: 34, y: 28.5 };
 
 /**
@@ -60,7 +58,6 @@ interface P3ChienAssisSpec {
   readonly patch: RoofPlanePatch3D;
   readonly contour: readonly { x: number; y: number; h?: number }[];
   readonly ridgeA: { x: number; y: number };
-  readonly ridgeB: { x: number; y: number };
   readonly apex: { x: number; y: number };
   readonly hipLeftFoot: { x: number; y: number };
   readonly hipRightFoot: { x: number; y: number };
@@ -80,13 +77,15 @@ function buildP3ChienAssisVolume(spec: P3ChienAssisSpec): RoofExtensionVolume3D 
           kind: "dormer",
           visualModel: "manual_outline_gable",
           supportPanId: spec.panId,
+          heightReference: "support_plane_normal",
+          wallHeightM: hA > 0 ? 0.45 : 0,
           contour: {
             closed: true,
             points: spec.contour.map((p) => ({ x: p.x, y: p.y, h: p.h ?? 0 })),
           },
           ridge: {
             a: { x: spec.ridgeA.x, y: spec.ridgeA.y, h: hR },
-            b: { x: spec.ridgeB.x, y: spec.ridgeB.y, h: hR },
+            b: { x: spec.apex.x, y: spec.apex.y, h: hR },
           },
           hips: {
             left: {
@@ -171,8 +170,9 @@ function assertTriangleMeshMatchesNormals(vol: RoofExtensionVolume3D): void {
 function assertHipsRoofSlopePatchesPresent(vol: RoofExtensionVolume3D, extId: string): void {
   const left = vol.faces.filter((f) => f.id.includes(":face:roof:left:"));
   const right = vol.faces.filter((f) => f.id.includes(":face:roof:right:"));
-  expect(left.length).toBeGreaterThanOrEqual(2);
-  expect(right.length).toBeGreaterThanOrEqual(2);
+  // Triangles per side depend on the measured footprint, not an old fan layout.
+  expect(left.length).toBeGreaterThanOrEqual(1);
+  expect(right.length).toBeGreaterThanOrEqual(1);
   const leftArea = left.reduce((s, f) => s + f.areaM2, 0);
   const rightArea = right.reduce((s, f) => s + f.areaM2, 0);
   expect(leftArea).toBeGreaterThan(1e-6);
@@ -255,6 +255,18 @@ function validateP3HipsAwareCore(vol: RoofExtensionVolume3D, extId: string, patc
   assertTriangleMeshMatchesNormals(vol);
   assertViewerMatchesVolumeBounds(vol);
   assertRaycastUsesSameVertices(vol);
+  // Every mesh edge belongs to exactly two faces: no missing roof cap or open wall.
+  const edges = new Map<string, number>();
+  for (const f of vol.faces) f.vertexIndexCycle.forEach((a, i, cycle) => {
+    const b = cycle[(i + 1) % cycle.length]!;
+    const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+    edges.set(key, (edges.get(key) ?? 0) + 1);
+  });
+  expect([...edges.values()].every(count => count === 2)).toBe(true);
+  const base = vol.faces.find(f => f.kind === "base")!;
+  const projectedRoofArea = vol.faces.filter(f => f.kind === "top")
+    .reduce((area, f) => area + f.areaM2 * dot3(f.outwardUnitNormal, patch.normal), 0);
+  expect(projectedRoofArea).toBeCloseTo(base.areaM2, 6);
 }
 
 describe("P3 hips-aware — validation complète (cas réels)", () => {
@@ -266,7 +278,6 @@ describe("P3 hips-aware — validation complète (cas réels)", () => {
       patch,
       contour: RECT_WIDE_CHIEN_ASSIS,
       ridgeA: RIDGE_WIDE_TOP,
-      ridgeB: RIDGE_WIDE_BOT,
       apex: APEX_WIDE_TYPICAL,
       hipLeftFoot: { x: 10, y: 10 },
       hipRightFoot: { x: 50, y: 10 },
@@ -287,7 +298,6 @@ describe("P3 hips-aware — validation complète (cas réels)", () => {
       patch,
       contour: TRAPEZE_WIDE_CHIEN_ASSIS,
       ridgeA: RIDGE_TRAP_TOP,
-      ridgeB: RIDGE_TRAP_BOT,
       apex: APEX_TRAP_TYPICAL,
       hipLeftFoot: { x: 10, y: 10 },
       hipRightFoot: { x: 56, y: 10 },
@@ -312,7 +322,6 @@ describe("P3 hips-aware — validation complète (cas réels)", () => {
       patch,
       contour: RECT_WIDE_CHIEN_ASSIS,
       ridgeA: RIDGE_WIDE_TOP,
-      ridgeB: RIDGE_WIDE_BOT,
       apex: APEX_WIDE_NEAR_RIDGE_MID,
       hipLeftFoot: { x: 10, y: 10 },
       hipRightFoot: { x: 50, y: 10 },
@@ -331,7 +340,6 @@ describe("P3 hips-aware — validation complète (cas réels)", () => {
       patch,
       contour: RECT_WIDE_CHIEN_ASSIS,
       ridgeA: RIDGE_WIDE_TOP,
-      ridgeB: RIDGE_WIDE_BOT,
       apex: APEX_WIDE_NEAR_RIDGE_BOT,
       hipLeftFoot: { x: 10, y: 10 },
       hipRightFoot: { x: 50, y: 10 },
@@ -351,7 +359,6 @@ describe("P3 hips-aware — validation complète (cas réels)", () => {
       patch,
       contour: RECT_WIDE_CHIEN_ASSIS,
       ridgeA: RIDGE_WIDE_TOP,
-      ridgeB: RIDGE_WIDE_BOT,
       apex: APEX_WIDE_TYPICAL,
       hipLeftFoot: { x: 10, y: 10 },
       hipRightFoot: { x: 50, y: 10 },
@@ -362,8 +369,8 @@ describe("P3 hips-aware — validation complète (cas réels)", () => {
     assertFootprintOnSupportPlane(vol, patch);
     assertVertexHeightAlongNormal(vol, patch, ":p3-slope30:apex", 1);
     const apex = vol.vertices.find((v) => v.id.endsWith(":p3-slope30:apex"))!;
-    const eave = vol.vertices.find((v) => v.id.endsWith(":eave:front-left"))!;
-    const base = vol.vertices.find((v) => v.id.endsWith(":base:front-left"))!;
+    const eave = vol.vertices.find((v) => v.id.endsWith(":eave:0"))!;
+    const base = vol.vertices.find((v) => v.id.endsWith(":base:0"))!;
     expect(Math.abs(signedDistanceToPlane(base.position, patch.equation))).toBeLessThan(1e-6);
     expect(Math.abs(signedDistanceToPlane(eave.position, patch.equation) - 0.45)).toBeLessThan(1e-6);
     expect(signedDistanceToPlane(apex.position, patch.equation)).toBeGreaterThan(
@@ -379,7 +386,6 @@ describe("P3 hips-aware — validation complète (cas réels)", () => {
       patch,
       contour: RECT_WIDE_CHIEN_ASSIS,
       ridgeA: RIDGE_WIDE_TOP,
-      ridgeB: RIDGE_WIDE_BOT,
       apex: APEX_WIDE_TYPICAL,
       hipLeftFoot: { x: 10, y: 10 },
       hipRightFoot: { x: 50, y: 10 },
@@ -406,7 +412,6 @@ describe("P3 hips-aware — validation complète (cas réels)", () => {
       patch,
       contour: RECT_WIDE_CHIEN_ASSIS,
       ridgeA: RIDGE_WIDE_TOP,
-      ridgeB: RIDGE_WIDE_BOT,
       apex: APEX_WIDE_TYPICAL,
       hipLeftFoot: { x: 10, y: 10 },
       hipRightFoot: { x: 50, y: 10 },
@@ -415,7 +420,8 @@ describe("P3 hips-aware — validation complète (cas réels)", () => {
     });
     validateP3HipsAwareCore(vol, "p3-h1", patch);
     assertVertexHeightAlongNormal(vol, patch, ":ridge:a", 1);
-    assertVertexHeightAlongNormal(vol, patch, ":ridge:b", 1);
+    // The ridge endpoint and apex are the same physical vertex.
+    expect(vol.vertices.filter(v => v.id.endsWith(":p3-h1:apex"))).toHaveLength(1);
     assertVertexHeightAlongNormal(vol, patch, ":p3-h1:apex", 1);
   });
 });

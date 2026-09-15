@@ -1,3 +1,4 @@
+import { formatShadingLossPct } from '../../../../../../shared/shading/shadingAssessment.js';
 /**
  * ChartShadingMonthly — Barres empilées far/near par mois + ligne combined
  * SVG pur, thème sombre SolarNext. Sprint 2.
@@ -5,7 +6,7 @@
  * Données : monthlyFactors[12] { month, farPct, nearPct, combinedPct }
  * Far    : #C39847 (gold) — horizon lointain
  * Near   : #4A90E2 (bleu) — masques proches
- * Combined line : #E8ECF8 (blanc cassé) — tirets fins
+ * Combined line : #243747 (blanc cassé) — tirets fins
  */
 
 import { useMemo } from "react";
@@ -36,10 +37,10 @@ const BAR_GAP   = 0.35;  // fraction de la largeur barre réservée à l'espacem
 
 const COLOR_FAR      = "#C39847";
 const COLOR_NEAR     = "#4A90E2";
-const COLOR_LINE     = "#E8ECF8";
-const COLOR_GRID     = "rgba(255,255,255,0.07)";
-const COLOR_LABEL    = "#9FA8C7";
-const COLOR_ZERO     = "rgba(255,255,255,0.15)";
+const COLOR_LINE     = "#243747";
+const COLOR_GRID     = "rgba(36,55,71,0.15)";
+const COLOR_LABEL    = "#465b6c";
+const COLOR_ZERO     = "rgba(36,55,71,0.35)";
 
 export default function ChartShadingMonthly({ data }: ChartShadingMonthlyProps) {
 
@@ -47,30 +48,28 @@ export default function ChartShadingMonthly({ data }: ChartShadingMonthlyProps) 
     if (!Array.isArray(data) || data.length === 0) return null;
     const arr = [...data].sort((a, b) => a.month - b.month);
     // S'assurer qu'on a 12 mois
-    if (arr.length < 12) return null;
+    if (arr.length !== 12 || arr.some((row, index) => row.month !== index + 1 ||
+      [row.farPct, row.nearPct, row.combinedPct].some((value) => !Number.isFinite(value) || value < 0 || value > 100))) return null;
     return arr;
   }, [data]);
 
   // ── Pas de données ────────────────────────────────────────────────────────
-  if (!sorted) {
+  if (!sorted || sorted.every((row) => row.combinedPct === 0 && row.nearPct === 0 && row.farPct === 0)) {
     return (
       <div style={{
         width: "100%", height: "100%",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center", gap: 4,
       }}>
-        <div style={{ fontSize: "10pt", color: "#9FA8C7", fontWeight: 500 }}>Pertes mensuelles</div>
-        <div style={{ fontSize: "8pt", color: "#9FA8C7", opacity: 0.5 }}>Données non disponibles</div>
+        <div style={{ fontSize: "10pt", color: "#465b6c", fontWeight: 500 }}>Pertes mensuelles</div>
+        <div style={{ fontSize: "8pt", color: "#465b6c", opacity: 0.5 }}>{sorted ? "Aucune perte calculée sur les douze mois" : "Données non disponibles"}</div>
       </div>
     );
   }
 
   // ── Calculs géométrie ─────────────────────────────────────────────────────
-  const maxPct = useMemo(() => {
-    const m = Math.max(...sorted.map((d) => d.combinedPct));
-    // Arrondir au 5% supérieur, minimum 5
-    return Math.max(5, Math.ceil(m / 5) * 5);
-  }, [sorted]);
+  const maxObservedPct = Math.max(...sorted.map((d) => Math.max(d.combinedPct, d.farPct + d.nearPct)));
+  const maxPct = Math.max(0.01, maxObservedPct * 1.1);
 
   const N         = 12;
   const slotW     = CHART_W / N;
@@ -105,7 +104,7 @@ export default function ChartShadingMonthly({ data }: ChartShadingMonthlyProps) 
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", gap: 6 }}>
       <svg
         viewBox={`0 0 ${VW} ${VH}`}
-        style={{ width: "100%", flex: 1, display: "block", overflow: "visible" }}
+        style={{ width: "100%", height: 0, minHeight: 0, flex: "1 1 0px", display: "block" }}
         aria-label="Pertes d'ombrage mensuelles"
       >
         <defs>
@@ -186,7 +185,7 @@ export default function ChartShadingMonthly({ data }: ChartShadingMonthlyProps) 
                   fontWeight={500}
                   opacity={0.8}
                 >
-                  {d.combinedPct.toFixed(1)}%
+                  {formatShadingLossPct(d.combinedPct)}
                 </text>
               )}
             </g>

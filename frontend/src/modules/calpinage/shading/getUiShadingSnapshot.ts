@@ -3,10 +3,12 @@
  * Aucun recalcul — utilisé pour parité UI ↔ serveur (observation / POST optionnel sur /calc).
  */
 
-import { getOfficialGlobalShadingLossPct } from "./officialGlobalShadingLoss";
+import { getGlobalShadingLossPctForCalpinageShadingState } from "./officialGlobalShadingLoss";
+import { getShadingAssessment } from "../../../../../shared/shading/shadingAssessment.js";
 
 export type UiShadingSnapshot = {
   totalLossPct: number | null;
+  assessment: ReturnType<typeof getShadingAssessment>;
   near: unknown;
   far: unknown;
   combined: unknown;
@@ -44,19 +46,12 @@ export function getUiShadingSnapshot(): UiShadingSnapshot | null {
   if (normalized) source = "normalized_v2";
   else if (lr && typeof lr.annualLossPercent === "number") source = "lastResult_annualLossPercent";
 
-  const fromNorm = normalized ? getOfficialGlobalShadingLossPct(normalized) : null;
-  let totalLossPct: number | null = fromNorm;
-  if (totalLossPct == null && lr && typeof lr.annualLossPercent === "number" && Number.isFinite(lr.annualLossPercent)) {
-    totalLossPct = lr.annualLossPercent;
-  }
-  if (totalLossPct == null && normalized && typeof (normalized as { totalLossPct?: unknown }).totalLossPct === "number") {
-    const r = Number((normalized as { totalLossPct: number }).totalLossPct);
-    totalLossPct = Number.isFinite(r) ? r : null;
-  }
-
-  const combined =
-    normalized?.combined ??
-    (lr && typeof lr.annualLossPercent === "number" ? { totalLossPct: lr.annualLossPercent } : null);
+  const totalLossPct = getGlobalShadingLossPctForCalpinageShadingState(state);
+  const assessment = state.lastAbortReason
+    ? { ...getShadingAssessment(normalized), status: "error" as const }
+    : getShadingAssessment(normalized);
+  // Never revive a rejected normalized result from an old lastResult or root alias.
+  const combined = normalized?.combined ?? null;
 
   const computedAt =
     typeof state.lastComputedAt === "number" && Number.isFinite(state.lastComputedAt)
@@ -69,6 +64,7 @@ export function getUiShadingSnapshot(): UiShadingSnapshot | null {
 
   return {
     totalLossPct,
+    assessment,
     near: normalized?.near ?? null,
     far: normalized?.far ?? null,
     combined,

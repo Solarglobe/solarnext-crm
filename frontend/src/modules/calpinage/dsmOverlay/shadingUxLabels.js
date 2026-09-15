@@ -8,7 +8,7 @@
  * @returns {"Faible"|"Modéré"|"Fort"|"—"}
  */
 export function getUxImpactLevel(pct) {
-  if (pct == null || typeof pct !== "number" || Number.isNaN(pct)) return "—";
+  if (pct == null || typeof pct !== "number" || (!Number.isFinite(pct) || pct < 0 || pct > 100)) return "—";
   if (pct < 8) return "Faible";
   if (pct <= 15) return "Modéré";
   return "Fort";
@@ -20,8 +20,8 @@ export function getUxImpactLevel(pct) {
  * @returns {{ label: string, tier: "excellent"|"bon"|"surveiller"|"penalisant"|"unknown" }}
  */
 export function getUxGlobalLevelBadge(pct) {
-  if (pct == null || typeof pct !== "number" || Number.isNaN(pct)) {
-    return { label: "—", tier: "unknown" };
+  if (pct == null || typeof pct !== "number" || (!Number.isFinite(pct) || pct < 0 || pct > 100)) {
+    return { label: "Non évalué", tier: "unknown" };
   }
   if (pct <= 3) return { label: "Excellent", tier: "excellent" };
   if (pct <= 8) return { label: pct <= 5 ? "Bon" : "Correct", tier: "bon" };
@@ -42,6 +42,9 @@ export function getUxNarrativeLine(p) {
   const near = p.nearPct;
   const far = p.farPct;
   const farBlocked = p.farBlocked;
+  if (!Number.isFinite(total) || total < 0 || total > 100 || near == null || far == null || farBlocked) {
+    return "L’analyse globale est incomplète. Les arbres et bâtiments voisins doivent être renseignés par un relevé local fiable ; la photographie aérienne sert uniquement de fond de carte.";
+  }
 
   if (total != null && typeof total === "number" && !Number.isNaN(total) && total < 0.5) {
     return "L’ombrage modélisé reste très limité : le potentiel solaire n’est que marginalement affecté.";
@@ -96,7 +99,8 @@ export function getUxNarrativeLine(p) {
  * @param {boolean} farBlocked
  */
 export function formatSensitivePeriodLabel(dominant, farBlocked) {
-  if (farBlocked || !dominant) return "À préciser (localisation)";
+  if (farBlocked) return "Non évalué";
+  if (!dominant) return "Aucune période établie";
   const season = dominant.season || dominant.dominantSeason;
   const period = dominant.period || dominant.dominantPeriod;
   if (season && period) return `${season} · ${period}`;

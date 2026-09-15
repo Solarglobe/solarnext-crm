@@ -35,7 +35,7 @@ console.log("\n--- 4) Geometry v2 ---");
 const v2Geometry = { schemaVersion: "v2", shading: { near: { totalLossPct: 5 }, far: { source: "RELIEF_ONLY", totalLossPct: 10, dataCoverage: {} }, combined: { totalLossPct: 15 }, shadingQuality: { score: 80, grade: "A", inputs: { near: 5, far: 10, resolution_m: 25, coveragePct: 1 } } } };
 const { shading: s2, schemaVersion: sv } = getNormalizedShadingFromGeometry(v2Geometry);
 assert(sv === "v2", "schemaVersion extrait");
-assert(s2.near.totalLossPct === 5, "V2 préservé");
+assert(s2.near.totalLossPct === null && s2.assessment.status === "stale", "V2 préservé");
 
 console.log("\n--- RÉSUMÉ ---");
 console.log("Passed: " + passed + ", Failed: " + failed);

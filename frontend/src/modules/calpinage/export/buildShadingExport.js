@@ -1,3 +1,4 @@
+import { getShadingAssessment, getShadingComponentLossPct } from "../../../../../shared/shading/shadingAssessment.js";
 /**
  * CP-FAR-C-10 — Export shading PREMIUM (traçable, structuré).
  * Aucun recalcul : copie des blocs backend normalisés.
@@ -9,10 +10,10 @@ import { applySyntheticReliefToPremiumExport } from "../dsmOverlay/syntheticReli
 import { getOfficialGlobalShadingLossPct, warnIfOfficialShadingRootMismatch } from "../shading/officialGlobalShadingLoss.js";
 
 const VALID_CONFIDENCE = ["HIGH", "MEDIUM", "LOW", "UNKNOWN"];
-const VALID_SOURCE = ["RELIEF_ONLY", "SURFACE_DSM", "IGN_RGE_ALTI", "HTTP_GEOTIFF", "SYNTHETIC_STUB", "DSM_REAL"];
+const VALID_SOURCE = ["RELIEF_ONLY", "SURFACE_DSM", "IGN_RGE_ALTI", "HTTP_GEOTIFF", "SYNTHETIC_STUB", "DSM_REAL", "IGN_GEOPLATEFORME", "PVGIS_HORIZON"];
 
 /** Aligné backend farHorizonTruth — hors pourcentages, export uniquement. */
-const REAL_TERRAIN_PROVIDERS = new Set(["IGN_RGE_ALTI", "HTTP_GEOTIFF", "DSM_REAL"]);
+const REAL_TERRAIN_PROVIDERS = new Set(["IGN_RGE_ALTI", "HTTP_GEOTIFF", "DSM_REAL", "IGN_GEOPLATEFORME", "PVGIS_HORIZON"]);
 
 function resolveFarHorizonKindForExport(normalized) {
   const explicit = normalized.shadingQuality?.farHorizonKind ?? normalized.far?.farHorizonKind;
@@ -46,7 +47,7 @@ export function buildPremiumShadingExport(normalized) {
           totalLossPct:
             normalized.farLossPct == null || normalized.farLossPct === ""
               ? null
-              : Number(normalized.farLossPct) || 0,
+              : Number(normalized.farLossPct),
           source: normalized.farSource ?? "RELIEF_ONLY",
         };
 
@@ -63,21 +64,23 @@ export function buildPremiumShadingExport(normalized) {
   const source = normalized.far?.source ?? normalized.farSource ?? "RELIEF_ONLY";
   const farHorizonKind = resolveFarHorizonKindForExport(normalized);
 
-  let _syntheticTimestamp = false;
-  let computedAt = normalized.computedAt;
-  if (computedAt == null) {
-    _syntheticTimestamp = true;
-    if (import.meta.env?.DEV || process.env?.NODE_ENV === "development") {
-      console.warn("[buildShadingExport] computedAt absent — timestamp synthétisé.");
-    }
-    computedAt = new Date().toISOString();
-  } else if (typeof computedAt === "number") {
-    computedAt = new Date(computedAt).toISOString();
-  } else {
-    computedAt = String(computedAt);
-  }
+  const assessment = getShadingAssessment(normalized);
+  near.status = assessment.nearStatus;
+  far.status = assessment.farStatus;
+  combined.status = assessment.status;
+  near.totalLossPct = getShadingComponentLossPct(normalized, "near");
+  far.totalLossPct = getShadingComponentLossPct(normalized, "far");
+  combined.totalLossPct = getShadingComponentLossPct(normalized, "combined");
+  const timestamp = normalized.assessment?.computedAt ?? normalized.computedAt;
+  const date = timestamp == null ? null : new Date(timestamp);
+  const computedAt = date && Number.isFinite(date.getTime()) ? date.toISOString() : null;
 
   const out = {
+    assessment,
+    distribution: assessment.status === "computed" ? normalized.distribution ?? null : null,
+    monthlyFactors: assessment.status === "computed" ? normalized.monthlyFactors ?? null : null,
+    monthlyKwhStats: assessment.status === "computed" ? normalized.monthlyKwhStats ?? null : null,
+    annualLossKwh: assessment.status === "computed" ? normalized.annualLossKwh ?? null : null,
     near,
     far,
     combined,
@@ -96,11 +99,8 @@ export function buildPremiumShadingExport(normalized) {
     console.warn("[buildShadingExport] source invalide:", out.source);
     out.source = "UNKNOWN";
   }
-  if (_syntheticTimestamp) {
-    out._syntheticTimestamp = true;
-  }
 
-  if (Array.isArray(normalized.perPanel)) out.perPanel = normalized.perPanel;
+  if (Array.isArray(normalized.perPanel)) out.perPanel = assessment.status === "computed" ? normalized.perPanel : [];
   if (normalized.horizonMask != null && typeof normalized.horizonMask === "object") {
     out.horizonMask = normalized.horizonMask;
   }

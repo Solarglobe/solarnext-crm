@@ -57,6 +57,7 @@ export async function getPdfViewModel(req, res) {
 
     return res.status(200).json({ ok: true, viewModel: result.viewModel });
   } catch (e) {
+    if (e.status === 409) return res.status(409).json({ ok: false, error: e.code, message: e.message });
     console.error("[getPdfViewModel.controller] getPdfViewModel:", e);
     return res.status(500).json({ ok: false, error: e.message || "Erreur serveur" });
   }

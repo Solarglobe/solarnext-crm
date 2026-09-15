@@ -1,3 +1,6 @@
+import { assertStudyCalculationCurrent } from '../studyCalculationFreshness.service.js';
+import { getNormalizedShadingFromGeometry } from '../calpinage/calpinageShadingLegacyAdapter.js';
+import { assertClientStudyExportable, getClientStudyExportBlock } from '../../../shared/shading/clientStudyExport.js';
 /**
  * PDF V2 — Service lecture snapshot + mapping ViewModel
  * Source unique : study_versions.selected_scenario_snapshot.
@@ -142,6 +145,8 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
   if (snapshot == null || typeof snapshot !== "object") {
     return { error: "SNAPSHOT_NOT_FOUND" };
   }
+  assertClientStudyExportable({ ...row.data_json, selected_scenario_snapshot: snapshot });
+  await assertStudyCalculationCurrent({ studyId, versionId, organizationId, snapshot });
   let repairedSnapshot = repairVirtualScenarioDisplayKpis(snapshot);
   const liveClient = await resolveLivePdfClient(studyId, organizationId);
   if (liveClient) {
@@ -178,6 +183,7 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
     [versionId]
   );
   const geometry_json = calpinageRes.rows[0]?.geometry_json;
+  assertClientStudyExportable({ shading: getNormalizedShadingFromGeometry(geometry_json).shading });
   if (calpinageRes.rows.length > 0 && geometry_json?.layout_snapshot) {
     calpinageLayoutSnapshot = geometry_json.layout_snapshot;
   }

@@ -35,7 +35,7 @@ assert(d2.ok === false && typeof d2.delta === "number", "diagnostic KO hors tol�
 const d3 = diagnoseGlobalLossMismatchBackend(null, 5, 0.5, "unit");
 assert(d3.skipped === true && d3.ok === true, "diagnostic skip si une valeur absente");
 
-const shading = { combined: { totalLossPct: 7.5 } };
+const shading = { assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed', reasons: [] }, near: { totalLossPct: 7.5 }, far: { totalLossPct: 0 }, combined: { totalLossPct: 7.5 } };
 assert(
   resolveShadingTotalLossPct(shading, {}) === 7.5,
   "resolve aligné sur même structure que contrat gouvernance"

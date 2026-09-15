@@ -6,6 +6,7 @@
 import { pool } from "../../config/db.js";
 import { withTx } from "../../db/tx.js";
 import { sanitizeCalpinageGeometryForPersistence } from "./calpinageCommercialIntegrity.js";
+import { getNormalizedShadingFromGeometry } from './calpinageShadingLegacyAdapter.js';
 import { ERROR_CODES } from "./calpinageSnapshotErrors.js";
 
 export { ERROR_CODES };
@@ -16,11 +17,13 @@ function hasGps(geometryJson) {
 }
 
 function hasValidatedRoofData(geometryJson) {
+  if (geometryJson?.geometryContractVersion) return geometryJson.backendCommercialGeometry?.officialNearShadingAllowed === true;
   const vrd = geometryJson?.validatedRoofData;
   return vrd && typeof vrd === "object" && Array.isArray(vrd.pans);
 }
 
 function hasPvParams(geometryJson) {
+  if (geometryJson?.geometryContractVersion) return geometryJson.panel && typeof geometryJson.panel === 'object';
   const pv = geometryJson?.pvParams;
   return pv && typeof pv === "object";
 }
@@ -148,6 +151,7 @@ export async function createCalpinageSnapshot(studyId, studyVersionId, organizat
         geometryJson = sanitizeCalpinageGeometryForPersistence(geometryJson);
       }
 
+      if (geometryJson.geometryContractVersion && geometryJson.shading) geometryJson.shading = getNormalizedShadingFromGeometry(geometryJson).shading;
       // 5) Vérifier structure minimale
       if (!hasGps(geometryJson) || !hasValidatedRoofData(geometryJson) || !hasPvParams(geometryJson) || !hasFrozenBlocks(geometryJson)) {
         throw err(ERROR_CODES.CALPINAGE_INCOMPLETE, "Données calpinage incomplètes (gps, validatedRoofData, pvParams ou frozenBlocks manquants)");

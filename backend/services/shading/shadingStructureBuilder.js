@@ -32,6 +32,7 @@ export function buildStructuredShading(shadingResult, hasGps, hasPanels, existin
   const near = {
     ...(existingShading.near && typeof existingShading.near === "object" ? existingShading.near : {}),
     totalLossPct: shadingResult.nearLossPct,
+    status: shadingResult.assessment?.nearStatus ?? "stale",
     ...(shadingResult.meta?.nearCanonical3d != null && {
       canonical3d: shadingResult.meta.nearCanonical3d,
     }),
@@ -118,13 +119,15 @@ export function buildStructuredShading(shadingResult, hasGps, hasPanels, existin
           source: null,
           radius_m: null,
           confidence: null,
-          totalLossPct: 0,
+          totalLossPct: null,
         };
 
   const combined = {
     ...(existingShading.combined && typeof existingShading.combined === "object" ? existingShading.combined : {}),
     totalLossPct: shadingResult.totalLossPct,
+    status: shadingResult.assessment?.status ?? "stale",
   };
+  far.status = shadingResult.assessment?.farStatus ?? "stale";
 
   const dc = meta?.dataCoverage || {};
   const coverageRatio = dc.ratio ?? (typeof dc.coveragePct === "number" ? (dc.coveragePct > 1 ? dc.coveragePct / 100 : dc.coveragePct) : 1);
@@ -168,8 +171,9 @@ export function buildStructuredShading(shadingResult, hasGps, hasPanels, existin
     farHorizonKind,
     modelType: farUnavailableNoGps || farUnavailableError
       ? "UNAVAILABLE"
-      : REAL_TERRAIN_PROVIDERS.has(provider)
-        ? "DSM"
+      : ["IGN_RGE_ALTI", "IGN_GEOPLATEFORME", "PVGIS_HORIZON"].includes(provider)
+        ? "DTM"
+        : REAL_TERRAIN_PROVIDERS.has(provider) ? "DSM"
         : "SYNTHETIC",
     resolutionMeters: farActive && !farUnavailableError ? resolutionMeters : farUnavailableNoGps || farUnavailableError ? 0 : 30,
     effectiveRadiusMeters: farActive && !farUnavailableError ? effectiveRadiusMeters : 0,
@@ -187,6 +191,17 @@ export function buildStructuredShading(shadingResult, hasGps, hasPanels, existin
     far,
     combined,
     shadingQuality,
+    monthlyFactors: shadingResult.monthlyFactors ?? null,
+    monthlyKwhStats: shadingResult.monthlyKwhStats ?? null,
+    annualLossKwh: shadingResult.annualLossKwh ?? null,
+    ...(shadingResult.assessment && { assessment: shadingResult.assessment,
+      shadingQuality: { ...shadingQuality,
+        inputs: { ...shadingQuality.inputs, near: shadingResult.nearLossPct, far: shadingResult.farLossPct },
+        ...(shadingResult.assessment.status !== 'computed' && { grade: 'UNASSESSED', score: 0 }),
+      },
+    }),
+    ...(shadingResult.diagnostics && { diagnostics: shadingResult.diagnostics }),
+    ...(shadingResult.distribution && { distribution: shadingResult.distribution }),
     ...(shadingResult.horizonMask && { horizonMask: shadingResult.horizonMask }),
   };
 }

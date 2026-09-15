@@ -53,7 +53,7 @@ const geometry = {
   assert(shading.shadingQuality != null, "shadingQuality présent");
   assert(typeof shading.shadingQuality.score === "number", "shadingQuality.score présent");
   assert(
-    ["A+", "A", "B", "C", "D"].includes(shading.shadingQuality.grade),
+    ["A+", "A", "B", "C", "D", "UNASSESSED"].includes(shading.shadingQuality.grade),
     "shadingQuality.grade valide"
   );
   assert(shading.shadingQuality.inputs != null, "shadingQuality.inputs présent");

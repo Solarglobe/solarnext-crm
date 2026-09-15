@@ -39,7 +39,8 @@ test("computeCalpinageShading : échec horizon → FAR_UNAVAILABLE_ERROR, farLos
   assert.equal(r.farHorizonStatus, "FAR_UNAVAILABLE_ERROR");
   assert.equal(r.farLossPct, null);
   assert.equal(r.farShadingUnavailable, true);
-  assert.ok(Number.isFinite(r.nearLossPct));
+  assert.equal(r.nearLossPct, null);
+  assert.equal(r.assessment.status, "error");
   assert.ok(Array.isArray(r.geometryCommercialWarnings));
   assert.ok(r.geometryCommercialWarnings.includes("SHADING_SCALE_MISSING"));
 });

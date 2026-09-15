@@ -1,3 +1,4 @@
+import { surveyedClearShading } from "./fixtures/surveyedClearShading";
 /**
  * PDF V2 — Tests ScenariosPage (flux generate-pdf-from-scenario → téléchargement PDF auth → rechargement)
  */
@@ -69,7 +70,7 @@ describe("ScenariosPage", () => {
       ok: true,
       json: async () => ({
         ok: true,
-        scenarios: [{ id: "BASE", label: "Sans batterie", energy: {}, finance: {} }],
+        scenarios: [{ id: "BASE", shading: surveyedClearShading(), label: "Sans batterie", energy: {}, finance: {} }],
         is_locked: false,
         selected_scenario_id: null,
       }),
@@ -115,7 +116,7 @@ describe("ScenariosPage", () => {
       ok: true,
       json: async () => ({
         ok: true,
-        scenarios: [{ id: "BASE", label: "Sans batterie", energy: {}, finance: {} }],
+        scenarios: [{ id: "BASE", shading: surveyedClearShading(), label: "Sans batterie", energy: {}, finance: {} }],
         is_locked: false,
         selected_scenario_id: null,
       }),
@@ -143,9 +144,9 @@ describe("ScenariosPage", () => {
       ok: true,
       json: async () => ({
         ok: true,
-        scenarios: [{ id: "BASE", label: "Sans batterie", energy: { production_kwh: 1 }, finance: { economie_year_1: 1 } }],
+        scenarios: [{ id: "BASE", shading: surveyedClearShading(), label: "Sans batterie", energy: { production_kwh: 1 }, finance: { economie_year_1: 1 } }],
         is_locked: true,
-        selected_scenario_id: "BASE",
+        selected_scenario_id: "BASE", shading: surveyedClearShading(),
       }),
     };
     mockFetchRouter(scenariosRes);
@@ -171,7 +172,7 @@ describe("ScenariosPage", () => {
     const staleBody = {
       ok: true,
       scenarios: [
-        { id: "BASE", label: "Sans batterie", energy: { production_kwh: 5924 }, finance: { economie_year_1: 761 }, energy_basis: "hourly_8760" },
+        { id: "BASE", shading: surveyedClearShading(), label: "Sans batterie", energy: { production_kwh: 5924 }, finance: { economie_year_1: 761 }, energy_basis: "hourly_8760" },
         { id: "BATTERY_PHYSICAL", label: "Batterie physique", energy: { production_kwh: 5924, pv_self_consumption_pct: 95.5 }, finance: { economie_year_1: 1095 }, energy_basis: "monthly_fallback", _engine_stale: true },
       ],
       is_locked: false,
@@ -185,7 +186,7 @@ describe("ScenariosPage", () => {
     const freshBody = {
       ok: true,
       scenarios: [
-        { id: "BASE", label: "Sans batterie", energy: { production_kwh: 5924 }, finance: { economie_year_1: 761 }, energy_basis: "hourly_8760" },
+        { id: "BASE", shading: surveyedClearShading(), label: "Sans batterie", energy: { production_kwh: 5924 }, finance: { economie_year_1: 761 }, energy_basis: "hourly_8760" },
         { id: "BATTERY_PHYSICAL", label: "Batterie physique", energy: { production_kwh: 5924, pv_self_consumption_pct: 75.5 }, finance: { economie_year_1: 873 }, energy_basis: "hourly_8760" },
       ],
       is_locked: false,

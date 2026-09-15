@@ -17,7 +17,7 @@ const FIXTURES = [
   { name: "near+far rounding", near: { totalLossPct: 3.1 }, far: { totalLossPct: 5.9 }, combined: { totalLossPct: 9.0 }, shadingQuality: { score: 0.8 } },
   { name: "threshold 3.0 / 7.0 / 12.0", near: { totalLossPct: 2 }, far: { totalLossPct: 5 }, combined: { totalLossPct: 7.0 }, shadingQuality: { score: 0.75 } },
   { name: "LOW confidence partial coverage", near: { totalLossPct: 1.5 }, far: { totalLossPct: 10.2 }, combined: { totalLossPct: 11.7 }, shadingQuality: { score: 0.4 } },
-];
+].map(fixture => ({ ...fixture, assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed' } }));
 
 describe("CP-FAR-C-09 shading parity (front = backend totalLossPct)", () => {
   let maxDiff = 0;
@@ -54,18 +54,18 @@ describe("CP-FAR-C-09 shading parity (front = backend totalLossPct)", () => {
 
 describe("getTotalLossPctFromShading: backend shape (combined) preferred", () => {
   it("returns combined.totalLossPct when present", () => {
-    const sh = { combined: { totalLossPct: 12.34 }, totalLossPct: 99 };
+    const sh = { assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed' }, near: { totalLossPct: 12.34 }, far: { totalLossPct: 0 }, combined: { totalLossPct: 12.34 }, totalLossPct: 99 };
     expect(getTotalLossPctFromShading(sh)).toBe(12.34);
   });
 
   it("falls back to totalLossPct when combined absent", () => {
     const sh = { totalLossPct: 5.67 };
-    expect(getTotalLossPctFromShading(sh)).toBe(5.67);
+    expect(getTotalLossPctFromShading(sh)).toBeNull();
   });
 
   it("returns 0 for null shading root; null object = indisponible", () => {
-    expect(getTotalLossPctFromShading(null)).toBe(0);
-    expect(getTotalLossPctFromShading(undefined)).toBe(0);
+    expect(getTotalLossPctFromShading(null)).toBeNull();
+    expect(getTotalLossPctFromShading(undefined)).toBeNull();
     expect(getTotalLossPctFromShading({})).toBeNull();
   });
 
@@ -85,7 +85,7 @@ describe("getTotalLossPctFromShading: backend shape (combined) preferred", () =>
   });
 
   it("clamps to [0, 100]", () => {
-    expect(getTotalLossPctFromShading({ combined: { totalLossPct: -1 } })).toBe(0);
-    expect(getTotalLossPctFromShading({ combined: { totalLossPct: 150 } })).toBe(100);
+    expect(getTotalLossPctFromShading({ combined: { totalLossPct: -1 } })).toBeNull();
+    expect(getTotalLossPctFromShading({ combined: { totalLossPct: 150 } })).toBeNull();
   });
 });

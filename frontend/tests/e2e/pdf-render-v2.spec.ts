@@ -7,6 +7,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { surveyedClearShading } from '../../src/pages/studies/__tests__/fixtures/surveyedClearShading';
 
 const PDF_RENDERER_BASE = process.env.E2E_BASE_URL?.replace(/\/crm\.html\/?$/, '') || 'http://localhost:5173';
 const PDF_URL = `${PDF_RENDERER_BASE}/pdf-render.html?studyId=test-study&versionId=test-version`;
@@ -47,6 +48,7 @@ const fullReportStub = {
 const viewModelOk = {
   ok: true,
   viewModel: {
+    shading: surveyedClearShading(),
     meta: { scenarioType: 'BASE' },
     selectedScenario: { label: 'Sans batterie' },
     client: { name: 'Jean Dupont', city: 'Paris' },
@@ -55,6 +57,10 @@ const viewModelOk = {
     fullReport: fullReportStub,
   },
 };
+
+test.beforeEach(async ({ page }) => {
+  await page.route('**/auth/refresh', route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({token:'fictional-renderer-session'})}));
+});
 
 test.describe('PDF Renderer V2 — /pdf-render.html?studyId=&versionId=', () => {
   test('Charge StudySnapshotPdfPage (pas LegacyPdfTemplate)', async ({ page }) => {
@@ -159,6 +165,7 @@ test.describe('PDF Renderer V2 — /pdf-render.html?studyId=&versionId=', () => 
     const viewModelEmpty = {
       ok: true,
       viewModel: {
+    shading: surveyedClearShading(),
         meta: { scenarioType: '' },
         client: { name: '', city: '' },
         production: { annualProductionKwh: null },

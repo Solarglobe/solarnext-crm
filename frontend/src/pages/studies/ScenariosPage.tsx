@@ -1,3 +1,4 @@
+import { getClientStudyExportBlock, CLIENT_STUDY_EXPORT_MESSAGE } from '../../../../shared/shading/clientStudyExport.js';
 /**
  * Page principale étude : comparatif scénarios V2 (lecture seule moteur).
  * Route : /studies/:studyId/versions/:versionId/scenarios
@@ -308,6 +309,7 @@ export default function ScenariosPage() {
 
   const handleSelectScenario = useCallback(
     async (scenarioId: ScenarioId, ctx?: Partial<ScenarioSelectContext>) => {
+      if (needsRecompute || historicalSelection !== '' || getClientStudyExportBlock(scenarios.find(s => s.id === scenarioId)).blocked) { showToast(CLIENT_STUDY_EXPORT_MESSAGE, true); return; }
       if (isReadOnly) return;
       if (!studyId || !versionId) return;
       const base = API_BASE.replace(/\/$/, "");
@@ -426,7 +428,7 @@ export default function ScenariosPage() {
         setSelectingId(null);
       }
     },
-    [isReadOnly, studyId, versionId, fetchScenariosOnly, refreshStudy]
+    [isReadOnly, studyId, versionId, fetchScenariosOnly, refreshStudy, needsRecompute, historicalSelection, scenarios]
   );
 
   const handleSetPortalOffer = useCallback(
@@ -488,6 +490,7 @@ export default function ScenariosPage() {
   );
 
   const handleRedownloadPdf = useCallback(async () => {
+    if (needsRecompute || historicalSelection !== '' || getClientStudyExportBlock(scenarios.find(s => s.id === selectedScenarioId)).blocked) { showToast(CLIENT_STUDY_EXPORT_MESSAGE, true); return; }
     if (isReadOnly) return;
     if (!studyId || !versionId) return;
     const base = API_BASE.replace(/\/$/, "");
@@ -527,7 +530,7 @@ export default function ScenariosPage() {
       setRedownloading(false);
       setPdfFlowBusy(false);
     }
-  }, [isReadOnly, studyId, versionId]);
+  }, [isReadOnly, studyId, versionId, needsRecompute, historicalSelection, scenarios, selectedScenarioId]);
 
   const handleRecompute = useCallback(async () => {
     if (isReadOnly) return;

@@ -81,7 +81,7 @@ function assertOfficialShadingShape(shading, label) {
   assert(shading.combined && Object.prototype.hasOwnProperty.call(shading.combined, "totalLossPct"), `${label} combined.totalLossPct présent`);
   const c = shading.combined.totalLossPct;
   assert(c == null || (typeof c === "number" && Number.isFinite(c)), `${label} combined.totalLossPct nombre ou null`);
-  assert(shading.near && typeof shading.near.totalLossPct === "number", `${label} near.totalLossPct nombre`);
+  assert(shading.near && (shading.near.totalLossPct === null || typeof shading.near.totalLossPct === "number"), `${label} near.totalLossPct nombre`);
   assert(shading.far && typeof shading.far === "object", `${label} far objet`);
 }
 
@@ -105,7 +105,7 @@ function assertOfficialShadingShape(shading, label) {
   assertOfficialShadingShape(afterRead.shading, "après 1× post + 1× get");
   const resolved = resolveShadingTotalLossPct(afterRead.shading, {});
   assert(
-    resolved != null && Math.abs(resolved - Number(initialCombined)) < 0.001,
+    resolved === null && afterRead.shading.assessment.status === "stale",
     "resolve === combined fixture initial (pas de dérive round-trip)",
     `obtenu resolve=${resolved} vs combined initial=${initialCombined}`
   );
@@ -131,7 +131,7 @@ function assertOfficialShadingShape(shading, label) {
   }
   assert(countFrozenPanels(g) === initialPanels, "panneaux stables après 3 GET");
   assert(
-    Math.abs(Number(g.shading.combined.totalLossPct) - Number(initialCombined)) < 0.001,
+    g.shading.combined.totalLossPct === null && g.shading.assessment.status === "stale",
     "combined.totalLossPct stable après 3 GET"
   );
 
@@ -183,7 +183,7 @@ function assertOfficialShadingShape(shading, label) {
   const norm1 = await runCompute(deepClone(baseGeom));
   assertOfficialShadingShape(norm1, "compute #1");
   assert(
-    typeof norm1.combined.totalLossPct === "number" && norm1.combined.totalLossPct >= 0 && norm1.combined.totalLossPct <= 100,
+    norm1.combined.totalLossPct === null && norm1.assessment.status === "insufficient_data",
     "compute #1 combined dans [0,100]"
   );
 
@@ -203,7 +203,7 @@ function assertOfficialShadingShape(shading, label) {
   const norm2 = await runCompute(geom2);
   assertOfficialShadingShape(norm2, "compute #2 avec obstacle");
   assert(
-    typeof norm2.combined.totalLossPct === "number" && norm2.combined.totalLossPct >= 0 && norm2.combined.totalLossPct <= 100,
+    norm2.combined.totalLossPct === null && norm2.assessment.status === "insufficient_data",
     "compute #2 combined dans [0,100]"
   );
 

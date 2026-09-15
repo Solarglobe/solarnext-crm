@@ -1,3 +1,4 @@
+import { getShadingAssessment, getShadingComponentLossPct, formatShadingLossPct, validShadingLossPct } from "../../../../../shared/shading/shadingAssessment.js";
 /**
  * CP-DSM-016 — DSM Visual Overlay Manager (singleton)
  * Pure visualisation, non destructif. enable/disable/toggle.
@@ -172,13 +173,13 @@ function buildPanelsWithLoss() {
   const panels = getPanels();
   if (panels.length === 0) return [];
   const globalLoss = getTotalLossPctFromShading(shading);
-  if (!shading?.perPanel?.length) {
+  if (globalLoss == null || !shading?.perPanel?.length) {
     return panels.map((p) => ({ polygonPx: p.polygonPx, lossPct: globalLoss }));
   }
   const byId = new Map();
   for (const p of shading.perPanel) {
     const id = p.panelId ?? p.id;
-    if (id != null) byId.set(String(id), p.lossPct ?? 0);
+    if (id != null) byId.set(String(id), validShadingLossPct(p.lossPct));
   }
   return panels.map((p) => ({
     polygonPx: p.polygonPx,
@@ -315,7 +316,7 @@ function computeShadingSummaryForOverlay(manager) {
 
   return buildShadingSummary({
     totalLossPct,
-    annualProductionKwh,
+    annualLossKwh: shading?.annualLossKwh,
     pricePerKwh: 0.2,
     qualityScore,
     source,
@@ -353,7 +354,7 @@ function updateShadingSummaryBlock(overlayRoot, manager) {
   }
   if (!horizonData && !shading) {
     block.innerHTML =
-      '<div class="dsm-shade-card"><div class="dsm-shade-card-title">Analyse d’ombrage</div><div class="dsm-summary-loading">Calcul en cours…</div></div>';
+      '<div class="dsm-shade-card"><div class="dsm-shade-card-title">Analyse d’ombrage</div><p>Non calculé — aucune analyse disponible.</p></div>';
     block.classList.add("dsm-shade-tier-unknown");
     return;
   }
@@ -370,48 +371,25 @@ function updateShadingSummaryBlock(overlayRoot, manager) {
   const lectureTerrainLine =
     farBlocked ? "" : formatHorizonConfidenceLineHtml(horizonProduct, qualityScore);
 
-  const nearPct =
-    typeof shading?.near?.totalLossPct === "number"
-      ? shading.near.totalLossPct
-      : typeof shading?.nearLossPct === "number"
-        ? shading.nearLossPct
-        : null;
-  const farPct =
-    typeof shading?.far?.totalLossPct === "number"
-      ? shading.far.totalLossPct
-      : typeof shading?.farLossPct === "number"
-        ? shading.farLossPct
-        : null;
-  const totalPct =
-    getOfficialGlobalShadingLossPct(shading) ??
-    (typeof summary.totalLossPct === "number" ? summary.totalLossPct : null);
+  const assessment = getShadingAssessment(shading);
+  const nearPct = getShadingComponentLossPct(shading, "near");
+  const farPct = getShadingComponentLossPct(shading, "far");
+  const totalPct = getOfficialGlobalShadingLossPct(shading);
 
   const zMode = state?.shading?.zMode;
   const nearLabel = zMode === "FLAT" ? "Obstacles proches (toiture, mode simplifié)" : "Obstacles proches (toit)";
   const farLineLabel = farBlocked
     ? "Relief / horizon (indisponible — localisation)"
     : getFarHorizonLineLabel(isFarHorizonRealTerrain(horizonProduct));
-  const nearPctStr = nearPct == null ? "—" : Number(nearPct).toFixed(1);
-  const farPctStr = farBlocked ? "—" : farPct == null ? "—" : Number(farPct).toFixed(1);
-  const totalPctStr = totalPct == null || Number.isNaN(Number(totalPct)) ? "—" : Number(totalPct).toFixed(1);
+  const nearPctStr = formatShadingLossPct(nearPct, assessment.nearStatus);
+  const farPctStr = formatShadingLossPct(farPct, farBlocked ? "insufficient_data" : assessment.farStatus);
+  const totalPctStr = formatShadingLossPct(totalPct, assessment.status);
 
   const gps = getBestGps();
-  const dominant = farBlocked ? null : getDominantDirection(horizonData, gps?.lat, gps?.lon);
+  const dominant = farBlocked || farPct == null || farPct <= 0 ? null : getDominantDirection(horizonData, gps?.lat, gps?.lon);
 
-  const dominantSource =
-    dominant && !farBlocked && typeof farPct === "number" && farPct > 0
-      ? dominant.energyLossSharePct != null
-        ? `Direction la plus pénalisante (relief lointain) : ${dominant.cardinalDirection} — ${dominant.energyLossSharePct} % des pertes liées au lointain`
-        : `Direction la plus pénalisante (relief lointain) : ${dominant.cardinalDirection}`
-      : "";
-  const seasonPct =
-    dominant?.dominantSeasonLossPct != null && !Number.isNaN(dominant.dominantSeasonLossPct)
-      ? ` (jusqu’à ${dominant.dominantSeasonLossPct} %)`
-      : "";
-  const dominantImpact =
-    dominant && !farBlocked && typeof farPct === "number" && farPct > 0
-      ? `Période la plus sensible côté horizon lointain : ${dominant.season}${seasonPct} — ${dominant.period}`
-      : "";
+  const dominantSource = dominant ? 'Direction indicative du masque : ' + dominant.cardinalDirection : '';
+  const dominantImpact = dominant ? 'Lecture géométrique du relief ; les répartitions énergétiques figurent dans le panneau temporel.' : '';
 
   const { orientation_deg, tilt_deg } = getOrientationTilt();
   const solarScore = computeSolarScore({
@@ -424,12 +402,7 @@ function updateShadingSummaryBlock(overlayRoot, manager) {
     ? `<div class="dsm-tech-line dsm-tech-muted">Comparatif orientation / inclinaison / ombrage modélisé — pas une mesure terrain ni un engagement de performance.</div>`
     : `<div class="dsm-tech-line dsm-tech-muted">Renseigner orientation et inclinaison du toit pour affiner cette lecture indicative.</div>`;
 
-  const winterPct = dominant?.winterLossPct;
-  const summerPct = dominant?.summerLossPct;
-  const seasonalLine =
-    winterPct != null && summerPct != null && !Number.isNaN(winterPct) && !Number.isNaN(summerPct)
-      ? `<div class="dsm-tech-line">Hiver : jusqu’à ${winterPct} % · Été : jusqu’à ${summerPct} %</div>`
-      : "";
+  const seasonalLine = "";
 
   const dominantLines =
     dominantSource && dominantImpact
@@ -442,9 +415,9 @@ function updateShadingSummaryBlock(overlayRoot, manager) {
   const pedagogyLine = `<div class="dsm-tech-line dsm-tech-muted">Lecture : <strong>proche</strong> = ombrage local sur le toit · <strong>lointain</strong> = masque d’horizon au-delà du bâtiment · <strong>global</strong> = perte retenue pour l’étude / export (réf. officielle).</div>`;
   const nearFarTotalLines =
     pedagogyLine +
-    `<div class="dsm-tech-line">${nearLabel} : ${nearPctStr} %</div>` +
-    `<div class="dsm-tech-line">${farLineLabel} : ${farPctStr} %</div>` +
-    `<div class="dsm-tech-line">Perte globale retenue (étude) : ${totalPctStr} %</div>` +
+    `<div class="dsm-tech-line">${nearLabel} : ${nearPctStr}</div>` +
+    `<div class="dsm-tech-line">${farLineLabel} : ${farPctStr}</div>` +
+    `<div class="dsm-tech-line">Perte globale retenue (étude) : ${totalPctStr}</div>` +
     farUnavailableMsg;
 
   const impactLabel = getUxImpactLevel(totalPct);
@@ -453,7 +426,7 @@ function updateShadingSummaryBlock(overlayRoot, manager) {
   block.classList.add(tierClass);
 
   const lossPctDisplay = totalPctStr;
-  const periodLabel = formatSensitivePeriodLabel(dominant, farBlocked);
+  const periodLabel = totalPct === 0 ? "Aucune perte calculée" : formatSensitivePeriodLabel(dominant, farBlocked || totalPct == null);
   const narrative = getUxNarrativeLine({
     totalPct,
     nearPct,
@@ -485,17 +458,17 @@ function updateShadingSummaryBlock(overlayRoot, manager) {
       <p class="dsm-shade-lead">
         Impact estimé : <strong>${impactLabel}</strong>
         <span class="dsm-shade-dot">·</span>
-        Perte annuelle estimée : <strong>${lossPctDisplay === "—" ? "—" : `${lossPctDisplay} %`}</strong>
+        Perte annuelle estimée : <strong>${lossPctDisplay}</strong>
       </p>
       <p class="dsm-shade-stance">${escapeHtml(stance)}</p>
       <div class="dsm-shade-metrics" role="list">
         <div class="dsm-shade-metric" role="listitem">
           <span class="dsm-shade-metric-label">Ombrage local (toit)</span>
-          <span class="dsm-shade-metric-value">${nearPctStr} %</span>
+          <span class="dsm-shade-metric-value">${nearPctStr}</span>
         </div>
         <div class="dsm-shade-metric" role="listitem">
           <span class="dsm-shade-metric-label">Relief &amp; horizon</span>
-          <span class="dsm-shade-metric-value">${farPctStr === "—" ? "—" : `${farPctStr} %`}</span>
+          <span class="dsm-shade-metric-value">${farPctStr}</span>
         </div>
         <div class="dsm-shade-metric" role="listitem">
           <span class="dsm-shade-metric-label">Période sensible</span>
@@ -732,7 +705,8 @@ function redraw(manager) {
   const farBlockedRadar =
     !gps ||
     shading?.far?.source === "UNAVAILABLE_NO_GPS" ||
-    shading?.shadingQuality?.blockingReason === "missing_gps";
+    shading?.shadingQuality?.blockingReason === "missing_gps" ||
+    getShadingComponentLossPct(shading, "far") == null;
   const dominant = farBlockedRadar ? null : getDominantDirection(horizonData, gps?.lat, gps?.lon);
   console.log("[DSM] drawRadar called, points:", points.length, "dominant:", dominant?.cardinalDirection);
   drawHorizonRadar(radarCanvas, points, manager._hoverPoint, dominant ? { az: dominant.az, elev: dominant.elev } : null, manager._solarPosition);
@@ -740,7 +714,7 @@ function redraw(manager) {
   const dominantTextEl = overlayRoot.querySelector("#dsm-radar-dominant-text");
   if (dominantTextEl) {
     if (dominant && !farBlockedRadar) {
-      const shareStr = dominant.energyLossSharePct != null ? ` — ${dominant.energyLossSharePct} % des pertes liées au relief lointain` : "";
+      const shareStr = " — direction indicative du masque";
       dominantTextEl.innerHTML = `
         <div class="dsm-radar-dominant-title">Relief lointain</div>
         <div class="dsm-radar-dominant-direction">${dominant.cardinalDirection}${shareStr}</div>
@@ -790,21 +764,12 @@ function redraw(manager) {
     });
   }
 
-  const nearPctR =
-    shading && typeof shading.near?.totalLossPct === "number"
-      ? shading.near.totalLossPct
-      : shading && typeof shading.nearLossPct === "number"
-        ? shading.nearLossPct
-        : null;
-  const farPctR =
-    shading && typeof shading.far?.totalLossPct === "number"
-      ? shading.far.totalLossPct
-      : shading && typeof shading.farLossPct === "number"
-        ? shading.farLossPct
-        : null;
+  const nearPctR = getShadingComponentLossPct(shading, "near");
+  const farPctR = getShadingComponentLossPct(shading, "far");
 
   if (typeof manager._refreshTemporal === "function") {
     manager._refreshTemporal({
+      shading,
       horizonData,
       gps,
       farBlocked: farBlockedRadar,

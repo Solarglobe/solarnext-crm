@@ -5,7 +5,7 @@
  */
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { normalizeObstacles, polygonCentroid } = require("../shadingEngine.js");
+const { normalizeObstacles, polygonCentroid } = require("../nearShadingCore.cjs");
 
 test("polygonCentroid calcule le centre du polygone", function () {
   const poly = [

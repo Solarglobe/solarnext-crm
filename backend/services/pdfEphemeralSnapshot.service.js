@@ -1,3 +1,4 @@
+import { assertClientStudyExportable, getClientStudyExportBlock } from '../../shared/shading/clientStudyExport.js';
 /**
  * Stockage en mémoire (TTL court) pour snapshot PDF sans persistance en base.
  * Utilisé par generate-pdf-from-scenario : la clé est embarquée dans le renderToken JWT.
@@ -17,6 +18,7 @@ const store = new Map();
  * @returns {string}
  */
 export function putEphemeralSnapshot(snapshot, scenarioId) {
+  assertClientStudyExportable(snapshot);
   const id = randomUUID();
   const expiresAt = Date.now() + TTL_MS;
   store.set(id, { snapshot: structuredClone(snapshot), scenarioId, expiresAt });

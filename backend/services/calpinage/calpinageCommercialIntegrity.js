@@ -1,3 +1,5 @@
+import { FLAT_ROOF_SURVEY_VERSION, validateFlatRoofSurvey } from './flatRoofSurveyContract.js';
+import { computeShadingInputFingerprint, SHADING_MODEL_VERSION } from '../shading/shadingAssessment.service.js';
 export const BACKEND_COMMERCIAL_GEOMETRY_CONTRACT_VERSION = "backend-commercial-geometry-v1";
 
 const CLIENT_OFFICIAL_KEYS = new Set([
@@ -83,6 +85,16 @@ function containsHeightFallback(value) {
 }
 
 export function deriveBackendCommercialGeometryVerdict(geometry) {
+  if (geometry?.geometryContractVersion != null) {
+    const validation = validateFlatRoofSurvey(geometry);
+    const allowed = validation.certified;
+    return { contractVersion: FLAT_ROOF_SURVEY_VERSION, source: 'BACKEND_DERIVED_FROM_PERSISTED_GEOMETRY',
+      status: allowed ? 'CERTIFIED' : 'INVALID', officialPvPlacementAllowed: allowed, officialNearShadingAllowed: allowed,
+      modelVersion: SHADING_MODEL_VERSION, inputFingerprint: computeShadingInputFingerprint({geometry}),
+      blockingCodes: validation.blockingCodes, reasonCodes: allowed ? ['COMMERCIAL_GEOMETRY_CERTIFIED'] : validation.blockingCodes,
+      checks: validation.checks, surveySource: geometry.localObstacleSurvey?.source ?? null,
+      panVerdicts: (Array.isArray(geometry.pans) ? geometry.pans : []).map(p => ({panId:p?.id,kind:p?.roofKind,status:allowed?'CERTIFIED':'INVALID',officialPvPlacementAllowed:allowed,officialNearShadingAllowed:allowed,blockingCodes:validation.blockingCodes})) };
+  }
   const pans = collectPans(geometry);
   const panVerdicts = pans.map((pan) => {
     const kind = normalizeKind(pan.roofKind ?? pan.roofType ?? pan.type);

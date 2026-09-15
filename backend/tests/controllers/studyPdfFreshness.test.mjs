@@ -1,8 +1,9 @@
+import { computedClearShading } from '../fixtures/computed-clear-shading.mjs';
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { calculationConflict } from '../../services/calculationFingerprint.service.js';
 let stale, mutateWhileRendering, rendered, saved, checks;
-const snapshot={scenario_type:'BASE',input_fingerprint:'current',economic_snapshot:{
+const snapshot={shading:computedClearShading(),scenario_type:'BASE',input_fingerprint:'current',economic_snapshot:{
   price_eur_kwh:.2,elec_growth_pct:5,horizon_years:25,oa_rate_eur_kwh:0,prime_eur:0,capex_ttc:14960,reste_a_charge_eur:14960}};
 mock.module('../../config/db.js',{namedExports:{pool:{query:async()=>{throw Error('Unexpected database access');}}}});
 mock.module('../../routes/studies/service.js',{namedExports:{getVersionById:async()=>({study_id:'study',data:{},selected_scenario_id:'BASE',selected_scenario_snapshot:snapshot})}});

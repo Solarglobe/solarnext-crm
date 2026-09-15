@@ -5,6 +5,7 @@ import { add3, cross3, dot3, length3, normalize3, scale3, sub3 } from "../utils/
 import type { ProjectedRoofExtensionGeometry } from "./projectRoofExtensionToSupportPlane";
 import type { DormerTopologyMesh } from "./buildDormerTopologyFromOutline";
 import type { RoofExtensionV1 } from "./roofExtensionV1";
+import { triangulateConstrainedRoof } from "./triangulateConstrainedRoof";
 
 const AREA_EPS_M2 = 1e-8;
 const LENGTH_EPS_M = 1e-7;
@@ -258,6 +259,33 @@ export function buildArchitecturalDormerV1Topology(
     return u <= (ridgeULeft + ridgeURight) / 2 ? ridgeLeftIndex : ridgeRightIndex;
   }
 
+  // Explicit hips are constraints, not hints for nearest-neighbour roof fans.
+  const roofIndices = [...new Set([...ePts, ridgeAIndex, ridgeBIndex, ...(apexIndex == null ? [] : [apexIndex])])];
+  const roofPoints = roofIndices.map(i => ({
+    x: dot3(sub3(vertices[i]!.position, ridgeMid), ridgeAxis),
+    y: dot3(sub3(vertices[i]!.position, ridgeMid), depthAxis),
+  }));
+  const local = (i: number) => roofIndices.indexOf(i);
+  const hipConstraints: { side: string; a: number; b: number }[] = [];
+  if (model.hipsPx) {
+    const sourcePoints = [...model.footprintPx, model.ridgePx.a, model.ridgePx.b, ...(model.apexPx ? [model.apexPx] : [])];
+    const sourceIndices = [...ePts, ridgeAIndex, ridgeBIndex, ...(apexIndex == null ? [] : [apexIndex])];
+    const resolve = (p: { x: number; y: number }) => {
+      const i = sourcePoints.findIndex(q => Math.hypot(q.x - p.x, q.y - p.y) < 1e-6);
+      return i < 0 ? -1 : local(sourceIndices[i]!);
+    };
+    for (const [side, hip] of Object.entries(model.hipsPx)) {
+      if (!hip) continue;
+      const a = resolve(hip.a), b = resolve(hip.b);
+      if (a < 0 || b < 0) return null;
+      hipConstraints.push({ side, a, b });
+    }
+  }
+  const constrained = model.hipsPx ? triangulateConstrainedRoof(
+    roofPoints, ePts.map(local), [[local(ridgeAIndex), local(ridgeBIndex)], ...hipConstraints.map(h => [h.a, h.b] as const)],
+  ) : null;
+  if (model.hipsPx && !constrained) return null;
+
   // ── Edges ─────────────────────────────────────────────────────────────────
   const edges: VolumeEdge3D[] = [];
   const edgeKeys = new Set<string>();
@@ -277,12 +305,18 @@ export function buildArchitecturalDormerV1Topology(
     addEdge(`${model.id}:edge:base:${i}`,    bPts[i]!, bPts[j]!, "base");
     addEdge(`${model.id}:edge:lateral:${i}`, bPts[i]!, ePts[i]!, "lateral");
     addEdge(`${model.id}:edge:eave:${i}`,    ePts[i]!, ePts[j]!, "top");
-    addEdge(`${model.id}:edge:rafter:${i}`,  ePts[i]!, targetRidgeFor(i), "other");
+    if (!constrained) addEdge(`${model.id}:edge:rafter:${i}`, ePts[i]!, targetRidgeFor(i), "other");
   }
   addEdge(`${model.id}:edge:ridge`, ridgeAIndex, ridgeBIndex, "top");
-  if (apexIndex != null) {
+  if (apexIndex != null && !constrained) {
     addEdge(`${model.id}:edge:ridge:left`,  ridgeLeftIndex, apexIndex, "top");
     addEdge(`${model.id}:edge:ridge:right`, apexIndex, ridgeRightIndex, "top");
+  }
+  if (constrained) {
+    for (const h of hipConstraints) addEdge(`${model.id}:edge:hip:${h.side}`, roofIndices[h.a]!, roofIndices[h.b]!, "top");
+    for (const [i, tri] of constrained.triangles.entries()) {
+      tri.forEach((a, j) => addEdge(`${model.id}:edge:roof:${i}:${j}`, roofIndices[a]!, roofIndices[tri[(j + 1) % 3]!]!, "other"));
+    }
   }
 
   // ── Faces ──────────────────────────────────────────────────────────────────────
@@ -300,11 +334,17 @@ export function buildArchitecturalDormerV1Topology(
   // Murs lateraux — N quads (dégénèrent si wallHeightM = 0)
   for (let i = 0; i < N; i++) {
     const j = (i + 1) % N;
-    addFace(`${model.id}:face:wall:${i}`, "side", [bPts[i]!, bPts[j]!, ePts[j]!, ePts[i]!]);
+    const top = constrained ? constrained.boundary[i]!.map(k => roofIndices[k]!).reverse() : [ePts[j]!, ePts[i]!];
+    addFace(`${model.id}:face:wall:${i}`, "side", [bPts[i]!, bPts[j]!, ...top]);
   }
 
-  // Toiture — fan de la gouttiére vers le faitage / apex
-  for (let i = 0; i < N; i++) {
+  if (constrained) {
+    for (const [i, tri] of constrained.triangles.entries()) {
+      const center = tri.reduce((sum, k) => sum + roofPoints[k]!.y, 0) / 3;
+      addFace(`${model.id}:face:roof:${center < -LENGTH_EPS_M ? "left" : center > LENGTH_EPS_M ? "right" : "front"}:${i}`,
+        "top", tri.map(k => roofIndices[k]!));
+    }
+  } else for (let i = 0; i < N; i++) {
     const j  = (i + 1) % N;
     const ti = targetRidgeFor(i);
     const tj = targetRidgeFor(j);

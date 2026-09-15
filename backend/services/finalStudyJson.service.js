@@ -1,3 +1,4 @@
+import { assertClientStudyExportable, getClientStudyExportBlock } from '../../shared/shading/clientStudyExport.js';
 /**
  * ONE_TRUE_FINAL_STUDY_JSON — Consolidation après validation + calcul backend.
  * Ne modifie pas les moteurs shading/production. Wiring uniquement.
@@ -5,6 +6,25 @@
 
 const STUDY_VERSION = "study_v1_final";
 const CALPINAGE_VERSION = "calpinage_v1_final";
+import { presentShading } from './pdf/shadingPresentation.js';
+
+function frozenShading(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const p = presentShading(raw);
+  return {
+    ...raw,
+    assessment: p.assessment,
+    near: { ...raw.near, status: p.assessment.nearStatus, totalLossPct: p.nearLossPct },
+    far: { ...raw.far, status: p.assessment.farStatus, totalLossPct: p.farLossPct },
+    combined: { ...raw.combined, status: p.assessment.status, totalLossPct: p.combinedLossPct },
+    totalLossPct: p.combinedLossPct,
+    perPanel: p.perPanel,
+    monthlyFactors: p.monthlyFactors,
+    monthlyKwhStats: p.monthlyKwhStats,
+    annualLossKwh: p.annualLossKwh,
+    distribution: p.assessment.status === "computed" ? raw.distribution ?? null : null,
+  };
+}
 
 function safeNum(v, fallback) {
   if (typeof v === "number" && Number.isFinite(v) && !Number.isNaN(v)) return v;
@@ -30,6 +50,7 @@ export function deriveGeometryFromGeometryJson(geometryJson) {
   const vrd = geometryJson.validatedRoofData;
   if (!vrd || !Array.isArray(vrd.pans)) return null;
 
+  const assessed = presentShading(geometryJson.shading).assessment.status === "computed";
   const rawPans = vrd.pans;
   const pansOfficial = rawPans.map((p) => ({
     id: p.id,
@@ -38,9 +59,9 @@ export function deriveGeometryFromGeometryJson(geometryJson) {
     panelCount: Math.max(0, Math.floor(safeNum(p.panelCount, 0))),
     surface: safeNum(p.surface, p.surfaceM2 ?? 0),
     geometryRef: p.geometryRef ?? p.id,
-    shadingNearPct: shadingOptNum(p.shadingNearPct ?? p.shading_near_pct),
-    shadingFarPct: shadingOptNum(p.shadingFarPct ?? p.shading_far_pct),
-    shadingCombinedPct: shadingOptNum(p.shadingCombinedPct ?? p.shading_combined_pct),
+    shadingNearPct: assessed ? shadingOptNum(p.shadingNearPct ?? p.shading_near_pct) : null,
+    shadingFarPct: assessed ? shadingOptNum(p.shadingFarPct ?? p.shading_far_pct) : null,
+    shadingCombinedPct: assessed ? shadingOptNum(p.shadingCombinedPct ?? p.shading_combined_pct) : null,
   }));
 
   const panels = [];
@@ -62,9 +83,14 @@ export function deriveGeometryFromGeometryJson(geometryJson) {
     }
   }
 
-  const norm = geometryJson.shading && typeof geometryJson.shading === "object" ? geometryJson.shading : null;
+  const norm = frozenShading(geometryJson.shading);
   const shadingExport = norm
     ? {
+        assessment: norm.assessment,
+        distribution: norm.distribution,
+        monthlyFactors: norm.monthlyFactors,
+        monthlyKwhStats: norm.monthlyKwhStats,
+        annualLossKwh: norm.annualLossKwh,
         near: norm.near && typeof norm.near === "object" ? { ...norm.near } : { totalLossPct: safeNum(norm.nearLossPct, 0) },
         far:
           norm.far && typeof norm.far === "object"
@@ -98,7 +124,7 @@ export function deriveGeometryFromGeometryJson(geometryJson) {
             ? typeof norm.computedAt === "number"
               ? new Date(norm.computedAt).toISOString()
               : String(norm.computedAt)
-            : new Date().toISOString(),
+            : null,
       }
     : null;
   if (norm && Array.isArray(norm.perPanel)) shadingExport.perPanel = norm.perPanel;
@@ -248,16 +274,22 @@ function buildElectricalFromGeometry(geometry, hardware) {
  * @param {object} [opts.production] - { byPan, annualKwh, monthlyKwh } depuis ctxFinal.production
  * @returns {object|null} finalStudyJson ou null si geometry ou calc_result absent
  */
-export function buildFinalStudyJson({ geometryJson, calcResult, production }) {
+export function buildFinalStudyJson({ geometryJson, calcResult, production, purpose = "client_final" }) {
+  if (purpose !== "internal_diagnostic") assertClientStudyExportable({ ...calcResult, shading: geometryJson?.shading });
   if (!geometryJson || typeof geometryJson !== "object") return null;
   if (!calcResult || typeof calcResult !== "object") return null;
 
   const geometry = deriveGeometryFromGeometryJson(geometryJson);
   if (!geometry) return null;
 
-  const norm = geometryJson.shading && typeof geometryJson.shading === "object" ? geometryJson.shading : null;
+  const norm = frozenShading(geometryJson.shading);
   const shading = norm
     ? {
+        assessment: norm.assessment,
+        distribution: norm.distribution,
+        monthlyFactors: norm.monthlyFactors,
+        monthlyKwhStats: norm.monthlyKwhStats,
+        annualLossKwh: norm.annualLossKwh,
         near: norm.near && typeof norm.near === "object" ? { ...norm.near } : { totalLossPct: safeNum(norm.nearLossPct, 0) },
         far:
           norm.far && typeof norm.far === "object"
@@ -291,7 +323,7 @@ export function buildFinalStudyJson({ geometryJson, calcResult, production }) {
             ? typeof norm.computedAt === "number"
               ? new Date(norm.computedAt).toISOString()
               : String(norm.computedAt)
-            : new Date().toISOString(),
+            : null,
       }
     : null;
   if (norm && Array.isArray(norm.perPanel)) shading.perPanel = norm.perPanel;
@@ -319,6 +351,8 @@ export function buildFinalStudyJson({ geometryJson, calcResult, production }) {
   const electrical = buildElectricalFromGeometry(geometry, hardware);
 
   const finalStudyJson = {
+    documentPurpose: purpose,
+    clientExportBlocked: purpose === 'internal_diagnostic',
     meta: {
       version: STUDY_VERSION,
       generatedAt: new Date().toISOString(),

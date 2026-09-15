@@ -36,6 +36,8 @@ describe("shadingGovernance", () => {
   it("lecture officielle globale ignore near isolé (pas de promotion accidentelle)", () => {
     expect(
       getOfficialGlobalShadingLossPct({
+        assessment: { status: 'computed', nearStatus: 'computed', farStatus: 'computed' },
+        far: { totalLossPct: 0 },
         near: { totalLossPct: 80 },
         combined: { totalLossPct: 5 },
       })

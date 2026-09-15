@@ -10,6 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { surveyedClearShading } from '../../src/pages/studies/__tests__/fixtures/surveyedClearShading';
 
 const BASE = process.env.E2E_BASE_URL?.replace(/\/crm\.html\/?$/, '') || 'http://localhost:5173';
 const PDF_URL = `${BASE}/pdf-render.html?studyId=test&versionId=test`;
@@ -17,12 +18,17 @@ const PDF_URL = `${BASE}/pdf-render.html?studyId=test&versionId=test`;
 const viewModelOk = {
   ok: true,
   viewModel: {
+    shading: surveyedClearShading(),
     meta: { scenarioType: 'BASE' },
     client: { name: 'Jean Dupont', city: 'Paris' },
     production: { annualProductionKwh: 7200 },
     economics: { roiYears: 12 },
   },
 };
+
+test.beforeEach(async ({ page }) => {
+  await page.route('**/auth/refresh', route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({token:'fictional-renderer-session'})}));
+});
 
 test.describe('PDF V2 — Page preview (autonome)', () => {
   test('TEST 1 — Route accessible', async ({ page }) => {

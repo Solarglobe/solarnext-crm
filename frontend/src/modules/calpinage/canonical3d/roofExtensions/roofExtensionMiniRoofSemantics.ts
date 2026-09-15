@@ -38,14 +38,22 @@ function wallRoleForFace(source: RoofExtensionSource2D, faceId: string): "cheek_
   if (index == null || !ridge || source.contour.length < 2) return "cheek_wall";
   const a = source.contour[index % source.contour.length]!;
   const b = source.contour[(index + 1) % source.contour.length]!;
+  // With measured hips, their feet define the facade. An off-centre apex must
+  // not turn a lateral cheek into a front wall merely by rotating the ridge.
+  const left = source.hips?.left?.a, right = source.hips?.right?.a;
+  if (left && right && Math.hypot(left.x - right.x, left.y - right.y) > 1e-6) {
+    const same = (p: typeof a, q: typeof a) => Math.hypot(p.x - q.x, p.y - q.y) < 1e-6;
+    if ((same(a, left) && same(b, right)) || (same(a, right) && same(b, left))) return "front_wall";
+    return segmentParallelScore(a, b, left, right) >= 0.78 ? "rear_wall" : "cheek_wall";
+  }
   const parallel = segmentParallelScore(a, b, ridge.a, ridge.b);
-  if (parallel < 0.78) return "cheek_wall";
+  if (parallel >= 0.78) return "cheek_wall";
 
   const mx = (a.x + b.x) * 0.5;
   const my = (a.y + b.y) * 0.5;
   const rx = ridge.b.x - ridge.a.x;
   const ry = ridge.b.y - ridge.a.y;
-  const side = rx * (my - ridge.a.y) - ry * (mx - ridge.a.x);
+  const side = rx * (mx - (ridge.a.x + ridge.b.x) / 2) + ry * (my - (ridge.a.y + ridge.b.y) / 2);
   return side >= 0 ? "front_wall" : "rear_wall";
 }
 
@@ -53,7 +61,7 @@ function edgeRolesForId(edgeId: string): readonly RoofExtensionMiniRoofEdgeRole[
   if (edgeId.includes(":edge:ridge")) return ["ridge"];
   if (edgeId.includes(":edge:hip:")) return ["hip"];
   if (edgeId.includes(":edge:base:")) return ["support_seam", "base_keepout"];
-  if (edgeId.includes(":edge:outline:")) return ["mini_roof_eave"];
+  if (edgeId.includes(":edge:outline:") || edgeId.includes(":edge:eave:")) return ["mini_roof_eave"];
   if (edgeId.includes(":edge:lateral:")) return ["side_wall_edge"];
   return ["unknown"];
 }
@@ -84,9 +92,7 @@ export function buildRoofExtensionMiniRoofSemantics(
     roles: edgeRolesForId(edge.id),
   }));
 
-  const hasCheeks =
-    faceRoles.some((x) => x.role === "cheek_wall") ||
-    mesh.faces.some((face) => face.id.includes(":face:roof:left:") || face.id.includes(":face:roof:right:"));
+  const hasCheeks = faceRoles.some((x) => x.role === "cheek_wall");
   const hasRidge = edgeRoles.some((x) => x.roles.includes("ridge"));
   const hasMiniRoofPlanes = faceRoles.some((x) => x.role === "mini_roof_plane" || x.role === "ridge_cap");
   const hasSupportSeam = edgeRoles.some((x) => x.roles.includes("support_seam"));

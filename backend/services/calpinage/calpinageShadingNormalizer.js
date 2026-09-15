@@ -11,6 +11,7 @@
  */
 
 import { farHorizonKindFromProvider } from "../shading/farHorizonTruth.js";
+import { getShadingAssessment, getShadingComponentLossPct } from "../../../shared/shading/shadingAssessment.js";
 
 const V2_SCHEMA_VERSION = "v2";
 
@@ -19,7 +20,7 @@ function clampGlobalLossPctOrNull(v) {
   if (v == null || v === "") return null;
   const n = Number(v);
   if (!Number.isFinite(n)) return null;
-  return Math.round(Math.max(0, Math.min(100, n)) * 1000) / 1000;
+  return n >= 0 && n <= 100 ? n : null;
 }
 
 /**
@@ -46,9 +47,8 @@ function normalizePerPanel(perPanel) {
     if (!p || typeof p !== "object") continue;
     const panelId = p.panelId ?? p.id;
     if (panelId == null) continue;
-    const lossPct = typeof p.lossPct === "number" && !isNaN(p.lossPct)
-      ? Math.round(Math.max(0, Math.min(100, p.lossPct)) * 100) / 100
-      : 0;
+    const lossPct = clampGlobalLossPctOrNull(p.lossPct);
+    if (lossPct == null) continue;
     out.push({ panelId: String(panelId), lossPct });
   }
   return out;
@@ -87,7 +87,8 @@ function normalizeFar(far, meta = {}) {
       radius_m: null,
       step_deg: null,
       resolution_m: 0,
-      totalLossPct: 0,
+      totalLossPct: null,
+      status: "not_calculated",
       confidenceScore: 0,
       confidenceLevel: "LOW",
       confidenceBreakdown: {},
@@ -102,10 +103,7 @@ function normalizeFar(far, meta = {}) {
     srcForKind === "UNAVAILABLE_NO_GPS" ||
     far.source === "FAR_UNAVAILABLE_ERROR" ||
     srcForKind === "FAR_UNAVAILABLE_ERROR";
-  const totalLossPct =
-    unavailableFar && (far.totalLossPct == null || far.totalLossPct === "")
-      ? null
-      : Number(far.totalLossPct) || 0;
+  const totalLossPct = unavailableFar ? null : clampGlobalLossPctOrNull(far.totalLossPct);
   const out = {
     source: far.source ?? null,
     farHorizonKind: far.farHorizonKind ?? farHorizonKindFromProvider(srcForKind),
@@ -114,6 +112,7 @@ function normalizeFar(far, meta = {}) {
     step_deg: meta.step_deg ?? far.step_deg ?? null,
     resolution_m: dc.gridResolutionMeters ?? far.resolution_m ?? meta.resolution_m ?? 0,
     totalLossPct,
+    status: far.status ?? "stale",
     confidenceScore: typeof far.confidenceScore === "number" ? far.confidenceScore : 0,
     confidenceLevel: far.confidenceLevel ?? "LOW",
     confidenceBreakdown: far.confidenceBreakdown && typeof far.confidenceBreakdown === "object"
@@ -137,14 +136,15 @@ function normalizeFar(far, meta = {}) {
 export function normalizeCalpinageShading(rawShading, meta = {}) {
   if (!rawShading || typeof rawShading !== "object") {
     return {
-      near: { totalLossPct: 0 },
+      near: { status: "not_calculated", totalLossPct: null },
       far: normalizeFar(null, meta),
-      combined: { totalLossPct: 0 },
-      totalLossPct: 0,
+      combined: { status: "not_calculated", totalLossPct: null },
+      totalLossPct: null,
+      assessment: getShadingAssessment(null),
       shadingQuality: {
         score: 0,
-        grade: "D",
-        inputs: { near: 0, far: 0, resolution_m: 0, coveragePct: 0 },
+        grade: "UNASSESSED",
+        inputs: { near: null, far: null, resolution_m: 0, coveragePct: 0 },
         farHorizonKind: "SYNTHETIC",
       },
       perPanel: [],
@@ -153,17 +153,23 @@ export function normalizeCalpinageShading(rawShading, meta = {}) {
 
   const near = rawShading.near && typeof rawShading.near === "object"
     ? {
-        totalLossPct: Number(rawShading.near.totalLossPct) || 0,
+        totalLossPct: clampGlobalLossPctOrNull(rawShading.near.totalLossPct),
+        status: rawShading.near.status ?? rawShading.assessment?.nearStatus ?? "stale",
         ...(rawShading.near.details && typeof rawShading.near.details === "object" && { details: rawShading.near.details }),
         ...(rawShading.near.canonical3d != null && { canonical3d: rawShading.near.canonical3d }),
         ...(rawShading.near.official && typeof rawShading.near.official === "object" && { official: rawShading.near.official }),
       }
-    : { totalLossPct: 0 };
+    : { status: "not_calculated", totalLossPct: null };
 
   const far = normalizeFar(rawShading.far, meta);
 
-  const combinedTotal = resolveCombinedTotalLossFromRaw(rawShading);
-  const combined = { totalLossPct: combinedTotal };
+  const assessment = getShadingAssessment(rawShading);
+  near.status = assessment.nearStatus;
+  near.totalLossPct = getShadingComponentLossPct(rawShading, "near");
+  far.status = assessment.farStatus;
+  far.totalLossPct = getShadingComponentLossPct(rawShading, "far");
+  const combinedTotal = getShadingComponentLossPct(rawShading, "combined");
+  const combined = { status: assessment.status, totalLossPct: combinedTotal };
 
   const rawSq = rawShading.shadingQuality && typeof rawShading.shadingQuality === "object";
   const sq = rawSq
@@ -197,12 +203,16 @@ export function normalizeCalpinageShading(rawShading, meta = {}) {
         farHorizonKind: far.farHorizonKind,
       };
 
-  const perPanel = normalizePerPanel(rawShading.perPanel);
+  sq.inputs.near = near.totalLossPct;
+  sq.inputs.far = far.totalLossPct;
+  sq.inputs.coveragePct = far.dataCoverage?.ratio ?? null;
+  if (assessment.status !== "computed") { sq.score = 0; sq.grade = "UNASSESSED"; }
+  const perPanel = assessment.status === "computed" ? normalizePerPanel(rawShading.perPanel) : [];
 
   const horizonMask =
-    rawShading.horizonMask && typeof rawShading.horizonMask === "object" && Array.isArray(rawShading.horizonMask.mask)
+    rawShading.horizonMask && typeof rawShading.horizonMask === "object" && Array.isArray(rawShading.horizonMask.mask ?? rawShading.horizonMask.elevations)
       ? {
-          elevations: rawShading.horizonMask.mask,
+          elevations: rawShading.horizonMask.mask ?? rawShading.horizonMask.elevations,
           source: rawShading.horizonMask.source ?? null,
           farHorizonKind:
             rawShading.horizonMask.farHorizonKind ??
@@ -222,6 +232,12 @@ export function normalizeCalpinageShading(rawShading, meta = {}) {
     /** Alias miroir de `combined.totalLossPct` — même sémantique produit. */
     totalLossPct: combinedTotal,
     shadingQuality: sq,
+    assessment,
+    ...(rawShading.historicalResult && { historicalResult: rawShading.historicalResult }),
+    ...(assessment.status === "stale" && { needs_recompute: true }),
+    ...(assessment.status === "computed" && { monthlyFactors: rawShading.monthlyFactors ?? null, monthlyKwhStats: rawShading.monthlyKwhStats ?? null, annualLossKwh: rawShading.annualLossKwh ?? null }),
+    ...(rawShading.diagnostics && { diagnostics: rawShading.diagnostics }),
+    ...(assessment.status === "computed" && rawShading.distribution && { distribution: rawShading.distribution }),
     perPanel,
     ...(horizonMask && { horizonMask }),
   };

@@ -1,3 +1,4 @@
+import { getClientStudyExportBlock } from '../../../../shared/shading/clientStudyExport.js';
 import ProjectionAssumptions from "./ProjectionAssumptions";
 import type {FinanceProjection} from "./FinanceProjectionSettings";
 import { electricityBillDisplay } from "@shared/electricityBillDisplay.js";
@@ -833,6 +834,7 @@ export default function ScenarioComparisonTable({
           // (aligné sur le helper backend evaluateScenarioSelectable) : bloqué seulement
           // s'il est absent ou _skipped, jamais pour "incomplete"/"unsuitable".
           const isBlockedForSelection =
+            getClientStudyExportBlock(scenario).blocked ||
             scenario?.display_blocked === true ||
             scenario?.finance?.electricity_billing?.status === "INCOMPLETE" ||
             (scenario as { _skipped?: boolean } | null)?._skipped === true ||
@@ -1572,7 +1574,7 @@ export default function ScenarioComparisonTable({
                           <button
                             type="button"
                             className="sg-btn sg-btn-primary scenario-col-cta"
-                            disabled={redownloading || pdfFlowBusy || selectionDisabled}
+                            disabled={redownloading || pdfFlowBusy || selectionDisabled || isBlockedForSelection}
                             onClick={() => onRedownloadPdf()}
                           >
                             {redownloading ? "Génération…" : "Télécharger à nouveau"}

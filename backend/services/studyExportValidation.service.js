@@ -1,3 +1,4 @@
+import { assertClientStudyExportable, getClientStudyExportBlock } from '../../shared/shading/clientStudyExport.js';
 import { energyTolerance, validateEnergyBalance, ENERGY_REFERENCE_VERSION } from "./energyReference.service.js";
 import { cashflowIrr } from "./financialIndicators.service.js";
 import { resolveVirtualStorageOaCompatibility } from './virtualStorageOaCompatibility.service.js';
@@ -6,6 +7,8 @@ import { isPdfBlockedByConfidence } from './calculationConfidence.service.js';
 
 export function validateStudyScenarioForExport(scenario, expectedScenarioId) {
   const errors=[],warnings=[];
+  const shadingBlock = getClientStudyExportBlock(scenario);
+  if (shadingBlock.blocked) errors.push(shadingBlock.code + ': ' + shadingBlock.reasons.join(', '));
   const ref=scenario?.energy?.reference;
   const id=scenario?.id ?? scenario?.scenario_type ?? scenario?.name;
   for(const block of shadingExportBlockers({audit:scenario?.shading?.commercial_audit,assumptions:scenario?.calculation_confidence?.assumptions??{}}))errors.push(`${block.code}: ${block.message}`);
@@ -128,6 +131,7 @@ export function assertStudySnapshotExportable(snapshot) {
   }
   const id=snapshot?.scenario_type;
   const scenario=snapshot?.scenario_result ?? snapshot?.scenarios_v2?.find(s=>(s.id??s.name)===id) ?? snapshot?.data_json?.scenarios_v2?.find(s=>(s.id??s.name)===id) ?? {...snapshot,id,finance:{...snapshot?.finance,annual_cashflows:snapshot?.cashflows ?? snapshot?.finance?.annual_cashflows}};
+  assertClientStudyExportable({ ...snapshot, scenario_result: scenario });
   const result=validateStudyScenarioForExport(scenario,id);
   if(!result.ok){const error=new Error(`Export bloque : ${result.errors.join("; ")}`);error.code="STUDY_EXPORT_INCONSISTENT";error.statusCode=409;error.details=result;throw error;}
   return result;

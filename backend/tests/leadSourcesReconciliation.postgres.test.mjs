@@ -74,13 +74,13 @@ run("a changed old fingerprint refuses even with otherwise valid schema", async 
   await client.query("UPDATE migration_checksums SET checksum='fictional-mismatch' WHERE migration_name=$1", [TARGET]);
   await assert.rejects(reconcileLeadSources(options()), { code: "RECONCILIATION_CHECKSUM_HISTORY_CHANGED" });
 });
-run("69 missing references and the missing historical file are preserved, not repaired", async () => {
+run("70 absent checksum rows stay absent after restoring the exact historical file", async () => {
   const beforeState = await meta();
-  assert.equal(fixture.applied.length - fixture.checksums.length, 70); // One pending reference relationship is also represented in the recorded fixture.
+  assert.equal(fixture.applied.length - fixture.checksums.length, 70); // Existing history has 70 applied files without recorded checksum metadata.
   await reconcileLeadSources(options({ mode: "apply", writersStopped: true, receipt: () => {} }));
   const report = await inspectMigrationHistory(client, directory);
-  assert.equal(report.comparison.filter(r => r.status === "checksum_unregistered").length, 69);
-  assert.deepEqual(report.comparison.filter(r => r.status === "applied_file_missing").map(r => r.name), ["1788900000000_add_long_term_follow_up_stage"]);
+  assert.equal(report.comparison.filter(r => r.status === "checksum_unregistered").length, 70);
+  assert.deepEqual(report.comparison.filter(r => r.status === "applied_file_missing").map(r => r.name), []);
   assert.equal((await meta()).checksums.length, beforeState.checksums.length);
 });
 // Each fixture mutation is restored in finally on the dedicated local clone.
@@ -115,6 +115,8 @@ run("a lead linked to another organization is refused without changing any busin
     await client.query("DELETE FROM leads WHERE id=$1", [lead]);
     await client.query("DELETE FROM pipeline_stages WHERE id=$1", [stage]);
     await client.query("DELETE FROM lead_sources WHERE organization_id=$1", [org2]);
+    // The organization FK sets role owners to NULL; delete only this test's roles first to avoid collisions with system roles.
+    await client.query("DELETE FROM rbac_roles WHERE organization_id=$1", [org2]);
     await client.query("DELETE FROM organizations WHERE id=$1", [org2]);
   }
 });

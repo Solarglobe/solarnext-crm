@@ -1,3 +1,4 @@
+import { assertClientStudyExportable, getClientStudyExportBlock } from '../../shared/shading/clientStudyExport.js';
 /**
  * PDF V2 — Génération server-side du PDF SolarNext via Playwright
  * Ouvre le renderer frontend, attend __pdf_render_ready + #pdf-ready (fallback waitForSelector).
@@ -91,7 +92,8 @@ async function waitForPdfPageReady(page, rendererUrl, logLabel) {
  * @returns {Promise<Buffer>} buffer PDF
  * @throws {Error} code PDF_RENDER_TIMEOUT | PDF_RENDER_FAILED
  */
-export async function generatePdfFromRendererUrl(rendererUrl) {
+export async function generatePdfFromRendererUrl(rendererUrl, { clientSnapshot } = {}) {
+  assertClientStudyExportable(clientSnapshot);
   console.log("[PDF] rendererUrl:", rendererUrl);
   logger.info("PDF generation started", { rendererUrl });
 

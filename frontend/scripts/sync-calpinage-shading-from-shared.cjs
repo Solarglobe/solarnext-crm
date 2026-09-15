@@ -55,6 +55,10 @@ writeGeneratedJs(
   fs.readFileSync(path.join(sharedRoot, "solarPosition.cjs"), "utf8")
 );
 console.log("[sync-calpinage-shading] solarPosition.cjs → calpinage/shading/solarPosition.js");
+writeGeneratedJs(
+  path.join(frontendRoot, 'src/modules/calpinage/dsmOverlay/solarPosition.js'),
+  fs.readFileSync(path.join(sharedRoot, 'solarPosition.cjs'), 'utf8') + '\nexport { computeSunPosition };\n'
+);
 
 // 3) horizonMaskSampler
 writeGeneratedJs(

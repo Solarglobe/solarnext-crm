@@ -1,3 +1,5 @@
+import { getShadingComponentLossPct } from "../../../../../shared/shading/shadingAssessment.js";
+
 /**
  * Contrat métier — aligné avec `backend/services/shading/officialShadingTruth.js`.
  * Glossaire KPI + snapshot vs live : docs/shading-kpi-contract.md
@@ -11,29 +13,7 @@
  * @returns {number|null} [0,100] ou null (GPS manquant, far indisponible, ou total inconnu).
  */
 export function getOfficialGlobalShadingLossPct(shading) {
-  if (shading == null || typeof shading !== "object") return null;
-
-  if (
-    shading.shadingQuality?.blockingReason === "missing_gps" ||
-    shading.far?.source === "UNAVAILABLE_NO_GPS"
-  ) {
-    return null;
-  }
-
-  const combined = shading.combined;
-  if (combined && typeof combined === "object" && Object.prototype.hasOwnProperty.call(combined, "totalLossPct")) {
-    const v = combined.totalLossPct;
-    if (v == null || v === "") return null;
-    const n = Number(v);
-    if (!Number.isFinite(n)) return null;
-    return Math.max(0, Math.min(100, n));
-  }
-
-  const legacy = shading.totalLossPct ?? shading.total_loss_pct;
-  if (legacy == null || legacy === "") return null;
-  const n = Number(legacy);
-  if (!Number.isFinite(n)) return null;
-  return Math.max(0, Math.min(100, n));
+  return getShadingComponentLossPct(shading, "combined");
 }
 
 /**
@@ -58,14 +38,11 @@ export function getOfficialGlobalShadingLossPctOr(shading, whenNull = 0) {
  */
 export function getGlobalShadingLossPctForCalpinageShadingState(stateSlice) {
   if (stateSlice == null || typeof stateSlice !== "object") return null;
+  if (stateSlice.lastAbortReason || stateSlice.lastError) return null;
   const norm = stateSlice.normalized;
-  if (norm != null && typeof norm === "object") {
-    return getOfficialGlobalShadingLossPct(norm);
-  }
-  const lr = stateSlice.lastResult;
-  if (lr != null && typeof lr === "object" && typeof lr.annualLossPercent === "number" && Number.isFinite(lr.annualLossPercent)) {
-    return getOfficialGlobalShadingLossPct({ combined: { totalLossPct: lr.annualLossPercent } });
-  }
+  if (norm != null && typeof norm === "object") return getOfficialGlobalShadingLossPct(norm);
+  // A live result without the assessment contract cannot validate coverage.
+  if (stateSlice.lastResult?.assessment) return getOfficialGlobalShadingLossPct(stateSlice.lastResult);
   return null;
 }
 

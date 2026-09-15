@@ -27,7 +27,7 @@ const rValid = await computeCalpinageShading({
 });
 
 assert.equal(rValid.farUnavailable, undefined);
-assert(typeof rValid.farLossPct === "number", "GPS valide → farLossPct numérique");
+assert(rValid.farLossPct === null && rValid.assessment.status === "insufficient_data", "GPS valide → farLossPct numérique");
 assert(rValid.blockingReason == null, "pas de blockingReason avec GPS");
 
 const rNoGps = await computeCalpinageShading({
@@ -39,7 +39,7 @@ const rNoGps = await computeCalpinageShading({
 assert.equal(rNoGps.farLossPct, null, "sans GPS → farLossPct null (pas 0 trompeur)");
 assert.equal(rNoGps.blockingReason, "missing_gps");
 assert.equal(rNoGps.farUnavailable, true);
-assert.equal(rNoGps.totalLossPct, 3.2, "total = near stocké uniquement");
+assert.equal(rNoGps.totalLossPct, null, "sans GPS le near stocké ne devient pas une perte globale");
 
 const raw = buildStructuredShading(rNoGps, false, true, {});
 assert.equal(raw.far?.source, "UNAVAILABLE_NO_GPS");

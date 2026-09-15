@@ -1,3 +1,6 @@
+import { interpolateHorizonElevation } from '../horizon/horizonMaskCore.js';
+import { isCompleteHorizonMask } from '../shading/shadingAssessment.service.js';
+import { getClientStudyExportBlock } from '../../../shared/shading/clientStudyExport.js';
 import {electricityBillDisplay} from "../../../shared/electricityBillDisplay.js";
 import { displayEuro, displayPercent, displayNumber } from "../../../shared/studyDisplay.js";
 /**
@@ -7,6 +10,7 @@ import { displayEuro, displayPercent, displayNumber } from "../../../shared/stud
  */
 
 import { resolveShadingTotalLossPct } from "../shading/resolveShadingTotalLossPct.js";
+import { presentShading } from './shadingPresentation.js';
 import {
   IMPACT_FACTOR_CO2_AUTO_KG_PER_KWH,
   IMPACT_FACTOR_CO2_SURPLUS_KG_PER_KWH,
@@ -1244,53 +1248,48 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const _pvgisRef    = shading.pvgisReference ?? {};
   const _horizonMask = shading.horizonMask    ?? {};
   const _far         = shading.far            ?? {};
+  const shadingPresentation = presentShading(shading);
 
-  const _prodNoShading = Array.isArray(shading.monthlyKwhStats)
-    ? Math.round(shading.monthlyKwhStats.reduce((s, m) => s + (m.productionNoShadingKwh ?? 0), 0))
-    : (_pvgisRef.annualE_y != null && _pvgisRef.peakPowerKwc != null)
-      ? Math.round(_pvgisRef.annualE_y * _pvgisRef.peakPowerKwc)
-      : null;
-
-  const _prodWithShading = Array.isArray(shading.monthlyKwhStats)
-    ? Math.round(shading.monthlyKwhStats.reduce((s, m) => s + (m.productionWithShadingKwh ?? 0), 0))
-    : null;
+  const _prodNoShading = shadingPresentation.prodNoShadingKwh;
+  const _prodWithShading = shadingPresentation.prodWithShadingKwh;
 
   const _prixKwh = econDisplay.price_eur_kwh;
 
   const p_shading = {
     meta: { client: clientName, ref, date: dateDisplay },
+    assessment: shadingPresentation.assessment,
     // KPI niveau 1 — lecture client
     prodNoShadingKwh:   _prodNoShading,
     prodWithShadingKwh: _prodWithShading,
-    annualLossKwh:      shading.annualLossKwh != null ? Math.round(shading.annualLossKwh) : null,
-    annualLossEur:      (shading.annualLossKwh != null && _prixKwh != null)
-                          ? Math.round(shading.annualLossKwh * _prixKwh) : null,
+    annualLossKwh:      shadingPresentation.annualLossKwh,
+    annualLossEur:      (shadingPresentation.annualLossKwh != null && _prixKwh != null)
+                          ? shadingPresentation.annualLossKwh * _prixKwh : null,
     // KPI niveau 2 — lecture technicien
-    combinedLossPct:    num(shading.combinedLossPct ?? shading.combined?.totalLossPct),
-    farLossPct:         shading.farLossPct != null ? num(shading.farLossPct) : null,
-    nearLossPct:        num(shading.nearLossPct ?? shading.near?.totalLossPct),
+    combinedLossPct:    shadingPresentation.combinedLossPct,
+    farLossPct:         shadingPresentation.farLossPct,
+    nearLossPct:        shadingPresentation.nearLossPct,
     // Qualité données
     farHorizonKind:     _horizonMask.farHorizonKind ?? shading.farHorizonKind ?? "UNAVAILABLE",
     farConfidenceLevel: _far.confidenceLevel ?? null,
     farSource:          _far.source ?? null,
     // Tableau mensuel kWh
-    monthlyKwhStats: Array.isArray(shading.monthlyKwhStats)
-      ? shading.monthlyKwhStats.map((m) => ({
+    monthlyKwhStats: shadingPresentation.monthlyKwhStats
+      ? shadingPresentation.monthlyKwhStats.map((m) => ({
           month:             m.month,
           prodNoShadingKwh:  m.productionNoShadingKwh,
           prodWithShadingKwh: m.productionWithShadingKwh,
           kwhLoss:           m.kwhLoss,
           lossPct:           m.combinedLossFraction != null
-                               ? +(m.combinedLossFraction * 100).toFixed(1) : null,
+                               ? m.combinedLossFraction * 100 : null,
         }))
       : null,
     // Facteurs mensuels far/near (graphique barres Sprint 2)
-    monthlyFactors: Array.isArray(shading.monthlyFactors)
-      ? shading.monthlyFactors.map((m) => ({
+    monthlyFactors: shadingPresentation.monthlyFactors
+      ? shadingPresentation.monthlyFactors.map((m) => ({
           month:       m.month,
-          farPct:      m.farLossFraction  != null ? +(m.farLossFraction  * 100).toFixed(1) : 0,
-          nearPct:     m.nearLossFraction != null ? +(m.nearLossFraction * 100).toFixed(1) : 0,
-          combinedPct: m.combinedLossFraction != null ? +(m.combinedLossFraction * 100).toFixed(1) : 0,
+          farPct:      m.farLossFraction * 100,
+          nearPct:     m.nearLossFraction * 100,
+          combinedPct: m.combinedLossFraction * 100,
         }))
       : null,
     // Métadonnées PVGIS
@@ -1302,7 +1301,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     lat: site.lat != null ? num(site.lat) : null,
     lon: site.lon != null ? num(site.lon) : null,
     // Masque horizon brut (profil SVG Sprint 3)
-    horizonMaskArray: Array.isArray(_horizonMask.mask) ? _horizonMask.mask : null,
+    horizonMaskArray: isCompleteHorizonMask(_horizonMask.elevations)
+      ? Array.from({length:181},(_,i)=>interpolateHorizonElevation(_horizonMask.elevations,i*2)) : null,
   };
 
   const orientationMap = { S: "Sud", SE: "Sud-Est", SO: "Sud-Ouest", SW: "Sud-Ouest", E: "Est", O: "Ouest", W: "Ouest" };
@@ -1856,6 +1856,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const _p4RevenuReventeEur = numOrZero(financeActive.revenu_surplus ?? finance.revenu_surplus);
 
   const viewModel = applyVerifiedEnergyPresentation({
+    documentPurpose: getClientStudyExportBlock(snapshot).blocked ? "internal_diagnostic" : "client_final",
     meta: {
       studyId: options.studyId ?? null,
       versionId: options.versionId ?? null,

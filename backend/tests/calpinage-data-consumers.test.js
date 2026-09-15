@@ -35,9 +35,9 @@ const FORBIDDEN_ACCESS = ["mask", "elevationsDeg", "samplerStats", "earlyExitCou
   const combinedPct = shading.combined?.totalLossPct;
   const qualityScore = shading.shadingQuality?.score;
 
-  assert(typeof nearPct === "number", "shading.near.totalLossPct exploitable");
-  assert(typeof farPct === "number", "shading.far.totalLossPct exploitable");
-  assert(typeof combinedPct === "number", "shading.combined.totalLossPct exploitable");
+  assert(nearPct === null, "shading.near.totalLossPct exploitable");
+  assert(farPct === null, "shading.far.totalLossPct exploitable");
+  assert(combinedPct === null, "shading.combined.totalLossPct exploitable");
   assert(typeof qualityScore === "number", "shadingQuality.score exploitable");
 
   // --- Aucun champ interne présent ---
@@ -49,7 +49,7 @@ const FORBIDDEN_ACCESS = ["mask", "elevationsDeg", "samplerStats", "earlyExitCou
   // --- 3) solarnextAdapter utilise shading_loss_pct (pas shading object) ---
   console.log("\n--- 3) solarnextAdapter utilise shading_loss_pct ---");
   const shadingLossPct = shadingResult.totalLossPct;
-  assert(typeof shadingLossPct === "number", "shading_loss_pct disponible");
+  assert(shadingLossPct === null, "shading_loss_pct disponible");
 
   console.log("\n--- RÉSUMÉ ---");
   console.log("Passed: " + passed + ", Failed: " + failed);

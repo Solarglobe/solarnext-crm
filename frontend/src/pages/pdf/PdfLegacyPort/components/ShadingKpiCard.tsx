@@ -18,7 +18,7 @@ export default function ShadingKpiCard({
   value,
   sublabel,
   techLines,
-  valueColor = "#E8ECF8",
+  valueColor = "#243747",
   isHero = false,
   badge,
 }: ShadingKpiCardProps) {
@@ -30,7 +30,7 @@ export default function ShadingKpiCard({
         flexDirection: "column",
         gap: 4,
         background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        border: "1px solid rgba(36,55,71,0.15)",
         borderRadius: 6,
         padding: "10px 12px",
         minWidth: 0,
@@ -40,7 +40,7 @@ export default function ShadingKpiCard({
       <div
         style={{
           fontSize: "7.5pt",
-          color: "#9FA8C7",
+          color: "#465b6c",
           textTransform: "uppercase",
           letterSpacing: "0.04em",
           fontWeight: 500,
@@ -80,7 +80,7 @@ export default function ShadingKpiCard({
 
       {/* Sous-label */}
       {sublabel && (
-        <div style={{ fontSize: "8.5pt", color: "#9FA8C7", lineHeight: 1.3 }}>
+        <div style={{ fontSize: "8.5pt", color: "#465b6c", lineHeight: 1.3 }}>
           {sublabel}
         </div>
       )}
@@ -91,7 +91,7 @@ export default function ShadingKpiCard({
           {techLines.map((line, i) => (
             <div
               key={i}
-              style={{ fontSize: "7.5pt", color: "#9FA8C7", opacity: 0.8, lineHeight: 1.3 }}
+              style={{ fontSize: "7.5pt", color: "#465b6c", opacity: 0.8, lineHeight: 1.3 }}
             >
               {line}
             </div>

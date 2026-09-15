@@ -149,7 +149,7 @@ async function buildTechnicalSummary(calpinageRow, calpinageDataRow = null) {
   }
   powerKwc = Math.round(powerKwc * 1000) / 1000;
 
-  const pans = payload.validatedRoofData?.pans;
+  const pans = payload.geometryContractVersion ? payload.pans : payload.validatedRoofData?.pans;
   const pansArray = Array.isArray(pans) ? pans : [];
 
   /* ORIENTATION-PAN-FIX : l'orientation/inclinaison du dossier doivent être celles du pan

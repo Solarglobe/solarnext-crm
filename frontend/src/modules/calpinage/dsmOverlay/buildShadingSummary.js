@@ -3,10 +3,10 @@ import { getOfficialGlobalShadingLossPct } from "../shading/officialGlobalShadin
 /**
  * CP-FAR-C-09 — Perte d’ombrage globale produit (voir officialGlobalShadingLoss : combined.totalLossPct).
  * Unité: % 0–100. Pas d'arrondi (comparaison test sur float).
- * Objet absent → 0 (pas d’étude chargée). Objet présent mais inconnu / GPS → null.
+ * Objet absent → null (pas de calcul). Objet présent mais inconnu / GPS → null.
  */
 export function getTotalLossPctFromShading(shading) {
-  if (shading == null || typeof shading !== "object") return 0;
+  if (shading == null || typeof shading !== "object") return null;
   return getOfficialGlobalShadingLossPct(shading);
 }
 
@@ -24,30 +24,23 @@ export function getTotalLossPctFromShading(shading) {
  */
 export function buildShadingSummary({
   totalLossPct,
-  annualProductionKwh,
+  annualLossKwh: assessedAnnualLossKwh,
   pricePerKwh,
   qualityScore,
   source,
 }) {
-  const pct =
-    totalLossPct === null
-      ? null
-      : typeof totalLossPct === "number" && !isNaN(totalLossPct)
-        ? Math.max(0, Math.min(100, totalLossPct))
-        : 0;
-  const prodKwh = typeof annualProductionKwh === "number" && annualProductionKwh > 0 ? annualProductionKwh : 0;
-  const price = typeof pricePerKwh === "number" && pricePerKwh >= 0 ? pricePerKwh : 0.2;
-
-  const annualLossKwh = prodKwh > 0 && pct != null ? (prodKwh * pct) / 100 : 0;
-  const annualLossEuro = annualLossKwh * price;
+  const pct = typeof totalLossPct === "number" && Number.isFinite(totalLossPct) && totalLossPct >= 0 && totalLossPct <= 100 ? totalLossPct : null;
+  const price = typeof pricePerKwh === "number" && Number.isFinite(pricePerKwh) && pricePerKwh >= 0 ? pricePerKwh : 0.2;
+  const annualLossKwh = pct != null && typeof assessedAnnualLossKwh === "number" && Number.isFinite(assessedAnnualLossKwh) && assessedAnnualLossKwh >= 0 ? assessedAnnualLossKwh : null;
+  const annualLossEuro = annualLossKwh == null ? null : annualLossKwh * price;
 
   const confidence = typeof qualityScore === "number" && !isNaN(qualityScore) ? Math.max(0, Math.min(1, qualityScore)) : null;
   const confidenceSource = typeof source === "string" ? source : null;
 
   return {
-    totalLossPct: pct === null ? null : Math.round(pct * 10) / 10,
-    annualLossKwh: Math.round(annualLossKwh),
-    annualLossEuro: Math.round(annualLossEuro),
+    totalLossPct: pct,
+    annualLossKwh,
+    annualLossEuro,
     confidence,
     confidenceSource,
   };

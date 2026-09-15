@@ -1,3 +1,4 @@
+import { computeOfficialShading } from '../services/calpinage/officialShading.service.js';
 /**
  * CP-1 — API Calpinage Persist
  * GET/POST /api/studies/:studyId/versions/:versionId/calpinage
@@ -9,6 +10,7 @@ import { withTx } from "../db/tx.js";
 import * as studiesService from "../routes/studies/service.js";
 import { V2_SCHEMA_VERSION } from "../services/calpinage/calpinageShadingNormalizer.js";
 import { adaptLegacyShadingToV2, getNormalizedShadingFromGeometry } from "../services/calpinage/calpinageShadingLegacyAdapter.js";
+import { getOfficialGlobalShadingLossPct } from '../services/shading/officialShadingTruth.js';
 import { mergeLayoutSnapshotForUpsert } from "../services/calpinage/mergeGeometryLayoutSnapshot.js";
 import { sanitizeCalpinageGeometryForPersistence } from "../services/calpinage/calpinageCommercialIntegrity.js";
 import { computeCalpinageGeometryHash } from "../services/calpinage/calpinageGeometryHash.js";
@@ -164,7 +166,7 @@ export async function getCalpinage(req, res) {
         total_panels: row.total_panels,
         total_power_kwc: row.total_power_kwc ? Number(row.total_power_kwc) : null,
         annual_production_kwh: row.annual_production_kwh ? Number(row.annual_production_kwh) : null,
-        total_loss_pct: row.total_loss_pct ? Number(row.total_loss_pct) : null,
+        total_loss_pct: getOfficialGlobalShadingLossPct(geometryJson.shading),
         created_at: row.created_at,
       },
     });
@@ -206,7 +208,7 @@ export async function upsertCalpinage(req, res) {
     let toSave = sanitizeCalpinageGeometryForPersistence(geometryJson);
     if (!toSave.schemaVersion) toSave.schemaVersion = V2_SCHEMA_VERSION;
     if (toSave.shading && typeof toSave.shading === "object") {
-      toSave.shading = adaptLegacyShadingToV2(toSave.shading, toSave.schemaVersion);
+      toSave.shading = getNormalizedShadingFromGeometry(toSave).shading;
     }
 
     let totalPanels = body.total_panels;
@@ -215,7 +217,7 @@ export async function upsertCalpinage(req, res) {
         ? Number(body.total_power_kwc)
         : null;
     const annualProductionKwh = body.annual_production_kwh ?? null;
-    const totalLossPct = body.total_loss_pct ?? 0;
+    let totalLossPct = getOfficialGlobalShadingLossPct(toSave.shading);
 
     // Déduire depuis geometry_json si absent
     if (totalPanels == null && geometryJson.panels) {
@@ -300,6 +302,10 @@ export async function upsertCalpinage(req, res) {
       }
     }
 
+    if (toSave.backendCommercialGeometry.officialNearShadingAllowed) {
+      toSave.shading = await computeOfficialShading({geometry:toSave,lat:toSave.gps.lat,lon:toSave.gps.lon});
+      totalLossPct = getOfficialGlobalShadingLossPct(toSave.shading);
+    }
     const row = await withPgRetryOnce(() =>
       withTx(pool, async (client) => {
         await lockCalpinageVersion(client, org, studyVersionId);
@@ -317,6 +323,11 @@ export async function upsertCalpinage(req, res) {
         const invalidated = hasStoredHash && newHash !== existingHash;
 
         const working = { ...toSave };
+        const previousShading = existingGeometry?.shading;
+        if (working.shading && previousShading && JSON.stringify(previousShading.assessment) !== JSON.stringify(working.shading.assessment)) {
+          const { historicalResult, ...previousResult } = previousShading;
+          working.shading = { ...working.shading, historicalResult: previousResult.assessment?.status === 'stale' && historicalResult ? historicalResult : previousResult };
+        }
         if (invalidated) {
           delete working.layout_snapshot;
           delete working.geometry_hash;
@@ -394,7 +405,7 @@ export async function upsertCalpinage(req, res) {
         total_panels: row.total_panels,
         total_power_kwc: row.total_power_kwc ? Number(row.total_power_kwc) : null,
         annual_production_kwh: row.annual_production_kwh ? Number(row.annual_production_kwh) : null,
-        total_loss_pct: row.total_loss_pct ? Number(row.total_loss_pct) : null,
+        total_loss_pct: getOfficialGlobalShadingLossPct(row.geometry_json?.shading),
         created_at: row.created_at,
       },
     });

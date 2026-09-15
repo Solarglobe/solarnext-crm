@@ -6,8 +6,8 @@
  */
 
 import { computeSunPosition } from "./solarPosition.js";
-import { getHorizonTemporalUiProfile } from "./dominantDirection.js";
-import { getTemporalConclusionLine } from "./shadingUxLabels.js";
+import { getEnergyTemporalProfile } from "../../../../../shared/shading/shadingAssessment.js";
+
 
 const HOUR_MIN = 6;
 const HOUR_MAX = 20;
@@ -24,7 +24,8 @@ export function getSolarPositionForUI(hour, season, latDeg, lonDeg) {
   const day = 21;
   const hh = Math.floor(hour);
   const mm = Math.round((hour - hh) * 60);
-  const date = new Date(year, month, day, hh, mm, 0);
+  // Slider hours are UTC, independent of the browser timezone and DST.
+  const date = new Date(Date.UTC(year, month, day, hh, mm, 0));
   return computeSunPosition(date, latDeg, lonDeg);
 }
 
@@ -43,10 +44,10 @@ function maxInList(items) {
 function barRowHtml(items, maxVal, activeKey) {
   return items
     .map((it) => {
-      const w = maxVal > 0 ? Math.round((it.value / maxVal) * 100) : 0;
+      const w = Number.isFinite(it.value) ? it.value : 0;
       const active = it.key === activeKey ? " dsm-temporal-hbar-fill--active" : "";
-      return `<div class="dsm-temporal-hbar" title="${it.label}">
-        <span class="dsm-temporal-hbar-label">${it.label}</span>
+      return `<div class="dsm-temporal-hbar" title="${it.label} : ${it.value.toFixed(1)} %">
+        <span class="dsm-temporal-hbar-label">${it.label} · ${it.value.toFixed(1)} %</span>
         <div class="dsm-temporal-hbar-track"><div class="dsm-temporal-hbar-fill${active}" style="width:${w}%"></div></div>
       </div>`;
     })
@@ -90,7 +91,7 @@ export function createDsmSolarAnimationControls(overlayRoot, opts = {}) {
       <summary>Simulation soleil sur le radar</summary>
       <div class="dsm-sun-sim-inner">
         <div class="dsm-solar-header">
-          <span class="dsm-solar-hour-display" id="dsm-solar-hour-display">12h00</span>
+          <span class="dsm-solar-hour-display" id="dsm-solar-hour-display">12h00</span><span>UTC</span>
           <div class="dsm-solar-season-toggle" id="dsm-solar-season-toggle">
             <button type="button" class="dsm-solar-season-btn active" data-season="été">Été</button>
             <button type="button" class="dsm-solar-season-btn" data-season="hiver">Hiver</button>
@@ -195,30 +196,17 @@ export function createDsmSolarAnimationControls(overlayRoot, opts = {}) {
 
   function refreshTemporal(ctx) {
     if (!dynamicEl) return;
-    const {
-      horizonData,
-      gps,
-      farBlocked,
-      dominant,
-      nearPct,
-      farPct,
-    } = ctx || {};
-
-    if (farBlocked || !horizonData || !gps) {
-      dynamicEl.innerHTML = `
-        <p class="dsm-temporal-conclusion">${getTemporalConclusionLine({ hasSignal: false }, dominant, true, nearPct, farPct)}</p>
-        <p class="dsm-temporal-muted">Répartition jour / saison : disponible dès que le site est géolocalisé et le masque d’horizon chargé.</p>
-      `;
+    const profile = getEnergyTemporalProfile(ctx?.shading);
+    if (!profile) {
+      dynamicEl.innerHTML = '<p class="dsm-temporal-conclusion">Répartition temporelle non évaluée : aucune perte énergétique positive avec répartition complète.</p>';
       return;
     }
-
-    const profile = getHorizonTemporalUiProfile(horizonData, gps.lat, gps.lon);
     const dayMax = maxInList(profile.dayParts.map((d) => d.value));
     const seasonMax = maxInList(profile.seasons.map((s) => s.value));
 
     const dayHtml = `
       <div class="dsm-temporal-section">
-        <span class="dsm-temporal-section-label">Répartition sur la journée</span>
+        <span class="dsm-temporal-section-label">Part des pertes · journée (position solaire)</span>
         <div class="dsm-temporal-bars dsm-temporal-bars--day">
           ${barRowHtml(profile.dayParts, dayMax, profile.dominantDayKey)}
         </div>
@@ -226,15 +214,15 @@ export function createDsmSolarAnimationControls(overlayRoot, opts = {}) {
 
     const seasonHtml = `
       <div class="dsm-temporal-section">
-        <span class="dsm-temporal-section-label">Répartition par saison</span>
+        <span class="dsm-temporal-section-label">Part des pertes · saison</span>
         <div class="dsm-temporal-bars dsm-temporal-bars--season">
           ${barRowHtml(profile.seasons, seasonMax, profile.dominantSeasonKey)}
         </div>
       </div>`;
 
-    const conclusion = getTemporalConclusionLine(profile, dominant, false, nearPct, farPct);
+    const conclusion = "Répartitions normalisées sur la même perte énergétique annuelle.";
 
-    dynamicEl.innerHTML = `${dayHtml}${seasonHtml}<p class="dsm-temporal-conclusion">${conclusion}</p>`;
+    dynamicEl.innerHTML = `<p class="dsm-temporal-muted">Ombrage local et horizon : parts des pertes énergétiques calculées.</p>${dayHtml}${seasonHtml}<p class="dsm-temporal-conclusion">${conclusion}</p>`;
   }
 
   return {

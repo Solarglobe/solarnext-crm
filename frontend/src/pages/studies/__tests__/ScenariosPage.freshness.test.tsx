@@ -1,3 +1,4 @@
+import { surveyedClearShading } from "./fixtures/surveyedClearShading";
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import {it,expect,vi,afterEach} from 'vitest';
@@ -6,7 +7,7 @@ import {MemoryRouter,Route,Routes} from 'react-router-dom';
 import Page from '../ScenariosPage';
 vi.mock('../../../contexts/OrganizationContext',()=>({useSuperAdminReadOnly:()=>false}));
 vi.mock('../../../services/api',async original=>({...await original<typeof import('../../../services/api')>(),apiFetch:(url:string,opts?:RequestInit)=>fetch(url,opts)}));
-const scenario=(gain:number)=>({id:'BASE',energy:{production_kwh:5000},finance:{economie_total:gain,economie_year_1:1000}});
+const scenario=(gain:number)=>({id: "BASE", shading: surveyedClearShading(),energy:{production_kwh:5000},finance:{economie_total:gain,economie_year_1:1000}});
 const response=(body:unknown)=>new Response(JSON.stringify(body),{status:200});
 const pack={study:{id:'study',title:'Étude fraîcheur'},versions:[{id:'version',version_number:1}]};
 const revision={calculated_at:'2026-09-15T10:00:00Z',input_fingerprint:'saved'};

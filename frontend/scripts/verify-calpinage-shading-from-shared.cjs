@@ -64,6 +64,7 @@ function mustEqualUtf8(label, expectedUtf8, actualPath) {
 }
 
 mustEqualUtf8("solarPosition", fs.readFileSync(path.join(sharedRoot, "solarPosition.cjs"), "utf8"), path.join(calpinageShading, "solarPosition.js"));
+mustEqualUtf8('solarPosition overlay', fs.readFileSync(path.join(sharedRoot, 'solarPosition.cjs'), 'utf8') + '\nexport { computeSunPosition };\n', path.join(frontendRoot, 'src/modules/calpinage/dsmOverlay/solarPosition.js'));
 mustEqualUtf8("horizonMaskSampler", fs.readFileSync(path.join(sharedRoot, "horizonMaskSampler.cjs"), "utf8"), path.join(calpinageShading, "horizonMaskSampler.js"));
 mustEqualBytes("nearShadingCore legacy-assets", path.join(sharedRoot, "nearShadingCore.cjs"), path.join(legacyAssetsShading, "nearShadingCore.cjs"));
 
