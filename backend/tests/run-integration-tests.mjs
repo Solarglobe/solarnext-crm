@@ -36,6 +36,8 @@ if (!process.env.DATABASE_URL) {
 // ─── Liste exhaustive des tests nécessitant une DB ───────────────────────────
 
 const INTEGRATION_TEST_FILES = [
+  'tests/mailSecretRotation.postgres.test.mjs',
+  'tests/migrationHistory.postgres.test.mjs',
   'tests/monthlyConsumptionMeterScope.integration.test.mjs',
   'tests/studyScenarioPageSummary.integration.test.mjs',
   'tests/studyScenarioReads.integration.test.mjs',

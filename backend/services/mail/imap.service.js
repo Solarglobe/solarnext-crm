@@ -524,12 +524,8 @@ export async function updateMailAccount(patch) {
     throw err;
   }
   const row = r0.rows[0];
-  let cred = {};
-  try {
-    cred = decryptJson(row.encrypted_credentials) || {};
-  } catch {
-    cred = {};
-  }
+  // A missing rotation key or damaged ciphertext must not erase stored secrets.
+  const cred = row.encrypted_credentials == null ? {} : decryptJson(row.encrypted_credentials);
 
   const nextEmail = patch.email != null ? String(patch.email).trim() : row.email;
   const nextDisplay = patch.display_name !== undefined ? patch.display_name : row.display_name;

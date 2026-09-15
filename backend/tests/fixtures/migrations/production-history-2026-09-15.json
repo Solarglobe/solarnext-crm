@@ -1,0 +1,1952 @@
+{
+  "description": "Schema history metadata only; no business rows or credentials. Read-only production snapshot 2026-09-15.",
+  "applied": [
+    {
+      "id": 1,
+      "name": "1771027680293_init",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 2,
+      "name": "1771028000454_create-organizations-table",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 3,
+      "name": "1771073726080_create-users-roles-tables",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 4,
+      "name": "1771073735854_seed-roles",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 5,
+      "name": "1771074016353_create-leads-pipeline-tables",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 6,
+      "name": "1771074024613_seed-default-pipeline",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 7,
+      "name": "1771074258505_create-clients-tables",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 8,
+      "name": "1771075727165_create-studies-tables",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 9,
+      "name": "1771076245332_create-study-data-table",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 10,
+      "name": "1771076375980_create-calpinage-data-table",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 11,
+      "name": "1771076459830_create-documents-table",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 12,
+      "name": "1771076606217_create-articles-table",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 13,
+      "name": "1771076697812_create-quotes-tables",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 14,
+      "name": "1771076791286_create-invoices-tables",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 15,
+      "name": "1771076898218_create-calendar-tables",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 16,
+      "name": "1771076986294_create-email-module-tables",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 17,
+      "name": "1771077066382_create-audit-logs-table",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 18,
+      "name": "1771077545093_cp-025-add-uniques-and-indexes",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 19,
+      "name": "1771077957498_cp-026-integrity-triggers-and-indexes",
+      "run_on": "2026-02-14T14:37:44.76785"
+    },
+    {
+      "id": 20,
+      "name": "1771151752804_create-rbac-tables",
+      "run_on": "2026-02-15T10:42:16.758002"
+    },
+    {
+      "id": 21,
+      "name": "1771151778462_seed-rbac-system-permissions-and-roles",
+      "run_on": "2026-02-15T10:42:16.758002"
+    },
+    {
+      "id": 22,
+      "name": "1771152000000_cp-028-lead-convert-columns",
+      "run_on": "2026-02-15T12:30:07.687639"
+    },
+    {
+      "id": 23,
+      "name": "1771152100000_cp-031-quotes",
+      "run_on": "2026-02-15T12:38:25.260462"
+    },
+    {
+      "id": 24,
+      "name": "1771152200000_cp-031-studies",
+      "run_on": "2026-02-15T12:42:25.66846"
+    },
+    {
+      "id": 25,
+      "name": "1771152300000_cp-032-documents",
+      "run_on": "2026-02-15T12:46:04.323846"
+    },
+    {
+      "id": 26,
+      "name": "1771152400000_cp-032A-soft-delete",
+      "run_on": "2026-02-15T13:04:59.169957"
+    },
+    {
+      "id": 27,
+      "name": "1771152500000_cp-032B-index-lock",
+      "run_on": "2026-02-15T13:07:08.510333"
+    },
+    {
+      "id": 28,
+      "name": "1771152600000_cp-035-leads-premium",
+      "run_on": "2026-02-15T22:39:38.641375"
+    },
+    {
+      "id": 29,
+      "name": "1771152700000_cp028-create-addresses-table",
+      "run_on": "2026-02-16T08:27:24.726385"
+    },
+    {
+      "id": 30,
+      "name": "1771152800000_cp028-add-address-fk-to-leads",
+      "run_on": "2026-02-16T08:27:24.726385"
+    },
+    {
+      "id": 31,
+      "name": "1771153000000_cp029-extend-leads-core-fields",
+      "run_on": "2026-02-16T08:36:29.938346"
+    },
+    {
+      "id": 32,
+      "name": "1771153001000_cp029-create-lead-consumption-monthly",
+      "run_on": "2026-02-16T08:36:29.938346"
+    },
+    {
+      "id": 33,
+      "name": "1771153100000_cp030-lead-activities",
+      "run_on": "2026-02-16T09:17:13.446719"
+    },
+    {
+      "id": 34,
+      "name": "1771153200000_cp036-project-status-hub-client",
+      "run_on": "2026-02-16T09:24:54.224812"
+    },
+    {
+      "id": 35,
+      "name": "1771153200001_cp036-lead-activities-types",
+      "run_on": "2026-02-16T09:25:57.294264"
+    },
+    {
+      "id": 36,
+      "name": "1771153300000_create_missions_engine",
+      "run_on": "2026-02-16T09:46:37.356822"
+    },
+    {
+      "id": 37,
+      "name": "1771153300001_seed-mission-permissions",
+      "run_on": "2026-02-16T09:46:37.356822"
+    },
+    {
+      "id": 38,
+      "name": "1771153300002_seed-mission-types",
+      "run_on": "2026-02-16T09:46:37.356822"
+    },
+    {
+      "id": 39,
+      "name": "1771153300003_add-more-mission-types",
+      "run_on": "2026-02-16T10:06:37.482318"
+    },
+    {
+      "id": 40,
+      "name": "1771153300004_expand-mission-types",
+      "run_on": "2026-02-16T10:06:37.482318"
+    },
+    {
+      "id": 41,
+      "name": "1771154000000_cp-admin-arch-01-user-manage-and-legacy-roles",
+      "run_on": "2026-02-16T13:16:31.609678"
+    },
+    {
+      "id": 42,
+      "name": "1771155000000_cp-admin-struct-02-user-team-agency",
+      "run_on": "2026-02-16T13:20:08.880428"
+    },
+    {
+      "id": 43,
+      "name": "1771156000000_cp-admin-org-04-organization-structure",
+      "run_on": "2026-02-16T13:32:54.566671"
+    },
+    {
+      "id": 44,
+      "name": "1771157000000_cp-lead-client-split-06",
+      "run_on": "2026-02-16T14:01:46.209368"
+    },
+    {
+      "id": 45,
+      "name": "1771157500000_cp-lead-client-split-06-lock-pipeline-code",
+      "run_on": "2026-02-16T14:05:04.140983"
+    },
+    {
+      "id": 46,
+      "name": "1771158000000_cp-auto-convert-archive-08",
+      "run_on": "2026-02-16T14:14:54.555613"
+    },
+    {
+      "id": 47,
+      "name": "1771159000000_create_pv_panels",
+      "run_on": "2026-02-16T22:46:07.861637"
+    },
+    {
+      "id": 48,
+      "name": "1771159000001_create_pv_inverters",
+      "run_on": "2026-02-16T22:46:07.861637"
+    },
+    {
+      "id": 49,
+      "name": "1771159000002_create_pv_batteries",
+      "run_on": "2026-02-16T22:46:07.861637"
+    },
+    {
+      "id": 50,
+      "name": "1771159000003_seed_pv_catalog_v1",
+      "run_on": "2026-02-16T22:46:07.861637"
+    },
+    {
+      "id": 51,
+      "name": "1771159000004_pv_catalog_structure",
+      "run_on": "2026-02-19T11:13:44.192322"
+    },
+    {
+      "id": 52,
+      "name": "1771159000005_fix_pv_catalog_data",
+      "run_on": "2026-02-19T11:17:31.453956"
+    },
+    {
+      "id": 53,
+      "name": "1771159000006_add_inverter_family",
+      "run_on": "2026-02-19T12:50:37.200452"
+    },
+    {
+      "id": 54,
+      "name": "1771159000007_sync_inverter_family_with_type",
+      "run_on": "2026-02-19T14:07:45.400009"
+    },
+    {
+      "id": 55,
+      "name": "1771159000008_fix_longi_x10_catalog",
+      "run_on": "2026-02-19T17:23:55.49264"
+    },
+    {
+      "id": 56,
+      "name": "1771159000009_purge_inactive_pv_catalog",
+      "run_on": "2026-02-19T17:28:08.830997"
+    },
+    {
+      "id": 57,
+      "name": "1771159100000_add_final_study_json",
+      "run_on": "2026-02-26T22:39:41.913814"
+    },
+    {
+      "id": 58,
+      "name": "1771160000000_create_quote_catalog_items",
+      "run_on": "2026-02-26T22:39:41.913814"
+    },
+    {
+      "id": 59,
+      "name": "1771160100000_add_quote_catalog_rbac_permissions",
+      "run_on": "2026-02-26T22:47:09.544594"
+    },
+    {
+      "id": 61,
+      "name": "1771160200000_cp-quote-004-quote-lines-catalog-snapshot",
+      "run_on": "2026-02-27T10:05:42.750221"
+    },
+    {
+      "id": 62,
+      "name": "1771160300000_cp-quote-005-snapshot-hardening",
+      "run_on": "2026-02-27T10:05:42.750221"
+    },
+    {
+      "id": 63,
+      "name": "1771160400000_create_calpinage_snapshots",
+      "run_on": "2026-02-27T10:05:42.750221"
+    },
+    {
+      "id": 64,
+      "name": "1771160500000_calpinage_snapshots_add_study_version_id",
+      "run_on": "2026-02-27T10:05:42.750221"
+    },
+    {
+      "id": 65,
+      "name": "1771160600000_create_economic_snapshots",
+      "run_on": "2026-02-27T10:05:42.750221"
+    },
+    {
+      "id": 66,
+      "name": "1771160700000_quotes_lead_only_client_nullable",
+      "run_on": "2026-02-27T13:43:39.326143"
+    },
+    {
+      "id": 67,
+      "name": "1771160800000_create_pv_virtual_batteries",
+      "run_on": "2026-02-27T16:12:59.318232"
+    },
+    {
+      "id": 68,
+      "name": "1771160900000_virtual_batteries_unique_provider_per_org",
+      "run_on": "2026-02-27T16:20:51.311345"
+    },
+    {
+      "id": 69,
+      "name": "1771161000000_virtual_batteries_tariff_grid_json",
+      "run_on": "2026-02-27T17:22:16.757413"
+    },
+    {
+      "id": 70,
+      "name": "1771162000000_add_default_price_to_pv_batteries",
+      "run_on": "2026-03-02T11:50:42.467328"
+    },
+    {
+      "id": 71,
+      "name": "1771162100000_study_versions_status_updated_at",
+      "run_on": "2026-03-04T20:00:13.954183"
+    },
+    {
+      "id": 72,
+      "name": "1771162200000_study_versions_scenario_lock",
+      "run_on": "2026-03-04T20:00:13.954183"
+    },
+    {
+      "id": 73,
+      "name": "1771162300000_study_versions_locked_at",
+      "run_on": "2026-03-04T23:25:51.811738"
+    },
+    {
+      "id": 74,
+      "name": "1771162400000_leads_energy_profile",
+      "run_on": "2026-03-04T23:25:51.811738"
+    },
+    {
+      "id": 75,
+      "name": "1771162500000_remove_active_snapshots",
+      "run_on": "2026-03-05T01:26:49.317172"
+    },
+    {
+      "id": 76,
+      "name": "1771162600000_add_deleted_at_studies",
+      "run_on": "2026-03-05T01:26:49.317172"
+    },
+    {
+      "id": 77,
+      "name": "1771162700000_add_calpinage_snapshots_is_active",
+      "run_on": "2026-03-05T11:31:03.226118"
+    },
+    {
+      "id": 78,
+      "name": "1771162800000_leads_consumption_csv_path",
+      "run_on": "2026-03-05T13:38:29.693291"
+    },
+    {
+      "id": 79,
+      "name": "1771162900000_entity_documents_document_type",
+      "run_on": "2026-03-05T13:38:29.693291"
+    },
+    {
+      "id": 80,
+      "name": "1771163000000_add_study_pdf_document_type",
+      "run_on": "2026-03-07T13:54:08.709689"
+    },
+    {
+      "id": 81,
+      "name": "1771163100000_add_pdf_cover_image_to_organizations",
+      "run_on": "2026-03-10T07:45:13.43492"
+    },
+    {
+      "id": 82,
+      "name": "1771163110000_add_organization_pdf_cover_document_type",
+      "run_on": "2026-03-10T07:45:13.43492"
+    },
+    {
+      "id": 83,
+      "name": "1771163200000_add_purchase_price_ht_to_pv_batteries",
+      "run_on": "2026-03-23T11:03:21.830358"
+    },
+    {
+      "id": 84,
+      "name": "1771163200001_add_lead_status_and_lost_reason",
+      "run_on": "2026-03-23T14:31:46.72831"
+    },
+    {
+      "id": 85,
+      "name": "1771173000000_lead_delete_permission",
+      "run_on": "2026-03-23T22:33:27.971129"
+    },
+    {
+      "id": 86,
+      "name": "1771174500000_normalize_leads_status_signed_to_client",
+      "run_on": "2026-03-24T10:17:14.688488"
+    },
+    {
+      "id": 87,
+      "name": "1771175000000_cp-pro-customer-fields",
+      "run_on": "2026-03-26T10:49:11.830294"
+    },
+    {
+      "id": 88,
+      "name": "1771175100000_cp-pro-siret",
+      "run_on": "2026-03-26T11:04:10.258667"
+    },
+    {
+      "id": 89,
+      "name": "1771180000000_cp-financial-pole-schema",
+      "run_on": "2026-03-26T17:27:16.756724"
+    },
+    {
+      "id": 90,
+      "name": "1774563000000_cp-financial-official-document-snapshot",
+      "run_on": "2026-03-26T20:39:07.145271"
+    },
+    {
+      "id": 91,
+      "name": "1774600000000_cp-invoice-lead-payment-terms",
+      "run_on": "2026-03-26T21:39:31.704609"
+    },
+    {
+      "id": 92,
+      "name": "1774701000000_quote_text_templates",
+      "run_on": "2026-03-27T10:34:08.968461"
+    },
+    {
+      "id": 93,
+      "name": "1774800000000_leads_equipements",
+      "run_on": "2026-03-27T12:25:34.688061"
+    },
+    {
+      "id": 94,
+      "name": "1774800000001_cp-invoice-lead-payment-terms-fix",
+      "run_on": "2026-03-29T13:06:22.114602"
+    },
+    {
+      "id": 95,
+      "name": "1774900000000_cp-invoice-lead-payment-terms-fix",
+      "run_on": "2026-03-29T13:09:32.718995"
+    },
+    {
+      "id": 96,
+      "name": "1775000000000_lead_meters_multimeter",
+      "run_on": "2026-03-30T07:23:38.304214"
+    },
+    {
+      "id": 97,
+      "name": "1775000000500_fix_missing_idx_lcm_meter_id",
+      "run_on": "2026-03-30T08:14:41.02069"
+    },
+    {
+      "id": 98,
+      "name": "1775000000600_quotes_drop_sent_requires_client_check",
+      "run_on": "2026-03-31T00:10:49.9859"
+    },
+    {
+      "id": 99,
+      "name": "1775100000700_entity_documents_quote_signed_document_types",
+      "run_on": "2026-03-31T00:19:09.734537"
+    },
+    {
+      "id": 100,
+      "name": "1775100000800_quote_catalog_category_pack",
+      "run_on": "2026-03-31T09:35:16.447941"
+    },
+    {
+      "id": 101,
+      "name": "1775100000900_quote_catalog_category_pack_idempotent",
+      "run_on": "2026-03-31T09:43:00.181831"
+    },
+    {
+      "id": 102,
+      "name": "1775200000100_quote_catalog_category_protection_box",
+      "run_on": "2026-03-31T14:38:50.744686"
+    },
+    {
+      "id": 103,
+      "name": "1775300000000_entity_documents_business_metadata",
+      "run_on": "2026-04-01T07:35:34.59871"
+    },
+    {
+      "id": 104,
+      "name": "1775400000000_create_client_portal_tokens",
+      "run_on": "2026-04-13T17:33:59.306904"
+    },
+    {
+      "id": 105,
+      "name": "1775500000000_add_client_portal_token_secret",
+      "run_on": "2026-04-13T19:22:48.952282"
+    },
+    {
+      "id": 106,
+      "name": "1775600000000_users_first_last_name",
+      "run_on": "2026-04-13T20:19:26.416836"
+    },
+    {
+      "id": 107,
+      "name": "1775700000000_create_lead_dp",
+      "run_on": "2026-04-13T22:28:26.140023"
+    },
+    {
+      "id": 108,
+      "name": "1775710000000_alter_lead_dp_state_json_nullable",
+      "run_on": "2026-04-13T22:31:08.830659"
+    },
+    {
+      "id": 109,
+      "name": "1775750000000_lead_client_birth_date",
+      "run_on": "2026-04-14T13:35:41.919233"
+    },
+    {
+      "id": 110,
+      "name": "1775810000000_entity_document_category_dp",
+      "run_on": "2026-04-15T07:53:20.39863"
+    },
+    {
+      "id": 111,
+      "name": "1775810000001_entity_documents_document_type_dp_pdf",
+      "run_on": "2026-04-15T07:53:37.667071"
+    },
+    {
+      "id": 113,
+      "name": "1775900000000_mail_core_schema",
+      "run_on": "2026-04-15T12:12:44.809023"
+    },
+    {
+      "id": 115,
+      "name": "1775900001000_mail_core_improvements",
+      "run_on": "2026-04-15T12:17:20.608753"
+    },
+    {
+      "id": 117,
+      "name": "1775900002000_mail_rbac_permissions",
+      "run_on": "2026-04-15T12:24:20.802478"
+    },
+    {
+      "id": 119,
+      "name": "1775900003000_mail_smtp_send_support",
+      "run_on": "2026-04-15T12:42:35.715478"
+    },
+    {
+      "id": 121,
+      "name": "1775900004000_mail_sync_support",
+      "run_on": "2026-04-15T12:54:14.109057"
+    },
+    {
+      "id": 123,
+      "name": "1775900005000_mail_threading_support",
+      "run_on": "2026-04-15T13:09:44.680367"
+    },
+    {
+      "id": 126,
+      "name": "1775900006000_mail_crm_link",
+      "run_on": "2026-04-15T13:27:25.77221"
+    },
+    {
+      "id": 127,
+      "name": "1775900007000_mail_attachments_documents",
+      "run_on": "2026-04-15T15:00:24.418248"
+    },
+    {
+      "id": 128,
+      "name": "1775900008000_mail_archive",
+      "run_on": "2026-04-15T15:08:29.131471"
+    },
+    {
+      "id": 129,
+      "name": "1775900009000_fix_entity_document_category_dp",
+      "run_on": "2026-04-15T15:29:19.387218"
+    },
+    {
+      "id": 130,
+      "name": "1775900010000_mail_signatures",
+      "run_on": "2026-04-15T19:34:01.940436"
+    },
+    {
+      "id": 131,
+      "name": "1775900011000_mail_templates",
+      "run_on": "2026-04-15T19:43:19.352989"
+    },
+    {
+      "id": 132,
+      "name": "1775900012000_mail_tracking",
+      "run_on": "2026-04-15T20:01:08.14925"
+    },
+    {
+      "id": 133,
+      "name": "1775900013000_mail_internal_notes_tags",
+      "run_on": "2026-04-15T20:11:21.205479"
+    },
+    {
+      "id": 134,
+      "name": "1775900014000_event_log",
+      "run_on": "2026-04-15T20:24:01.913751"
+    },
+    {
+      "id": 135,
+      "name": "1775920000000_mail_outbox_queue",
+      "run_on": "2026-04-15T21:27:46.572736"
+    },
+    {
+      "id": 136,
+      "name": "1775921000000_mail_outbox_queue_fix",
+      "run_on": "2026-04-15T21:50:01.91384"
+    },
+    {
+      "id": 137,
+      "name": "1775930000000_mail_messages_fulltext_search",
+      "run_on": "2026-04-15T22:32:05.915237"
+    },
+    {
+      "id": 138,
+      "name": "1775930001000_reconcile_mail_fulltext_migration_checksum",
+      "run_on": "2026-04-15T22:38:45.04168"
+    },
+    {
+      "id": 139,
+      "name": "1775930002000_sync_mail_fulltext_migration_checksum_refs",
+      "run_on": "2026-04-15T22:41:27.609351"
+    },
+    {
+      "id": 172,
+      "name": "1776100000000_entity_documents_legal_cgv",
+      "run_on": "2026-04-16T07:47:06.349892"
+    },
+    {
+      "id": 173,
+      "name": "1776200000000_entity_documents_organization_legal_rge_decennale_fix",
+      "run_on": "2026-04-16T08:32:18.746378"
+    },
+    {
+      "id": 174,
+      "name": "1776300000000_leads_assigned_user_source_normalize",
+      "run_on": "2026-04-16T09:38:49.758985"
+    },
+    {
+      "id": 175,
+      "name": "1776300001000_sync_leads_assigned_user_source_normalize_checksum",
+      "run_on": "2026-04-16T09:52:28.44767"
+    },
+    {
+      "id": 176,
+      "name": "1776400000000_audit_logs_cp072_enhancements",
+      "run_on": "2026-04-16T11:59:41.464122"
+    },
+    {
+      "id": 177,
+      "name": "1776500000000_cp080_org_quote_finance_settings",
+      "run_on": "2026-04-16T20:41:43.405542"
+    },
+    {
+      "id": 178,
+      "name": "1776500001000_cp080_quotes_org_quote_number_unique_idempotent",
+      "run_on": "2026-04-16T20:50:43.431959"
+    },
+    {
+      "id": 179,
+      "name": "1776500002000_marketing_export_consent_columns",
+      "run_on": "2026-04-20T21:27:46.287283"
+    },
+    {
+      "id": 180,
+      "name": "1776500003000_marketing_opt_in_explicit",
+      "run_on": "2026-04-20T21:32:08.713179"
+    },
+    {
+      "id": 181,
+      "name": "1776600000000_leads_archived_at_ensure",
+      "run_on": "2026-04-21T07:43:11.994809"
+    },
+    {
+      "id": 182,
+      "name": "1776600000000_lead_sources_acquisition_canonical",
+      "run_on": "2026-04-21T10:25:11.564214"
+    },
+    {
+      "id": 183,
+      "name": "1776700000000_lead_sources_drop_retour_flyer",
+      "run_on": "2026-04-21T11:08:14.589341"
+    },
+    {
+      "id": 185,
+      "name": "1776710000000_cp_mairies_v1",
+      "run_on": "2026-04-21T12:50:16.699198"
+    },
+    {
+      "id": 186,
+      "name": "1776720000000_cp_mairies_rbac_permissions",
+      "run_on": "2026-04-21T13:02:21.344545"
+    },
+    {
+      "id": 187,
+      "name": "1776730000000_audit_logs_drop_user_id_fk",
+      "run_on": "2026-04-21T14:40:49.817517"
+    },
+    {
+      "id": 188,
+      "name": "1776740000000_organizations_is_archived",
+      "run_on": "2026-04-23T11:55:12.203514"
+    },
+    {
+      "id": 189,
+      "name": "1776810000000_create_fiche_techniques",
+      "run_on": "2026-04-27T16:15:06.44344"
+    },
+    {
+      "id": 190,
+      "name": "1776820000000_fiche_techniques_perf_indexes",
+      "run_on": "2026-04-27T16:15:06.44344"
+    },
+    {
+      "id": 191,
+      "name": "1778000000000_cp-financial-billing-total-lock",
+      "run_on": "2026-04-29T18:12:44.960919"
+    },
+    {
+      "id": 192,
+      "name": "1778000001000_cp-financial-billing-total-immutable-trigger",
+      "run_on": "2026-04-29T18:12:44.960919"
+    },
+    {
+      "id": 193,
+      "name": "1778200000000_cp-financial-invoice-due-date-backfill",
+      "run_on": "2026-04-30T14:37:00.909297"
+    },
+    {
+      "id": 194,
+      "name": "1778205000000_cp-financial-invoices-cancelled-at",
+      "run_on": "2026-04-30T14:49:07.531214"
+    },
+    {
+      "id": 195,
+      "name": "1779100000000_cp-financial-drop-billing-total-immutable-trigger",
+      "run_on": "2026-05-01T22:41:23.80353"
+    },
+    {
+      "id": 196,
+      "name": "1779999999999_update-pipeline-kanban-v2",
+      "run_on": "2026-05-07T16:42:12.594809"
+    },
+    {
+      "id": 197,
+      "name": "1780000000000_pv_batteries_power_scaling_v2",
+      "run_on": "2026-05-08T09:47:21.136849"
+    },
+    {
+      "id": 198,
+      "name": "1780100000000_cp-financial-immutability-lock",
+      "run_on": "2026-05-15T23:05:37.636567"
+    },
+    {
+      "id": 199,
+      "name": "1780200000000_cp-mutation-log",
+      "run_on": "2026-05-15T23:17:37.058759"
+    },
+    {
+      "id": 200,
+      "name": "1780300000000_cp-soft-delete-deleted-at",
+      "run_on": "2026-05-16T11:50:05.218306"
+    },
+    {
+      "id": 201,
+      "name": "1780400000000_cp-document-integrity",
+      "run_on": "2026-05-16T12:00:13.497053"
+    },
+    {
+      "id": 202,
+      "name": "1780500000000_cp-financial-scenarios",
+      "run_on": "2026-05-16T12:19:35.127162"
+    },
+    {
+      "id": 203,
+      "name": "1780600000000_create-refresh-tokens",
+      "run_on": "2026-05-18T10:52:39.997976"
+    },
+    {
+      "id": 204,
+      "name": "1780700000000_create-password-reset-tokens",
+      "run_on": "2026-05-18T11:01:27.201475"
+    },
+    {
+      "id": 205,
+      "name": "1780800000000_email-verification",
+      "run_on": "2026-05-18T11:10:37.221851"
+    },
+    {
+      "id": 206,
+      "name": "1780900000000_signup-self-service",
+      "run_on": "2026-05-18T11:17:05.195307"
+    },
+    {
+      "id": 207,
+      "name": "1781000000000_add-organization-onboarding-state",
+      "run_on": "2026-05-18T11:35:23.164454"
+    },
+    {
+      "id": 208,
+      "name": "1781100000000_add-mfa",
+      "run_on": "2026-05-18T11:52:23.091191"
+    },
+    {
+      "id": 209,
+      "name": "1781200000000_enrich-refresh-token-sessions",
+      "run_on": "2026-05-18T12:55:48.996459"
+    },
+    {
+      "id": 210,
+      "name": "1781300000000_mark-solarglobe-internal",
+      "run_on": "2026-05-18T13:09:50.828711"
+    },
+    {
+      "id": 211,
+      "name": "1781400000000_fix-refresh-tokens-last-used-at-type",
+      "run_on": "2026-05-18T13:40:25.919216"
+    },
+    {
+      "id": 212,
+      "name": "1781500000000_enrich_global_pv_catalog",
+      "run_on": "2026-05-18T15:13:46.227203"
+    },
+    {
+      "id": 213,
+      "name": "1781500000001_seed_global_pv_catalog_2026",
+      "run_on": "2026-05-18T15:13:46.227203"
+    },
+    {
+      "id": 214,
+      "name": "1781600000000_backfill_onboarding_company_to_organization",
+      "run_on": "2026-05-19T13:24:23.407975"
+    },
+    {
+      "id": 215,
+      "name": "1781700000000_fix_pipeline_v2_seed_and_codes",
+      "run_on": "2026-05-19T13:47:37.945518"
+    },
+    {
+      "id": 216,
+      "name": "1781800000000_remove_onboarding_pipeline_payload",
+      "run_on": "2026-05-19T13:52:04.610408"
+    },
+    {
+      "id": 217,
+      "name": "1781900000000_ci_schema_defaults_and_financial_lead_links",
+      "run_on": "2026-05-28T08:51:51.84567"
+    },
+    {
+      "id": 218,
+      "name": "1782000000000_study_versions_soft_delete_column",
+      "run_on": "2026-05-28T08:51:51.84567"
+    },
+    {
+      "id": 219,
+      "name": "1782100000000_restore_billing_total_immutable_trigger",
+      "run_on": "2026-05-28T08:51:51.84567"
+    },
+    {
+      "id": 220,
+      "name": "1782200000000_allow_pre_invoice_billing_base_relock",
+      "run_on": "2026-05-28T08:51:51.84567"
+    },
+    {
+      "id": 221,
+      "name": "1782300000000_mail_drafts",
+      "run_on": "2026-06-10T09:23:19.660756"
+    },
+    {
+      "id": 222,
+      "name": "1782400000000_quote_signature_otps",
+      "run_on": "2026-06-10T10:42:06.144821"
+    },
+    {
+      "id": 223,
+      "name": "1782500000000_fix_atmoce_bat7_scaling",
+      "run_on": "2026-06-16T15:59:23.707286"
+    },
+    {
+      "id": 224,
+      "name": "1782600000000_mail_outbox_idempotency_key",
+      "run_on": "2026-06-16T16:24:50.742721"
+    },
+    {
+      "id": 225,
+      "name": "1782700000000_quote_signature_otps_channel",
+      "run_on": "2026-06-19T06:33:45.06159"
+    },
+    {
+      "id": 226,
+      "name": "1782800000000_quote_billing_party_installer_split",
+      "run_on": "2026-06-22T10:40:04.461265"
+    },
+    {
+      "id": 227,
+      "name": "1782900000000_dp_mandat_signature_otps",
+      "run_on": "2026-06-22T16:08:31.00918"
+    },
+    {
+      "id": 228,
+      "name": "1783000000000_add-lead-id-to-missions",
+      "run_on": "2026-06-23T17:06:43.485569"
+    },
+    {
+      "id": 229,
+      "name": "1783100000000_lead_meter_elec_prices",
+      "run_on": "2026-07-02T12:37:11.996003"
+    },
+    {
+      "id": 230,
+      "name": "1783200000000_add-phone-to-users",
+      "run_on": "2026-07-04T13:22:22.338783"
+    },
+    {
+      "id": 231,
+      "name": "1783300000000_cp-financial-scenarios-v2h",
+      "run_on": "2026-07-05T19:51:54.655348"
+    },
+    {
+      "id": 232,
+      "name": "1784000000000_create_crm_tasks",
+      "run_on": "2026-08-17T10:06:03.571134"
+    },
+    {
+      "id": 233,
+      "name": "1784000000001_seed_crm_task_permissions",
+      "run_on": "2026-08-17T10:06:03.571134"
+    },
+    {
+      "id": 234,
+      "name": "1784000000002_crm_tasks_automation_foundation",
+      "run_on": "2026-08-17T10:06:03.571134"
+    },
+    {
+      "id": 235,
+      "name": "1784100000000_create_installers_tariffs",
+      "run_on": "2026-08-17T13:45:55.251877"
+    },
+    {
+      "id": 236,
+      "name": "1784100000001_seed_installer_permissions",
+      "run_on": "2026-08-17T13:45:55.251877"
+    },
+    {
+      "id": 237,
+      "name": "1784100000002_correct_ohelec_tariffs_v1",
+      "run_on": "2026-08-17T13:45:55.251877"
+    },
+    {
+      "id": 238,
+      "name": "1784100000003_seed_ohelec_catalog_fix",
+      "run_on": "2026-08-17T13:49:08.021789"
+    },
+    {
+      "id": 239,
+      "name": "1784100000004_sync_installer_permissions_to_org_roles",
+      "run_on": "2026-08-17T14:02:51.837232"
+    },
+    {
+      "id": 240,
+      "name": "1784100000005_extend_ohelec_pricing_to_15kwc",
+      "run_on": "2026-08-17T14:24:24.48716"
+    },
+    {
+      "id": 241,
+      "name": "1784200000000_mail_flag_sync_mutations",
+      "run_on": "2026-08-20T13:57:30.771067"
+    },
+    {
+      "id": 242,
+      "name": "1784200001000_mail_real_folders",
+      "run_on": "2026-08-20T13:57:30.771067"
+    },
+    {
+      "id": 243,
+      "name": "1784200002000_mail_move_mutations",
+      "run_on": "2026-08-20T13:57:30.771067"
+    },
+    {
+      "id": 244,
+      "name": "1784200003000_mail_account_lifecycle",
+      "run_on": "2026-08-20T13:57:30.771067"
+    },
+    {
+      "id": 245,
+      "name": "1784200004000_mail_outlook_ui_indexes",
+      "run_on": "2026-08-20T13:57:30.771067"
+    },
+    {
+      "id": 246,
+      "name": "1784200005000_mail_phase6_history_drafts_sent",
+      "run_on": "2026-08-20T13:57:30.771067"
+    },
+    {
+      "id": 247,
+      "name": "1784200006000_mail_phase7_security_observability",
+      "run_on": "2026-08-20T13:57:30.771067"
+    },
+    {
+      "id": 248,
+      "name": "1784200007000_mail_attachments_updated_at",
+      "run_on": "2026-08-20T14:02:08.396817"
+    },
+    {
+      "id": 249,
+      "name": "1784300000000_seed_francilienne_energy_panels",
+      "run_on": "2026-08-28T13:38:50.067474"
+    },
+    {
+      "id": 250,
+      "name": "1784300001000_harden_solarglobe_mail_signature",
+      "run_on": "2026-08-28T16:45:09.25586"
+    },
+    {
+      "id": 251,
+      "name": "1784300002000_update_solarglobe_mail_signature_contact",
+      "run_on": "2026-08-28T16:59:40.221196"
+    },
+    {
+      "id": 252,
+      "name": "1784300003000_polish_solarglobe_mail_signature_design",
+      "run_on": "2026-08-28T17:19:55.995203"
+    },
+    {
+      "id": 253,
+      "name": "1784300004000_seed_installer_grid_connection_consuel_option",
+      "run_on": "2026-08-31T08:39:03.726225"
+    },
+    {
+      "id": 254,
+      "name": "1785600000000_update_urban_solar_virtual_battery_tariffs_2026_08_01",
+      "run_on": "2026-08-31T10:33:30.173584"
+    },
+    {
+      "id": 255,
+      "name": "1788900000000_add_long_term_follow_up_stage",
+      "run_on": "2026-09-08T15:35:08.735629"
+    },
+    {
+      "id": 256,
+      "name": "1790400000000_current_electricity_subscription",
+      "run_on": "2026-09-14T17:27:32.330871"
+    },
+    {
+      "id": 257,
+      "name": "1790400100000_current_electricity_annual_bill",
+      "run_on": "2026-09-14T17:27:32.330871"
+    }
+  ],
+  "checksums": [
+    {
+      "checksum": "a3562a5b0e50bf502e0f7ee84a96159f55eff57931bec44b6fec8e09e998a98c",
+      "created_at": "2026-03-05T14:46:16.936419+01:00",
+      "migration_name": "1771027680293_init",
+      "checksum_normalized": "bc4a159786ab3d716eab6a8aecbe78c97699fd6048377478214b8d3f85301e73"
+    },
+    {
+      "checksum": "afab372ebf09d3eb8a9128843bca5528234bf04a49e468a8fefa1966b89ed74a",
+      "created_at": "2026-03-05T14:46:16.940951+01:00",
+      "migration_name": "1771028000454_create-organizations-table",
+      "checksum_normalized": "dda5829096c254ae55e1f9426f2a510e741d55d291054109ee7325c6ed645704"
+    },
+    {
+      "checksum": "a2699bad3f22b050c50b61c834624c5c538675593feddef1445d394d3652c5da",
+      "created_at": "2026-03-05T14:46:16.946329+01:00",
+      "migration_name": "1771073726080_create-users-roles-tables",
+      "checksum_normalized": "09738d8786bbbe9997b66a7675f1cb883d1e5685f13eb3f29c03aeee7bc8057b"
+    },
+    {
+      "checksum": "703bce99566f0f75f2e31fa1ac84dec2920c2e72705aaf9cf92f77bdd385f719",
+      "created_at": "2026-03-05T14:46:16.951392+01:00",
+      "migration_name": "1771073735854_seed-roles",
+      "checksum_normalized": "07984045fa6c078f3f64aef9f8d65717d81503e821d81171e9a6c927884036ca"
+    },
+    {
+      "checksum": "3c485256856298823bd25dce8ea4f0f0386f0bffd68cb1b551ecfe2e713a99fc",
+      "created_at": "2026-03-05T14:46:16.955635+01:00",
+      "migration_name": "1771074016353_create-leads-pipeline-tables",
+      "checksum_normalized": "d44c3e5fecf1dd541fb6142ca988d615afdc477d428db7a2bbc460a064eef953"
+    },
+    {
+      "checksum": "b23a10f2dd31269a26058ed284748c6c3f6845865542a51fc95fd9908f089bc1",
+      "created_at": "2026-03-05T14:46:16.960848+01:00",
+      "migration_name": "1771074024613_seed-default-pipeline",
+      "checksum_normalized": "143ef86a099139affd53ff0b778c13aa3795d0aac6f8eed730380a691e9c6d59"
+    },
+    {
+      "checksum": "32ad97287a33935c656ef173b48da43dd535004f9f74a97c1e39295c80aec33e",
+      "created_at": "2026-03-05T14:46:16.964942+01:00",
+      "migration_name": "1771074258505_create-clients-tables",
+      "checksum_normalized": "5e58a7af85ff633462d99cd4ecfe42b07f1e872fdff6feac864b4ca1e9dc48d7"
+    },
+    {
+      "checksum": "0da8027f44649ce22bcb572f3eaa631bb433b2044d2fc54b7f948d877699ed41",
+      "created_at": "2026-03-05T14:46:16.969267+01:00",
+      "migration_name": "1771075727165_create-studies-tables",
+      "checksum_normalized": "85d7e34cbcac4a76c3935c2a607e88b61cdf12c9608bbb7acab90be2657db5be"
+    },
+    {
+      "checksum": "7ed6fcf2c3cdcb0c921f95d75eb08c320010fc3f719dcb70cdc9b88e527ad45e",
+      "created_at": "2026-03-05T14:46:16.973003+01:00",
+      "migration_name": "1771076245332_create-study-data-table",
+      "checksum_normalized": "dbafdd41296fcbf4b15d04d907cd47d0155278d86b5a2cfdcf4a3fda37ac72e5"
+    },
+    {
+      "checksum": "bdb0803b9749962066e5ca215324c2a3cce55f6d44c1227edcc6cb1fe568212b",
+      "created_at": "2026-03-05T14:46:16.976979+01:00",
+      "migration_name": "1771076375980_create-calpinage-data-table",
+      "checksum_normalized": "962826db1a4704e5fee7c23610f30558dbde31b5062f44439509ac3aa7d606ee"
+    },
+    {
+      "checksum": "fee8af676a053579325b17ddbdf6b8b119c4315f44637edbe86e134aa2443abd",
+      "created_at": "2026-03-05T14:46:16.980111+01:00",
+      "migration_name": "1771076459830_create-documents-table",
+      "checksum_normalized": "edc184f611d8e365522ec2770753b4a1060ae7cc584b64a2ae71cf4be9cc6832"
+    },
+    {
+      "checksum": "f28a569640abd65d22c506ff1cd918335870245bf4fa4f89f8609fefd9b54f21",
+      "created_at": "2026-03-05T14:46:16.983067+01:00",
+      "migration_name": "1771076606217_create-articles-table",
+      "checksum_normalized": "1b0461f4a6fcf80b1313ec3a434e39fe8b1f13df4f75be4351cda1a7868f606d"
+    },
+    {
+      "checksum": "5c2ce2331e29502022ea0a6b7b9e4a47d241a03520350789c90bea60c30e5543",
+      "created_at": "2026-03-05T14:46:16.988255+01:00",
+      "migration_name": "1771076697812_create-quotes-tables",
+      "checksum_normalized": "7d46a057400828f7d49ea86d65dcd86510a08885042b75d90ed4d7ef7e07ae69"
+    },
+    {
+      "checksum": "6277c31d373252492e524cafcf5ed0138886151e1518a30d66710dc7a14ce4d6",
+      "created_at": "2026-03-05T14:46:16.994863+01:00",
+      "migration_name": "1771076791286_create-invoices-tables",
+      "checksum_normalized": "9dc043288acc4e1d2438288168aed2647c94747bcfe2d687b3d43bd64839d317"
+    },
+    {
+      "checksum": "ebd73c11b987e6583c309109cf0454f70d69ac4b4d399cf07ba1cc256327b873",
+      "created_at": "2026-03-05T14:46:16.998797+01:00",
+      "migration_name": "1771076898218_create-calendar-tables",
+      "checksum_normalized": "d5fa2bea69d34b6e7bf74d11a08c2ce0a31ba7f897adaa57e9e48c5fa4bed1e4"
+    },
+    {
+      "checksum": "e60a7b4102ed0b743631a64444195b4b592b16e726e94d5189cda31757a6abfb",
+      "created_at": "2026-03-05T14:46:17.003901+01:00",
+      "migration_name": "1771076986294_create-email-module-tables",
+      "checksum_normalized": "50ec730ffdffadec915ee24898516b05ec73d48e0ac954c8f778f8405b5b657d"
+    },
+    {
+      "checksum": "4f96de21963bd9b130ba40fee3ba4ecdc618726230cab91b57f290575cff64f8",
+      "created_at": "2026-03-05T14:46:17.009392+01:00",
+      "migration_name": "1771077066382_create-audit-logs-table",
+      "checksum_normalized": "b15edf4b98c50693737505109cbfeb17e11fe52fb7f606bbf88f72444d9370a5"
+    },
+    {
+      "checksum": "245cbbc048db930c790d07710a10078e4fdb1219de1bff363168bd6371365a8e",
+      "created_at": "2026-03-05T14:46:17.015271+01:00",
+      "migration_name": "1771077545093_cp-025-add-uniques-and-indexes",
+      "checksum_normalized": "b904648930d02d2d77606a8bdaa7cb3dfc2da49c263df0ceff9867701befe6e4"
+    },
+    {
+      "checksum": "dc59fdf96f947eb5fa60cda08f259eb5529edd3e58fe664dc06b13410df14b7a",
+      "created_at": "2026-03-05T14:46:17.027398+01:00",
+      "migration_name": "1771077957498_cp-026-integrity-triggers-and-indexes",
+      "checksum_normalized": "691c6600743b3b687f16eb6d62f3d0f959fe7a92f0338d55a9eeea25d0a2f819"
+    },
+    {
+      "checksum": "2ca389bd9d7a99ace623d25ff5a9e49417bdec15739d05e500015db4db3e188a",
+      "created_at": "2026-03-05T14:46:17.032732+01:00",
+      "migration_name": "1771151752804_create-rbac-tables",
+      "checksum_normalized": "a887b9b17a09e8d8230acf52365edc8f6a0af635e0a772a18a278656a9a658bd"
+    },
+    {
+      "checksum": "d6e34cf7f4cfad8c1550500203ad9a9f9d19afc440184249e8a7549ea7ee0f8e",
+      "created_at": "2026-03-05T14:46:17.038951+01:00",
+      "migration_name": "1771151778462_seed-rbac-system-permissions-and-roles",
+      "checksum_normalized": "45b091dd302ad4051d08ae1721f272fa05af976756e1ed351af36ea1d0ed6d0e"
+    },
+    {
+      "checksum": "a2dc604a3c1f5e494e61749574d93fa3662608a4eec50666427b2fb01241d033",
+      "created_at": "2026-03-05T14:46:17.044938+01:00",
+      "migration_name": "1771152000000_cp-028-lead-convert-columns",
+      "checksum_normalized": "ee9f92d231f7cf2c6ec594db2739423d74339da421ba4f3d1e4761d273387132"
+    },
+    {
+      "checksum": "bc24fb64cc4c27e2fe00d7de1247e4b0d827b86d8c2ac5d2c180141410f6fb32",
+      "created_at": "2026-03-05T14:46:17.049854+01:00",
+      "migration_name": "1771152100000_cp-031-quotes",
+      "checksum_normalized": "4615e65498176fb4f2b7c85166941e80196b29c66a9f9ad68d7489ffd6af2416"
+    },
+    {
+      "checksum": "8a40563500e92aa8762cc185aba0ed3c3daa00c95401156c4cd7d47dda755b03",
+      "created_at": "2026-03-05T14:46:17.054169+01:00",
+      "migration_name": "1771152200000_cp-031-studies",
+      "checksum_normalized": "947dd6edff1efd86fdccb6c2b27aa316e29f0a9273377ac14e4feb023a69e1f9"
+    },
+    {
+      "checksum": "bc80a75a5bb71b0b298e827bb74b8db66c28d4aed583050c744794b30f972a2c",
+      "created_at": "2026-03-05T14:46:17.059221+01:00",
+      "migration_name": "1771152300000_cp-032-documents",
+      "checksum_normalized": "55972ee339399dfa99be90a1a073459d789ddb25d7ee873cb6cb91a5a7508446"
+    },
+    {
+      "checksum": "52c5ce82abafe78a0a61523e0bfbd196898da42c87d81bda60c39c7443bbdee7",
+      "created_at": "2026-03-05T14:46:17.07047+01:00",
+      "migration_name": "1771152400000_cp-032A-soft-delete",
+      "checksum_normalized": "0b2d6d67408b3d55fc7757de87c66a5a9587d22e84c9743fc2419460c975c76d"
+    },
+    {
+      "checksum": "9f51587cf7ab2e6be9e6a1bf68ad6f6d278283a36f8afc4207fdf24f30c03bf7",
+      "created_at": "2026-03-05T14:46:17.077487+01:00",
+      "migration_name": "1771152500000_cp-032B-index-lock",
+      "checksum_normalized": "6ce5d281c4800045e1f61e717b100a6e05af6d257c50f6788cf76ee2a88226a3"
+    },
+    {
+      "checksum": "74ce6e78b3741b1b449cad9a027a5e3045169b40ba6c7aa644c3658b4684e216",
+      "created_at": "2026-03-05T14:46:17.082484+01:00",
+      "migration_name": "1771152600000_cp-035-leads-premium",
+      "checksum_normalized": "8893e62f5145912e242291174021b4787c5e65c41a7ed8dc4108cfc4711d3ccf"
+    },
+    {
+      "checksum": "32a0d34afa9779cf671b600011b0b73f48a48c48da8e380b44b8ec5358c7b485",
+      "created_at": "2026-03-05T14:46:17.089881+01:00",
+      "migration_name": "1771152700000_cp028-create-addresses-table",
+      "checksum_normalized": "8efc4c98ae4076f90e44db1105a9adeeb5f4318e66ee3db68d55ebcd9b2522bd"
+    },
+    {
+      "checksum": "f52a8703a80b03c1f2927be443c423982a2a5b8b8ffa3f017e9928971bf89d21",
+      "created_at": "2026-03-05T14:46:17.094707+01:00",
+      "migration_name": "1771152800000_cp028-add-address-fk-to-leads",
+      "checksum_normalized": "af81016f71b6f22da1df97ad3a1244700caa1614c9be9cdab5faf04a1e6f307d"
+    },
+    {
+      "checksum": "a2eea08968cb92769b4688e020d48e82bf1e0e561600c0d86b5f32107ced6e35",
+      "created_at": "2026-03-05T14:46:17.098474+01:00",
+      "migration_name": "1771153000000_cp029-extend-leads-core-fields",
+      "checksum_normalized": "c44018d8429773711f1a393ba1f58cf752b7f28a51d59ab7dba5a2edb13199e4"
+    },
+    {
+      "checksum": "e057a2e2b07c158dfe7ef90122883dac22bb8636baf7d314c6ddf29ade98c0e1",
+      "created_at": "2026-03-05T14:46:17.102085+01:00",
+      "migration_name": "1771153001000_cp029-create-lead-consumption-monthly",
+      "checksum_normalized": "8cefd90323c10db953b0720f1e88fb6012824fcbe4775eb2885784858ef3a09e"
+    },
+    {
+      "checksum": "0c0335b7e781038f38af3b48ccd35c5c466b2824a4009111d5fec2eae404bc88",
+      "created_at": "2026-03-05T14:46:17.105988+01:00",
+      "migration_name": "1771153100000_cp030-lead-activities",
+      "checksum_normalized": "7475972caae2ab63205c1f41e7e5baf5c9880b892b3f60e90ba62acf4318f589"
+    },
+    {
+      "checksum": "a8e48bdf12b5936068f951d1eef224a6dadc637077b998b96ca0cc27aa781a16",
+      "created_at": "2026-03-05T14:46:17.10939+01:00",
+      "migration_name": "1771153200000_cp036-project-status-hub-client",
+      "checksum_normalized": "7801aec3f9d1c0e8098c4d4afb288885540d867896fa9516dfb8d3c53faef39b"
+    },
+    {
+      "checksum": "a205f2a3ff53c5d9292ad427b1875e8a967adc6cdcf22670fde1126902943046",
+      "created_at": "2026-03-05T14:46:17.113403+01:00",
+      "migration_name": "1771153200001_cp036-lead-activities-types",
+      "checksum_normalized": "60ccf00b0747c9f6fa0ac0f3d984d8f94e66a1f275749a730247a4e53dfb2ab7"
+    },
+    {
+      "checksum": "0482d403475b7325751022d9fd65b2078a70e0f4e535e5a14dd8aff09ec77ddd",
+      "created_at": "2026-03-05T14:46:17.117492+01:00",
+      "migration_name": "1771153300000_create_missions_engine",
+      "checksum_normalized": "91fe82a0fd2accccbe0653ae93e3965cc9dea05440db470d3882470e285ab5f0"
+    },
+    {
+      "checksum": "b134f740a9f05606d289bb19aa87f46b58517a825ff27108c2fbca5d7bd2d7e2",
+      "created_at": "2026-03-05T14:46:17.121629+01:00",
+      "migration_name": "1771153300001_seed-mission-permissions",
+      "checksum_normalized": "aa134fc57adaddb9027bca300843b0de96be2d241621e7270e21b532d642aa21"
+    },
+    {
+      "checksum": "8eeaf76a67fbfe1a869a660a20504ffb49d05e1f1e261c9685a94224e896fddc",
+      "created_at": "2026-03-05T14:46:17.125975+01:00",
+      "migration_name": "1771153300002_seed-mission-types",
+      "checksum_normalized": "72072ea8805ccd516384a0504287e47bc3e2709732368dbab998d1f333f637e9"
+    },
+    {
+      "checksum": "50a7180c2d7db8c9307bb4742bcd2576e9a415f761cdec9975e544721417ddf9",
+      "created_at": "2026-03-05T14:46:17.129205+01:00",
+      "migration_name": "1771153300003_add-more-mission-types",
+      "checksum_normalized": "dd29a93bf2077456cc34e76b92fbf80e68f0b0573814e1a2451a1afa45eef630"
+    },
+    {
+      "checksum": "fc5cc5de1329af9830371a88c80be095403f86cd94395e4d593a9c3a20d088d6",
+      "created_at": "2026-03-05T14:46:17.134666+01:00",
+      "migration_name": "1771153300004_expand-mission-types",
+      "checksum_normalized": "508669e85ead4701ba3c08d0c9dd64a6a09253e22dae8c1650433f0e2895816c"
+    },
+    {
+      "checksum": "4c914d2aef79347d7c6a03de5cf4574b8ec42f51b3ec2e85efcb77d9137e511f",
+      "created_at": "2026-03-05T14:46:17.138109+01:00",
+      "migration_name": "1771154000000_cp-admin-arch-01-user-manage-and-legacy-roles",
+      "checksum_normalized": "50353b49ba55939ee58485d72ec458f95000cb2aca4a9838fa24fac79413c6ac"
+    },
+    {
+      "checksum": "39e39aa138ca1b3c82f4dfc2d08364fc3316f531f70a11d1759c4d32c1a7ebdb",
+      "created_at": "2026-03-05T14:46:17.141966+01:00",
+      "migration_name": "1771155000000_cp-admin-struct-02-user-team-agency",
+      "checksum_normalized": "9d83f27b3a569163eda5e5e3216f34486f56db4121716f0c3a54e79304c95a21"
+    },
+    {
+      "checksum": "a6c0d91bd8b430aa02b6aefa64119f210ab310015c5dd2cc64fb6b6e36275449",
+      "created_at": "2026-03-05T14:46:17.145281+01:00",
+      "migration_name": "1771156000000_cp-admin-org-04-organization-structure",
+      "checksum_normalized": "89dfa8cd000e7c5f2dc7da3db50099b9e94359bd2371accb40d152a4cadd9eb9"
+    },
+    {
+      "checksum": "34e1f76c5213e47cf34b4f8e6477e4be793d2b5baf7f67c79fa4d15b29d88b5b",
+      "created_at": "2026-03-05T14:46:17.149686+01:00",
+      "migration_name": "1771157000000_cp-lead-client-split-06",
+      "checksum_normalized": "ba1db83152df1aebb25c01b35e6965e48f88d4e16b4f91fda293893dc4e9df74"
+    },
+    {
+      "checksum": "4b4f5dedc6d7da5037032189d0b9ee2ec58e19e9f21ff9100f4fd26a4d69d2cd",
+      "created_at": "2026-03-05T14:46:17.154935+01:00",
+      "migration_name": "1771157500000_cp-lead-client-split-06-lock-pipeline-code",
+      "checksum_normalized": "dbb1a70406792138196ec1f51aba180bd5bb12b1fcb295e61444f34e6e0ea73a"
+    },
+    {
+      "checksum": "58f510546a3ab2487944a5b169e08114a00ca58a88c52c4a51c479021da54ccc",
+      "created_at": "2026-03-05T14:46:17.159775+01:00",
+      "migration_name": "1771158000000_cp-auto-convert-archive-08",
+      "checksum_normalized": "865978bee6d89744350f20e35497ad4fae7a48f6b873376be509fcf7320b1c99"
+    },
+    {
+      "checksum": "43c78045fe4bb0a0143b1001f9c6606157ab288af6506b9193f9de14e0b87b30",
+      "created_at": "2026-03-05T14:46:17.16338+01:00",
+      "migration_name": "1771159000000_create_pv_panels",
+      "checksum_normalized": "2a9f432ff7ef3988571a4924abda274be489e72fe03f815b4468c2c00457efb1"
+    },
+    {
+      "checksum": "6a5b5928e9f716374b1f2410bba7d0eb48a88943073dfbd394905487847f724d",
+      "created_at": "2026-03-05T14:46:17.168479+01:00",
+      "migration_name": "1771159000001_create_pv_inverters",
+      "checksum_normalized": "b705eb4ee914ec8037af2fcbfa9267bc385a5073364944c87f14f1ed0283ae9a"
+    },
+    {
+      "checksum": "6c331e1067171146f10ca54ca15edb17702ddd61d22397779315fa1a2ab015df",
+      "created_at": "2026-03-05T14:46:17.172884+01:00",
+      "migration_name": "1771159000002_create_pv_batteries",
+      "checksum_normalized": "307e028cb40f96c31e043ae9e39a81a44b65e7cb43abbdfd7d3bed96dc715368"
+    },
+    {
+      "checksum": "1a5ed678879193d312c8423339e33884b45fc24b2d733fd5f2f9bef3aea830f4",
+      "created_at": "2026-03-05T14:46:17.182959+01:00",
+      "migration_name": "1771159000003_seed_pv_catalog_v1",
+      "checksum_normalized": "d2d389b04a00ed16d99ee2911333d0c49e467b2acefe2d529759f030446ca3c0"
+    },
+    {
+      "checksum": "a6e74bd671dbbbd069ac103165844e9ac742ada11e06e37758c24c790c918b87",
+      "created_at": "2026-03-05T14:46:17.188017+01:00",
+      "migration_name": "1771159000004_pv_catalog_structure",
+      "checksum_normalized": "822d98f2e9ba563c2f701d74e64d8fd5ecb4d6c91928956819840107b534f1c4"
+    },
+    {
+      "checksum": "a9d0abf691944387c07eb9763343dd2978d3adc4ad322723487a3bcc6b0dbef6",
+      "created_at": "2026-03-05T14:46:17.202909+01:00",
+      "migration_name": "1771159000005_fix_pv_catalog_data",
+      "checksum_normalized": "8604d7730d3e261f41c253c6c0d64b2268f27ed688c076570acc745ef546cf98"
+    },
+    {
+      "checksum": "75de9385420d6bc7f73eaa684ed3fab7c9e5b0d515a42adb9f8c5d6b4359c682",
+      "created_at": "2026-03-05T14:46:17.207223+01:00",
+      "migration_name": "1771159000006_add_inverter_family",
+      "checksum_normalized": "55011ed1c8f1bdfaf81110a75ae209b736be76a93b46a5908134f1302b570561"
+    },
+    {
+      "checksum": "afc9d9b1b70d2e4aea87080a087c5e3d1459c42739d54f1bc80c400c33c12c5a",
+      "created_at": "2026-03-05T14:46:17.211592+01:00",
+      "migration_name": "1771159000007_sync_inverter_family_with_type",
+      "checksum_normalized": "728506d2527e1e59efd7e3f74f8e00bd5475719965dcbf54e00676db547c6bdd"
+    },
+    {
+      "checksum": "d902f67e80af3b961d9ba5be2233e4db37b8e34b495242165f8c7063d25981a8",
+      "created_at": "2026-03-05T14:46:17.219574+01:00",
+      "migration_name": "1771159000008_fix_longi_x10_catalog",
+      "checksum_normalized": "aa2c41327ae453b6bf985dc9c0f5b19674dedbcac73d27acb56e9e4bc62a583e"
+    },
+    {
+      "checksum": "a6892b14a58f760e8971c70b1f4f24d89b8a99045e5f7dce401671a3ef3313e3",
+      "created_at": "2026-03-05T14:46:17.223867+01:00",
+      "migration_name": "1771159000009_purge_inactive_pv_catalog",
+      "checksum_normalized": "1e141ce5af49efd747d934841b721093f16440e0645f7c634f4d1390ec48e8ae"
+    },
+    {
+      "checksum": "97057290319562c78ec945fa28ef84f84a7e72bf0e80dac9cb965bfa59a7c460",
+      "created_at": "2026-03-05T14:46:17.228975+01:00",
+      "migration_name": "1771159100000_add_final_study_json",
+      "checksum_normalized": "bd0de11c0d7339c9de2a22686bcb94349c64712935e6f44b565cac9bc23721ae"
+    },
+    {
+      "checksum": "45300d2e564b751b28ea8271614bc28ad3267d496d6566994181f8e0e140cf40",
+      "created_at": "2026-03-05T14:46:17.23535+01:00",
+      "migration_name": "1771160000000_create_quote_catalog_items",
+      "checksum_normalized": "00e06a9507fdc59a9978dd47dd59f61d491634d957367985aa7aea4dec9f4659"
+    },
+    {
+      "checksum": "fbe66b5a3ab97f174c528ad2c02d5dedf79859162d92512cd4fd4e638b1caa3d",
+      "created_at": "2026-03-05T14:46:17.240772+01:00",
+      "migration_name": "1771160100000_add_quote_catalog_rbac_permissions",
+      "checksum_normalized": "37b8902ce5123c2cfa23d221b4504758c27c1ee65bc634c298ea1ef7607de952"
+    },
+    {
+      "checksum": "475c794afe9b515cfafc43e31bd85bbcfc0ac16350da9e55352e72217eea1b1f",
+      "created_at": "2026-03-05T14:46:17.245296+01:00",
+      "migration_name": "1771160200000_cp-quote-004-quote-lines-catalog-snapshot",
+      "checksum_normalized": "e638fa08dc3794506e8ed6d5374837d9b044880c8747fd8e3597e436d10d80d3"
+    },
+    {
+      "checksum": "58bb70a6c95d488ceabd7371cda05616bec62c327b9ee76fc1e47bdf91fb2363",
+      "created_at": "2026-03-05T14:46:17.249404+01:00",
+      "migration_name": "1771160300000_cp-quote-005-snapshot-hardening",
+      "checksum_normalized": "a07d2026ce8b4c6486a5ec5ae51de926ef378e39e4aa94380b28bb99589042eb"
+    },
+    {
+      "checksum": "1130eaf10d1c3deae7b366a512b9ba5dad0cd74f077e90b20d7f7449eba4d5b0",
+      "created_at": "2026-03-05T14:46:17.254145+01:00",
+      "migration_name": "1771160400000_create_calpinage_snapshots",
+      "checksum_normalized": "6c79270213994bcb319af9dbaa9a18c4da03ce64735be6feadf3660281b60a3a"
+    },
+    {
+      "checksum": "f73251ac62530a0e772e611b57fc8a125d20dd68662530e125329fc83f9063d3",
+      "created_at": "2026-03-05T14:46:17.260444+01:00",
+      "migration_name": "1771160500000_calpinage_snapshots_add_study_version_id",
+      "checksum_normalized": "f807938f8e6dd96be4005673a0270609505f624903c80d2a5709cd7fc38b83d2"
+    },
+    {
+      "checksum": "5ceaea85596c1b7cfad60a7ba0a9571b1f467eb7cb79733a5b65b41a254b96c2",
+      "created_at": "2026-03-05T14:46:17.26477+01:00",
+      "migration_name": "1771160600000_create_economic_snapshots",
+      "checksum_normalized": "ae69bfb826a239ccb9f704852cb6536c27f26ad5505b9a13c3ece2a73423d9fe"
+    },
+    {
+      "checksum": "54368e2acf1685ef8c4018c696401b661f0882b3c7cb635c7d63443d3e932759",
+      "created_at": "2026-03-05T14:46:17.268626+01:00",
+      "migration_name": "1771160700000_quotes_lead_only_client_nullable",
+      "checksum_normalized": "9c9e1d694fa55de96575554af83d01cd6e906be475d440a7efa1f1553d869f99"
+    },
+    {
+      "checksum": "ca81cbf477bbc85edfbc90e6dffc965ceb016c71ea8906538c06a91af9b87931",
+      "created_at": "2026-03-05T14:46:17.277376+01:00",
+      "migration_name": "1771160800000_create_pv_virtual_batteries",
+      "checksum_normalized": "af49730dba31eeb9e9e8803e4fe1ee1f4024eeba80f0d8a6bbefb9e67b9bf250"
+    },
+    {
+      "checksum": "6fc87d08244a8e3bd2194ece5e1f720c5cdb800065ec703bc20cbc8cbc55298b",
+      "created_at": "2026-03-05T14:46:17.285107+01:00",
+      "migration_name": "1771160900000_virtual_batteries_unique_provider_per_org",
+      "checksum_normalized": "3be3cf4a59bde72bb3e51f68fd4c106aa442a2dd82eae20e0c82c25c69c798cc"
+    },
+    {
+      "checksum": "350a8b7406e655a59c5caf531d8776152277f13d3a3eb08084cb2992672f7c89",
+      "created_at": "2026-03-05T14:46:17.292603+01:00",
+      "migration_name": "1771161000000_virtual_batteries_tariff_grid_json",
+      "checksum_normalized": "96dd33d596c8f8c9a6b0961534d6cfb3b6dc3ea57aaca493d8b2152dd355304c"
+    },
+    {
+      "checksum": "085adeb476b17b67d1a32117099098540f49e519ac50b65845b53dbbe255f30e",
+      "created_at": "2026-03-05T14:46:17.305817+01:00",
+      "migration_name": "1771162000000_add_default_price_to_pv_batteries",
+      "checksum_normalized": "b8c447801b71f617a4c2eb5aac97912161dbb5a596fe28c0edfdb0c2ceab7950"
+    },
+    {
+      "checksum": "a3bc10feb4937e31a28f2e1bc2784c940d64381916a689983d3e15ae883bcdff",
+      "created_at": "2026-03-05T14:46:17.30993+01:00",
+      "migration_name": "1771162100000_study_versions_status_updated_at",
+      "checksum_normalized": "d53faa731bb0d25a2405905e0364558c6d20bb5b548378d1860334e07cb3170d"
+    },
+    {
+      "checksum": "00fd30332f2f97c230e018f6acb44e5cac811478291bc59022bedc1ac5dedeb1",
+      "created_at": "2026-03-05T14:46:17.320453+01:00",
+      "migration_name": "1771162200000_study_versions_scenario_lock",
+      "checksum_normalized": "11eed2c049b21f1ef7c155fb30b8149738cb824d7cdef309fb61b727633c3621"
+    },
+    {
+      "checksum": "1fbff0e7470c3e39ffff110efbd8ee3d54eb71a572ea5c06a87b54bcbb28adb3",
+      "created_at": "2026-03-05T14:46:17.326674+01:00",
+      "migration_name": "1771162300000_study_versions_locked_at",
+      "checksum_normalized": "406fbe8b1587743e4cf939c9f13a53e658054e793782d7a28ecd9f78697f6b65"
+    },
+    {
+      "checksum": "a236da7a17c4c009ea79085ac072a1c9e9122e5b4a00bd32fec5c9c0caba99c6",
+      "created_at": "2026-03-05T14:46:17.336261+01:00",
+      "migration_name": "1771162400000_leads_energy_profile",
+      "checksum_normalized": "fd3cb84a0cf9488f3e773171bea47cd595893f547471c7b91c1f802eec232fec"
+    },
+    {
+      "checksum": "b59b37b769a88746d0e79bd451348cc485817bdea4e7af6324bad3bede89e427",
+      "created_at": "2026-03-05T14:46:17.340603+01:00",
+      "migration_name": "1771162500000_remove_active_snapshots",
+      "checksum_normalized": "5f29934a56881a629a3099473b69eb81f2335a9a6e64d75ed0d6d73b237c8e16"
+    },
+    {
+      "checksum": "4856a15c350e99ea3f6c3fdca3bee3128d7caacd9d728e4a8332a59bb4f45b9f",
+      "created_at": "2026-03-05T14:46:17.34488+01:00",
+      "migration_name": "1771162600000_add_deleted_at_studies",
+      "checksum_normalized": "f94ba5c4d5b1cb117e1394f180e4aeb9d952a479f3e9a814c1a17048000b9a27"
+    },
+    {
+      "checksum": "0e2c943f1208d78e09f0abb86c8ab3651e700a45832cd0325f1ed301d6df4a57",
+      "created_at": "2026-03-05T14:46:17.351176+01:00",
+      "migration_name": "1771162700000_add_calpinage_snapshots_is_active",
+      "checksum_normalized": "897b19e4e4a0b97ab1c88e51f203bae3500c127c0730719f36a9a106c04ffa6c"
+    },
+    {
+      "checksum": "5d8588b5a915666ec1a899c2091bf2232429aa768e4d67c85436b7c07f34a55e",
+      "created_at": "2026-03-05T14:46:17.356461+01:00",
+      "migration_name": "1771162800000_leads_consumption_csv_path",
+      "checksum_normalized": "6573bb571b2b20e7e26d436f16cc1145dbc7f9f2ae021c1a1a31a4cfd98d1cc4"
+    },
+    {
+      "checksum": "e29be3882e862d955e2fe14a3961dfdf93f2204ef74f42d36ed9452d29f341e7",
+      "created_at": "2026-03-05T14:46:17.36096+01:00",
+      "migration_name": "1771162900000_entity_documents_document_type",
+      "checksum_normalized": "a85729550dc3b06d474a811903e3d21f16528c360e906be39bdaadc90d4e4ea1"
+    },
+    {
+      "checksum": "ec232ff1bdb8f70a3391e910849ff7633c8405fd8ae4ba24c99e574de63b5060",
+      "created_at": "2026-03-07T14:54:13.239305+01:00",
+      "migration_name": "1771163000000_add_study_pdf_document_type",
+      "checksum_normalized": "7a8c158f1375d1c029fb3efb3e75920daba044ee04e1d45667282685e91099ae"
+    },
+    {
+      "checksum": "a99f010523eec37d1f140abc4b862129b0501c67e620e5632135fbfd8c596475",
+      "created_at": "2026-03-10T08:45:20.835546+01:00",
+      "migration_name": "1771163100000_add_pdf_cover_image_to_organizations",
+      "checksum_normalized": "ac53d2b647f1f18f005d8b8a73a80e73589eb0deeb2c3b1c5e3f3c47f2332d28"
+    },
+    {
+      "checksum": "37f5b3e458f4f99d7e362c568c66281ca74b0a9ad99158020690bd2f89820d80",
+      "created_at": "2026-03-10T08:45:20.843362+01:00",
+      "migration_name": "1771163110000_add_organization_pdf_cover_document_type",
+      "checksum_normalized": "824ff1f655355f49ced99a2f55a2ffb45da6cd18d2224cf7b7550d1843e1ef2a"
+    },
+    {
+      "checksum": "9f92332a428e0353f5d6726f3b6da62e8d567dbaf2e3b4269d54c579f58e96a8",
+      "created_at": "2026-03-23T12:03:37.507648+01:00",
+      "migration_name": "1771163200000_add_purchase_price_ht_to_pv_batteries",
+      "checksum_normalized": "dbe45cc60f14524c44181d436c67c6cf37bb4e505c0eca4e588c61c90f117f9e"
+    },
+    {
+      "checksum": "20131bd12b220857410d8d33ecf2eebfa0bcc6adbe884bd1b03569c0a2ff6670",
+      "created_at": "2026-03-23T23:33:31.737569+01:00",
+      "migration_name": "1771163200001_add_lead_status_and_lost_reason",
+      "checksum_normalized": "885ddd5422ac606d7b3da078e6b76bccc986e4aaac6c936837a9722f04b83811"
+    },
+    {
+      "checksum": "fac953d05f1413484f7fe5a1e5292b36fa2cdac40f2f5ff2df598bcb2de789aa",
+      "created_at": "2026-03-23T23:33:31.744279+01:00",
+      "migration_name": "1771173000000_lead_delete_permission",
+      "checksum_normalized": "12f48ececc2277de1f27baafb4b811de3d501abcf7f0f50f664b47310b010aef"
+    },
+    {
+      "checksum": "1e8ee757cdaed9884cab87c26dffa6e028b0f67dd1c080c12bab9c1ff51bdef0",
+      "created_at": "2026-03-24T11:17:18.934427+01:00",
+      "migration_name": "1771174500000_normalize_leads_status_signed_to_client",
+      "checksum_normalized": "67bbd5726353b90984338f2edd4b921fd340b676201526023838db7e873d6d98"
+    },
+    {
+      "checksum": "0c84d6d51f00b17deb2d7b75bd459757e5161ef99b0f65344cf751823dc70558",
+      "created_at": "2026-03-26T11:50:34.011471+01:00",
+      "migration_name": "1771175000000_cp-pro-customer-fields",
+      "checksum_normalized": "02445bb7401cca9ba04aec232262f3184494c986d8804cb475f8cd74c3fa34b4"
+    },
+    {
+      "checksum": "509c8c01f0a3c42225a3a60fbea24af718ddeb85ce9ff0fa13395a613ea111f6",
+      "created_at": "2026-03-26T12:04:10.453052+01:00",
+      "migration_name": "1771175100000_cp-pro-siret",
+      "checksum_normalized": "b5be6efb9fc38761c470858b90dd7a5a7275770c9ddf4af9f8cac49aa55993c3"
+    },
+    {
+      "checksum": "eb53c26d36122e455698a70b3e021b43e45ba20fc2d4cfa3a44586d4cb8ae2cb",
+      "created_at": "2026-03-26T18:27:17.346096+01:00",
+      "migration_name": "1771180000000_cp-financial-pole-schema",
+      "checksum_normalized": "0c16d4c7241350c8babcbc738abe9bee8cc15813d705cc279c12058569677ab5"
+    },
+    {
+      "checksum": "d58582ca4fae5d0e666aa1f96019057227ba5f8c77d4a110d40e16ffa5c61d8d",
+      "created_at": "2026-03-26T21:39:07.339539+01:00",
+      "migration_name": "1774563000000_cp-financial-official-document-snapshot",
+      "checksum_normalized": "5aca48caa07df89651f866f48e10ad9401a6718314aaedf0609176948357fff8"
+    },
+    {
+      "checksum": "2501e8fd7d79126eb3ba7d9d23bd18d41a8f827c6b476bc28c8e84167ae6e00c",
+      "created_at": "2026-03-26T22:39:31.963506+01:00",
+      "migration_name": "1774600000000_cp-invoice-lead-payment-terms",
+      "checksum_normalized": "a6655b185162433c257789fa557b6737a35f81920f5707afa0b9d604094afafe"
+    },
+    {
+      "checksum": "f62cb574c42a69278e84e3b62710fe1d5a5d6497c859e437150b19353a65ce08",
+      "created_at": "2026-03-27T11:34:09.179631+01:00",
+      "migration_name": "1774701000000_quote_text_templates",
+      "checksum_normalized": "e32fc6e12d4114eeba78eda7a94beb1754388d3fe2c602f95513a87909606aef"
+    },
+    {
+      "checksum": "0932efa55e9efe5aa932908e3d358d860d2bc0928a6df0fe01cb7e4f10d61df6",
+      "created_at": "2026-03-27T13:25:34.908795+01:00",
+      "migration_name": "1774800000000_leads_equipements",
+      "checksum_normalized": "21febae81dffcadd6ca550408080532af084ab48ed12f792936ef37548c8a627"
+    },
+    {
+      "checksum": "e433beb686f229573d7c16b7fbd97558cb384c9f36c077d347ebaf2b51215602",
+      "created_at": "2026-03-29T15:06:31.547532+02:00",
+      "migration_name": "1774800000001_cp-invoice-lead-payment-terms-fix",
+      "checksum_normalized": "a6655b185162433c257789fa557b6737a35f81920f5707afa0b9d604094afafe"
+    },
+    {
+      "checksum": "8a3888cb6dce887088d65c884a18f941e9b7882f9a7723414c38b40e6dfb2fee",
+      "created_at": "2026-03-29T15:16:52.444123+02:00",
+      "migration_name": "1774900000000_cp-invoice-lead-payment-terms-fix",
+      "checksum_normalized": "a6655b185162433c257789fa557b6737a35f81920f5707afa0b9d604094afafe"
+    },
+    {
+      "checksum": "58afa0fd729d24746840ea5834ecf94a97a9e7439585b3be968511a390a165ac",
+      "created_at": "2026-03-30T09:23:38.631746+02:00",
+      "migration_name": "1775000000000_lead_meters_multimeter",
+      "checksum_normalized": "a6655b185162433c257789fa557b6737a35f81920f5707afa0b9d604094afafe"
+    },
+    {
+      "checksum": "b4c701682e5b226876301b659056ddee0cb8e69f32bd214544d3f32b219bc2f7",
+      "created_at": "2026-03-30T10:18:55.710546+02:00",
+      "migration_name": "1775000000500_fix_missing_idx_lcm_meter_id",
+      "checksum_normalized": "a6655b185162433c257789fa557b6737a35f81920f5707afa0b9d604094afafe"
+    },
+    {
+      "checksum": "d77ebd2dc492e83599e967c8760166860932b3bd0b2e76d8c56511c01c8c14a3",
+      "created_at": "2026-03-31T02:11:36.402397+02:00",
+      "migration_name": "1775000000600_quotes_drop_sent_requires_client_check",
+      "checksum_normalized": "12d3bc49c4dfe0eb1007da25abf605818d215f0ae794f8e56d7546d254ec3c27"
+    },
+    {
+      "checksum": "441cbf924c7be495c13a455087dfba81b8d39e74d7420f455f022178ff158c39",
+      "created_at": "2026-03-31T02:19:10.965548+02:00",
+      "migration_name": "1775100000700_entity_documents_quote_signed_document_types",
+      "checksum_normalized": "580138baafb1066b5c2879423b911bf689ed4778d6047eb568e6e50cfad60553"
+    },
+    {
+      "checksum": "1e889bd2aa63131ca51eedfe905db6b3a236af41460d1e3b695758ef69afa37f",
+      "created_at": "2026-03-31T11:35:16.913547+02:00",
+      "migration_name": "1775100000800_quote_catalog_category_pack",
+      "checksum_normalized": "de6756387948d099f8a9d04910c42be019a680f6d275c01660f3ce593dc2e036"
+    },
+    {
+      "checksum": "43da8d3d22656a0007bf2a19a0cae3d24ec646ebc5f0be275077bb8a6b25834e",
+      "created_at": "2026-03-31T11:43:00.640086+02:00",
+      "migration_name": "1775100000900_quote_catalog_category_pack_idempotent",
+      "checksum_normalized": "69f4fc02e4efc306fb0216be894600dde9ab9c50364291621cad0811c98089cf"
+    },
+    {
+      "checksum": "f041ec44f372c15db44f3baaf99c4f78b16a570238ffb77965cbb04a31f2297c",
+      "created_at": "2026-03-31T16:38:51.242849+02:00",
+      "migration_name": "1775200000100_quote_catalog_category_protection_box",
+      "checksum_normalized": "357ca55669f9188a7ccbaaffc62a4eae7383fa8b918962de10cf0c57acf165c6"
+    },
+    {
+      "checksum": "629a93efcb8b725a6c1e366b353440e6cca3280add26860ef6de4be5f2747f06",
+      "created_at": "2026-04-01T09:35:35.133296+02:00",
+      "migration_name": "1775300000000_entity_documents_business_metadata",
+      "checksum_normalized": "bdb5db79bb2166f2367a98a902c8cb27fc4895cbc768114be629dc97f8736097"
+    },
+    {
+      "checksum": "39fb5702e3fe786f0271f0d6c027adc644038dc4d2b7407e4922f2b654be7faa",
+      "created_at": "2026-04-13T19:33:59.755478+02:00",
+      "migration_name": "1775400000000_create_client_portal_tokens",
+      "checksum_normalized": "8044df5a80ae8090ab18aeb566362c50530c0f5698b132ac41dc1cb39d4fcc0d"
+    },
+    {
+      "checksum": "98b260cea0fa804057df2df3f625d71ed2470192c51530f00ab2b8abf846338e",
+      "created_at": "2026-04-13T21:22:49.487659+02:00",
+      "migration_name": "1775500000000_add_client_portal_token_secret",
+      "checksum_normalized": "c0f86dadccd8545c42776fcd13444863983247aabab06cdfff37395440305e0f"
+    },
+    {
+      "checksum": "3519b39fe73c5c9198d29aad8dd0db0831473faf59a468ffb56932f83f913ef8",
+      "created_at": "2026-04-13T22:19:26.929098+02:00",
+      "migration_name": "1775600000000_users_first_last_name",
+      "checksum_normalized": "14a6e97f682f6e84aacb2870411e88d6fa5f77afcd23e5c2c97783ad9ea208a5"
+    },
+    {
+      "checksum": "1c30b85115fe62e0c37adc4a3b5bb87611fd0eb9ee7925bf546e6e48ca82da73",
+      "created_at": "2026-04-14T00:28:26.818621+02:00",
+      "migration_name": "1775700000000_create_lead_dp",
+      "checksum_normalized": "4b42dca55531d51f20fffcbe3a79d5e0e1494f28b6508ac875ce92937e1b4fa5"
+    },
+    {
+      "checksum": "8b2c6b5b0c6daa75a04f0dfa4dcbba6ffa46a2962fa4e16094c3db30bdcca399",
+      "created_at": "2026-04-14T00:31:09.423586+02:00",
+      "migration_name": "1775710000000_alter_lead_dp_state_json_nullable",
+      "checksum_normalized": "51244c87aeade03f1cca1877d831458ae2c37d53f6cc81b3ee8e1048588f0a71"
+    },
+    {
+      "checksum": "71fe1502bb5649abb3382f626c5cb8f1fbbe31248010d355c73a28008d808937",
+      "created_at": "2026-04-14T15:35:42.271804+02:00",
+      "migration_name": "1775750000000_lead_client_birth_date",
+      "checksum_normalized": "6cc51fb23e43e3313b0664ca9b57fbbde0396bdc9a19f8f92141b18999b26ab9"
+    },
+    {
+      "checksum": "4ad022146f09da9853149362c4128f654e6a05ce8ddd5260916beeed2298c394",
+      "created_at": "2026-04-15T09:53:20.869138+02:00",
+      "migration_name": "1775810000000_entity_document_category_dp",
+      "checksum_normalized": "0ae1d29019e249e32d9db9465d02f016a29ba670859675b3c050ae5608ca0118"
+    },
+    {
+      "checksum": "b004ddb6b95b4afc5ef2fdf1b5820e08cc5ffd0db02647d73239c4aaeed3f7a3",
+      "created_at": "2026-04-15T10:36:20.85548+02:00",
+      "migration_name": "1775810000001_entity_documents_document_type_dp_pdf",
+      "checksum_normalized": "ecdabe51c1a8f6814485b089e58070f32dce86a41060bfbec4326412fbe78219"
+    },
+    {
+      "checksum": "f1c84bc1a5b41ba27218bbe501a67c04901b3d3731443a171361225b1c028387",
+      "created_at": "2026-04-15T14:11:12.897485+02:00",
+      "migration_name": "1775900000000_mail_core_schema",
+      "checksum_normalized": "52c5d35d04c54e0dda03e707fa0aa5db550ca5cf2c79dfbade798c7525bd0d59"
+    },
+    {
+      "checksum": "7b020621c374f2b19db351990cdff671428300e090b315807b68a1059a3016c1",
+      "created_at": "2026-04-15T15:20:14.55107+02:00",
+      "migration_name": "1775900001000_mail_core_improvements",
+      "checksum_normalized": "4ddc1a6415d5288cc8ec37cb1acbca6c9120c060c86b7d1f6bbf18a87c4e82ed"
+    },
+    {
+      "checksum": "1c85c39fb0a38da569654fc68499bb75512ed09caa42f1e8887b3c9a3cc427af",
+      "created_at": "2026-04-15T15:20:14.559244+02:00",
+      "migration_name": "1775900002000_mail_rbac_permissions",
+      "checksum_normalized": "4dde8d61467b462de9f95ac9e6568999053b27d49876c76dc876abe7d457d9d8"
+    },
+    {
+      "checksum": "7f1b5bee830a457578b15b3fe71b64ff489ba79439f5d9b7c7477389ecec6970",
+      "created_at": "2026-04-15T15:20:14.5654+02:00",
+      "migration_name": "1775900003000_mail_smtp_send_support",
+      "checksum_normalized": "3971f78459b7e7eaa41010c0940883b2792fde0a6998dcb1dcec3f0986a87646"
+    },
+    {
+      "checksum": "e538ed226ccbd8b351207a4b69c398a251280a71b0546accc5e79e499bd1322d",
+      "created_at": "2026-04-15T15:20:14.572793+02:00",
+      "migration_name": "1775900004000_mail_sync_support",
+      "checksum_normalized": "54828aa2bc9052f8967296f87b9b3b8abdc417d7758359da6cad8e3a5ff13401"
+    },
+    {
+      "checksum": "289ca6aec752a935da1a9fe20dbe6cb27d08f331e6495335b6b0cc5e688f2434",
+      "created_at": "2026-04-15T15:20:14.578072+02:00",
+      "migration_name": "1775900005000_mail_threading_support",
+      "checksum_normalized": "407b247e67f427a7c3aa96844ab9516347482891eb3298d3f2774deeb95c27f2"
+    },
+    {
+      "checksum": "dac9e597bb02d75fd6c8eb9f919702b4b912ca46a457f2dddac492ab98c8c49b",
+      "created_at": "2026-04-15T15:20:14.583343+02:00",
+      "migration_name": "1775900006000_mail_crm_link",
+      "checksum_normalized": "365d4b471cbdda7cbc6ca3e9a5c4185a338a8a4e24fc57c18467dd3ba34086c9"
+    },
+    {
+      "checksum": "50d36f7278d062bdbbe8d171b8503dfaed40cfa168e6775f5014dd28a39f7e13",
+      "created_at": "2026-04-15T17:00:25.012782+02:00",
+      "migration_name": "1775900007000_mail_attachments_documents",
+      "checksum_normalized": "77ff2bafc1b71572a4fd04d45e45c5fa502e2e1e2a3ec3b0b9fa9a36c1651f94"
+    },
+    {
+      "checksum": "33e8271ee55e5210be4f797e2e91d824a43f07258a60131ddc8fe7d2bcfdc316",
+      "created_at": "2026-04-15T17:29:16.738997+02:00",
+      "migration_name": "1775900008000_mail_archive",
+      "checksum_normalized": "bafaf7f40e8d91922676db5103153ca928c775a4d2079659fde64142dc16bc31"
+    },
+    {
+      "checksum": "f6f85b7069bdea5475bf54c0cd22e4ff9bca305113ec61f976b234199fdcc0bf",
+      "created_at": "2026-04-15T17:29:19.832328+02:00",
+      "migration_name": "1775900009000_fix_entity_document_category_dp",
+      "checksum_normalized": "a6655b185162433c257789fa557b6737a35f81920f5707afa0b9d604094afafe"
+    },
+    {
+      "checksum": "7a27ac9fded9d17838e7aa9172aa5a2f91375842f152e70dfe1f7acac7a74a2f",
+      "created_at": "2026-04-15T21:34:02.485973+02:00",
+      "migration_name": "1775900010000_mail_signatures",
+      "checksum_normalized": "7b255ff5321c07eea577959be8deaf70ea5d274a94f8308dbe60d068dcc8e7b6"
+    },
+    {
+      "checksum": "d13f8c583f8c4624b6e28b8a134215f87f4e17eb06f67ac4d08c5f3e105eef02",
+      "created_at": "2026-04-15T21:43:19.952811+02:00",
+      "migration_name": "1775900011000_mail_templates",
+      "checksum_normalized": "6fe61352e935902f42ccb9ddadd52e6b6896e773a38945a38c5c61857351a930"
+    },
+    {
+      "checksum": "80364997381d7a3cff0b0cf554375fe53d00cacb35f4cd2d6dcefa610af023a2",
+      "created_at": "2026-04-15T22:01:08.789738+02:00",
+      "migration_name": "1775900012000_mail_tracking",
+      "checksum_normalized": "c2e68fd7da1c285c343d13bfdfbc91593adc015765087dd65bb33da0b8c68fbe"
+    },
+    {
+      "checksum": "5a13520e374e4020c646f5ac53319d849e70dbbbf57e6be98246823d702d61b9",
+      "created_at": "2026-04-15T22:11:21.866556+02:00",
+      "migration_name": "1775900013000_mail_internal_notes_tags",
+      "checksum_normalized": "5d845656ae02bad213c9e45b5e73735a5eccdb0c19962c0bc9f0c559be0b8ad7"
+    },
+    {
+      "checksum": "530d59160fea2b51d46e16820e4a10574eb91f604064517712d227a369b5d36b",
+      "created_at": "2026-04-15T22:32:45.85022+02:00",
+      "migration_name": "1775900014000_event_log",
+      "checksum_normalized": "7a5c81b50d6afb59b4850403e98e33a913110608965a3a2c597da5052c5fb196"
+    },
+    {
+      "checksum": "f62ac4832fb366acf1f1943b83999aef3cf71a63e305ec7e1e0006d057b0adbc",
+      "created_at": "2026-04-15T23:27:47.273276+02:00",
+      "migration_name": "1775920000000_mail_outbox_queue",
+      "checksum_normalized": "3ae356fb37c62d80d5d40f0ad41ad47549fc064249fdc7a163c1dbd970f80dd7"
+    },
+    {
+      "checksum": "c9c96b3811fb055aea9b74fefd8e454f19d3c5994c01421c3dcd3e6bf85e6ecd",
+      "created_at": "2026-04-15T23:56:18.450044+02:00",
+      "migration_name": "1775921000000_mail_outbox_queue_fix",
+      "checksum_normalized": "fda847cd8a4bb2fe8dae211a604d59cc1d3522ae9cc8ebd6b3bb2c96c337ab9a"
+    },
+    {
+      "checksum": "09dc2124debcafe6ef32c3d0dc996c5c5624815cb0d372f5a7825d6d9ae6d291",
+      "created_at": "2026-04-16T00:32:06.41693+02:00",
+      "migration_name": "1775930000000_mail_messages_fulltext_search",
+      "checksum_normalized": "2a30cc9bad5a6c4b8c8b815c268fa3bff0b24a5edfab621fcc4a50e84765f8cf"
+    },
+    {
+      "checksum": "9d8dda4c9cb2e9f03aa90690f9d4395d26de96776e112aafecad7d26cdcf3123",
+      "created_at": "2026-04-16T00:38:45.613665+02:00",
+      "migration_name": "1775930001000_reconcile_mail_fulltext_migration_checksum",
+      "checksum_normalized": "9bc6c9e04338e02da0de06f2a4399237f80f7a81186a1653329896db6ce385ec"
+    },
+    {
+      "checksum": "572b004c2530b19fb31db30b5edc627570d33aa8c89ce9e1f65f8a815484297e",
+      "created_at": "2026-04-16T00:41:28.050107+02:00",
+      "migration_name": "1775930002000_sync_mail_fulltext_migration_checksum_refs",
+      "checksum_normalized": "1aeaf66a5f77a6a2a270ea7e327e492b1c44332f9d3dadcbcce54f60055218c2"
+    },
+    {
+      "checksum": "d0eed2c9f85597c62ff2402f958e39fd0077a64224acd5ff24520e3443e76f54",
+      "created_at": "2026-04-16T09:47:07.11084+02:00",
+      "migration_name": "1776100000000_entity_documents_legal_cgv",
+      "checksum_normalized": "2974200574b6083be47655f4bfb1f12834ff7bdd495c97b6d852638720c854ff"
+    },
+    {
+      "checksum": "292da3acf93e0e93468487a2bedbab100e5141594e434af75eb1f94a90c1c1f6",
+      "created_at": "2026-04-16T10:34:21.235219+02:00",
+      "migration_name": "1776200000000_entity_documents_organization_legal_rge_decennale_fix",
+      "checksum_normalized": "b6a7c321f12dd2fd308e40f0ff0977073a2408f813c11521b1b529f524d288aa"
+    },
+    {
+      "checksum": "4a82f83a189299b410dbf0aee0bd0eaa52b6274eb2a3ebffbe93e477c87c4663",
+      "created_at": "2026-04-16T11:38:51.117321+02:00",
+      "migration_name": "1776300000000_leads_assigned_user_source_normalize",
+      "checksum_normalized": "f97db26f78ace6a0071ecbbef794380c8d61adc3a29ff109d74d24cff8b46ccf"
+    },
+    {
+      "checksum": "b57be811ba3320dbd4eae98ac0a9c8402285f9bda4c228d89c055dff2a7d19af",
+      "created_at": "2026-04-16T11:52:29.095815+02:00",
+      "migration_name": "1776300001000_sync_leads_assigned_user_source_normalize_checksum",
+      "checksum_normalized": "3d612274fc311703dd0a509f947f9df8f33d41f08afc76fecd9b1561f60bbd45"
+    },
+    {
+      "checksum": "39f0610b3245f54631de2254b1f41c612914973bce1f672bdf8614520f707b02",
+      "created_at": "2026-04-16T13:59:42.286129+02:00",
+      "migration_name": "1776400000000_audit_logs_cp072_enhancements",
+      "checksum_normalized": "d3008677caf7a2523d5834e3fa9b7887dc4f1af0aaeabc79304052203b7916c2"
+    },
+    {
+      "checksum": "883ba4d7b6328b043ed38fa1f2f72cd150a0a8dacedc17951ed7da8bac036a1d",
+      "created_at": "2026-04-16T22:41:43.929589+02:00",
+      "migration_name": "1776500000000_cp080_org_quote_finance_settings",
+      "checksum_normalized": "4b1a7fcbc63325e33f801d06ed65a6bec79c49c17cacdf3cc6d791a054922025"
+    },
+    {
+      "checksum": "c1a2f8efa03b82402b3e4f85be09cc566c8ad6f6f98880ff2089ac1a07fcc1f2",
+      "created_at": "2026-04-16T22:50:44.636995+02:00",
+      "migration_name": "1776500001000_cp080_quotes_org_quote_number_unique_idempotent",
+      "checksum_normalized": "8242fc7405478ebdd6f0da6cf2444654f742ff7315b7235be25ac29600458931"
+    },
+    {
+      "checksum": "2c85debfbef902740dd02a3f4d570a3548ad41f3b4a58d95b0d08ec788d35147",
+      "created_at": "2026-04-20T23:27:47.14068+02:00",
+      "migration_name": "1776500002000_marketing_export_consent_columns",
+      "checksum_normalized": "d3816c0ccfc7c4f7d51423c3a56b5cd6007ae4df676ddb7c100a1d3857317cf4"
+    },
+    {
+      "checksum": "f9b2099ca46f508e38fe948341470f4011527cc92273ff52b7146673bce6236a",
+      "created_at": "2026-04-20T23:32:10.036734+02:00",
+      "migration_name": "1776500003000_marketing_opt_in_explicit",
+      "checksum_normalized": "18848e354d1500f41e556f0a485b4743b314566321ce6ef968fa5db1dba59aea"
+    },
+    {
+      "checksum": "ddb257c4c0810f4c7b61bb05827d4dbacd104bfc96db7c53431a9a3932736959",
+      "created_at": "2026-04-21T12:25:12.280247+02:00",
+      "migration_name": "1776600000000_lead_sources_acquisition_canonical",
+      "checksum_normalized": "be9e86615c6334ed907795a77f8e6ea6081df755b3df9990a87dba57ed32468e"
+    },
+    {
+      "checksum": "f7c93e09720c06545beea848f92912c3ec4ca3dd19e2a13cb01de9e6185437b5",
+      "created_at": "2026-04-21T09:43:12.656414+02:00",
+      "migration_name": "1776600000000_leads_archived_at_ensure",
+      "checksum_normalized": "248b2c882a1d2c3bd67ab948b1777ceb4d431c0e4e26b9757d6d865ec0118844"
+    },
+    {
+      "checksum": "df883cfb98578e28eafac2ce79b65580c4d71c78f9f17f8cf6a15f18afdec40a",
+      "created_at": "2026-04-21T13:08:15.151153+02:00",
+      "migration_name": "1776700000000_lead_sources_drop_retour_flyer",
+      "checksum_normalized": "a0ce44fae5fb578c500b31b89f6cd85370bc21543b75187dbb05bcdb0ab1e818"
+    },
+    {
+      "checksum": "3fbac4916fcbadfe0babf742b831b4ae8d4caa358dbd401886030badedbccfbf",
+      "created_at": "2026-04-21T14:49:46.285553+02:00",
+      "migration_name": "1776710000000_cp_mairies_v1",
+      "checksum_normalized": "b93923172e516e8471ebe4098486ddc64eb84fbf9f3b8957bdf396ca70fc2c26"
+    },
+    {
+      "checksum": "817bec4a8b4a842c802efa50a4c00824a0853a32382d13f64d2c871d8a50afb6",
+      "created_at": "2026-04-21T15:02:22.361301+02:00",
+      "migration_name": "1776720000000_cp_mairies_rbac_permissions",
+      "checksum_normalized": "b66a17ecceb5a35dfa2f0051dfd91c26cb48d37a504da91a7c2f0968a781f648"
+    },
+    {
+      "checksum": "ca833e74c57425d252f58b47497b58f4a39b9065957dae674d2623dfb40130f8",
+      "created_at": "2026-04-21T16:40:50.571455+02:00",
+      "migration_name": "1776730000000_audit_logs_drop_user_id_fk",
+      "checksum_normalized": "123c123ab99656595c6a1ee3a41068487085de68a02d91bf01d54b66623f520d"
+    }
+  ]
+}

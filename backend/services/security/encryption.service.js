@@ -1,89 +1,65 @@
-/**
- * CP-070 — Chiffrement AES-256-GCM pour secrets applicatifs (credentials mail, etc.).
- * Clé : MAIL_ENCRYPTION_KEY (32 octets en hex 64 chars ou base64).
- */
-
-import crypto from "crypto";
+import crypto from "node:crypto";
+import { readMailKeyring, mailCryptoError } from "./mailKeyring.js";
 
 const ALGO = "aes-256-gcm";
-const IV_LEN = 12;
-const TAG_LEN = 16;
-const KEY_LEN = 32;
+const idPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+const aad = kid => Buffer.from(JSON.stringify(["solarnext-mail", 2, ALGO, kid]), "utf8");
 
-/**
- * @returns {Buffer}
- */
-function getKeyBuffer() {
-  const raw = String(process.env.MAIL_ENCRYPTION_KEY || "").trim();
-  if (!raw) {
-    throw new Error("MAIL_ENCRYPTION_KEY manquant");
-  }
-  if (/^[0-9a-fA-F]{64}$/.test(raw)) {
-    return Buffer.from(raw, "hex");
-  }
-  const b = Buffer.from(raw, "base64");
-  if (b.length !== KEY_LEN) {
-    throw new Error("MAIL_ENCRYPTION_KEY doit décoder vers exactement 32 octets (AES-256)");
-  }
-  return b;
+function decodeBase64(value, length) {
+  if (typeof value !== "string" || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) throw mailCryptoError("MAIL_CIPHERTEXT_INVALID");
+  const result = Buffer.from(value, "base64");
+  if (result.toString("base64") !== value || (length !== undefined && result.length !== length)) throw mailCryptoError("MAIL_CIPHERTEXT_INVALID");
+  return result;
 }
 
-/**
- * Chiffre une chaîne UTF-8. Retourne un objet sérialisable en JSON (jsonb).
- *
- * @param {string} plaintext
- * @returns {{ v: 1, alg: 'aes-256-gcm', iv: string, tag: string, data: string }}
+/** V2 authenticates version, algorithm and public key ID with GCM AAD.
+ * V1 is the historical {v:1,alg,iv,tag,data} format without AAD or key ID.
  */
-export function encrypt(plaintext) {
-  const key = getKeyBuffer();
-  const iv = crypto.randomBytes(IV_LEN);
-  const cipher = crypto.createCipheriv(ALGO, key, iv, { authTagLength: TAG_LEN });
-  const enc = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return {
-    v: 1,
-    alg: "aes-256-gcm",
-    iv: iv.toString("base64"),
-    tag: tag.toString("base64"),
-    data: enc.toString("base64"),
-  };
-}
-
-/**
- * Déchiffre le payload produit par encrypt().
- *
- * @param {{ v: number, alg?: string, iv: string, tag: string, data: string }} payload
- * @returns {string}
- */
-export function decrypt(payload) {
-  if (!payload || typeof payload !== "object") {
-    throw new Error("Payload de déchiffrement invalide");
+export function createMailCipher(env = process.env) {
+  const { keys, activeId, legacyId, explicit } = readMailKeyring(env);
+  function encryptValue(plaintext) {
+    if (typeof plaintext !== "string") throw mailCryptoError("MAIL_PLAINTEXT_INVALID");
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv(ALGO, keys.get(activeId), iv, { authTagLength: 16 });
+    cipher.setAAD(aad(activeId));
+    const data = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+    return { v: 2, alg: ALGO, kid: activeId, iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), data: data.toString("base64") };
   }
-  if (payload.v !== 1 || payload.alg !== "aes-256-gcm") {
-    throw new Error("Version ou algorithme de chiffrement non supporté");
+  function decryptValue(payload, { activeOnly = false } = {}) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload) || payload.alg !== ALGO) throw mailCryptoError("MAIL_CIPHERTEXT_INVALID");
+    let key;
+    if (payload.v === 1 && payload.kid === undefined && !activeOnly) {
+      key = legacyId && keys.get(legacyId);
+    } else if (payload.v === 2 && typeof payload.kid === "string" && idPattern.test(payload.kid)) {
+      key = (!activeOnly || payload.kid === activeId) && keys.get(payload.kid);
+    } else {
+      throw mailCryptoError("MAIL_CIPHERTEXT_VERSION_UNSUPPORTED");
+    }
+    if (!key) throw mailCryptoError("MAIL_CIPHERTEXT_KEY_UNAVAILABLE");
+    const iv = decodeBase64(payload.iv, 12), tag = decodeBase64(payload.tag, 16), data = decodeBase64(payload.data);
+    try {
+      const decipher = crypto.createDecipheriv(ALGO, key, iv, { authTagLength: 16 });
+      if (payload.v === 2) decipher.setAAD(aad(payload.kid));
+      decipher.setAuthTag(tag);
+      return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+    } catch {
+      throw mailCryptoError("MAIL_CIPHERTEXT_AUTH_FAILED");
+    }
   }
-  const key = getKeyBuffer();
-  const iv = Buffer.from(String(payload.iv), "base64");
-  const tag = Buffer.from(String(payload.tag), "base64");
-  const data = Buffer.from(String(payload.data), "base64");
-  const decipher = crypto.createDecipheriv(ALGO, key, iv, { authTagLength: TAG_LEN });
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+  return Object.freeze({
+    activeId, legacyId, explicit,
+    rotationReady: explicit && activeId !== legacyId,
+    encrypt: encryptValue,
+    decrypt: decryptValue,
+    encryptJson: value => encryptValue(JSON.stringify(value)),
+    decryptJson(payload, options) {
+      const text = decryptValue(payload, options);
+      try { return JSON.parse(text); } catch { throw mailCryptoError("MAIL_PLAINTEXT_JSON_INVALID"); }
+    },
+  });
 }
 
-/**
- * Enveloppe JSON (ex. credentials) → chiffrée.
- *
- * @param {Record<string, unknown>} obj
- */
-export function encryptJson(obj) {
-  return encrypt(JSON.stringify(obj));
-}
-
-/**
- * @param {{ v: number, alg?: string, iv: string, tag: string, data: string }} payload
- * @returns {Record<string, unknown>}
- */
-export function decryptJson(payload) {
-  return JSON.parse(decrypt(payload));
-}
+export const encrypt = plaintext => createMailCipher().encrypt(plaintext);
+export const decrypt = payload => createMailCipher().decrypt(payload);
+export const encryptJson = value => createMailCipher().encryptJson(value);
+export const decryptJson = payload => createMailCipher().decryptJson(payload);
