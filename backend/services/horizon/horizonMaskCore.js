@@ -1,3 +1,4 @@
+import horizonSampler from '../../../shared/shading/horizonMaskSampler.cjs';
 /**
  * CP-FAR-001 — Horizon Mask Core (relief only)
  * Module pur, synthétique, sans données externes.
@@ -115,29 +116,5 @@ function clampHorizonElevDeg(e) {
 }
 
 export function interpolateHorizonElevation(mask, azDeg) {
-  if (!mask || !Array.isArray(mask) || mask.length === 0) {
-    return 0;
-  }
-
-  const az = ((azDeg % 360) + 360) % 360;
-  const step = mask.length >= 2 ? mask[1].az - mask[0].az : 360 / mask.length;
-
-  if (mask.length === 1) {
-    return clampHorizonElevDeg(mask[0].elev);
-  }
-
-  const idx = az / step;
-  const i0 = Math.floor(idx) % mask.length;
-  let i1 = (i0 + 1) % mask.length;
-
-  const az0 = mask[i0].az;
-  let az1 = mask[i1].az;
-  if (i1 === 0) az1 = 360;
-
-  const denom = az1 - az0;
-  const t = denom === 0 || !Number.isFinite(denom) ? 0 : (az - az0) / denom;
-  const elev0 = clampHorizonElevDeg(mask[i0].elev);
-  const elev1 = clampHorizonElevDeg(mask[i1].elev);
-  const out = elev0 + t * (elev1 - elev0);
-  return clampHorizonElevDeg(out);
+  return horizonSampler.sampleHorizonElevationDeg(mask, azDeg);
 }

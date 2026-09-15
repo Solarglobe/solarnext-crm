@@ -8,6 +8,8 @@ import { mapSelectedScenarioSnapshotToPdfViewModel } from '../services/pdf/pdfVi
 import { deriveGeometryFromGeometryJson } from '../services/finalStudyJson.service.js';
 import { mapScenarioToV2 } from '../services/scenarioV2Mapper.service.js';
 import { formatShadingLossPct } from '../../shared/shading/shadingAssessment.js';
+import { interpolateHorizonElevation } from '../services/horizon/horizonMaskCore.js';
+import horizonSampler from '../../shared/shading/horizonMaskSampler.cjs';
 
 const makeShading = (status = 'computed', loss = 0) => ({
   assessment: { status, nearStatus: status, farStatus: status, reasons: [] },
@@ -18,6 +20,29 @@ const makeShading = (status = 'computed', loss = 0) => ({
   monthlyFactors: [], monthlyKwhStats: [], annualLossKwh: 0,
 });
 const data = shading => ({ address: 'Site test', date: '15/09/2026', shading, installation: {}, geometry: { frozenBlocks: [] } });
+
+test('signed, rotated and nonuniform horizon samples retain their measured elevations in calculation and PDF', () => {
+  const signed = Array.from({length:181},(_,i)=>({az:-180+i*2,elev:3+1.5*Math.sin((-180+i*2)*Math.PI/180)}));
+  const normalized = signed.map(p=>({...p,az:(p.az+360)%360})).reverse();
+  const original = JSON.stringify(signed);
+  const shading = {...makeShading(),horizonMask:{elevations:signed}};
+  const profile = mapSelectedScenarioSnapshotToPdfViewModel({shading}).fullReport.p_shading.horizonMaskArray;
+  assert.equal(profile.length,181);
+  for(let az=0;az<=360;az+=2){
+    const expected = 3+1.5*Math.sin(az*Math.PI/180);
+    for(const mask of [signed,normalized]){
+      assert.ok(Math.abs(interpolateHorizonElevation(mask,az)-expected)<1e-12);
+      assert.ok(Math.abs(horizonSampler.sampleHorizonElevationDeg(mask,az)-expected)<1e-12);
+    }
+    assert.ok(Math.abs(profile[az/2]-expected)<1e-12);
+    assert.ok(profile[az/2]>=1.5 && profile[az/2]<=4.5);
+  }
+  const uneven=[{az:350,elev:2},{az:10,elev:6},{az:90,elev:4},{az:190,elev:8}];
+  assert.equal(interpolateHorizonElevation(uneven,0),4);
+  assert.equal(interpolateHorizonElevation(uneven,50),5);
+  assert.equal(interpolateHorizonElevation(uneven,360),4);
+  assert.equal(JSON.stringify(signed),original);
+});
 
 for (const status of ['insufficient_data', 'error', 'stale', 'not_calculated']) {
   test(`PDF and mapper discard stale numeric zeros when ${status}`, () => {

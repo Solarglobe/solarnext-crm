@@ -32,22 +32,29 @@ function clampHorizonElevDeg(e) {
  * @returns {number}
  */
 function interpolateObjectMask(mask, azDeg) {
-  if (!mask || mask.length === 0) return 0;
+  if (!mask || mask.length === 0 || !Number.isFinite(azDeg)) return 0;
+  // Explicit azimuths can start anywhere, use signed angles, or have uneven gaps.
+  // Index-based sampling silently extrapolated beyond measured elevations.
+  var byAz = new Map();
+  for (var point of mask) {
+    if (!point || !Number.isFinite(point.az) || !Number.isFinite(point.elev)) continue;
+    var direction = normalizeAzimuth(point.az);
+    var elevation = clampHorizonElevDeg(point.elev);
+    byAz.set(direction, Math.max(byAz.has(direction) ? byAz.get(direction) : -5, elevation));
+  }
+  var points = Array.from(byAz, function(entry) { return {az:entry[0], elev:entry[1]}; })
+    .sort(function(a,b) { return a.az-b.az; });
+  if (!points.length) return 0;
+  if (points.length === 1) return points[0].elev;
   var az = normalizeAzimuth(azDeg);
-  if (mask.length === 1) return clampHorizonElevDeg(mask[0].elev != null ? mask[0].elev : 0);
-  var step = mask[1].az - mask[0].az;
-  if (step <= 0) step = 360 / mask.length;
-  var idx = az / step;
-  var i0 = Math.floor(idx) % mask.length;
-  var i1 = (i0 + 1) % mask.length;
-  var az0 = mask[i0].az;
-  var az1 = mask[i1].az;
-  if (i1 === 0) az1 = 360;
-  var denom = az1 - az0;
-  var t = denom === 0 || !Number.isFinite(denom) ? 0 : (az - az0) / denom;
-  var e0 = clampHorizonElevDeg(mask[i0].elev != null ? mask[i0].elev : 0);
-  var e1 = clampHorizonElevDeg(mask[i1].elev != null ? mask[i1].elev : 0);
-  return clampHorizonElevDeg(e0 + t * (e1 - e0));
+  var lo = 0, hi = points.length;
+  while (lo < hi) { var mid = Math.floor((lo+hi)/2); if (points[mid].az <= az) lo=mid+1; else hi=mid; }
+  var left = points[(lo+points.length-1)%points.length];
+  var right = points[lo%points.length];
+  var az0 = lo === 0 ? left.az-360 : left.az;
+  var az1 = lo === points.length ? right.az+360 : right.az;
+  var t = (az-az0)/(az1-az0);
+  return left.elev + t*(right.elev-left.elev);
 }
 
 /**

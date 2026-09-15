@@ -28,6 +28,8 @@ const RECT_WIDE_CHIEN_ASSIS: readonly { x: number; y: number; h?: number }[] = [
 ];
 
 const RIDGE_WIDE_TOP = { x: 30, y: 45 };
+// Historical comparison datum for the shifted-apex assertion; the modeled ridge ends at the apex.
+const RIDGE_WIDE_BOT = { x: 30, y: 12 };
 
 /** Sommet décentré, mesuré et partagé par le faîtage et les deux arêtiers. */
 const APEX_WIDE_TYPICAL = { x: 38, y: 28 };
