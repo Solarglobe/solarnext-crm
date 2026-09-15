@@ -1,6 +1,6 @@
 /**
  * Structure normalisée pv.virtual_battery (org settings).
- * Tous les montants en HT. Segments : BASE (1 prix) ou HP/HC (HP + HC).
+ * Montants HT sauf champs explicitement nommés ttc. Segments : BASE ou HP/HC.
  */
 
 export const SEGMENT_KEYS = ["PARTICULIER_BASE", "PARTICULIER_HPHC", "PRO_BASE_CU", "PRO_HPHC_MU"] as const;
@@ -18,6 +18,7 @@ export interface VirtualBatteryRow {
   /** BASE uniquement */
   restitution_energy_eur_per_kwh?: number;
   restitution_energy_ttc_per_kwh?: number;
+  /** Prix des achats hors crédit virtuel, fourniture TTC (distinct de la restitution). */
   electricity_base_ttc_per_kwh?: number;
   /** BASE uniquement */
   reseau_eur_per_kwh?: number;

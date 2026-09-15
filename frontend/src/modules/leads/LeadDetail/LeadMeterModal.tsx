@@ -14,7 +14,7 @@ import MonthlyConsumptionChart from "./MonthlyConsumptionChart";
 import { apiFetch } from "../../../services/api";
 import { ModalShell } from "../../../components/ui/ModalShell";
 import type { OverviewLeadSnapshot } from "./overviewSave";
-import { applyMeterRowToLeadSnapshot, buildMeterAutosavePayload } from "./overviewSave";
+import { applyMeterRowToLeadSnapshot, buildMeterAutosavePayload, mergeEnergyProfileEngine } from "./overviewSave";
 import {
   formatEnergyKwh,
   formatEnergyKwhPerYear,
@@ -35,6 +35,7 @@ import {
 } from "./equipmentV2Normalize";
 import { buildOrderedEquipmentGroups, equipmentGroupKey } from "./equipmentGrouping";
 import EquipmentCard from "./EquipmentCard";
+import { buildCurrentElectricityBillPreview, currentElectricityTariffType, currentElectricityTariffPatch } from "./currentElectricityBill";
 
 const EQUIPMENT_ADD_CHOICES: {
   kind: EquipmentKind;
@@ -114,7 +115,7 @@ function defaultMonths(): { month: number; kwh: number }[] {
 function emptyDraft(): OverviewLeadSnapshot {
   return {
     consumption_mode: "ANNUAL",
-    hp_hc: false,
+    hp_hc: null,
     grid_type: "",
     consumption_profile: "",
     tariff_type: "",
@@ -199,6 +200,8 @@ export default function LeadMeterModal({
       : consumptionMode === "MONTHLY"
         ? draft.consumption_annual_calculated_kwh ?? 0
         : annualFromEngine;
+
+  const electricityBillPreview = buildCurrentElectricityBillPreview(draft, monthlyLocal, annualFromEngine);
 
   const actuelV2View = useMemo(
     () => ensureActuelV2FromApi(draft.equipement_actuel_params, draft.equipement_actuel ?? null),
@@ -334,12 +337,19 @@ export default function LeadMeterModal({
             phase_detection: payload.contract?.phase_detection ?? null,
           };
           setEnergyEngine(next);
-          patchDraft({
-            energy_profile: payload.energy_profile ?? { engine: next },
+          setDraft((current) => ({
+            ...current,
             ...((payload.lead_updates ?? {}) as Partial<OverviewLeadSnapshot>),
+            energy_profile: mergeEnergyProfileEngine(
+              payload.energy_profile !== undefined ? payload.energy_profile : current.energy_profile,
+              next
+            ),
+          }));
+        } else {
+          patchDraft({
+            ...((payload.lead_updates ?? {}) as Partial<OverviewLeadSnapshot>),
+            ...(payload.energy_profile !== undefined ? { energy_profile: payload.energy_profile } : {}),
           });
-        } else if (payload.lead_updates && Object.keys(payload.lead_updates).length > 0) {
-          patchDraft(payload.lead_updates as Partial<OverviewLeadSnapshot>);
         }
         const reused = payload.import_debug?.reused_files;
         const reusedLabel =
@@ -404,14 +414,18 @@ export default function LeadMeterModal({
           phase_detection: payload.contract?.phase_detection ?? null,
         };
         setEnergyEngine(next);
-        patchDraft({
-          energy_profile: payload.energy_profile ?? { engine: next },
+        setDraft((current) => ({
+          ...current,
           hp_hc: true,
           tariff_type: "hp_hc",
           elec_price_hp_eur_kwh: manualHphc.elec_price_hp_eur_kwh,
           elec_price_hc_eur_kwh: manualHphc.elec_price_hc_eur_kwh,
           ...((payload.lead_updates ?? {}) as Partial<OverviewLeadSnapshot>),
-        });
+          energy_profile: mergeEnergyProfileEngine(
+            payload.energy_profile !== undefined ? payload.energy_profile : current.energy_profile,
+            next
+          ),
+        }));
       } else {
         patchDraft({
           hp_hc: true,
@@ -419,6 +433,7 @@ export default function LeadMeterModal({
           elec_price_hp_eur_kwh: manualHphc.elec_price_hp_eur_kwh,
           elec_price_hc_eur_kwh: manualHphc.elec_price_hc_eur_kwh,
           ...((payload.lead_updates ?? {}) as Partial<OverviewLeadSnapshot>),
+          ...(payload.energy_profile !== undefined ? { energy_profile: payload.energy_profile } : {}),
         });
       }
       setEnergyFileName(names.length ? names.join(", ") : fileList[0].name);
@@ -565,11 +580,16 @@ export default function LeadMeterModal({
 
   const handleSave = async () => {
     setSaveError(null);
+    if (electricityBillPreview.error) {
+      setSaveError(electricityBillPreview.error);
+      return;
+    }
     const nameTrim = meterName.trim();
     const resolvedName = nameTrim || `Compteur ${nextMeterOrdinal}`;
 
-    const energy_profile =
-      energyEngine != null ? { engine: energyEngine } : draft.energy_profile ?? null;
+    // The draft is the complete API/import profile. energyEngine is a display
+    // projection (8760 samples); never let that projection truncate source data.
+    const energy_profile = draft.energy_profile ?? mergeEnergyProfileEngine(null, energyEngine ?? undefined);
 
     const snapshot: OverviewLeadSnapshot = {
       ...draft,
@@ -584,7 +604,7 @@ export default function LeadMeterModal({
         const resPost = await apiFetch(`${apiBase}/api/leads/${leadId}/meters`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: resolvedName }),
+          body: JSON.stringify({ name: resolvedName, copy_from_default: false }),
         });
         if (!resPost.ok) {
           const err = await resPost.json().catch(() => ({}));
@@ -955,17 +975,18 @@ export default function LeadMeterModal({
           <div className="crm-lead-overview-subblock">
             <h3 className="crm-lead-overview-subheading">Réseau électrique, contrat et équipement</h3>
             <div className="crm-lead-fields">
-              <div className="crm-lead-field">
+              {currentElectricityTariffType(draft) !== "TEMPO" && <div className="crm-lead-field">
                 <label>HP/HC</label>
                 <select
                   className="sn-input"
-                  value={draft.hp_hc ? "yes" : "no"}
-                  onChange={(e) => patchDraft({ hp_hc: e.target.value === "yes" })}
+                  value={currentElectricityTariffType(draft) === "HPHC" ? "yes" : currentElectricityTariffType(draft) === "BASE" ? "no" : "unknown"}
+                  onChange={(e) => patchDraft(currentElectricityTariffPatch(e.target.value === "yes" ? "hp_hc" : e.target.value === "no" ? "base" : undefined))}
                 >
+                  <option value="unknown">Non renseigné</option>
                   <option value="no">Non</option>
                   <option value="yes">Oui</option>
                 </select>
-              </div>
+              </div>}
               <div className="crm-lead-field">
                 <label>Fournisseur</label>
                 <input
@@ -995,7 +1016,7 @@ export default function LeadMeterModal({
                 <select
                   className="sn-input"
                   value={draft.tariff_type ?? ""}
-                  onChange={(e) => patchDraft({ tariff_type: e.target.value || undefined })}
+                  onChange={(e) => patchDraft(currentElectricityTariffPatch(e.target.value || undefined))}
                 >
                   {TARIFF_TYPE_OPTIONS.map((o) => (
                     <option key={o.value || "_"} value={o.value}>
@@ -1006,7 +1027,7 @@ export default function LeadMeterModal({
               </div>
               {/* LOT2-PRIX-COMPTEUR : prix électricité client (facture fournisseur — pas dans les
                   documents Enedis). Vide = défaut réglages organisation. */}
-              {draft.hp_hc === true || draft.tariff_type === "hp_hc" ? (
+              {currentElectricityTariffType(draft) === "HPHC" ? (
                 <>
                   <div className="crm-lead-field">
                     <label>Prix HP (€/kWh TTC)</label>
@@ -1045,6 +1066,10 @@ export default function LeadMeterModal({
                     />
                   </div>
                 </>
+              ) : currentElectricityTariffType(draft) === "TEMPO" ? (
+                <div className="crm-lead-field crm-lead-field-full">
+                  <small>Tempo : calcul au prix moyen annuel, sans détail par couleur de jour. Renseignez la facture et la consommation des mêmes 12 mois.</small>
+                </div>
               ) : (
                 <div className="crm-lead-field">
                   <label>Prix élec (€/kWh TTC)</label>
@@ -1065,6 +1090,42 @@ export default function LeadMeterModal({
                   />
                 </div>
               )}
+              <div className="crm-lead-field">
+                <label>Facture annuelle électricité TTC (€)</label>
+                <input
+                  className="sn-input"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={draft.electricity_annual_bill_ttc ?? ""}
+                  onChange={(e) => patchDraft({
+                    electricity_annual_bill_ttc: e.target.value === "" ? null : Number(e.target.value),
+                  })}
+                  placeholder="Montant total sur 12 mois"
+                />
+                <small>Total facturé sur 12 mois, abonnement compris. Utilisez la consommation des mêmes 12 mois.</small>
+              </div>
+              <div className="crm-lead-field">
+                <label>Abonnement électricité TTC (€/mois)</label>
+                <input
+                  className="sn-input"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={draft.electricity_subscription_ttc_month ?? ""}
+                  onChange={(e) => patchDraft({
+                    electricity_subscription_ttc_month: e.target.value === "" ? null : Number(e.target.value),
+                  })}
+                  placeholder="Montant figurant sur la facture"
+                />
+                <small>
+                  {electricityBillPreview.subscriptionMessage}
+                  {electricityBillPreview.subscription.reference?.source_url && <> <a href={electricityBillPreview.subscription.reference.source_url} target="_blank" rel="noopener noreferrer">Voir la grille EDF</a></>}
+                </small>
+              </div>
+              <div className={`crm-lead-field crm-lead-field-full${electricityBillPreview.error ? " sn-energy-error" : ""}`} role={electricityBillPreview.error ? "alert" : undefined}>
+                <small>{electricityBillPreview.message}</small>
+              </div>
               <div className="crm-lead-field">
                 <label>Type de réseau</label>
                 <select

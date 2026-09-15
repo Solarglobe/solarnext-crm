@@ -1,3 +1,4 @@
+import { displayKwh } from "@shared/studyDisplay.js";
 /**
  * CP-PDF — Page 7 Autonomie et flux énergie
  * Page commerciale de synthèse : compréhension immédiate des flux.
@@ -8,6 +9,7 @@ import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
+import { electricityBillingNote, type ElectricityBilling } from "@/components/study/electricityBillingDisplay";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
 const PLACEHOLDER_LOGO = "/client-portal/logo-solarglobe.png";
@@ -34,6 +36,7 @@ interface P7Data {
   };
   c_grid?: number;
   p_surplus?: number;
+  curtailment_kwh?: number;
   consumption_kwh?: number;
   autoconsumption_kwh?: number;
   production_kwh?: number;
@@ -56,7 +59,7 @@ function fmtPct(v: number | null | undefined): string {
 
 function fmtKwh(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return EMPTY;
-  return `${Math.round(v).toLocaleString("fr-FR")} kWh`;
+  return displayKwh(v);
 }
 
 function safeNum(v: unknown): number {
@@ -133,9 +136,10 @@ export default function PdfPage7({
   const solarUsedDirectKwh = safeNum(
     (p7 as unknown as { energy_solar_used_direct_kwh?: number }).energy_solar_used_direct_kwh
   );
-  const virtualCreditKwh = safeNum((p7 as unknown as { credited_kwh?: number }).credited_kwh) || surplusValoriseKwh;
+  const virtualCreditKwh = safeNum((p7 as unknown as { credited_kwh?: number }).credited_kwh ?? surplusValoriseKwh);
   const gridImportKwh = safeNum((p7 as unknown as { energy_grid_import_kwh?: number }).energy_grid_import_kwh) || (p7.c_grid ?? 0);
-  const estimatedBillEur = safeNum((p7 as unknown as { estimated_annual_bill_eur?: number }).estimated_annual_bill_eur);
+  const billing = (p7 as unknown as { electricity_billing?: ElectricityBilling }).electricity_billing;
+  const estimatedBillEur = billing ? billing.bill_after_eur : (p7 as unknown as { estimated_annual_bill_eur?: number }).estimated_annual_bill_eur;
   const solarCoveragePct = consoKwh > 0 ? (solarUsedKwh / consoKwh) * 100 : 0;
 
   const autonomie = cPv + cBat;
@@ -251,7 +255,7 @@ export default function PdfPage7({
                 {(() => {
                   const segs = [
                     cPv >= 2 && { flex: cPv, label: cPv >= 5 ? `${cPv} % PV direct` : `${cPv} %`, bg: "linear-gradient(135deg, #F0D060 0%, #E5B83D 50%, #D4A82E 100%)", color: "#1a1508", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.4)" },
-                    cBat >= 2 && { flex: cBat, label: cBat >= 5 ? `${cBat} % ${storageLabel}` : `${cBat} %`, bg: "linear-gradient(135deg, #7ED99E 0%, #5BC47A 50%, #3DA85C 100%)", color: "#0d2514", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.3)" },
+                    cBat >= 2 && { flex: cBat, label: cBat >= 5 ? `${cBat} % Batterie` : `${cBat} %`, bg: "linear-gradient(135deg, #7ED99E 0%, #5BC47A 50%, #3DA85C 100%)", color: "#0d2514", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.3)" },
                     cGrid >= 2 && { flex: cGrid, label: cGrid >= 5 ? `${cGrid} % Réseau` : `${cGrid} %`, bg: "linear-gradient(135deg, #A89BE8 0%, #8B7BD4 50%, #6B5BB8 100%)", color: "#fff", shadow: "0 0.2mm 0.6mm rgba(0,0,0,.25)" },
                   ].filter(Boolean) as { flex: number; label: string; bg: string; color: string; shadow: string }[];
                   const n = segs.length;
@@ -290,9 +294,9 @@ export default function PdfPage7({
               <div style={{ display: "flex", height: "10mm", borderRadius: PILL_RADIUS, overflow: "hidden", boxShadow: "0 0.5mm 2mm rgba(0,0,0,.08) inset, 0 0.3mm 1mm rgba(0,0,0,.04)" }}>
                 {(() => {
                   const segs = [
-                    pAuto >= 2 && { flex: pAuto, label: pAuto >= 5 ? `${pAuto} % Autoconsommation PV` : `${pAuto} %`, bg: "linear-gradient(135deg, #7DD4ED 0%, #5BC4E0 50%, #3BA8C8 100%)", color: "#0a2a32", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.4)" },
+                    pAuto >= 2 && { flex: pAuto, label: pAuto >= 5 ? `${pAuto} % Direct` : `${pAuto} %`, bg: "linear-gradient(135deg, #7DD4ED 0%, #5BC4E0 50%, #3BA8C8 100%)", color: "#0a2a32", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.4)" },
                     pBat >= 2 && { flex: pBat, label: pBat >= 5 ? `${pBat} % ${storageLabel}` : `${pBat} %`, bg: "linear-gradient(135deg, #7ED99E 0%, #5BC47A 50%, #3DA85C 100%)", color: "#0d2514", shadow: "0 0.2mm 0.4mm rgba(255,255,255,.3)" },
-                    pSurplusPct >= 2 && { flex: pSurplusPct, label: pSurplusPct >= 5 ? `${pSurplusPct} % Surplus` : `${pSurplusPct} %`, bg: "linear-gradient(135deg, #5BA8E0 0%, #3D8FCC 50%, #2570B0 100%)", color: "#fff", shadow: "0 0.2mm 0.6mm rgba(0,0,0,.3)" },
+                    pSurplusPct >= 2 && { flex: pSurplusPct, label: pSurplusPct >= 5 ? `${pSurplusPct} % ${p7.curtailment_kwh ? "Excédent" : "Injection"}` : `${pSurplusPct} %`, bg: "linear-gradient(135deg, #5BA8E0 0%, #3D8FCC 50%, #2570B0 100%)", color: "#fff", shadow: "0 0.2mm 0.6mm rgba(0,0,0,.3)" },
                   ].filter(Boolean) as { flex: number; label: string; bg: string; color: string; shadow: string }[];
                   const n = segs.length;
                   return segs.map((s, i) => (
@@ -359,7 +363,7 @@ export default function PdfPage7({
                     </div>
                     <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.6mm", lineHeight: 1.25 }}>
                       {isBatteryScenario
-                        ? `${fmtKwh(shownKwh)} consommés au moment de la production. Le détail complet avec ${storageLongLabel} est présenté en page suivante.`
+                        ? `${fmtKwh(shownKwh)} consommés au moment de la production. La restitution de stockage est indiquée séparément.`
                         : `Vous utiliserez environ ${fmtKwh(shownKwh)} de votre production solaire`}
                     </div>
                   </>
@@ -378,13 +382,13 @@ export default function PdfPage7({
               }}
             >
               <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
-                Énergie restante à acheter
+                Prélèvements physiques au réseau
               </div>
               <div style={{ fontSize: "7mm", lineHeight: 1, fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
                 {fmtKwh(gridImportKwh)}
               </div>
               <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.6mm", lineHeight: 1.25 }}>
-                {`Il vous restera environ ${fmtKwh(gridImportKwh)} à acheter au réseau`}
+                {`Il vous restera environ ${fmtKwh(gridImportKwh)} prélevés au réseau avant crédit éventuel`}
               </div>
             </div>
 
@@ -402,10 +406,10 @@ export default function PdfPage7({
                 Facture annuelle estimée
               </div>
               <div style={{ fontSize: "7mm", lineHeight: 1, fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
-                {estimatedBillEur > 0 ? `${Math.round(estimatedBillEur).toLocaleString("fr-FR")} €` : "—"}
+                {billing?.status === "INCOMPLETE" ? "Contrat à compléter" : estimatedBillEur != null ? `${Math.round(estimatedBillEur).toLocaleString("fr-FR")} €` : "—"}
               </div>
               <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.6mm", lineHeight: 1.25 }}>
-                {solarCoveragePct >= 50
+                {billing ? electricityBillingNote(billing) : solarCoveragePct >= 50
                   ? "Plus de la moitié de votre consommation est couverte par votre installation solaire (facture hors abonnement compteur)"
                   : `Vous couvrez environ ${fmtPct(solarCoveragePct)} de vos besoins avec votre installation solaire (facture hors abonnement compteur)`}
               </div>
@@ -457,7 +461,7 @@ export default function PdfPage7({
                         <div>• {fmtKwh(virtualCreditKwh)} injectés puis valorisés par crédit virtuel</div>
                       </>
                     ) : (
-                      <div>• {fmtKwh(autoKwh)} consommés sur place</div>
+                      <div>• {fmtKwh(solarUsedDirectKwh)} consommés directement</div>
                     )}
                     <div>
                       •{" "}
@@ -467,7 +471,7 @@ export default function PdfPage7({
                         ? isVirtualCreditScenario
                           ? `${fmtKwh(surplusValoriseKwh)} injectés puis crédités, restitués via crédit virtuel`
                           : `${fmtKwh(surplusValoriseKwh)} valorisés via ${storageLongLabel}`
-                        : `${fmtKwh(pSurplusKwh)} injectés sur le réseau`}
+                        : p7.curtailment_kwh ? `${fmtKwh(p7.curtailment_kwh)} écrêtés ; ${fmtKwh(pSurplusKwh)} injectés` : `${fmtKwh(pSurplusKwh)} injectés sur le réseau`}
                     </div>
                   </div>
                 </div>
@@ -519,9 +523,9 @@ export default function PdfPage7({
                 </ol>
                 <p style={{ margin: "1mm 0 0 0", fontSize: "3mm", color: "#B08B2E", lineHeight: 1.42, fontWeight: 600 }}>
                   {isVirtualCreditScenario && overflowExportKwh <= 1
-                    ? "Dans ce scénario, la production indiquée est entièrement valorisée : usage direct puis crédit virtuel restitué."
+                    ? "Le crédit virtuel est un mécanisme comptable, distinct du stockage physique."
                     : cBat > 0 || pBat > 0
-                      ? "Une partie de votre production solaire peut rester non valorisée uniquement si un surplus réel dépasse la capacité étudiée."
+                      ? "Les pertes de stockage et le surplus résiduel ne sont pas de l’énergie restituée aux usages."
                       : "Une partie de votre production solaire peut être injectée et valorisée selon les conditions du dossier."}
                 </p>
               </div>

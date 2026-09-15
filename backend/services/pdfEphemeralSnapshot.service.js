@@ -19,8 +19,8 @@ const store = new Map();
 export function putEphemeralSnapshot(snapshot, scenarioId) {
   const id = randomUUID();
   const expiresAt = Date.now() + TTL_MS;
-  store.set(id, { snapshot, scenarioId, expiresAt });
-  setTimeout(() => store.delete(id), TTL_MS);
+  store.set(id, { snapshot: structuredClone(snapshot), scenarioId, expiresAt });
+  setTimeout(() => store.delete(id), TTL_MS).unref?.();
   return id;
 }
 
@@ -36,5 +36,5 @@ export function getEphemeralSnapshot(id) {
     store.delete(id);
     return null;
   }
-  return { snapshot: v.snapshot, scenarioId: v.scenarioId };
+  return { snapshot: structuredClone(v.snapshot), scenarioId: v.scenarioId };
 }

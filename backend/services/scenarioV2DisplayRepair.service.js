@@ -1,3 +1,5 @@
+import { getScenarioElectricityBilling } from "./scenarioElectricitySnapshot.service.js";
+
 function num(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
@@ -128,6 +130,9 @@ function directVirtualKwh(energy, production, credited) {
 }
 
 export function repairVirtualScenarioDisplayKpis(sc) {
+  // Bills with two explicit contracts are calculated results, never legacy estimates.
+  if (getScenarioElectricityBilling(sc)) return sc;
+  if (sc?.energy?.reference?.validation?.status === "verified") return sc;
   if (!sc || typeof sc !== "object") return sc;
   if (scenarioId(sc) !== "BATTERY_VIRTUAL") return sc;
   if (hasAuthoritativeVirtual8760(sc)) return sc;

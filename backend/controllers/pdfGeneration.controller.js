@@ -5,6 +5,7 @@
  */
 
 import logger from "../app/core/logger.js";
+import { assertStudySnapshotExportable } from "../services/studyExportValidation.service.js";
 import * as studiesService from "../routes/studies/service.js";
 import * as pdfGenService from "../services/pdfGeneration.service.js";
 import { createPdfRenderToken } from "../services/pdfRenderToken.service.js";
@@ -14,6 +15,7 @@ import { buildStudyPdfFileName, extractPdfNameFactsFromSnapshot } from "../servi
 import { mergeOrganizationCgvPdfAppend } from "../services/legalCgvPdfMerge.service.js";
 import { FINANCIAL_DOCUMENT_PDF_KIND } from "../constants/financialDocumentPdfKind.js";
 import { isPdfBlockedByConfidence } from "../services/calculationConfidence.service.js";
+import { assertStudyCalculationCurrent } from '../services/studyCalculationFreshness.service.js';
 
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.userId ?? req.user?.id ?? null;
@@ -75,6 +77,10 @@ export async function generatePdfForVersion(params, options = {}) {
   console.log("STEP 1c OK: version row loaded for PDF");
 
   const dataJsonPdf = version.data && typeof version.data === "object" ? version.data : {};
+  const assertCurrent = options.assertStudyCalculationCurrent ?? assertStudyCalculationCurrent;
+  const freshnessParams = { studyId, versionId, organizationId,
+    snapshot: ephemeralSnapshot ?? version.selected_scenario_snapshot };
+  await assertCurrent({ ...freshnessParams, data: dataJsonPdf });
   const ccPdf = dataJsonPdf.calculation_confidence;
   console.log("PDF_CONFIDENCE_CHECK", JSON.stringify({
     versionId,
@@ -105,6 +111,7 @@ export async function generatePdfForVersion(params, options = {}) {
       e.blocking_warnings = economicBlockingWarnings;
       throw e;
     }
+    assertStudySnapshotExportable(ephemeralSnapshot);
     const previewKey = putEphemeralSnapshot(ephemeralSnapshot, sid);
     renderToken = createPdfRenderToken(studyId, versionId, organizationId, {
       snapshotPreviewKey: previewKey,
@@ -124,13 +131,15 @@ export async function generatePdfForVersion(params, options = {}) {
       e.blocking_warnings = economicBlockingWarnings;
       throw e;
     }
-    renderToken = createPdfRenderToken(studyId, versionId, organizationId);
+    assertStudySnapshotExportable(snapshot);
+    const previewKey = putEphemeralSnapshot(snapshot, snapshot.scenario_type ?? version.selected_scenario_id);
+    renderToken = createPdfRenderToken(studyId, versionId, organizationId, {snapshotPreviewKey:previewKey});
   }
 
   console.log("STEP 5 BEFORE: build renderer URL (pdf-render.html / Playwright)");
   const rendererUrl = getRendererUrl(studyId, versionId, renderToken);
   console.log("STEP 5 OK: renderer URL ready");
-  logger.info("PDF generation started", { rendererUrl, studyId, versionId, ephemeral: !!ephemeralSnapshot });
+  logger.info("PDF generation started", { studyId, versionId, ephemeral: !!ephemeralSnapshot });
 
   console.log("STEP 6 BEFORE: Playwright generatePdfFromRendererUrl (PDF buffer)");
   let pdfBuffer = await generatePdfFromRendererUrl(rendererUrl);
@@ -153,6 +162,8 @@ export async function generatePdfForVersion(params, options = {}) {
     extractPdfNameFactsFromSnapshot(snapshotForName)
   );
 
+  // Rendering takes time; reject a new export if its inputs changed meanwhile.
+  await assertCurrent(freshnessParams);
   const doc = await saveStudyPdfDocument(
     pdfBuffer,
     organizationId,
@@ -205,6 +216,8 @@ export async function generatePdf(req, res, nextOrOptions) {
       downloadUrl,
     });
   } catch (e) {
+    if (e.status === 409) return res.status(409).json({ error: e.code, message: e.message });
+    if (e.code === "STUDY_EXPORT_INCONSISTENT") return res.status(409).json({error:e.code,message:e.message,details:e.details});
     if (e.code === "VERSION_NOT_FOUND") {
       return res.status(404).json({ error: "VERSION_NOT_FOUND" });
     }

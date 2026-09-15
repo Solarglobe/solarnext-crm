@@ -24,6 +24,37 @@ const backendRoot = path.resolve(__dirname, '..');
 // ─── Liste exhaustive des tests purs (pas de connexion DB) ───────────────────
 
 const UNIT_TEST_FILES = [
+  'tests/currentElectricityContract.test.mjs',
+  'tests/currentElectricitySubscription.test.mjs',
+  'tests/economicSnapshotPdfTraceability.test.mjs',
+  'tests/electricitySupplyContract.test.mjs',
+  'tests/pdfVirtualMapperSynthetic.test.js',
+  'tests/pdfRendererReadOnly.test.mjs',
+  'tests/pdfVirtualCreditCharts.test.js',
+  'tests/scenarioElectricityBillingPresentation.test.mjs',
+  'tests/scenarioElectricitySnapshot.test.mjs',
+  'tests/virtualBatterySetupCapex.test.js',
+  'tests/calculationInputSelection.test.mjs',
+  'tests/shadingExportGuard.test.mjs',
+  'tests/urbanTariffDateOaCompatibility.test.mjs',
+  'tests/consumptionConservationPipeline.test.mjs',
+  'tests/consumptionSyntheticProvenance.test.mjs',
+  'tests/selectedMeterConsumption.test.mjs',
+  'tests/consumptionCsvPartialRebuild.test.mjs',
+  'tests/energyReference.test.js',
+  'tests/scenarioElectricityBilling.test.mjs',
+  'tests/hphcMask.test.mjs',
+  'tests/hphcPricing.test.mjs',
+  'tests/currentMeterHcBillingRegression.test.mjs',
+  'tests/solteoImportService.test.mjs',
+  'tests/calculationFingerprint.test.mjs',
+  'tests/energyCalendarAndProviderCorrections.test.mjs',
+  'tests/productionPrecisionReference.test.mjs',
+  'tests/financeProjection.test.mjs',
+  'tests/installerPhaseProjectFinance.test.mjs',
+  'tests/pdfSignedFinancingProjection.test.mjs',
+  'tests/pdfVerifiedCalendar.test.mjs',
+  'tests/verifiedStudyPipeline.test.js',
   'tests/antiOversellGuards.test.mjs',
   'tests/antiOversellRisk.test.mjs',
   'tests/assertOrgOwnership.test.js',
@@ -176,6 +207,8 @@ const UNIT_TEST_FILES = [
 // les tests standards.
 
 const MODULE_MOCK_TEST_FILES = [
+  'tests/controllers/studyCalculationConsistency.test.mjs',
+  'tests/controllers/studyPdfFreshness.test.mjs',
   'tests/controllers/calc.controller.test.js',
 ];
 

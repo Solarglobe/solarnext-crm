@@ -88,6 +88,8 @@
   // ENVOI CONSO ANNUELLE → ERPNext
   // --------------------------------------------------------------
   function sendConsoToERP(payload) {
+    // Rendering a client PDF is read-only, even when production API URLs are set.
+    if (document.getElementById("pdf-app")) return;
     const raw = payload?.p1_auto?.p1_param_conso; // ex: "13 000 kWh/an"
     const lead = payload?.p1_auto?.p1_ref;        // DOIT être CRM-LEAD-XXXX
 

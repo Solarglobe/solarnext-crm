@@ -205,7 +205,7 @@ MAIL_ENCRYPTION_KEY=<MAIL_ENCRYPTION_KEY_FROM_SECRET_MANAGER>
 EOF
 ```
 
-> ⚠️ **CRITIQUE** : `MAIL_ENCRYPTION_KEY` doit être exactement `89c5c684831b7e0d02c9ce2bcdf058ffac079ed845000116bbde3d42aa5e3cb6`.
+> ⚠️ **CRITIQUE** : conserver exactement la valeur `MAIL_ENCRYPTION_KEY` du service à restaurer, récupérée depuis son gestionnaire de secrets. Ne pas générer une nouvelle clé pendant la restauration : les données déjà chiffrées deviendraient illisibles.
 > Ne jamais régénérer cette clé — elle chiffre les credentials mail en DB.
 
 ### Étape 7 — PM2

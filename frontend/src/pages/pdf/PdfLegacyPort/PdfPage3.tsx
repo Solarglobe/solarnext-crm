@@ -106,7 +106,7 @@ export default function PdfPage3({
       (viewModel as { meta?: { scenarioType?: string } })?.meta?.scenarioType ??
       ""
   );
-  const isStorageScenario = scenarioType.startsWith("BATTERY") || scenarioType.startsWith("VEHICLE_V2H");
+  const isStorageScenario = scenarioType.includes("VIRTUAL") || scenarioType === "BATTERY_HYBRID";
   const nOrZero = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : 0);
   const valorizedSurplusKwh =
     energySummary?.surplus_creditable_kwh != null && Number.isFinite(Number(energySummary.surplus_creditable_kwh))
@@ -315,7 +315,7 @@ export default function PdfPage3({
                     {elecArch.reseau ? ` — raccordement ${elecArch.reseau.toLowerCase()}` : ""}
                     {elecArch.par_phase != null ? `, ${elecArch.par_phase} par phase` : ""}
                     <span style={{ color: "#64748b" }}>
-                      {" — répartition des branches AC, protections et sections de câble validées en préparation technique, conformément aux limites fabricant."}
+                      {" — répartition des branches AC, protections et sections de câble à valider en préparation technique, conformément aux limites fabricant."}
                     </span>
                   </div>
                 )}
@@ -330,13 +330,13 @@ export default function PdfPage3({
           <div className="card soft" style={{ padding: "3.5mm 4.5mm" }}>
             <h3 style={{ margin: "0 0 1.5mm 0", color: brandHex, fontWeight: 700 }}>Validation technique de l&apos;implantation</h3>
             <p style={{ margin: 0, fontSize: "3.15mm", lineHeight: 1.35, color: "#374151" }}>
-              Le calepinage valide la faisabilité technique de l&apos;implantation sur le bâtiment support.
-              Chaque module est positionné selon la pente, l&apos;orientation, les règles de sécurité et
+              Le calepinage décrit une implantation prévisionnelle sur le bâtiment support.
+              Les positions proposées tiennent compte de la pente, l&apos;orientation, les règles de sécurité et
               la surface réellement exploitable.
               Le schéma pré-valide l&apos;implantation proposée, sous réserve de validation technique finale
               sur site.
             </p>
-            <h4 style={{ margin: "2.3mm 0 1mm 0", fontSize: "3.35mm", color: brandHex }}>Points techniques vérifiés :</h4>
+            <h4 style={{ margin: "2.3mm 0 1mm 0", fontSize: "3.35mm", color: brandHex }}>Paramètres techniques étudiés :</h4>
             <ul style={{ margin: "0 0 2mm 3mm", padding: 0, fontSize: "3.05mm", color: "#4b5563", lineHeight: 1.3 }}>
               <li>Inclinaison réelle : impact direct sur la production.</li>
               <li>Orientation : optimise la captation solaire.</li>
@@ -344,8 +344,8 @@ export default function PdfPage3({
               <li>Nombre de panneaux : correspond à la puissance choisie.</li>
             </ul>
             <p style={{ marginTop: "2mm", fontSize: "3mm", color: "#64748b", lineHeight: 1.35 }}>
-              Cette pré-validation confirme que le scénario du dossier est ancré sur le site :{" "}
-              <strong>il correspond à une implantation réalisable à ce stade, sous réserve des contrôles terrain et administratifs.</strong>
+              Cette implantation prévisionnelle sert de base au scénario du dossier :{" "}
+              <strong>sa faisabilité reste à confirmer, sous réserve des contrôles terrain et administratifs.</strong>
             </p>
           </div>
           <div className="card soft" style={{ padding: "3.5mm 4.5mm" }}>
@@ -362,7 +362,7 @@ export default function PdfPage3({
                 </span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                <span style={{ fontSize: "2.65mm", color: "#7a7a7a" }}>Autoconsommation PV</span>
+                <span style={{ fontSize: "2.65mm", color: "#7a7a7a" }}>Production solaire utile</span>
                 <span style={{ fontSize: "3.7mm", fontWeight: 700, color: "#333" }}>
                   {autoconsommationPct != null ? `${Math.round(autoconsommationPct)} %` : "—"}
                 </span>
@@ -373,7 +373,7 @@ export default function PdfPage3({
                 </span>
                 <span style={{ fontSize: "3.7mm", fontWeight: 700, color: "#333" }}>
                   {isStorageScenario
-                    ? valorizedSurplusKwh != null && valorizedSurplusKwh > 0
+                    ? valorizedSurplusKwh != null && valorizedSurplusKwh >= 0
                       ? `${Math.round(valorizedSurplusKwh).toLocaleString("fr-FR")} kWh`
                       : "—"
                     : exportKwh != null

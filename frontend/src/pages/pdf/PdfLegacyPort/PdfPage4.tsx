@@ -1,3 +1,4 @@
+import { displayKwh } from "@shared/studyDisplay.js";
 /**
  * CP-PDF — Page 4 Production annuelle simplifiée
  * Architecture alignée P1/P2/P3 : données via viewModel.fullReport.p4, rendu React pur.
@@ -33,7 +34,7 @@ function fmt(v: unknown): string {
 
 function fmtKwh(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return EMPTY;
-  return `${Math.round(v).toLocaleString("fr-FR")} kWh`;
+  return displayKwh(v);
 }
 
 function fmtPct(v: number | null | undefined): string {
@@ -73,6 +74,8 @@ export interface P4Data {
   restitution_vehicle_v2h_kwh?: number | null;
   charge_batterie_kwh?: number | null;
   pertes_batterie_kwh?: number | null;
+  roundtrip_efficiency?: number | null;
+  variation_stock_kwh?: number | null;
   credit_virtuel_utilise_kwh?: number | null;
   cout_batterie_virtuelle_eur?: number | null;
   storage_legend_label?: string | null;
@@ -178,8 +181,8 @@ export default function PdfPage4({
       ]
     : isVirt
       ? [
-          { label: "Total solaire utilisé", value: fmtKwh(solarUsedWithCreditAnnuelle) },
-          { label: "Crédit virtuel utilisé", value: fmtKwh(restitutionKwh) },
+          { label: "Solaire + crédit comptable", value: fmtKwh(solarUsedWithCreditAnnuelle) },
+          { label: "Crédit virtuel utilisé", value: fmtKwh(p4.credit_virtuel_utilise_kwh) },
         ]
       : isHyb
         ? [
@@ -195,10 +198,10 @@ export default function PdfPage4({
     isV2h
       ? `${baseNote} Quand le vehicule est branche, il peut restituer une partie de l'energie disponible a la maison tout en conservant la reserve mobilite.`
       : isPhys || isHyb
-      ? `${baseNote} La batterie la restitue le soir et la nuit ; une faible part (~10 %) est perdue au stockage.`
+      ? `${baseNote} La batterie la restitue le soir et la nuit ; les pertes de charge et de décharge sont incluses (rendement aller-retour : ${p4.roundtrip_efficiency != null ? Math.round(p4.roundtrip_efficiency * 100) + " %" : "non renseigné"}).`
       : isVirt
         ? `${baseNote} Ce surplus est crédité chez le fournisseur puis repris plus tard ; un coût annuel s'applique au service.`
-        : `${baseNote} Sans stockage, il est injecté et revendu au réseau (faible valorisation).`
+        : `${baseNote} ${revenuReventeEur === 0 ? "Aucune recette de vente du surplus n’est intégrée à cette étude." : "Le surplus injecté est rémunéré au tarif retenu dans cette étude."}`
 
   const hasData = prodAnnuelle > 0 || consoAnnuelle > 0;
 

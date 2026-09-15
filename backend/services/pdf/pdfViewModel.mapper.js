@@ -1,3 +1,5 @@
+import {electricityBillDisplay} from "../../../shared/electricityBillDisplay.js";
+import { displayEuro, displayPercent, displayNumber } from "../../../shared/studyDisplay.js";
 /**
  * PDF V2 — Mapper snapshot → ViewModel rendu PDF
  * Entrée unique du moteur PDF V2. Pur : pas d'API, pas de DB, pas de mutation du snapshot.
@@ -12,6 +14,7 @@ import {
   IMPACT_CAR_CO2_KG_PER_KM,
 } from "../core/engineConstants.js";
 import { buildP5DailyProfiles } from "./pdfP5DailyProfile.js";
+import { applyVerifiedEnergyPresentation } from "./verifiedEnergyPresentation.js";
 import { buildPdfEnergyCanonical } from "./pdfEnergyCanonical.js";
 import { formatFlatRoofMountingForPdf } from "../quotePrep/flatRoofMounting.util.js";
 
@@ -63,6 +66,7 @@ function frozenEconomicConfigForP11(snapshotEconomic) {
       taeg_pct: f.taeg_pct ?? null,
       insurance_eur: f.insurance_eur ?? null,
       application_fee_eur: f.application_fee_eur ?? null,
+      other_costs_eur: f.other_costs_eur ?? null,
     },
   };
 }
@@ -287,7 +291,8 @@ function buildResidualBillVirtualVmFromScenario(scenario) {
   const vf = scenario.virtual_battery_finance ?? scenario.finance?.virtual_battery_finance;
   if (!vf || typeof vf !== "object") return null;
   const e = scenario.energy || {};
-  const impKwh = canonicalGridImportKwhForPdf(e);
+  const impKwh = num(e.billable_import_kwh) ?? canonicalGridImportKwhForPdf(e);
+  const billing = scenario.finance?.electricity_billing ?? scenario.electricity_billing;
   const residualBill = scenario.finance?.residual_bill_eur;
   const priceImplied =
     impKwh > 0 && residualBill != null && Number.isFinite(Number(residualBill))
@@ -295,14 +300,18 @@ function buildResidualBillVirtualVmFromScenario(scenario) {
       : null;
   const activationTtc = num(vf.annual_activation_fee_ttc) ?? 0;
   const providerCode = String(vf.provider_code ?? scenario.provider_code ?? "").toUpperCase();
-  const setupFeeTtc = num(vf.one_time_setup_fee_ttc) ?? (providerCode === "URBAN_SOLAR" ? 299 : activationTtc);
+  const setupFeeTtc = num(vf.one_time_setup_fee_ttc) ?? num(vf.oneTimeSetupFeeTtc) ?? 0;
   const setupBillingPolicy = setupFeeTtc > 0 ? "outside_pv_investment" : activationTtc > 0 ? "billed_extra" : "none";
   return {
     grid_import_kwh: Number.isFinite(impKwh) ? impKwh : null,
+    electricity_billing_status: billing?.status ?? null,
     energy_purchase_from_grid_eur:
-      impKwh > 0 && priceImplied != null ? Math.round(impKwh * priceImplied * 100) / 100 : null,
+      billing ? num(billing.scenario_energy_purchase_eur)
+        : impKwh > 0 && priceImplied != null ? Math.round(impKwh * priceImplied * 100) / 100 : null,
     virtual_battery_subscription_ttc: vf.annual_subscription_ttc ?? null,
-    virtual_battery_autoproducer_contribution_ttc: vf.annual_autoproducer_contribution_ttc ?? null,
+    virtual_battery_autoproducer_contribution_ttc: billing
+      ? Math.max(0, (num(vf.annual_autoproducer_contribution_ttc) ?? 0) - (num(billing.included_autoproducer_contribution_eur) ?? 0))
+      : vf.annual_autoproducer_contribution_ttc ?? null,
     virtual_battery_discharge_fees_ttc: vf.annual_virtual_discharge_cost_ttc ?? null,
     virtual_battery_activation_ttc: activationTtc,
     virtualStorageSetupFee: activationTtc,
@@ -311,16 +320,17 @@ function buildResidualBillVirtualVmFromScenario(scenario) {
     virtualStorageSetupFeeIncludedInCapex: false,
     pvInstallationPrice: num(scenario.pvInstallationPrice),
     virtualSetupFee: setupFeeTtc,
-    virtualAnnualFees: num(vf.annual_total_virtual_cost_ttc),
+    virtualAnnualFees: billing ? num(billing.virtual_service_cost_eur) : num(vf.annual_total_virtual_cost_ttc),
     virtualStorageFeesIndexationNote:
       "Les frais de gestion et de restitution du crédit virtuel sont maintenus constants dans cette projection.",
     activation_applies_note:
       activationTtc > 0
         ? "Frais d'activation : première année contractuelle (TTC), ajouté aux coûts de service."
         : null,
-    supplier_subscription_eur: null,
+    supplier_subscription_eur: billing ? num(billing.scenario_supplier_subscription_eur) : null,
     supplier_subscription_note:
-      "Abonnement fournisseur (accès réseau, puissance souscrite) : non ventilé dans le moteur (hors hypothèse kWh projet).",
+      billing ? (billing.status === "INCOMPLETE" ? "Contrat à compléter" : "Abonnement fournisseur inclus dans la facture annuelle.")
+        : "Abonnement fournisseur (accès réseau, puissance souscrite) : non ventilé dans le moteur (hors hypothèse kWh projet).",
     discharge_fees_note:
       "Ligne « restitution stockage virtuel » : coûts associés aux kWh restitués (composantes fournisseur agrégées TTC).",
   };
@@ -427,7 +437,7 @@ function formatKwC(v) {
 }
 function roundPercent(v) {
   if (v == null || !Number.isFinite(Number(v))) return "";
-  return `${Math.round(Number(v))} %`;
+  return displayPercent(v);
 }
 function oneDecimalPercent(v) {
   if (v == null || !Number.isFinite(Number(v))) return "";
@@ -435,7 +445,7 @@ function oneDecimalPercent(v) {
 }
 function formatCurrency0(v) {
   if (v == null || !Number.isFinite(Number(v))) return "";
-  return `${Math.round(Number(v)).toLocaleString("fr-FR")} €`;
+  return displayEuro(v);
 }
 function formatEurKwh3(v) {
   if (v == null || !Number.isFinite(Number(v))) return "\u2014";
@@ -447,7 +457,7 @@ function formatPctPerYear1(v) {
 }
 function formatNumber0(v) {
   if (v == null || !Number.isFinite(Number(v))) return "";
-  return `${Math.round(Number(v)).toLocaleString("fr-FR")}`;
+  return displayNumber(v);
 }
 
 function formatDateFr(val) {
@@ -469,16 +479,18 @@ function normalizeQuoteFinancing(configJson, capexTtc) {
   const duration = Math.max(0, numOrZero(raw.duration_months));
   const rateRaw = num(raw.interest_rate_annual);
   const rate = rateRaw != null && Number.isFinite(rateRaw) ? rateRaw : 0;
-  const enabled = duration > 0 && rate > 0;
+  const enabled = duration > 0 && rate >= 0;
   let amount = num(raw.amount);
   if (amount == null || !Number.isFinite(amount) || amount < 0) amount = 0;
   if (enabled && amount <= 0 && ttc > 0) amount = ttc;
-  return { enabled, amount, duration_months: duration, interest_rate_annual: rate };
+  const extra = {taeg_pct:num(raw.taeg_pct),insurance_eur:num(raw.insurance_eur),application_fee_eur:num(raw.application_fee_eur),other_costs_eur:num(raw.other_costs_eur)};
+  return { enabled, amount, duration_months: duration, interest_rate_annual: rate, ...extra, indicative: Object.values(extra).some(v=>v==null) };
 }
 
 /** Mensualité constante — amortissement à taux fixe (même formule que standards prêt). */
 function loanMonthlyPaymentEur(principalEur, annualRatePct, months) {
-  if (principalEur <= 0 || months <= 0 || annualRatePct <= 0) return null;
+  if (principalEur <= 0 || months <= 0 || annualRatePct < 0) return null;
+  if(annualRatePct===0)return principalEur/months;
   const r = annualRatePct / 100 / 12;
   const n = months;
   const pay = (principalEur * (r * Math.pow(1 + r, n))) / (Math.pow(1 + r, n) - 1);
@@ -495,7 +507,7 @@ function annualLoanPaymentForCalendarYear(year1Based, monthlyPayment, durationMo
 
 function formatEur0(v) {
   if (v == null || !Number.isFinite(Number(v))) return "—";
-  return `${Math.round(Number(v)).toLocaleString("fr-FR")} €`;
+  return displayEuro(v);
 }
 
 function formatPctOneDec(v) {
@@ -539,7 +551,7 @@ function annualGainsEurFromCashflows(flows, horizonYears = 25) {
     }
     if (v != null && Number.isFinite(v)) {
       any = true;
-      out.push(Math.max(0, Math.round(v)));
+      out.push(v);
     } else {
       out.push(0);
     }
@@ -566,16 +578,18 @@ function buildP11Section({
   horizonYears = 25,
 }) {
   const fin = normalizeQuoteFinancing(economicConfigJson, capex);
-  const monthly = fin.enabled ? loanMonthlyPaymentEur(fin.amount, fin.interest_rate_annual, fin.duration_months) : null;
+  const principalMonthly = fin.enabled ? loanMonthlyPaymentEur(fin.amount, fin.interest_rate_annual, fin.duration_months) : null;
+  const monthly = principalMonthly==null?null:principalMonthly+(fin.insurance_eur??0)/fin.duration_months;
+  const upfrontFees=fin.enabled?(fin.application_fee_eur??0)+(fin.other_costs_eur??0):0;
   const totalPaid =
-    monthly != null && fin.duration_months > 0 ? Math.round(monthly * fin.duration_months) : null;
+    monthly != null && fin.duration_months > 0 ? Math.round((monthly * fin.duration_months+upfrontFees)*100)/100 : null;
 
   const fromFlows = annualGainsEurFromCashflows(annualCashflows, horizonYears);
   const economies25 =
     fromFlows != null ? fromFlows : Array.from({ length: horizonYears }, () => numOrZero(annualSavings));
 
   const paiement25 = Array.from({ length: horizonYears }, (_, i) =>
-    annualLoanPaymentForCalendarYear(i + 1, monthly, fin.duration_months)
+    annualLoanPaymentForCalendarYear(i + 1, monthly, fin.duration_months)+(i===0?upfrontFees:0)
   );
   const reste25 = economies25.map((eco, i) => eco - paiement25[i]);
 
@@ -583,8 +597,8 @@ function buildP11Section({
   const montantDisplay = fin.enabled ? formatEur0(fin.amount) : formatEur0(capex);
   const dureeDisplay =
     fin.duration_months > 0 ? `${fin.duration_months} mois` : "—";
-  const taegDisplay = fin.enabled ? formatPctOneDec(fin.interest_rate_annual) : "—";
-  const assuranceDisplay = "—";
+  const taegDisplay = fin.enabled ? formatPctOneDec(fin.taeg_pct) : "—";
+  const assuranceDisplay = fin.enabled ? formatEur0(fin.insurance_eur) : "—";
   const apportVal =
     fin.enabled && fin.amount > 0 && capex > fin.amount ? Math.round(capex - fin.amount) : null;
   const apportDisplay = apportVal != null && apportVal > 0 ? formatEur0(apportVal) : "—";
@@ -592,7 +606,7 @@ function buildP11Section({
   const firstYearEco =
     economies25.length > 0 ? numOrZero(economies25[0]) : numOrZero(annualSavings);
   const resteMoyenMois =
-    monthly != null ? Math.round(monthly - firstYearEco / 12) : null;
+    monthly != null ? Math.round((paiement25[0] - firstYearEco) / 12) : null;
 
   const factureRestante = num(
     financeActive.facture_restante ?? financeActive.residual_bill_eur ?? financeSnapshot?.facture_restante
@@ -601,7 +615,7 @@ function buildP11Section({
     factureRestante != null && Number.isFinite(factureRestante) ? Math.round(factureRestante / 12) : null;
   const creditCost =
     totalPaid != null && fin.amount != null && Number.isFinite(Number(fin.amount))
-      ? Math.max(0, Math.round(totalPaid - fin.amount))
+      ? Math.max(0, Math.round((totalPaid - fin.amount)*100)/100)
       : null;
   const netAfterFinancing =
     num(economieTotal) != null
@@ -612,6 +626,9 @@ function buildP11Section({
     meta: { client: clientName, ref, date: dateDisplay, horizon_years_pdf: horizonYears },
     data: {
       capex_ttc: capex,
+      financial_scope_note: fin.enabled
+        ? `Rendement du projet avant crédit. Financement ${fin.indicative?"indicatif : coûts ou TAEG incomplets":"selon les coûts renseignés"}. Taux nominal ${formatPctOneDec(fin.interest_rate_annual)}, TAEG ${fin.taeg_pct==null?"non renseigné":formatPctOneDec(fin.taeg_pct)} ; assurance totale ${formatEur0(fin.insurance_eur)}, frais de dossier ${formatEur0(fin.application_fee_eur)}, autres coûts ${formatEur0(fin.other_costs_eur)}. Assurance répartie sur les échéances, frais payés en première année ; conditions à confirmer auprès du prêteur.`
+        : null,
       kwc: systemPowerKw,
       battery_kwh: batteryKwh,
       economies_annuelles_25: economies25,
@@ -623,11 +640,14 @@ function buildP11Section({
         assurance_display: assuranceDisplay,
         apport_display: apportDisplay,
         monthly_payment_eur: monthly != null ? Math.round(monthly * 100) / 100 : null,
-        annual_payment_eur: monthly != null ? Math.round(monthly * 12 * 100) / 100 : null,
+        annual_payment_eur: monthly != null ? Math.round(paiement25[0] * 100) / 100 : null,
         total_paid_eur: totalPaid,
         credit_cost_eur: creditCost,
         duration_months: fin.duration_months,
         enabled: fin.enabled,
+        indicative: fin.indicative,
+        nominal_rate_pct:fin.interest_rate_annual,
+        insurance_eur:fin.insurance_eur,application_fee_eur:fin.application_fee_eur,other_costs_eur:fin.other_costs_eur,
       },
       series: {
         economies_annuelles: economies25,
@@ -647,8 +667,8 @@ function buildP11Section({
       post_loan: {
         economies_net_25_eur: netAfterFinancing,
         economies_net_25_label: fin.enabled
-          ? "Gain net estimé à 25 ans après coût du financement"
-          : "Gain net estimé à 25 ans",
+          ? `Gain net estimé à ${horizonYears} ans après coût du financement`
+          : `Gain net estimé à ${horizonYears} ans`,
         mensualite_liberee_eur: monthly != null ? Math.round(monthly * 100) / 100 : null,
         reste_charge_moyen_mois_eur: resteChargeMoyenPost,
       },
@@ -773,6 +793,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     return buildEmptyViewModel(options);
   }
 
+  if(snapshot.scenario_result?.energy?.reference){
+    if(options.selected_scenario_id && options.selected_scenario_id!==snapshot.scenario_type) throw new Error("PDF_SCENARIO_MISMATCH: reconstruire le snapshot du scénario demandé");
+    options={...options,scenarios_v2:[...(options.scenarios_v2??[]).filter(s=>(s.id??s.name)!==snapshot.scenario_type),snapshot.scenario_result]};
+  }
   const meta = snapshot.meta || {};
   const client = snapshot.client || {};
   const site = snapshot.site || {};
@@ -947,6 +971,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     useSnapshotAsSelected && finance && typeof finance === "object"
       ? finance
       : (scenarioFinance ?? {});
+  const electricityBilling = financeActive.electricity_billing ?? scenarioFinance?.electricity_billing ??
+    scenarioForFinance?.electricity_billing ?? (useSnapshotAsSelected ? snapshot.electricity_billing : null) ?? null;
   const snapshotElecGrowth =
     num(financeActive?.finance_meta?.elec_growth_pct) ??
     num(scenarioFinance?.finance_meta?.elec_growth_pct) ??
@@ -1030,7 +1056,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p1_param_conso: consoAnnuelle,
   };
 
-  const roiYears = Math.max(0, numOrZero(financeActive.roi_years));
+  const roiYears = (financeActive.roi_years == null ? null : Math.max(0, Number(financeActive.roi_years)));
   const factureRestante = numOrZero(financeActive.facture_restante ?? finance.facture_restante);
 
   // Comparatif financier : dépenses électricité sur 25 ans
@@ -1058,7 +1084,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       financeActive._virtualBatteryQuote?.annual_cost_ttc ??
       finance._virtualBatteryQuote?.annual_cost_ttc
   );
-  const annualBillWithSolar = factureRestante + vbAnnualServiceCostTtc;
+  const annualBillWithSolar = electricityBilling
+    ? num(electricityBilling.bill_after_eur)
+    : factureRestante + vbAnnualServiceCostTtc;
   // ── FIX BASELINE COMMUNE + JALONS RÉELS (audit Bedouelle 2026-07-03) ────────────
   // Avant : « Avec solaire » = facture an 1 × horizon (PLAT, non indexé) et « Sans
   // solaire » reconstruit algébriquement (éco nette + avec + capex) → la baseline
@@ -1080,6 +1108,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   })();
   const _p2CumulGainsAtYear = (y) => {
     if (_p2Flows.length === 0) return null;
+    if (electricityBilling) {
+      const rows = _p2Flows.filter((row) => num(row.year) > 0 && num(row.year) <= y);
+      return rows.length && rows.every((row) => num(row.bill_without_project_eur) != null && num(row.bill_with_project_and_service_eur) != null)
+        ? rows.reduce((total, row) => total + Number(row.bill_without_project_eur) - Number(row.bill_with_project_and_service_eur), 0)
+        : null;
+    }
     const row =
       _p2Flows.find((f) => num(f?.year) === y) ??
       (_p2Flows.length >= y ? _p2Flows[y - 1] : null);
@@ -1094,18 +1128,24 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   // Priorité : conso × prix effectif (source unique, strictement commune aux variantes) ;
   // sinon reconstruction par la définition moteur de l'économie an 1.
   const _p2BillBeforeY1 =
-    (consoAnnuelle != null && _p2PriceEffConso != null
+    electricityBilling ? num(electricityBilling.bill_before_eur) : (consoAnnuelle != null && _p2PriceEffConso != null
       ? consoAnnuelle * _p2PriceEffConso
       : null) ??
     (_p2EcoAn1 != null ? _p2EcoAn1 + annualBillWithSolar : null);
   const _p2Growth = (snapshotElecGrowth ?? 0) / 100;
   const _p2BaselineCumulAtYear = (y) => {
+    if (electricityBilling) {
+      const rows = _p2Flows.filter((row) => num(row.year) > 0 && num(row.year) <= y);
+      return rows.length && rows.every((row) => num(row.bill_without_project_eur) != null)
+        ? rows.reduce((total, row) => total + Number(row.bill_without_project_eur), 0)
+        : null;
+    }
     if (_p2BillBeforeY1 == null || !(y > 0)) return null;
     const cumul =
       _p2Growth !== 0
         ? _p2BillBeforeY1 * ((Math.pow(1 + _p2Growth, y) - 1) / _p2Growth)
         : _p2BillBeforeY1 * y;
-    return Math.round(cumul);
+    return cumul;
   };
   const _p2Baseline25 = _p2BaselineCumulAtYear(horizonYearsPdf);
   const _p2CumulGains25 = _p2CumulGainsAtYear(horizonYearsPdf);
@@ -1117,7 +1157,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   if (_p2UseRealSeries) {
     gridCostWithoutSolar = _p2Baseline25;
     economieGross = Math.round(_p2CumulGains25);
-    gridCostWithSolar = Math.max(0, gridCostWithoutSolar - economieGross);
+    gridCostWithSolar = gridCostWithoutSolar - economieGross;
+  } else if (electricityBilling) {
+    gridCostWithoutSolar = null;
+    gridCostWithSolar = null;
+    economieGross = null;
   } else {
     gridCostWithSolar = Math.round(annualBillWithSolar * horizonYearsPdf);
     gridCostWithoutSolar = Math.round(economieTotal + gridCostWithSolar + capex);
@@ -1128,14 +1172,15 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   // Jalons explicites 5/10/15/20/25 ans → engine-p2 (fallback règle de trois sinon).
   const p2Milestones = {};
   if (_p2UseRealSeries) {
-    for (const y of [5, 10, 15, 20, 25]) {
+    for (const y of [...new Set([5, 10, 15, 20, 25, horizonYearsPdf])]) {
       const yEff = Math.min(y, horizonYearsPdf);
       const sansY = _p2BaselineCumulAtYear(yEff);
       const ecoY = _p2CumulGainsAtYear(yEff);
       if (sansY == null || ecoY == null) continue;
-      p2Milestones[`p2_sans_${y}`] = formatCurrency0(sansY);
-      p2Milestones[`p2_eco_${y}`] = formatCurrency0(Math.round(ecoY));
-      p2Milestones[`p2_avec_${y}`] = formatCurrency0(Math.max(0, sansY - Math.round(ecoY)));
+      const shown=electricityBillDisplay({bill_before_eur:sansY,bill_after_eur:sansY-ecoY},0);
+      p2Milestones[`p2_sans_${y}`] = formatCurrency0(shown.bill_before_eur);
+      p2Milestones[`p2_eco_${y}`] = formatCurrency0(shown.bill_savings_eur);
+      p2Milestones[`p2_avec_${y}`] = formatCurrency0(shown.bill_after_eur);
     }
   }
 
@@ -1150,10 +1195,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       ? Math.max(0, Math.round(econDisplay.reste_a_charge_eur))
       : Math.max(0, Math.round(capex - primeAmount));
 
-  const lcoeVal =
-    systemPowerKw > 0 && annualKwh > 0 && horizonYearsPdf > 0
-      ? capex / (annualKwh * horizonYearsPdf)
-      : null;
+  const lcoeVal = num(scenarioFinance?.lcoe ?? financeActive.lcoe ?? finance.lcoe);
 
   const p2_auto = {
     p2_client: clientName,
@@ -1170,7 +1212,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     // p2_economie_nette = position nette APRÈS capex (bénéfice réel de l'investissement)
     p2_economie_nette: formatCurrency0(economieTotal),
     p2_tri: num(financeActive.irr_pct) != null ? `${num(financeActive.irr_pct).toFixed(1)} %` : "—",
-    p2_roi: `${roiYears} ans`,
+    p2_roi: roiYears == null ? "Non atteint sur l’horizon" : `${roiYears} ans`,
     p2_lcoe: lcoeVal != null ? `${lcoeVal.toFixed(3).replace(".", ",")} €/kWh` : "—",
     p2_prime: formatCurrency0(primeAmount),
     p2_prime_raw_eur: Math.round(primeAmount),
@@ -1186,9 +1228,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       : formatEurKwh3(econDisplay.oa_rate_eur_kwh),
     p2_surplus_label: isVirtualLikeScenario ? "crédit" : "surplus",
     p2_scenario_label: SCENARIO_LABELS[selectedKey] || str(selectedKey),
-    p2_financial_scope_note: isVirtualLikeScenario
-      ? "Projection financière de l’installation photovoltaïque, hors frais ponctuels de mise en place du crédit virtuel."
-      : "",
+    p2_financial_scope_note: "Soldes hors investissement : électricité, recettes de surplus, frais, maintenance, remplacements et aides paramétrés. Les frais ponctuels de crédit restent distincts du CAPEX PV et sont inclus dans les flux.",
     // Production page 2 = production du scénario sélectionné (celle des cartes, ~9114 kWh),
     // et non annualKwh qui peut provenir d'un champ "production.annual_kwh" légèrement différent
     // (gross/théorique ~9161) → harmonisation : même chiffre partout.
@@ -1368,7 +1408,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     _p2BillBeforeY1 != null && Number.isFinite(_p2BillBeforeY1)
       ? Math.max(0, Math.round(_p2BillBeforeY1 - annualBillWithSolar))
       : null;
-  const annualSavings =
+  const annualSavings = electricityBilling ? num(electricityBilling.bill_savings_eur) :
     isVirtualLikeScenarioId(selectedKey) && annualSavingsNetFromBills != null
       ? annualSavingsNetFromBills
       : Math.max(0, economieAn1);
@@ -1401,8 +1441,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     horizonYears: horizonYearsPdf,
   });
   if (isVirtualLikeScenarioId(selectedKey)) {
-    p11Section.data.financial_scope_note =
-      "Projection financière de l’installation photovoltaïque, hors frais ponctuels de mise en place du crédit virtuel.";
+    p11Section.data.financial_scope_note = [
+      p11Section.data.financial_scope_note,
+      "Projection incluant les frais ponctuels de crédit virtuel dans les flux, séparément du CAPEX photovoltaïque.",
+    ].filter(Boolean).join(" ");
   }
 
   const energyP10 =
@@ -1718,7 +1760,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     const vbP5 =
       pdfBatteryScenario.virtual_battery_8760 || pdfBatteryScenario._virtualBattery8760 || {};
     const rawCh =
-      vbP5.virtual_battery_hourly_charge_kwh ?? vbP5.hourly_charge ?? [];
+      vbP5.virtual_battery_hourly_discharge_kwh ?? vbP5.hourly_discharge ?? [];
     if (Array.isArray(rawCh) && rawCh.length >= 8760) {
       p5Batt = hourly8760ToAvg24(rawCh);
     } else if (Array.isArray(rawCh) && rawCh.length >= 24) {
@@ -1813,7 +1855,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const _p4PertesKwh = (_p4ChargeKwh != null) ? Math.max(0, _p4ChargeKwh - _p4RestitutionKwh) : null;
   const _p4RevenuReventeEur = numOrZero(financeActive.revenu_surplus ?? finance.revenu_surplus);
 
-  return {
+  const viewModel = applyVerifiedEnergyPresentation({
     meta: {
       studyId: options.studyId ?? null,
       versionId: options.versionId ?? null,
@@ -1877,9 +1919,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       capex: numOrZero(financeActive.capex_ttc),
       annualRevenue: numOrZero(financeActive.revenu_surplus ?? finance.revenu_surplus),
       annualSavings,
-      roiYears: Math.max(0, numOrZero(financeActive.roi_years)),
+      roiYears: (financeActive.roi_years == null ? null : Math.max(0, Number(financeActive.roi_years))),
       tri: num(financeActive.irr_pct),
-      paybackYears: Math.max(0, numOrZero(financeActive.roi_years)),
+      paybackYears: (financeActive.roi_years == null ? null : Math.max(0, Number(financeActive.roi_years))),
     },
     financing: financingVm,
     savings: {
@@ -1889,11 +1931,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       ),
       selfConsumptionRate: pvSelfConsumptionPct,
       autonomyRate: autonomyPct,
-      annualElectricityBillBefore: null,
+      electricity_billing: electricityBilling,
+      annualElectricityBillBefore: electricityBilling ? num(electricityBilling.bill_before_eur) : null,
       // Facture annuelle après solaire = facture complète (achat réseau + coûts batterie virtuelle),
       // cohérente avec la projection 25 ans et le détail restitution/abonnement. annualBillWithSolar
       // = factureRestante + coût service VB (0 si pas de batterie virtuelle).
-      annualElectricityBillAfter: annualBillWithSolar > 0 ? Math.round(annualBillWithSolar) : num(financeActive.facture_restante ?? finance.facture_restante),
+      annualElectricityBillAfter: electricityBilling ? num(electricityBilling.bill_after_eur) : annualBillWithSolar > 0 ? Math.round(annualBillWithSolar) : num(financeActive.facture_restante ?? finance.facture_restante),
       residual_bill_virtual_breakdown:
         finance.residual_bill_virtual_breakdown ??
         buildResidualBillVirtualVmFromScenario(selectedScenario),
@@ -2959,7 +3002,55 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       p13: { meta: { client: clientName, ref, date: dateDisplay } },
       p14: { meta: { client: clientName, ref, date: dateDisplay } },
     },
-  };
+  }, selectedScenario?.energy?.reference ?? snapshot.energy?.reference, selectedScenario);
+  return applyElectricityBillingPresentation(viewModel, electricityBilling, selectedScenario);
+}
+
+/** Présentation du résultat financier calculé : aucun prix ni montant manquant n'est reconstruit. */
+function applyElectricityBillingPresentation(vm, billing, selectedScenario) {
+  if (!billing) return vm;
+  vm.electricity_billing_display = electricityBillDisplay(billing);
+  vm.electricity_billing = billing;
+  const fr = vm.fullReport;
+  for (const key of ["p7", "p7_virtual_battery", "p7_hybrid_battery", "p7_vehicle_v2h"]) {
+    const page = fr[key];
+    if (!page) continue;
+    page.electricity_billing = billing;
+    page.estimated_annual_bill_eur = num(billing.bill_after_eur);
+    if (page.kpis) page.kpis.estimated_annual_bill_eur = num(billing.bill_after_eur);
+  }
+  const breakdown = buildResidualBillVirtualVmFromScenario({
+    ...selectedScenario, finance: { ...selectedScenario.finance, electricity_billing: billing },
+  });
+  if (breakdown) {
+    vm.savings.residual_bill_virtual_breakdown = breakdown;
+    fr.p10.residual_bill_virtual = breakdown;
+  }
+  if (billing.status !== "INCOMPLETE") return vm;
+  vm.economics = { ...vm.economics, annualSavings: null, roiYears: null, tri: null, paybackYears: null };
+  vm.meta.financial_status = "INCOMPLETE";
+  vm.meta.financial_notice = "Contrat à compléter";
+  const p1 = fr.p1?.p1_auto;
+  if (p1) for (const key of ["p1_m_gain", "p1_k_gains", "p1_k_tri"]) p1[key] = "Contrat à compléter";
+  const p2 = fr.p2?.p2_auto;
+  if (p2) for (const key of Object.keys(p2)) {
+    if (/^p2_(sans|avec|eco|tri|roi|lcoe)/.test(key)) p2[key] = "Contrat à compléter";
+  }
+  if (fr.p4) fr.p4.economie_annee_1 = null;
+  if (fr.p9) {
+    fr.p9.error = "Contrat à compléter";
+    Object.assign(fr.p9.scenario ?? {}, { avg_savings_eur_year: null, roi_year: null, cumul_25y: [], final_cumul: null });
+  }
+  if (fr.p10?.best) Object.assign(fr.p10.best, { savings_year1_eur: null, roi_years: null, tri_pct: null, gains_25_eur: null, financial_status: "INCOMPLETE" });
+  const p11 = fr.p11?.data;
+  if (p11) {
+    p11.financial_scope_note = "Contrat à compléter";
+    p11.economies_annuelles_25 = [];
+    Object.assign(p11.series ?? {}, { economies_annuelles: [], reste_a_charge_annuel: [] });
+    Object.assign(p11.kpi ?? {}, { roi_years: null, reste_moyen_mois_eur: null });
+    Object.assign(p11.post_loan ?? {}, { economies_net_25_eur: null, reste_charge_moyen_mois_eur: null });
+  }
+  return vm;
 }
 
 function buildEmptyViewModel(options) {

@@ -47,7 +47,7 @@
 
   function normalizeSeries25(raw) {
     const out = [];
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < (raw?.length||0); i++) {
       const v = num(raw && raw[i]);
       out.push(v != null ? v : 0);
     }
@@ -76,7 +76,7 @@
   function hint15y(gain15, finalNet) {
     if (gain15 == null || finalNet == null || !Number.isFinite(finalNet) || finalNet === 0) return "";
     const ratio = gain15 / finalNet;
-    if (ratio >= 0.4 && ratio <= 0.6) return "≈ la moitié du bénéfice cumulé à 25 ans";
+    if (ratio >= 0.4 && ratio <= 0.6) return "≈ la moitié du bénéfice cumulé sur l’horizon";
     return "Lecture sur la projection cumulée (année 15)";
   }
 
@@ -147,7 +147,7 @@
     const y0 = 18;
     const w = 1642;
     const h = 630;
-    const n = 25;
+    const n = c.length;
     const axisXOffset = 34;
     /** Décale Année 1 / 25 vers l’intérieur pour éviter le rognage (text-anchor middle au bord du SVG) */
     const xLabelEdgeInset = 48;
@@ -307,7 +307,7 @@
     rim.setAttribute("shape-rendering", "geometricPrecision");
     svg.appendChild(rim);
 
-    const effectiveRoi = roiYear != null && roiYear >= 1 && roiYear <= 25 ? Math.round(roiYear) : null;
+    const effectiveRoi = roiYear != null && roiYear >= 1 && roiYear <= n ? Math.round(roiYear) : null;
     if (effectiveRoi) {
       const xr = x0 + (effectiveRoi - 1) * (w / (n - 1));
       const vl = document.createElementNS(ns, "line");
@@ -352,13 +352,14 @@
 
     if (finalVal != null && Number.isFinite(finalVal)) {
       const tx = document.createElementNS(ns, "text");
-      tx.setAttribute("x", Math.min(geo.lastX + 16, x0 + w - 100));
-      tx.setAttribute("y", geo.lastY - 14);
+      tx.setAttribute("x", geo.lastX - 16);
+      tx.setAttribute("text-anchor", "end");
+      tx.setAttribute("y", Math.min(geo.lastY + 40, yBottom - 12));
       tx.setAttribute("font-size", "24");
       tx.setAttribute("font-weight", "700");
       tx.setAttribute("fill", LABEL_GOLD_CHART);
       tx.setAttribute("opacity", "0.98");
-      tx.textContent = "À 25 ans : " + euroPlus(finalVal);
+      tx.textContent = "À "+n+" ans : " + euroPlus(finalVal);
       svg.appendChild(tx);
     }
 
@@ -366,10 +367,10 @@
     gLab.setAttribute("font-size", "20");
     gLab.setAttribute("fill", AXIS_LABEL);
     gLab.setAttribute("font-weight", "600");
-    [1, 5, 10, 15, 20, 25].forEach(function (yr) {
+    [...new Set([1,5,10,15,20,n].filter(y=>y<=n))].forEach(function (yr) {
       let x = x0 + (yr - 1) * (w / (n - 1));
       if (yr === 1) x += xLabelEdgeInset;
-      if (yr === 25) x -= xLabelEdgeInset;
+      if (yr === n) x -= xLabelEdgeInset;
       x = Math.max(x0 + 46, Math.min(x0 + w - 46, x));
       const t = document.createElementNS(ns, "text");
       t.setAttribute("x", x);
@@ -403,7 +404,7 @@
       lab.setAttribute("x", "10");
       lab.setAttribute("y", yy + 7);
       lab.setAttribute("text-anchor", "start");
-      lab.textContent = (tv / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " k€";
+      lab.textContent = (Math.round(tv / 1000) || 0).toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " k€";
       gY.appendChild(lab);
     });
     svg.appendChild(gY);

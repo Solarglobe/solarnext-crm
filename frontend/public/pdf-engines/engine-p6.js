@@ -169,7 +169,7 @@ function drawChart(dir, bat, grid, tot) {
 
     /* Source unique : totaux annuels officiels (mêmes valeurs que P7/P8) si fournis
        par le mapper (p6.totals), sinon somme des séries mensuelles (fallback historique). */
-    const official = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+    const official = (v) => (v != null && v !== "" && Number.isFinite(Number(v)) ? Number(v) : null);
     const totConso = (totals ? official(totals.conso_kwh) : null) ?? sum(tot);
     const totGrid  = (totals ? official(totals.grid_import_kwh) : null) ?? sum(grid);
     const totDir   = sum(dir);
@@ -178,17 +178,17 @@ function drawChart(dir, bat, grid, tot) {
       totConso != null && totGrid != null
         ? Math.max(0, Math.min(totConso, totConso - totGrid))
         : null;
-    const solarUsed = solarFromImport ?? (totals ? official(totals.solar_used_kwh) : null) ?? (totDir + totBat);
+    const solarUsed = (totals ? official(totals.solar_used_kwh) : null) ?? solarFromImport ?? (totDir + totBat);
 
-    const autonomie = totConso ? (1 - (totGrid/totConso)) : 0;
+    const autonomie = totals?.solar_coverage_pct != null ? totals.solar_coverage_pct/100 : totConso > 0 ? solarUsed/totConso : null;
     /* Carte 3 : part de la PRODUCTION consommée sur place (l'autonomie, carte 1, est déjà
        rapportée à la consommation — deux ratios distincts, fini les deux cartes au même %). */
     const totProd  = totals ? official(totals.production_kwh) : null;
-    const rawAutoPct = totProd > 0 ? (solarUsed/totProd) : (totConso ? (solarUsed/totConso) : 0);
-    const autoPct = Math.max(0, Math.min(1, rawAutoPct));
+    const rawAutoPct = totals?.useful_pv_pct != null ? totals.useful_pv_pct/100 : totProd > 0 ? (solarUsed/totProd) : null;
+    const autoPct = rawAutoPct == null ? null : Math.max(0, Math.min(1, rawAutoPct));
 
     $("#p6_autonomie").textContent =
-      String(Math.round(autonomie * 100)) + " %";
+      autonomie == null ? "—" : String(Math.round(autonomie * 100)) + " %";
 
     $("#p6_autonomie_txt").textContent =
       fmt(Math.round(solarUsed)) + " kWh couverts / " + fmt(Math.round(totConso)) + " kWh";
@@ -200,11 +200,10 @@ function drawChart(dir, bat, grid, tot) {
       fmt(Math.round(totGrid * price)) + " €";
 
     $("#p6_auto_pct").textContent =
-      String(Math.round(autoPct * 100)) + " %";
+      totals?.is_virtual_credit_scenario ? fmt(Math.round(totals.credit_used_kwh)) + " kWh" : autoPct == null ? "—" : String(Math.round(autoPct * 100)) + " %";
 
     $("#p6_auto_txt").textContent =
-      (totals && totals.is_virtual_credit_scenario ? "PV directe + crédit virtuel = " : "PV directe + batterie = ") +
-      fmt(Math.round(solarUsed)) + " kWh";
+      totals?.is_virtual_credit_scenario ? "Crédit comptable, sans décharge locale" : "PV directe + batterie = " + fmt(Math.round(solarUsed)) + " kWh";
 
     $("#p6_kpis").style.display = "grid";
   }

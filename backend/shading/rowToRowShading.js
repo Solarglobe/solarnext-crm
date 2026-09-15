@@ -1,3 +1,4 @@
+import {calendarInstantMs} from '../services/energyCalendar.service.js';
 /**
  * Calcul d'ombrage inter-rangées (row-to-row shading).
  *
@@ -35,6 +36,7 @@ export function computeRowToRowShading({
   panelHeightM,
   latitudeDeg,
   longitudeDeg = 2.35,
+  calendar = null,
 }) {
   // --- Validation des entrées ---
   if (
@@ -50,6 +52,7 @@ export function computeRowToRowShading({
     throw new Error('computeRowToRowShading: paramètres invalides ou manquants');
   }
 
+  const length=calendar?.length??8760;
   const tiltRad = (tiltDeg * Math.PI) / 180;
   const panelAzRad = (azimuthDeg * Math.PI) / 180;
 
@@ -59,7 +62,7 @@ export function computeRowToRowShading({
   // Cas dégénéré : panneau horizontal → pas d'ombrage inter-rangées possible
   if (H < 1e-6) {
     return {
-      shadingFactor8760: new Array(8760).fill(0),
+      shadingFactor8760: new Array(length).fill(0),
       pitchMinRecommendedM: 0,
       annualLossPct: 0,
     };
@@ -67,12 +70,12 @@ export function computeRowToRowShading({
 
   const BASE_MS = Date.UTC(2023, 0, 1, 0, 0, 0); // 1 Jan 2023 00:00 UTC
 
-  const shadingFactor8760 = new Array(8760);
+  const shadingFactor8760 = new Array(length);
   let sumFactor = 0;
   let countDay = 0; // heures de jour (élévation > 0)
 
-  for (let h = 0; h < 8760; h++) {
-    const msUtc = BASE_MS + h * 3600000;
+  for (let h = 0; h < length; h++) {
+    const msUtc = calendar ? calendarInstantMs(calendar,h) : BASE_MS + h * 3600000;
     const sun = computeSunPositionUTC(msUtc, latitudeDeg, longitudeDeg);
 
     if (!sun || sun.elevationDeg <= 0) {

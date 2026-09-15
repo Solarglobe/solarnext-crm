@@ -1,3 +1,8 @@
+import ProjectionAssumptions from "./ProjectionAssumptions";
+import type {FinanceProjection} from "./FinanceProjectionSettings";
+import { electricityBillDisplay } from "@shared/electricityBillDisplay.js";
+import { consumptionSourceLabel, finalHorizonSavings } from "./resultPresentation";
+import { displayKwh, displayPercent } from "@shared/studyDisplay.js";
 /**
  * Comparateur scénarios — 3 colonnes cartes (BASE, BATTERIE PHYSIQUE, BATTERIE VIRTUELLE).
  * Données : GET scenarios → scenarios_v2 (lecture seule, aucun recalcul).
@@ -5,10 +10,12 @@
 
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { electricityBillingNote, electricityContractLabel, type ElectricityBilling } from "./electricityBillingDisplay";
 
 const GOLD = "var(--brand-gold)";
 
 export interface ScenarioV2Finance {
+  electricity_billing?: ElectricityBilling | null;
   capex_ttc?: number | null;
   capex_net?: number | null;
   roi_years?: number | null;
@@ -38,6 +45,7 @@ export interface ScenarioV2Finance {
 }
 
 export interface ScenarioV2Energy {
+  reference?: {validation?:{status?:string};annual:{grid_to_load_kwh:number;direct_kwh:number;battery_discharge_solar_kwh:number};ratios:{solar_coverage:number|null};virtual_credit?:{used_kwh:number}} | null;
   production_kwh?: number | null;
   consumption_kwh?: number | null;
   autoconsumption_kwh?: number | null;
@@ -177,7 +185,7 @@ const COLUMN_SUBTITLES: Record<string, string> = {
   BASE: "Photovoltaïque seul, sans stockage.",
   BATTERY_PHYSICAL: "Stockage local + gestion du surplus.",
   BATTERY_VIRTUAL: "Crédit de votre surplus, utilisé plus tard.",
-  BATTERY_HYBRID: "Physique + crédit du surplus résiduel. Intérêt : autonomie et secours en cas de coupure — pas l'économie €/an maximale.",
+  BATTERY_HYBRID: "Physique + crédit du surplus résiduel. Autonomie locale ; secours seulement avec matériel et raccordement compatibles.",
   VEHICLE_V2H: "La batterie du véhicule alimente la maison quand il est branché (V2H).",
   VEHICLE_V2H_PHYSICAL: "Batterie physique + voiture V2H en complément.",
   VEHICLE_V2H_VIRTUAL: "Voiture V2H + crédit du surplus résiduel.",
@@ -193,14 +201,14 @@ function formatCurrency(v: number | null | undefined): string {
   }).format(v);
 }
 
-function formatPercent(v: number | null | undefined): string {
+function formatPercent(v: number | null | undefined, digits = 0): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  return `${Number(v).toFixed(1)} %`;
+  return displayPercent(v, digits);
 }
 
 function formatKwh(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  return `${Math.round(Number(v)).toLocaleString("fr-FR")} kWh`;
+  return displayKwh(v);
 }
 
 function formatYears(v: number | null | undefined): string {
@@ -227,6 +235,7 @@ function firstFiniteNumber(...values: unknown[]): number | null {
 }
 
 function gridImportKwhForDisplay(energy: ScenarioV2Energy): number | null {
+  if(energy.reference)return energy.reference.annual.grid_to_load_kwh;
   const conso = finiteNumberOrNull(energy.consumption_kwh);
   const solarUsed = firstFiniteNumber(
     energy.site_solar_or_credit_used_kwh,
@@ -269,7 +278,7 @@ function stabilizedVirtualReadModel(
   scenario: ScenarioV2 | null
 ): ScenarioV2Energy {
   const energy = scenario?.energy ?? {};
-  if (!isVirtualLikeScenarioId(id)) return energy;
+  if (energy.reference?.validation?.status === "verified" || !isVirtualLikeScenarioId(id)) return energy;
 
   const stabilized =
     scenario?.stabilized && typeof scenario.stabilized === "object"
@@ -334,6 +343,7 @@ function stabilizedVirtualReadModel(
 
 /** Affichage uniquement : alias API puis champs déjà utilisés dans le comparatif. */
 function getResidualBillEurForDisplay(finance: ScenarioV2Finance): number | null {
+  if (finance.electricity_billing) return finiteNumberOrNull(finance.electricity_billing.bill_after_eur);
   const est = finiteNumberOrNull(finance.estimated_annual_bill_eur);
   if (est != null) return est;
   const rem = finiteNumberOrNull(finance.remaining_bill_eur);
@@ -343,6 +353,7 @@ function getResidualBillEurForDisplay(finance: ScenarioV2Finance): number | null
 
 /** Lecture seule : facture annuelle avant solaire si le JSON expose un champ reconnu (aucun calcul). */
 function getFinanceBaselineBillBeforeSolarEuro(finance: ScenarioV2Finance): number | null {
+  if (finance.electricity_billing) return finiteNumberOrNull(finance.electricity_billing.bill_before_eur);
   const raw = finance as Record<string, unknown>;
   return finiteNumberOrNull(
     raw.baseline_annual_bill_eur ??
@@ -353,16 +364,7 @@ function getFinanceBaselineBillBeforeSolarEuro(finance: ScenarioV2Finance): numb
 }
 
 function getScenarioFinalNetSavingsEuro(finance: ScenarioV2Finance): number | null {
-  const flows = Array.isArray(finance.annual_cashflows)
-    ? (finance.annual_cashflows as Array<Record<string, unknown>>)
-    : [];
-  if (flows.length > 0) {
-    const y25 = flows.find((flow) => finiteNumberOrNull(flow.year) === 25);
-    const last = y25 ?? flows[flows.length - 1];
-    const cumul = finiteNumberOrNull(last?.cumul_eur ?? last?.cumul);
-    if (cumul != null) return cumul;
-  }
-  return finiteNumberOrNull(finance.economie_total ?? finance.total_savings_25y);
+  return finalHorizonSavings(finance);
 }
 
 /** Indices des colonnes au maximum sur une métrique (lecture seule, pour repères visuels ⭐). */
@@ -423,7 +425,7 @@ function buildKeyIndicatorRows(
   );
   if (selfCons != null)
     rows.push({
-      label: isVirtualLikeScenarioId(id) ? "PV valorisé" : "Autoconsommation PV",
+      label: "Production solaire utile",
       value: formatPercent(selfCons),
       star: isVirtualLikeScenarioId(id) ? false : stars.auto,
     });
@@ -435,10 +437,12 @@ function buildKeyIndicatorRows(
   if (cover == null && solarCoveragePctDerived != null && Number.isFinite(solarCoveragePctDerived)) {
     cover = solarCoveragePctDerived;
   }
+  if(energy.reference) cover=energy.reference.ratios.solar_coverage==null?null:energy.reference.ratios.solar_coverage*100;
   if (cover != null && Number.isFinite(cover)) {
     rows.push({ label: "Besoins couverts par le solaire", value: formatPercent(cover), star: false });
   }
 
+  if(energy.reference?.virtual_credit) rows.push({label:"Crédit comptable utilisé",value:formatKwh(energy.reference.virtual_credit.used_kwh),star:false});
   const siteAut = isVirtualLikeScenarioId(id)
     ? siteAutonomyPctDerived
     : finiteNumberOrNull(energy.site_autonomy_pct);
@@ -454,7 +458,7 @@ function buildKeyIndicatorRows(
   if (roi != null) rows.push({ label: "ROI", value: formatYears(roi), star: false });
 
   const tri = finiteNumberOrNull(finance.irr_pct ?? finance.tri);
-  if (tri != null) rows.push({ label: "TRI", value: formatPercent(tri), star: stars.tri });
+  if (tri != null) rows.push({ label: "TRI", value: formatPercent(tri, 1), star: stars.tri });
 
   const horizonEco =
     finiteNumberOrNull(finance.economie_horizon_years) ??
@@ -468,7 +472,7 @@ function buildKeyIndicatorRows(
   const sav25 = getScenarioFinalNetSavingsEuro(finance);
   if (sav25 != null)
     rows.push({
-      label: `Économies (${horizonYears} ans)`,
+      label: `Gain net après investissement (${horizonYears} ans)`,
       value: formatCurrency(sav25),
       star: stars.savings,
     });
@@ -620,6 +624,7 @@ function resolveColumnBadge(
   scenario: ScenarioV2 | null
 ): { kind: BadgeKind; detail?: string } {
   if (scenario == null) return { kind: "missing" };
+  if (scenario.display_blocked) return {kind:"incomplete"};
 
   const tier =
     scenario.provider_tier_status ??
@@ -732,11 +737,11 @@ const IMPACT_LINES: Record<
   ],
   BATTERY_VIRTUAL: [
     { icon: "💰", text: "Réutilisation du surplus" },
-    { icon: "📈", text: "Rentabilité optimisée" },
+    { icon: "📈", text: "Rentabilité selon le contrat" },
   ],
   BATTERY_HYBRID: [
     { icon: "🔋", text: "Stockage physique + crédit virtuel en cascade" },
-    { icon: "🚀", text: "Autonomie maximisée" },
+    { icon: "🚀", text: "Autonomie locale et crédit virtuel" },
   ],
   VEHICLE_V2H: [
     { icon: "🚗", text: "La voiture alimente la maison (V2H)" },
@@ -789,11 +794,9 @@ export default function ScenarioComparisonTable({
   // les colonnes absentes (dont scénarios V2H non générés) sont filtrées par computeVisibleColumns.
   const scenarios = orderedScenarios;
 
-  const baseEconomieY1 =
-    scenarios[0]?.finance?.economie_year_1 != null &&
-    Number.isFinite(Number(scenarios[0]?.finance?.economie_year_1))
-      ? Number(scenarios[0]!.finance!.economie_year_1)
-      : null;
+  const baseFinance = scenarios[0]?.finance;
+  const baseEconomieY1 = finiteNumberOrNull(baseFinance?.electricity_billing
+    ? electricityBillDisplay(baseFinance.electricity_billing, 0)?.bill_savings_eur : baseFinance?.economie_year_1);
 
   const quoteHref =
     studyId && versionId
@@ -806,6 +809,7 @@ export default function ScenarioComparisonTable({
     useState<Record<ScenarioColumnId, boolean>>(INITIAL_PORTAL_OFFER);
 
   const commercialIndicatorStars = computeCommercialIndicatorStars(scenarios);
+  const allLosses = scenarios.filter(s => getScenarioFinalNetSavingsEuro(s?.finance ?? {}) != null).every(s => (getScenarioFinalNetSavingsEuro(s?.finance ?? {}) ?? 0) < 0);
   const bestGainNetIndices = columnIndicesAtNumericMax(
     scenarios.map((s) => (s ? getScenarioFinalNetSavingsEuro(s.finance ?? {}) : null))
   );
@@ -829,6 +833,8 @@ export default function ScenarioComparisonTable({
           // (aligné sur le helper backend evaluateScenarioSelectable) : bloqué seulement
           // s'il est absent ou _skipped, jamais pour "incomplete"/"unsuitable".
           const isBlockedForSelection =
+            scenario?.display_blocked === true ||
+            scenario?.finance?.electricity_billing?.status === "INCOMPLETE" ||
             (scenario as { _skipped?: boolean } | null)?._skipped === true ||
             (id === "BASE"
               ? scenario == null
@@ -847,7 +853,13 @@ export default function ScenarioComparisonTable({
             baseEnergy.surplus_before_battery_kwh,
             baseEnergy.surplus_kwh
           );
-          const finance = scenario?.finance ?? {};
+          const oaCompatibility=scenario?.finance?.finance_meta?.virtual_storage_oa_compatibility as {status?:string;message?:string}|undefined;
+          const oaBlocked=oaCompatibility?.status==='BLOCKED';
+          const billing = oaBlocked?null:electricityBillDisplay(scenario?.finance?.electricity_billing, 0);
+          const billingIncomplete = oaBlocked || billing?.status === "INCOMPLETE";
+          const finance: ScenarioV2Finance = billingIncomplete
+            ? { ...scenario?.finance, ...(oaBlocked?{electricity_billing:undefined,estimated_annual_bill_eur:null,total_savings_25y:null}:{}), economie_year_1: null, economie_total: null, roi_years: null, irr_pct: null, tri: null, annual_cashflows: null }
+            : billing ? { ...scenario?.finance, economie_year_1: billing.bill_savings_eur } : scenario?.finance ?? {};
           const costs = scenario?.costs ?? {};
           const hardware = scenario?.hardware ?? {};
           const autoKwh =
@@ -1014,7 +1026,7 @@ export default function ScenarioComparisonTable({
                       )}
                     </div>
                     {scenario != null && bestGainNetIndices.has(originalIndex) ? (
-                      <span className="scenario-best-option-badge">Meilleure option</span>
+                      <span className="scenario-best-option-badge">{allLosses ? "Option la moins déficitaire" : "Meilleur gain net sur l’horizon"}</span>
                     ) : null}
                   </div>
 
@@ -1027,23 +1039,14 @@ export default function ScenarioComparisonTable({
                         style={{ margin: "4px 0 0", fontSize: 11, color: "var(--sn-text-secondary)" }}
                       >
                         Conso :{" "}
-                        {scenario.consumption_source === "ENEDIS_HOURLY"
-                          ? "Enedis réelle"
-                          : scenario.consumption_source === "ENEDIS_DAILY"
-                            ? "Enedis (journalier)"
-                            : scenario.consumption_source === "MONTHLY_SYNTHETIC"
-                              ? "Synthétique mensuelle"
-                              : scenario.consumption_source === "ANNUAL_SYNTHETIC"
-                                ? "Synthétique annuelle"
-                                : scenario.consumption_source === "FALLBACK"
-                                  ? "Profil national"
-                                  : "—"}{" "}
+                        {consumptionSourceLabel(scenario.consumption_source)}{" "}
                         — {scenario.scenario_uses_piloted_profile === true ? "Profil piloté" : "Profil brut"}
                       </p>
                     )}
                   </div>
 
                   <div className="scenario-header-bottom">
+                    {oaCompatibility?.message&&<p className="scenario-col-banner">{oaCompatibility.message}</p>}
                     {partialHphc && (
                       <p className="scenario-col-banner">
                         Répartition HP/HC partielle — estimation limitée.
@@ -1074,12 +1077,14 @@ export default function ScenarioComparisonTable({
                   <section className="scenario-row-hero scenario-block scenario-hero scenario-hero-prominent">
                     <p className="scenario-hero-label">
                       <Tip text="Économie estimée sur la première année, selon le scénario et les hypothèses du devis.">
-                        Économie annuelle (année 1)
+                        Économie de facture (année 1)
                       </Tip>
                     </p>
-                    <p className="scenario-hero-value">{formatCurrency(finance.economie_year_1)}</p>
+                    <p className="scenario-hero-value">{oaBlocked ? "Contrat OA à clarifier" : billingIncomplete ? "Contrat à compléter" : formatCurrency(billing?.bill_savings_eur ?? finance.economie_year_1)}</p>
+                    {billing && <p className="scenario-block-muted">{electricityBillingNote(billing)}</p>}
                   </section>
 
+                  <ProjectionAssumptions value={finance.finance_meta?.projection_assumptions as FinanceProjection|undefined}/>
                   <div className="scenario-row-delta">
                     {id !== "BASE" ? (
                       badge.kind === "available" &&
@@ -1124,7 +1129,7 @@ export default function ScenarioComparisonTable({
                           const lineClass = [
                             "scenario-key-indicator-line",
                             row.label === "TRI" || row.label === "Économies (25 ans)" ? "is-key" : "",
-                            row.label === "Autoconsommation PV" || row.label === "PV valorisé" ? "is-secondary" : "",
+                            row.label === "Production solaire utile" ? "is-secondary" : "",
                           ]
                             .filter(Boolean)
                             .join(" ");
@@ -1146,7 +1151,7 @@ export default function ScenarioComparisonTable({
                     <div className="scenario-finance-block">
                       <div className="scenario-finance-title">💰 Investissement</div>
                       <div className="scenario-finance-line">
-                        <span>CAPEX TTC</span>
+                        <span>Investissement total TTC</span>
                         <strong className="scenario-finance-value">
                           {capexTtc != null ? formatCurrency(capexTtc) : "—"}
                         </strong>
@@ -1169,6 +1174,10 @@ export default function ScenarioComparisonTable({
                     </div>
                     <div className="scenario-finance-block">
                       <div className="scenario-finance-title">💸 Impact</div>
+                      {billing && <p className="scenario-block-muted">
+                        Avant : {electricityContractLabel(billing.current_contract, true)}<br />
+                        Après : {electricityContractLabel(billing.scenario_contract, !isVirtualLikeScenarioId(id))}
+                      </p>}
                       {beforeBillSolar != null ? (
                         <div className="scenario-finance-line">
                           <span>Avant</span>
@@ -1182,7 +1191,7 @@ export default function ScenarioComparisonTable({
                         </strong>
                       </div>
                       <div className="scenario-finance-line scenario-finance-highlight">
-                        <span>Gain net</span>
+                        <span>Gain net après investissement</span>
                         <strong className="scenario-finance-value">
                           {totalSavingsFinance != null ? formatCurrency(totalSavingsFinance) : "—"}
                         </strong>
@@ -1200,7 +1209,7 @@ export default function ScenarioComparisonTable({
                       </strong>
                     </div>
                     <div className="scenario-number-line">
-                      <span>Énergie à acheter</span>
+                      <span>Prélèvements physiques au réseau</span>
                       <strong>
                         {gridToBuyKwh != null && Number.isFinite(Number(gridToBuyKwh))
                           ? formatKwh(Number(gridToBuyKwh))
@@ -1524,20 +1533,20 @@ export default function ScenarioComparisonTable({
                       label="Abonnement / service batterie virtuelle"
                       tip="Coût récurrent TTC du service stockage virtuel si présent."
                       value={
-                        id === "BATTERY_VIRTUAL"
-                          ? formatCurrency(subscriptionAnnual)
+                        isVirtualLikeScenarioId(id)
+                          ? formatCurrency(billing ? billing.virtual_service_cost_eur : subscriptionAnnual)
                           : "—"
                       }
                     />
                     <MiniRow
                       label="Coût énergie (résiduel)"
-                      tip="Estimation de facture électricité résiduelle après solaire, selon le moteur."
-                      value={formatCurrency(finance.residual_bill_eur)}
+                      tip="Achats d’électricité au tarif du contrat du scénario."
+                      value={formatCurrency(billing ? billing.scenario_energy_purchase_eur : finance.residual_bill_eur)}
                     />
                     <MiniRow
-                      label="Coût réseau"
-                      tip="Poste non ventilé dans l’export scénario actuel."
-                      value="—"
+                      label={billing ? "Abonnement fournisseur" : "Coût réseau"}
+                      tip={billing ? "Abonnement électrique annuel du contrat du scénario." : "Poste non ventilé dans l’export scénario actuel."}
+                      value={billing ? formatCurrency(billing.scenario_supplier_subscription_eur) : "—"}
                     />
                     <MiniRow
                       label="Revenu export"
@@ -1709,7 +1718,7 @@ export default function ScenarioComparisonTable({
           max-width: 100%;
           position: relative;
         }
-        /* Bloc « Économie annuelle (année 1) » : flux normal, pas de chevauchement entre colonnes */
+        /* Bloc « Économie de facture (année 1) » : flux normal, pas de chevauchement entre colonnes */
         .scenario-col-card .scenario-row-hero.scenario-hero {
           position: relative;
           width: 100%;

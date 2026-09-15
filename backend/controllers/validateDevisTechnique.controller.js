@@ -5,14 +5,11 @@
 
 import { pool } from "../config/db.js";
 import { getVersionById } from "../routes/studies/service.js";
-import {
-  getEconomicSnapshotForVersion,
-  createEconomicSnapshotForVersion,
-} from "../services/economic/economicSnapshot.service.js";
 import { runStudyCalc } from "./studyCalc.controller.js";
+import { readStudyCalculationInputs } from '../services/studyCalculationFreshness.service.js';
+import { assertQuoteRevision, assertElectricalPhaseDecision } from '../services/calculationFingerprint.service.js';
 
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
-const userId = (req) => req.user?.id ?? req.user?.userId ?? null;
 
 /**
  * POST /api/studies/:studyId/versions/:versionId/validate-devis-technique
@@ -47,23 +44,16 @@ export async function validateDevisTechnique(req, res) {
       return res.status(400).json({ error: "CALPINAGE_REQUIRED" });
     }
 
-    // Economic snapshot pour cette version : en créer un si absent
-    let economic = await getEconomicSnapshotForVersion(versionId, org);
-    if (!economic) {
-      await createEconomicSnapshotForVersion({
-        studyId,
-        studyVersionId: versionId,
-        organizationId: org,
-        userId: userId(req),
-        config: {},
-      });
-    }
+    const source = await readStudyCalculationInputs({ studyId, versionId, organizationId: org });
+    assertQuoteRevision(req.body?.expected_quote_fingerprint, source.quote_fingerprint);
+    assertElectricalPhaseDecision(source.inputs.quote, source.detected_grid_phase);
 
     // Lancer le calcul (runStudyCalc attend versionId = version_number en string dans params)
     const calcReq = {
       ...req,
       params: { ...req.params, versionId: String(version.version_number) },
       _validateDevisTechnique: true,
+      _expectedInputFingerprint: source.input_fingerprint,
     };
 
     const captured = { statusCode: 200, data: null };
@@ -88,6 +78,7 @@ export async function validateDevisTechnique(req, res) {
 
     return res.json(captured.data ?? { success: true });
   } catch (e) {
+    if (e.status === 409) return res.status(409).json({ error: e.code, message: e.message });
     const code = e.code || e.name;
     if (code === "NOT_FOUND") {
       return res.status(400).json({ error: e.message || code });

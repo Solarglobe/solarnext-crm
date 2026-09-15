@@ -29,7 +29,7 @@ export default function PdfPage1({
   viewModel,
 }: {
   organization?: { id?: string; logo_image_key?: string | null; pdf_cover_image_key?: string | null };
-  viewModel?: { fullReport?: Record<string, unknown>; selected_scenario_snapshot?: unknown; meta?: { studyId?: string; versionId?: string } };
+  viewModel?: { control_export_label?: string; fullReport?: Record<string, unknown>; selected_scenario_snapshot?: unknown; meta?: { studyId?: string; versionId?: string } };
 }) {
   const { logoUrl, coverUrl } = useMemo(() => {
     const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
@@ -196,7 +196,7 @@ export default function PdfPage1({
             <div className="p1-premium__kpi-micro">Rentabilité projetée</div>
           </div>
           <div className="p1-premium__kpi-cell">
-            <div className="p1-premium__kpi-label">Gain net 25 ans</div>
+            <div className="p1-premium__kpi-label">{String(((viewModel?.fullReport as Record<string, unknown>)?.p1 as {p1_auto?:{p1_k_gains_label?:string}})?.p1_auto?.p1_k_gains_label??"Gain net sur l’horizon")}</div>
             <div className="p1-premium__kpi-value" id="p1_k_gains">
               27 000 €
             </div>
@@ -228,7 +228,7 @@ export default function PdfPage1({
             <h2 className="p1-premium__panel-heading">Paramètres techniques du dossier</h2>
             <div className="p1-premium__tech-grid">
               <div className="p1-premium__tech-item">
-                <span className="p1-premium__tech-k">Raccordement</span>
+                <span className="p1-premium__tech-k">Abonnement compteur</span>
                 <strong id="p1_param_kva">6 kVA</strong>
               </div>
               <div className="p1-premium__tech-item">
@@ -247,6 +247,7 @@ export default function PdfPage1({
           Ce dossier s&apos;appuie sur le profil de consommation du site, la toiture (ou support) étudiée et des hypothèses techniques réalistes.
         </p>
       </div>
+      {typeof viewModel?.control_export_label === "string" && <div style={{position:"absolute",bottom:"4mm",left:"16mm",fontSize:"2.6mm",fontWeight:700,color:"#7a4a00"}}>{viewModel.control_export_label}</div>}
     </PdfPageLayout>
   );
 }

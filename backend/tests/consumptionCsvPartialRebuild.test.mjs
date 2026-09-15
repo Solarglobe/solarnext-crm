@@ -6,7 +6,7 @@
  * → 7 830 kWh/an au lieu de ~12 760 pour une courbe fév→juin de 4 990 kWh.
  */
 
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -14,12 +14,25 @@ import path from "node:path";
 
 import { loadConsumption } from "../services/consumptionService.js";
 
+const fixtureDirectories = new Set();
+function fixtureDirectory(prefix) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  fixtureDirectories.add(directory);
+  return directory;
+}
+after(() => {
+  for (const directory of fixtureDirectories) {
+    if (path.dirname(path.resolve(directory)) !== path.resolve(os.tmpdir())) throw new Error('UNEXPECTED_FIXTURE_DIRECTORY');
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 function sum(arr) {
   return arr.reduce((a, b) => a + (Number(b) || 0), 0);
 }
 
 function writePartialLoadCurveCsv(avgWatts) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "solarnext-partial-"));
+  const dir = fixtureDirectory("solarnext-partial-");
   const file = path.join(dir, "loadcurve.csv");
   const start = Date.UTC(2026, 1, 8, 4, 0, 0);
   const lines = ["prm,startDate,powerInWatts"];
@@ -58,15 +71,14 @@ test("CSV horaire partiel : annualisation coherente avec extrapolation brute", (
 test("CSV horaire partiel : alignement calendrier", () => {
   const { file, startTs } = writePartialLoadCurveCsv(1456);
   const out = loadConsumption({ profil: "active" }, file, {});
-  const startOfYear = Date.UTC(2026, 0, 1);
-  const idx = Math.floor((startTs - startOfYear) / 3600000);
-  assert.equal(idx, 38 * 24 + 4);
+  const idx = out.calendar.instants.indexOf(new Date(startTs).toISOString());
+  assert.ok(idx >= 0, 'Measured timestamp must remain present in the actual rolling year');
   assert.ok(Math.abs(out.hourly[idx] - 0.728) < 0.001, `hourly[${idx}]=${out.hourly[idx]}`);
   assert.ok(out.hourly[0] > 0);
 });
 
 test("CSV horaire complet (>= 8760) : branche full-year inchangee", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "solarnext-full-"));
+  const dir = fixtureDirectory("solarnext-full-");
   const file = path.join(dir, "loadcurve.csv");
   const start = Date.UTC(2025, 0, 1);
   const lines = ["prm,startDate,powerInWatts"];

@@ -1,3 +1,4 @@
+import {getCalendar,calendarParts,bindCalendar,isEnergyYear} from './energyCalendar.service.js';
 // ======================================================================
 // SMARTPITCH — PILOTAGE SERVICE PRO V12 (Solarglobe 2025)
 // ----------------------------------------------------------------------
@@ -17,7 +18,7 @@
 // ----------------------------------------------------------------------
 
 // --- PATCH FENÊTRES TRIMESTRIELLES RÉALISTES ---
-function getSolarWindow(hourIndex) {
+function getSolarWindow(hourIndex, month = null) {
   // hourIndex = 0 → 8759
   let m = 0;
   let h = hourIndex;
@@ -30,6 +31,7 @@ function getSolarWindow(hourIndex) {
     h -= len;
   }
 
+  if (month != null) m = month;
   // fenêtres réalistes
   if (m >= 0 && m <= 2)  return { start: 10, end: 16 }; // T1
   if (m >= 3 && m <= 5)  return { start: 9,  end: 18 }; // T2
@@ -39,16 +41,17 @@ function getSolarWindow(hourIndex) {
 
 export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {
 
-  if (!Array.isArray(baseLoadHourly) || baseLoadHourly.length !== 8760) {
+  if (!isEnergyYear(baseLoadHourly)) {
     throw new Error("buildPilotedProfile: baseLoadHourly doit être un tableau 8760h");
   }
-  if (!Array.isArray(pvHourly) || pvHourly.length !== 8760) {
+  if (!isEnergyYear(pvHourly) || pvHourly.length !== baseLoadHourly.length) {
     throw new Error("buildPilotedProfile: pvHourly doit être un tableau 8760h");
   }
 
   // -------------------------------------------------------------
   // Parts pilotables : legacy 35/20/10 ou options.pilotageBudget (equipment_prudent)
   // -------------------------------------------------------------
+  const calendar=getCalendar(baseLoadHourly), parts=calendarParts(calendar), n=baseLoadHourly.length;
   const pb = options.pilotageBudget;
   const s0 = Number(pb?.share_stockable);
   const s1 = Number(pb?.share_programmable);
@@ -88,7 +91,7 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {
   const surplus = [];
   const need = [];
 
-  for (let i = 0; i < 8760; i++) {
+  for (let i = 0; i < n; i++) {
     const s = Math.max(0, pvHourly[i] - newLoad[i]);
     const n = Math.max(0, newLoad[i] - pvHourly[i]);
     surplus.push(s);
@@ -107,11 +110,11 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {
   // 2) Redistribution stockable (ballon ECS)
   //    → priorité aux heures solaires avec surplus réel
   // -------------------------------------------------------------
- for (let h = 0; h < 8760; h++) {
+ for (let h = 0; h < n; h++) {
   if (stockable_kwh <= 0) break;
 
-  const hour = h % 24;
-  const { start: SOLAR_START, end: SOLAR_END } = getSolarWindow(h);
+  const hour = parts[h].hour;
+  const { start: SOLAR_START, end: SOLAR_END } = getSolarWindow(h,parts[h].month);
 
   if (hour >= SOLAR_START && hour < SOLAR_END && surplus[h] > PV_SURPLUS_THRESHOLD) {
       const shift = Math.min(surplus[h], stockable_kwh, 0.6);
@@ -124,11 +127,11 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {
   // -------------------------------------------------------------
   // 3) Programmable : déplacement uniquement dans une fenêtre (10h–16h)
   // -------------------------------------------------------------
-  for (let h = 0; h < 8760; h++) {
+  for (let h = 0; h < n; h++) {
   if (programmable_kwh <= 0) break;
 
-  const hour = h % 24;
-  const { start: SOLAR_START, end: SOLAR_END } = getSolarWindow(h);
+  const hour = parts[h].hour;
+  const { start: SOLAR_START, end: SOLAR_END } = getSolarWindow(h,parts[h].month);
 
   if (hour >= SOLAR_START && hour < SOLAR_END && surplus[h] > PV_SURPLUS_THRESHOLD) {
     const shift = Math.min(surplus[h], programmable_kwh, 0.3);
@@ -141,11 +144,11 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {
   // -------------------------------------------------------------
   // 4) Flexible : petits déplacements partout où il y a du surplus
   // -------------------------------------------------------------
- for (let h = 0; h < 8760; h++) {
+ for (let h = 0; h < n; h++) {
   if (flexible_kwh <= 0) break;
 
-  const { start: SOLAR_START, end: SOLAR_END } = getSolarWindow(h);
-  const hour = h % 24;
+  const { start: SOLAR_START, end: SOLAR_END } = getSolarWindow(h,parts[h].month);
+  const hour = parts[h].hour;
 
   if (hour >= SOLAR_START && hour < SOLAR_END && surplus[h] > PV_SURPLUS_THRESHOLD) {
     const shift = Math.min(surplus[h], flexible_kwh, 0.15);
@@ -158,11 +161,11 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {
   // 5) Réduction douce des imports nocturnes
   // -------------------------------------------------------------
   let toRemove = totalPilotable;
-for (let h = 0; h < 8760; h++) {
+for (let h = 0; h < n; h++) {
   if (toRemove <= 0) break;
 
-  const hour = h % 24;
-  const { start: SOLAR_START, end: SOLAR_END } = getSolarWindow(h);
+  const hour = parts[h].hour;
+  const { start: SOLAR_START, end: SOLAR_END } = getSolarWindow(h,parts[h].month);
 
   if (hour < SOLAR_START || hour >= SOLAR_END) {
     const reduction = Math.min(0.3, newLoad[h], toRemove);
@@ -182,9 +185,9 @@ for (let h = 0; h < 8760; h++) {
 
   if (Math.abs(diff) > 0.001) {
     const solarHours = [];
-    for (let h = 0; h < 8760; h++) {
-      const hour = h % 24;
-      const { start: SOLAR_START, end: SOLAR_END } = getSolarWindow(h);
+    for (let h = 0; h < n; h++) {
+      const hour = parts[h].hour;
+      const { start: SOLAR_START, end: SOLAR_END } = getSolarWindow(h,parts[h].month);
       if (hour >= SOLAR_START && hour < SOLAR_END) solarHours.push(h);
     }
     if (solarHours.length > 0) {
@@ -196,7 +199,7 @@ for (let h = 0; h < 8760; h++) {
     if (Math.abs(diff) > 0.001) {
       const positiveIndices = [];
       let sumPositive = 0;
-      for (let h = 0; h < 8760; h++) {
+      for (let h = 0; h < n; h++) {
         if (newLoad[h] > 0) {
           positiveIndices.push(h);
           sumPositive += newLoad[h];
@@ -215,13 +218,13 @@ for (let h = 0; h < 8760; h++) {
   // shifted_kwh (historique) = budget kWh pilotable théorique ; shifted_kwh_actual = kWh réellement déplacés (Δ+)
   // -------------------------------------------------------------
   let shiftedActual = 0;
-  for (let i = 0; i < 8760; i++) {
+  for (let i = 0; i < n; i++) {
     const d = newLoad[i] - baseRef[i];
     if (d > 0) shiftedActual += d;
   }
 
   return {
-    conso_pilotee_hourly: newLoad,
+    conso_pilotee_hourly: bindCalendar(newLoad,calendar),
     stats: {
       total_initial_kwh: round(totalInitial),
       total_after_kwh: round(sum(newLoad)),
@@ -232,8 +235,8 @@ for (let h = 0; h < 8760; h++) {
       pilotable_budget_kwh: round(totalPilotable),
       pilotable_share: pilotable_share,
       profile: useBudget ? "pilotage_pro_equilibre_v12_equipment_budget" : "pilotage_pro_equilibre_v12",
-      days_with_pilotage: 365,
-      total_days: 365
+      days_with_pilotage: n / 24,
+      total_days: n / 24
     }
   };
 }

@@ -444,6 +444,37 @@ export async function getStudyById(studyId, organizationId) {
   return getStudyByIdTx(pool, studyId, organizationId);
 }
 
+/** Header and meter trace for the comparison page. Never loads version payloads. */
+export async function getStudyScenarioPageSummary(studyId, versionId, organizationId, db = pool) {
+  const result = await db.query(
+    `SELECT s.id, s.study_number, s.title, s.status, s.lead_id, s.current_version,
+            s.created_at, s.updated_at,
+            v.id AS version_id, v.version_number, v.is_locked, v.selected_scenario_id,
+            jsonb_build_object(
+              'selected_meter_id', t.selected_meter_id,
+              'meter_snapshot', jsonb_build_object('name', t.meter_snapshot->'name'),
+              'meter_snapshot_captured_at', COALESCE(NULLIF(t.meter_snapshot_captured_at, 'null'::jsonb), t.calc_result->'computed_at'),
+              'meter_snapshot_previous', CASE WHEN t.meter_snapshot_previous IS NOT NULL AND t.meter_snapshot_previous <> 'null'::jsonb THEN '{}'::jsonb ELSE NULL END,
+              'meter_snapshot_previous_captured_at', t.meter_snapshot_previous_captured_at,
+              'meter_calc_change_lines_fr', t.meter_calc_change_lines_fr
+            ) AS trace
+     FROM studies s
+     JOIN study_versions v ON v.study_id=s.id AND v.organization_id=s.organization_id
+     LEFT JOIN LATERAL jsonb_to_record(v.data_json) AS t(
+       selected_meter_id jsonb, meter_snapshot jsonb, meter_snapshot_captured_at jsonb,
+       meter_snapshot_previous jsonb, meter_snapshot_previous_captured_at jsonb,
+       meter_calc_change_lines_fr jsonb, calc_result jsonb
+     ) ON true
+     WHERE s.id=$1 AND v.id=$2 AND s.organization_id=$3
+       AND s.archived_at IS NULL AND s.deleted_at IS NULL AND v.deleted_at IS NULL`,
+    [studyId, versionId, organizationId]
+  );
+  if (!result.rows.length) return null;
+  const { version_id, version_number, is_locked, selected_scenario_id, trace, ...study } = result.rows[0];
+  return { study, versions: [{ id: version_id, version_number, is_locked: is_locked === true,
+    selected_scenario_id: selected_scenario_id ?? null, data: trace }] };
+}
+
 /**
  * Parties affichage pour nom PDF : client (priorité entreprise / lead / contact) + libellé étude (titre ou numéro).
  */

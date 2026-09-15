@@ -23,6 +23,8 @@ export const METER_FIELDS_FROM_LEAD = [
   "elec_price_base_eur_kwh",
   "elec_price_hp_eur_kwh",
   "elec_price_hc_eur_kwh",
+  "electricity_subscription_ttc_month",
+  "electricity_annual_bill_ttc",
   "energy_profile",
   "equipement_actuel",
   "equipement_actuel_params",
@@ -72,7 +74,7 @@ export async function ensureDefaultLeadMeter(db, leadId, organizationId) {
        consumption_pdl, meter_power_kva, grid_type, consumption_mode,
        consumption_annual_kwh, consumption_annual_calculated_kwh,
        consumption_profile, hp_hc, supplier_name, tariff_type,
-       elec_price_base_eur_kwh, elec_price_hp_eur_kwh, elec_price_hc_eur_kwh,
+       elec_price_base_eur_kwh, elec_price_hp_eur_kwh, elec_price_hc_eur_kwh, electricity_subscription_ttc_month, electricity_annual_bill_ttc,
        energy_profile, equipement_actuel, equipement_actuel_params, equipements_a_venir
      )
      SELECT
@@ -94,6 +96,8 @@ export async function ensureDefaultLeadMeter(db, leadId, organizationId) {
        l.elec_price_base_eur_kwh,
        l.elec_price_hp_eur_kwh,
        l.elec_price_hc_eur_kwh,
+       l.electricity_subscription_ttc_month,
+       l.electricity_annual_bill_ttc,
        l.energy_profile,
        l.equipement_actuel,
        l.equipement_actuel_params,
@@ -150,6 +154,8 @@ export async function syncDefaultMeterFromLeadRow(db, leadRow) {
        elec_price_base_eur_kwh = $17,
        elec_price_hp_eur_kwh = $18,
        elec_price_hc_eur_kwh = $19,
+       electricity_subscription_ttc_month = $20,
+       electricity_annual_bill_ttc = $21,
        energy_profile = $13::jsonb,
        equipement_actuel = $14,
        equipement_actuel_params = $15::jsonb,
@@ -178,6 +184,8 @@ export async function syncDefaultMeterFromLeadRow(db, leadRow) {
       leadRow.elec_price_base_eur_kwh ?? null,
       leadRow.elec_price_hp_eur_kwh ?? null,
       leadRow.elec_price_hc_eur_kwh ?? null,
+      leadRow.electricity_subscription_ttc_month ?? null,
+      leadRow.electricity_annual_bill_ttc ?? null,
     ]
   );
 }
@@ -342,6 +350,8 @@ export async function syncLeadFlatFromMeterRow(db, meterRow) {
        elec_price_base_eur_kwh = $17,
        elec_price_hp_eur_kwh = $18,
        elec_price_hc_eur_kwh = $19,
+       electricity_subscription_ttc_month = $20,
+       electricity_annual_bill_ttc = $21,
        energy_profile = $11::jsonb,
        equipement_actuel = $12,
        equipement_actuel_params = $13::jsonb,
@@ -370,6 +380,8 @@ export async function syncLeadFlatFromMeterRow(db, meterRow) {
       meterRow.elec_price_base_eur_kwh ?? null,
       meterRow.elec_price_hp_eur_kwh ?? null,
       meterRow.elec_price_hc_eur_kwh ?? null,
+      meterRow.electricity_subscription_ttc_month ?? null,
+      meterRow.electricity_annual_bill_ttc ?? null,
     ]
   );
 }
@@ -409,7 +421,7 @@ export async function createLeadMeter(db, leadId, organizationId, name, copyFrom
          consumption_pdl, meter_power_kva, grid_type, consumption_mode,
          consumption_annual_kwh, consumption_annual_calculated_kwh,
          consumption_profile, hp_hc, supplier_name, tariff_type,
-         elec_price_base_eur_kwh, elec_price_hp_eur_kwh, elec_price_hc_eur_kwh,
+         elec_price_base_eur_kwh, elec_price_hp_eur_kwh, elec_price_hc_eur_kwh, electricity_subscription_ttc_month, electricity_annual_bill_ttc,
          energy_profile, equipement_actuel, equipement_actuel_params, equipements_a_venir
        )
        SELECT
@@ -431,6 +443,8 @@ export async function createLeadMeter(db, leadId, organizationId, name, copyFrom
          d.elec_price_base_eur_kwh,
          d.elec_price_hp_eur_kwh,
          d.elec_price_hc_eur_kwh,
+         d.electricity_subscription_ttc_month,
+         d.electricity_annual_bill_ttc,
          d.energy_profile,
          d.equipement_actuel,
          d.equipement_actuel_params,
@@ -474,11 +488,37 @@ const PATCHABLE_METER_COLUMNS = new Set([
   "elec_price_base_eur_kwh",
   "elec_price_hp_eur_kwh",
   "elec_price_hc_eur_kwh",
+  "electricity_subscription_ttc_month",
+  "electricity_annual_bill_ttc",
   "energy_profile",
   "equipement_actuel",
   "equipement_actuel_params",
   "equipements_a_venir",
 ]);
+
+/** Nullable current-supplier charge; zero is an explicit free subscription. */
+export function normalizeElectricitySubscriptionTtcMonth(raw) {
+  if (raw == null || (typeof raw === "string" && raw.trim() === "")) return null;
+  const n = typeof raw === "number" || typeof raw === "string" ? Number(raw) : NaN;
+  if (!Number.isFinite(n) || n < 0 || n > 99999999.99) {
+    const error = new Error("Abonnement électricité TTC : montant mensuel invalide (positif ou nul attendu)");
+    error.code = "VALIDATION";
+    throw error;
+  }
+  return Math.round(n * 100) / 100;
+}
+
+/** Total billed over twelve months, including subscription; missing remains unknown. */
+export function normalizeElectricityAnnualBillTtc(raw) {
+  if (raw == null || (typeof raw === "string" && raw.trim() === "")) return null;
+  const n = typeof raw === "number" || typeof raw === "string" ? Number(raw) : NaN;
+  if (!Number.isFinite(n) || n < 0 || n > 9999999999.99) {
+    const error = new Error("Facture annuelle électricité TTC : montant invalide (positif ou nul attendu)");
+    error.code = "VALIDATION";
+    throw error;
+  }
+  return Math.round(n * 100) / 100;
+}
 
 /**
  * @param {Db} db
@@ -605,6 +645,20 @@ export async function updateLeadMeter(db, meterId, leadId, organizationId, patch
       if (v === undefined) continue;
       updates.push(`hp_hc = $${idx++}`);
       values.push(!!v);
+      continue;
+    }
+
+    if (key === "electricity_subscription_ttc_month") {
+      if (v === undefined) continue;
+      updates.push(`electricity_subscription_ttc_month = $${idx++}`);
+      values.push(normalizeElectricitySubscriptionTtcMonth(v));
+      continue;
+    }
+
+    if (key === "electricity_annual_bill_ttc") {
+      if (v === undefined) continue;
+      updates.push(`electricity_annual_bill_ttc = $${idx++}`);
+      values.push(normalizeElectricityAnnualBillTtc(v));
       continue;
     }
 

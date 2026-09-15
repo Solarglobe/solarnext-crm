@@ -22,7 +22,7 @@ function getStorageUrl(
   return `${API_BASE}/api/internal/pdf-asset/${orgId}/${type}?renderToken=${encodeURIComponent(renderToken)}&studyId=${encodeURIComponent(studyId)}&versionId=${encodeURIComponent(versionId)}`;
 }
 
-const P8_BADGE = "Gains nets sur 25 ans";
+
 
 const P8_IMPACT_LINE =
   "Après amortissement de l'investissement, le générateur continue de générer des économies chaque année.";
@@ -37,6 +37,7 @@ export default function PdfPage8({
   organization?: { id?: string; logo_image_key?: string | null; logo_url?: string | null };
   viewModel?: { meta?: { studyId?: string; versionId?: string }; [key: string]: unknown };
 }) {
+  const horizonYears=Number((viewModel?.fullReport as {p9?:{meta?:{horizon_years_pdf?:number}}})?.p9?.meta?.horizon_years_pdf)||25;
   const logoUrl = useMemo(() => {
     if (organization?.logo_url) return organization.logo_url;
 
@@ -77,7 +78,7 @@ export default function PdfPage8({
                 />
               ) : null
             }
-            badge={P8_BADGE}
+            badge={`Gains nets sur ${horizonYears} ans`}
             metaColumn={
               <div
                 className="meta-compact"
@@ -119,7 +120,7 @@ export default function PdfPage8({
           {/* A — Hero impact */}
           <div className="p8-zone p8-zone--hero">
             <div className="p8-hero-inner">
-              <div className="p8-hero__line1">GAIN NET ESTIMÉ SUR 25 ANS</div>
+              <div className="p8-hero__line1">GAIN NET ESTIMÉ SUR {horizonYears} ANS</div>
               <div id="p8_hero_value" className="p8-hero__value">
                 —
               </div>
@@ -157,7 +158,7 @@ export default function PdfPage8({
                 <div id="p8_card_15y_sub" className="p8-impact-card__sub" />
               </div>
               <div className="p8-impact-card p8-impact-card--accent">
-                <div className="p8-impact-card__label">Horizon 25 ans</div>
+                <div className="p8-impact-card__label">Horizon {horizonYears} ans</div>
                 <div id="p8_card_25y_value" className="p8-impact-card__value p8-impact-card__value--xl">
                   —
                 </div>

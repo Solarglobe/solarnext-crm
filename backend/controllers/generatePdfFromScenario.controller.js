@@ -252,6 +252,8 @@ export async function generatePdfFromScenario(req, res) {
 
     return res.status(200).json(payload);
   } catch (err) {
+    if (err.status === 409) return res.status(409).json({ error: err.code, message: err.message });
+    if (err.code === "STUDY_EXPORT_INCONSISTENT") return res.status(409).json({error:err.code,message:err.message,details:err.details});
     console.error("PDF_ERROR_FULL:", err);
     console.error("STACK:", err.stack);
     const e = err;
@@ -377,6 +379,8 @@ export async function setPortalOfferFromScenario(req, res) {
       },
     });
   } catch (err) {
+    if (err.status === 409) return res.status(409).json({ error: err.code, message: err.message });
+    if (err.code === "STUDY_EXPORT_INCONSISTENT") return res.status(409).json({error:err.code,message:err.message,details:err.details});
     console.error("[setPortalOfferFromScenario]", err);
     return res.status(500).json({
       error: "PORTAL_OFFER_UPDATE_FAILED",

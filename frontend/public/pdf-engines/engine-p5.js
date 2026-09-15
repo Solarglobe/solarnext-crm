@@ -14,7 +14,7 @@
   function mergeSeries(payload){
     const backProd  = payload.production_kw     || Array(24).fill(0);
     const backConso = payload.consommation_kw   || Array(24).fill(0);
-    const backBatt  = payload.batterie_kw       || Array(24).fill(0);
+    const backBatt  = (payload.credit_kw ?? payload.batterie_kw) || Array(24).fill(0);
 
     const final = [];
     for(let i=0;i<24;i++){
@@ -26,7 +26,7 @@
         prod: safeNum(prod),
         conso: safeNum(con),
         batt: safeNum(batt),
-        auto: Math.min(safeNum(prod), safeNum(con))
+        auto: payload.direct_kw?.[i] != null ? safeNum(payload.direct_kw[i]) : Math.min(safeNum(prod), safeNum(con))
       });
     }
     return final;
@@ -106,7 +106,7 @@
     const visual = series.map(s => ({
       prod: safeNum(s.prod),
       conso: safeNum(s.conso),
-      auto: Math.min(safeNum(s.prod), safeNum(s.conso)),
+      auto: safeNum(s.auto),
       batt: safeNum(s.batt),
     }));
 

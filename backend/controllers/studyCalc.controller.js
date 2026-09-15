@@ -19,6 +19,9 @@ import { isShadingParityPersistEnabled } from "../services/calpinage/shadingPari
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
 import { upsertFinancialScenariosForVersion } from "../services/financialScenarios.service.js";
+import { withTx } from '../db/tx.js';
+import { readStudyCalculationInputs } from '../services/studyCalculationFreshness.service.js';
+import { fingerprint, quoteFingerprint, assertQuoteRevision, assertElectricalPhaseDecision, calculationConflict, preserveCalculationHistory } from '../services/calculationFingerprint.service.js';
 
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userIdFromReq = (req) => req.user?.userId ?? req.user?.id ?? null;
@@ -37,6 +40,12 @@ export async function runStudyCalc(req, res) {
       return res.status(400).json({ error: "Numéro de version invalide" });
     }
 
+    const initialMeter = await resolveStudyVersionMeterContext(pool, { studyId, versionNumber: versionNum, orgId: org });
+    if (!initialMeter) return res.status(404).json({ error: 'VERSION_NOT_FOUND' });
+    if (initialMeter.version.is_locked) return res.status(400).json({ error: 'LOCKED_VERSION' });
+    const sourceParams = { studyId, versionId: initialMeter.version.id, organizationId: org };
+    let initialSource;
+
     const shadingUiSnapshot =
       req.body &&
       typeof req.body === "object" &&
@@ -48,11 +57,19 @@ export async function runStudyCalc(req, res) {
 
     let solarnextPayload;
     try {
-      solarnextPayload = await buildSolarNextPayload({
-        studyId,
-        versionId: versionNum,
-        orgId: org,
-        shadingUiSnapshot,
+      await withTx(pool, async client => {
+        // Every input query sees the same database snapshot, even if another
+        // editor saves and restores a value while the payload is being assembled.
+        await client.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+        initialSource = await readStudyCalculationInputs({ ...sourceParams, db: client });
+        if (req._expectedInputFingerprint && req._expectedInputFingerprint !== initialSource.input_fingerprint) throw calculationConflict();
+        if (req._validateDevisTechnique || req.body?.expected_quote_fingerprint) {
+          assertQuoteRevision(req.body?.expected_quote_fingerprint, initialSource.quote_fingerprint);
+        }
+        assertElectricalPhaseDecision(initialSource.inputs.quote, initialSource.detected_grid_phase);
+        solarnextPayload = await buildSolarNextPayload({ studyId, versionId: versionNum,
+          orgId: org, shadingUiSnapshot, db: client });
+        assertQuoteRevision(initialSource.quote_fingerprint, quoteFingerprint(solarnextPayload?.finance_input?.economic_snapshot_config));
       });
     } catch (e) {
       if (e.message === "CALPINAGE_REQUIRED") {
@@ -124,6 +141,16 @@ export async function runStudyCalc(req, res) {
     }
 
     const ctxFinal = captured.data;
+    const finalSource = await readStudyCalculationInputs(sourceParams);
+    if (finalSource.input_fingerprint !== initialSource.input_fingerprint) throw calculationConflict();
+    const trace = {
+      schema_version: 1,
+      input_fingerprint: initialSource.input_fingerprint,
+      saved_quote_fingerprint: initialSource.quote_fingerprint,
+      resolved_payload_fingerprint: fingerprint(solarnextPayload),
+      input_domains: Object.fromEntries(Object.entries(initialSource.inputs).map(([key, value]) => [key, fingerprint(value)])),
+      engine_version: ctxFinal?.meta?.version ?? null,
+    };
 
     const versionRes = await pool.query(
       `SELECT id, is_locked, version_number FROM study_versions
@@ -180,7 +207,8 @@ export async function runStudyCalc(req, res) {
           : [];
 
       const merged = {
-        ...dataJson,
+        calculation_trace: trace,
+        calculation_input_snapshot: solarnextPayload,
         calculation_confidence: ctxFinal.calculation_confidence ?? dataJson.calculation_confidence,
         ...(dataJson.selected_meter_id == null &&
         meterCtx?.resolvedSelectedMeterId != null
@@ -229,29 +257,21 @@ export async function runStudyCalc(req, res) {
         });
       }
 
-      if (finalStudyJson != null) {
-        await pool.query(
-          "UPDATE study_versions SET data_json = $1::jsonb, final_study_json = $2::jsonb WHERE id = $3",
-          [JSON.stringify(merged), JSON.stringify(finalStudyJson), versionId]
-        );
-      } else {
-        await pool.query(
-          "UPDATE study_versions SET data_json = $1::jsonb WHERE id = $2",
-          [JSON.stringify(merged), versionId]
-        );
-      }
-
-      // CP-FINSCEN-001 — écriture canonique non-bloquante dans financial_scenarios
-      void upsertFinancialScenariosForVersion({
-        organizationId: org,
-        studyId,
-        studyVersionId: versionId,
-        solarnextPayload,
-        scenariosV2: ctxFinal.scenarios_v2 ?? [],
-        userId: userIdFromReq(req),
-      }).catch((err) =>
-        console.error("[studyCalc] upsertFinancialScenarios non-fatal:", err?.message)
-      );
+      await withTx(pool, async client => {
+        // Quote saves take the same version lock. A concurrent save/calculation cannot
+        // silently overwrite results, lose history or acknowledge a different quote.
+        const locked = await client.query('SELECT data_json, is_locked FROM study_versions WHERE id=$1 AND organization_id=$2 FOR UPDATE', [versionId, org]);
+        if (!locked.rows[0] || locked.rows[0].is_locked) throw calculationConflict('LOCKED_VERSION');
+        const current = await readStudyCalculationInputs({ ...sourceParams, db: client });
+        if (current.input_fingerprint !== initialSource.input_fingerprint) throw calculationConflict();
+        const persisted = { ...locked.rows[0].data_json, ...merged,
+          calculation_history: preserveCalculationHistory(locked.rows[0].data_json) };
+        await client.query(
+          'UPDATE study_versions SET data_json=$1::jsonb, final_study_json=COALESCE($2::jsonb,final_study_json) WHERE id=$3 AND organization_id=$4',
+          [JSON.stringify(persisted), finalStudyJson == null ? null : JSON.stringify(finalStudyJson), versionId, org]);
+        await upsertFinancialScenariosForVersion({ organizationId: org, studyId, studyVersionId: versionId,
+          solarnextPayload, scenariosV2: ctxFinal.scenarios_v2 ?? [], userId: userIdFromReq(req), db: client, strict: true });
+      });
 
       if (process.env.NODE_ENV !== "production" || process.env.LOG_STUDY_CALC_PERSIST === "1") {
         const persistedIds = (ctxFinal.scenarios_v2 || []).map((s) => s?.id ?? s?.name).filter(Boolean);
@@ -289,6 +309,8 @@ export async function runStudyCalc(req, res) {
       }
       return res.json({
         status: "SCENARIOS_GENERATED",
+        input_fingerprint: trace.input_fingerprint,
+        saved_quote_fingerprint: trace.saved_quote_fingerprint,
         scenarios: {
           ids,
           count: scenarios.count,
@@ -298,8 +320,9 @@ export async function runStudyCalc(req, res) {
         },
       });
     }
-    res.json({ ok: true, summary });
+    res.json({ ok: true, summary, input_fingerprint: trace.input_fingerprint, saved_quote_fingerprint: trace.saved_quote_fingerprint });
   } catch (e) {
+    if (e.status === 409) return res.status(409).json({ error: e.code, message: e.message });
     console.error("[studyCalc.controller] runStudyCalc:", e);
     res.status(500).json({
       error: e.message || "Erreur lors du calcul",

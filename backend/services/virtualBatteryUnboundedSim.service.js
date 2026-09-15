@@ -1,3 +1,4 @@
+import {isEnergyYear} from './energyCalendar.service.js';
 /**
  * Simulation batterie virtuelle sans plafond de capacité (P2).
  * Même logique que simulateVirtualBattery8760 mais room = illimité,
@@ -22,10 +23,10 @@ const UNBOUNDED_ROOM = Number.MAX_SAFE_INTEGER;
  * }}
  */
 export function simulateVirtualBattery8760Unbounded({ pv_hourly, conso_hourly }) {
-  if (!Array.isArray(pv_hourly) || pv_hourly.length !== HOURS_PER_YEAR) {
+  if (!isEnergyYear(pv_hourly)) {
     return { ok: false, reason: "INVALID_PV_HOURLY" };
   }
-  if (!Array.isArray(conso_hourly) || conso_hourly.length !== HOURS_PER_YEAR) {
+  if (!isEnergyYear(conso_hourly) || conso_hourly.length !== pv_hourly.length) {
     return { ok: false, reason: "INVALID_CONSO_HOURLY" };
   }
 
@@ -38,7 +39,7 @@ export function simulateVirtualBattery8760Unbounded({ pv_hourly, conso_hourly })
   let totalDischarged = 0;
   let totalOverflow = 0;
 
-  for (let h = 0; h < HOURS_PER_YEAR; h++) {
+  for (let h = 0; h < pv_hourly.length; h++) {
     const pv = Number(pv_hourly[h]) || 0;
     const load = Number(conso_hourly[h]) || 0;
     const direct = Math.min(pv, load);

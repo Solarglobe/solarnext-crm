@@ -140,6 +140,8 @@ async function getDetail(req, res) {
       elec_price_base_eur_kwh: leadRow.elec_price_base_eur_kwh,
       elec_price_hp_eur_kwh: leadRow.elec_price_hp_eur_kwh,
       elec_price_hc_eur_kwh: leadRow.elec_price_hc_eur_kwh,
+      electricity_subscription_ttc_month: leadRow.electricity_subscription_ttc_month,
+      electricity_annual_bill_ttc: leadRow.electricity_annual_bill_ttc,
       grid_type: leadRow.grid_type,
       meter_power_kva: leadRow.meter_power_kva,
       property_type: leadRow.property_type,

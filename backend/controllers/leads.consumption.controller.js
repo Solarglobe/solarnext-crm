@@ -10,6 +10,8 @@ import { migrateEquipmentV2Doc } from "../services/equipmentNormalize.service.js
 import {
   ensureDefaultLeadMeter,
   syncDefaultMeterFromLeadRow,
+  normalizeElectricitySubscriptionTtcMonth,
+  normalizeElectricityAnnualBillTtc,
 } from "../services/leadMeters.service.js";
 import { assertLeadApiAccess } from "../services/leadRequestAccess.service.js";
 
@@ -36,6 +38,8 @@ export async function patchConsumption(req, res) {
       elec_price_base_eur_kwh,
       elec_price_hp_eur_kwh,
       elec_price_hc_eur_kwh,
+      electricity_subscription_ttc_month,
+      electricity_annual_bill_ttc,
       equipement_actuel,
       equipement_actuel_params,
       equipements_a_venir
@@ -159,6 +163,26 @@ export async function patchConsumption(req, res) {
       }
       updates.push(`${field} = $${idx++}`);
       values.push(n);
+    }
+
+    if (electricity_subscription_ttc_month !== undefined) {
+      try {
+        const subscription = normalizeElectricitySubscriptionTtcMonth(electricity_subscription_ttc_month);
+        updates.push(`electricity_subscription_ttc_month = $${idx++}`);
+        values.push(subscription);
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
+    }
+
+    if (electricity_annual_bill_ttc !== undefined) {
+      try {
+        const annualBill = normalizeElectricityAnnualBillTtc(electricity_annual_bill_ttc);
+        updates.push(`electricity_annual_bill_ttc = $${idx++}`);
+        values.push(annualBill);
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
     }
 
     if (equipement_actuel !== undefined) {

@@ -44,13 +44,15 @@ export default function PdfPage5({
         production_kw?: number[];
         consommation_kw?: number[];
         batterie_kw?: number[];
+        credit_kw?: number[];
+        direct_kw?: number[];
         profile_notes?: { production?: string; consumption?: string };
       }
     | undefined;
 
   const prod24 = useMemo(() => as24(p5?.production_kw), [p5?.production_kw]);
   const conso24 = useMemo(() => as24(p5?.consommation_kw), [p5?.consommation_kw]);
-  const batt24 = useMemo(() => as24(p5?.batterie_kw), [p5?.batterie_kw]);
+  const batt24 = useMemo(() => as24(p5?.credit_kw ?? p5?.batterie_kw), [p5?.credit_kw, p5?.batterie_kw]);
   const metaP5 = p5?.meta ?? {};
   const hasBatteryChart = useMemo(() => batt24.some((x) => Math.abs(x) > 1e-9), [batt24]);
   const isVirtualCreditScenario = (() => {
@@ -58,7 +60,7 @@ export default function PdfPage5({
       (viewModel?.selectedScenario as { scenarioType?: string } | undefined)?.scenarioType ??
       (viewModel?.meta as { scenarioType?: string } | undefined)?.scenarioType ??
       "";
-    return String(scenarioType).includes("VIRTUAL");
+    return Boolean(p5?.credit_kw) || String(scenarioType).includes("VIRTUAL");
   })();
   const hasChartData = useMemo(
     () => prod24.some((x) => x > 0) || conso24.some((x) => x > 0),
@@ -205,7 +207,7 @@ export default function PdfPage5({
 
         <div style={{ height: "74mm", position: "relative", flexShrink: 0 }}>
           {hasChartData && (
-            <ChartP5DayProfile production_kw={prod24} consommation_kw={conso24} batterie_kw={batt24} />
+            <ChartP5DayProfile production_kw={prod24} consommation_kw={conso24} batterie_kw={batt24} direct_kw={p5?.direct_kw} />
           )}
         </div>
 
@@ -232,9 +234,9 @@ export default function PdfPage5({
             <>
               <span className="pill pill-green" />
               <div className="legend-text">
-                <b>{isVirtualCreditScenario ? "Surplus injecté et crédité" : "Énergie stockée"}</b>
+                <b>{isVirtualCreditScenario ? "Crédit virtuel utilisé" : "Solaire restitué"}</b>
                 <br />
-                <span className="sub">{isVirtualCreditScenario ? "crédit virtuel" : "batterie (charge)"}</span>
+                <span className="sub">{isVirtualCreditScenario ? "crédit virtuel" : "batterie physique (décharge)"}</span>
               </div>
             </>
           )}
@@ -336,11 +338,11 @@ export default function PdfPage5({
             }}
           >
             <div style={{ fontSize: "3.2mm", fontWeight: 600, color: brandHex, marginBottom: "1.5mm" }}>
-              {isVirtualCreditScenario ? "Crédit du surplus" : "Stockage de l'énergie"}
+              {isVirtualCreditScenario ? "Utilisation du crédit" : "Stockage de l'énergie"}
             </div>
             <div style={{ fontSize: "3mm", lineHeight: 1.35, color: "#444" }}>
               {isVirtualCreditScenario
-                ? "Le surplus est injecté sur le réseau et enregistré sous forme de crédit virtuel pour être valorisé ultérieurement."
+                ? "La courbe verte représente les crédits utilisés pour compenser les consommations prélevées au réseau."
                 : "Le surplus est stocké en batterie pour être restitué ultérieurement (soirée, creux solaire)."}
             </div>
           </div>
@@ -360,8 +362,8 @@ export default function PdfPage5({
           </div>
           <div style={{ fontSize: "3mm", lineHeight: 1.35, color: "#444" }}>
             {hasBatteryChart
-              ? "Les prélèvements réseau diminuent encore, y compris hors fenêtre de production."
-              : "Les achats sur le réseau sont fortement réduits grâce à la production locale."}
+              ? isVirtualCreditScenario ? "Le crédit compense une partie des prélèvements réseau ; les frais du service restent applicables." : "Les prélèvements réseau diminuent encore, y compris hors fenêtre de production."
+              : "Le solaire consommé sur place réduit les achats d’électricité."}
           </div>
         </div>
       </div>

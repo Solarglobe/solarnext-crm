@@ -269,7 +269,7 @@ export default function PdfPage10({
             Production d&apos;électricité locale dès la mise en service
           </div>
           <div style={{ fontSize: "3.1mm", color: subInk, marginTop: "0.95mm", fontWeight: 600, paddingRight: "38mm" }}>
-            Dimensionnement durable, cohérent économiquement, prêt à déployer
+            Résultats estimatifs, sous réserve de validation technique et contractuelle
           </div>
           <div
             style={{
@@ -346,7 +346,7 @@ export default function PdfPage10({
               lineHeight: 1.28,
             }}
           >
-            <div style={{ fontWeight: 800, marginBottom: "0.55mm", color: titleInk }}>Budget énergie + batterie virtuelle, hors abonnement fixe du compteur</div>
+            <div style={{ fontWeight: 800, marginBottom: "0.55mm", color: titleInk }}>{rv.electricity_billing_status ? "Budget électricité + batterie virtuelle" : "Budget énergie + batterie virtuelle, hors abonnement fixe du compteur"}</div>
             {num(rv.energy_purchase_from_grid_eur) != null ? (
               <div>Achat réseau (énergie, {fmtInt(rv.grid_import_kwh as number)} kWh) : {fmtEUR(rv.energy_purchase_from_grid_eur as number)}</div>
             ) : null}
@@ -373,6 +373,7 @@ export default function PdfPage10({
                 {virtualFeesIndexationNote}
               </div>
             ) : null}
+            {num(rv.supplier_subscription_eur) != null ? <div>Abonnement fournisseur : {fmtEUR(rv.supplier_subscription_eur as number)}</div> : null}
             {typeof rv.supplier_subscription_note === "string" && rv.supplier_subscription_note ? (
               <div style={{ marginTop: "0.35mm", fontSize: "2.12mm", color: softSub }}>{String(rv.supplier_subscription_note)}</div>
             ) : null}
@@ -589,11 +590,11 @@ export default function PdfPage10({
                 textAlign: "left",
               }}
             >
-              <div style={{ fontSize: "3.15mm", fontWeight: 900, color: titleInk, marginBottom: "0.35mm" }}>Le dispositif étudié est :</div>
+              <div style={{ fontSize: "3.15mm", fontWeight: 900, color: titleInk, marginBottom: "0.35mm" }}>Statut de l’étude :</div>
               <div style={{ fontSize: "2.95mm", color: ink, fontWeight: 700, lineHeight: 1.24 }}>
-                <span style={{ color: gold, fontWeight: 900 }}>✔</span> rentable &nbsp;&nbsp;
-                <span style={{ color: gold, fontWeight: 900 }}>✔</span> durable &nbsp;&nbsp;
-                  <span style={{ color: gold, fontWeight: 900 }}>✔</span> prêt à valider
+                <span style={{ color: gold, fontWeight: 900 }}>•</span> prévisionnelle &nbsp;&nbsp;
+                <span style={{ color: gold, fontWeight: 900 }}>•</span> hypothèses déclarées &nbsp;&nbsp;
+                  <span style={{ color: gold, fontWeight: 900 }}>•</span> validations à compléter
               </div>
               <div
                 style={{
@@ -607,7 +608,7 @@ export default function PdfPage10({
               Mise en œuvre possible après validation terrain, administrative et technique
               </div>
               <div style={{ fontSize: "2.72mm", color: subInk, marginTop: "0.35mm", fontWeight: 500, lineHeight: 1.22 }}>
-                Gain net cumulé sur 25 ans (estimation) : <strong style={{ color: ink, fontWeight: 800 }}>{fmtEUR(gains25)}</strong> — même base que l&apos;étude financière (page 2).
+                Gain net cumulé sur {Number(hyp.horizon_years)||25} ans (estimation) : <strong style={{ color: ink, fontWeight: 800 }}>{fmtEUR(gains25)}</strong> — même base que l&apos;étude financière (page 2).
               </div>
               <div style={{ fontSize: "2.35mm", color: "#6b7280", marginTop: "0.45mm", lineHeight: 1.22 }}>
                 {isVirtualCreditScenario && overflowExportKwh <= 1

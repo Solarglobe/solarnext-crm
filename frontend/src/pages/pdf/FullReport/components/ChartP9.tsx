@@ -12,13 +12,13 @@ interface ChartP9Props {
 export default function ChartP9({ scenario }: ChartP9Props) {
   const data = useMemo(() => {
     const s = scenario.cumul_25y ?? [];
-    return Array.from({ length: 25 }, (_, i) => ({
+    return Array.from({ length: s.length }, (_, i) => ({
       year: i + 1,
       cumul: Number(s[i] ?? 0),
     }));
   }, [scenario.cumul_25y]);
 
-  const roiY = scenario.roi_year != null && scenario.roi_year > 0 && scenario.roi_year <= 25 ? Math.round(scenario.roi_year) : null;
+  const roiY = scenario.roi_year != null && scenario.roi_year > 0 && scenario.roi_year <= data.length ? Math.round(scenario.roi_year) : null;
 
   if (!data.length) {
     return <div className="chart-p9-empty">Aucune donnée</div>;

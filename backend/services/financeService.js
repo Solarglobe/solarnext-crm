@@ -1,3 +1,6 @@
+import { cashflowIrr } from "./financialIndicators.service.js";
+import { resolveSimulationContract } from './simulationContract.service.js';
+import { resolveVirtualStorageOaCompatibility } from './virtualStorageOaCompatibility.service.js';
 // ======================================================================
 // SMARTPITCH V9 — FINANCE SERVICE (FORMAT SCENARIO V-LIGHT COMPATIBLE)
 // ======================================================================
@@ -42,7 +45,9 @@ import {
   mergeOrgEconomicsPartial,
   overlayFormEconomics,
   resolveElectricityGrowthPctFromOrg,
+  resolveOaTariffForKwc,
 } from "./economicsResolve.service.js";
+import { resolveFinanceProjection, resolveScenarioAid, resolveScenarioSale, batteryAgeAtYear } from "./financeProjection.service.js";
 
 function hasOwn(obj, key) {
   return obj && typeof obj === "object" && Object.prototype.hasOwnProperty.call(obj, key);
@@ -78,7 +83,8 @@ function normalizeFinancingSnapshot(configJson, capexTtc) {
   const duration = Number(raw.duration_months);
   const rate = Number(raw.interest_rate_annual);
   const fallbackAmount = Number.isFinite(totalsTtc) && totalsTtc > 0 ? totalsTtc : Number(capexTtc);
-  const enabled = Number.isFinite(duration) && duration > 0 && Number.isFinite(rate) && rate > 0;
+  const rateKnown = raw.interest_rate_annual != null && raw.interest_rate_annual !== '' && Number.isFinite(rate) && rate >= 0;
+  const enabled = Number.isFinite(duration) && duration > 0 && rateKnown;
   const amount =
     Number.isFinite(amountRaw) && amountRaw > 0
       ? amountRaw
@@ -89,10 +95,11 @@ function normalizeFinancingSnapshot(configJson, capexTtc) {
     enabled,
     amount_eur: amount,
     duration_months: Number.isFinite(duration) && duration > 0 ? duration : null,
-    interest_rate_annual_pct: Number.isFinite(rate) && rate > 0 ? rate : null,
+    interest_rate_annual_pct: rateKnown ? rate : null,
     taeg_pct: raw.taeg_pct != null && Number.isFinite(Number(raw.taeg_pct)) ? Number(raw.taeg_pct) : null,
     insurance_eur: raw.insurance_eur != null && Number.isFinite(Number(raw.insurance_eur)) ? Number(raw.insurance_eur) : null,
     application_fee_eur: raw.application_fee_eur != null && Number.isFinite(Number(raw.application_fee_eur)) ? Number(raw.application_fee_eur) : null,
+    other_costs_eur: raw.other_costs_eur != null && Number.isFinite(Number(raw.other_costs_eur)) ? Number(raw.other_costs_eur) : null,
     source: cfg.financing ? "economic_snapshots.config_json.financing@calculation" : "not_configured",
   };
 }
@@ -102,7 +109,9 @@ function normalizeFinancingSnapshot(configJson, capexTtc) {
 // ======================================================================
 function pickEconomics(ctx) {
   const f = ctx.form || {};
-  const rawOrgEconomics = ctx.settings?.economics_raw ?? ctx.settings?.economics;
+  const rawOrgEconomics = Object.hasOwn(ctx.settings ?? {}, 'economics_raw')
+    ? ctx.settings.economics_raw
+    : ctx.settings?.economics;
   const e = overlayFormEconomics(mergeOrgEconomicsPartial(ctx.settings?.economics), f.economics);
   const elecGrowth = resolveElectricityGrowthPctFromOrg(rawOrgEconomics, {
     context: "financeService.pickEconomics",
@@ -139,12 +148,12 @@ function pickEconomics(ctx) {
     oa_rate_lt_3: num(e.oa_rate_lt_3, DEFAULT_ECONOMICS_FALLBACK.oa_rate_lt_3),
     oa_rate_lt_9: num(e.oa_rate_lt_9, DEFAULT_ECONOMICS_FALLBACK.oa_rate_lt_9),
     oa_rate_gte_9: num(e.oa_rate_gte_9, DEFAULT_ECONOMICS_FALLBACK.oa_rate_gte_9),
-    prime_lt9: num(e.prime_lt9, DEFAULT_ECONOMICS_FALLBACK.prime_lt9),
-    prime_gte9: num(e.prime_gte9, DEFAULT_ECONOMICS_FALLBACK.prime_gte9),
+    prime_lt9: num(f.economics?.prime_lt9 ?? rawOrgEconomics?.prime_lt9, 0),
+    prime_gte9: num(f.economics?.prime_gte9 ?? rawOrgEconomics?.prime_gte9, 0),
     horizon_years: num(e.horizon_years, DEFAULT_ECONOMICS_FALLBACK.horizon_years),
     maintenance_pct: num(e.maintenance_pct, DEFAULT_ECONOMICS_FALLBACK.maintenance_pct),
-    inverter_replacement_year: num(e.onduleur_year, DEFAULT_ECONOMICS_FALLBACK.onduleur_year),
-    inverter_cost_pct: num(e.onduleur_cost_pct, DEFAULT_ECONOMICS_FALLBACK.onduleur_cost_pct),
+    inverter_replacement_year: num(f.economics?.onduleur_year ?? rawOrgEconomics?.onduleur_year, 0),
+    inverter_cost_pct: num(f.economics?.onduleur_cost_pct ?? rawOrgEconomics?.onduleur_cost_pct, 0),
     // Dégradation énergie batterie physique (cashflows) — admin / form.economics ; pas d’UI dédiée tant que non exposé
     battery_degradation_pct: num(
       e.battery_degradation_pct,
@@ -216,7 +225,7 @@ function resolveVirtualSetupFeeTtc(sc) {
   ];
   for (const value of candidates) {
     const n = Number(value);
-    if (Number.isFinite(n) && n > 0) return n;
+    if (value != null && value !== "" && Number.isFinite(n) && n >= 0) return n;
   }
   return 0;
 }
@@ -314,7 +323,6 @@ function buildFinanceWarningsV2({
   if (horizon_years != null && Number.isFinite(Number(horizon_years)) && Number(horizon_years) > 20) {
     w.push("HORIZON_LONG_PROJECTION_NOTE");
   }
-  w.push("PRIME_ELIGIBILITY_NOT_CONFIRMED");
   if (capex != null && Number.isFinite(capex) && capex > 0 && capex < 1000) {
     w.push("LOW_CAPEX_SUSPICIOUS");
   }
@@ -353,7 +361,7 @@ function buildFinanceWarningsV2({
 // ======================================================================
 // CASHFLOWS
 // ======================================================================
-function buildCashflows(params) {
+export function buildCashflows(params) {
   const {
     prod_y1,
     auto_y1,
@@ -385,9 +393,17 @@ function buildCashflows(params) {
     // price_auto_y1 : valeur des kWh évités par autoconso (direct + décharge physique).
     // price_vb_y1   : valeur des kWh évités par le crédit virtuel (heures de décharge).
     price_auto_y1 = null,
-    price_vb_y1 = null
+    price_vb_y1 = null,
+    battery_replacements = [],
+    inverter_replacements = null,
+    prime_payments = null,
+    oa_contract_years = null,
+    oa_post_contract_rate = 0,
+    annual_energy_projection = null,
+    injection_allowed = true
   } = params;
 
+  if (!Array.isArray(battery_replacements) || battery_replacements.some(r=>!Number.isInteger(r.year)||r.year<1||!Number.isFinite(r.cost_eur)||r.cost_eur<0)) throw new Error("Remplacement batterie : annee et cout explicites requis");
   // Décomposer l'autoconsommation an 1 en deux composantes :
   //   - pvDirectAuto : autoconso directe PV (suit la dégradation PV)
   //   - battContrib  : apport batterie (suit sa propre dégradation physique)
@@ -395,7 +411,7 @@ function buildCashflows(params) {
   const _pvDirectAuto_y1 = auto_y1 - _battContrib_y1;
   // Ratio de l'auto PV directe sur la production de référence (auto+surplus) — identique à
   // l'ancien auto_ratio quand battery_contribution_y1 === 0 (aucune régression).
-  const _refProd = (auto_y1 + surplus_y1) || 1;
+  const _refProd = prod_y1 > 0 ? prod_y1 : 1;
   const _pvDirectRatio = _pvDirectAuto_y1 / _refProd;
   let _battContrib = _battContrib_y1;
 
@@ -408,11 +424,14 @@ function buildCashflows(params) {
   let price = price_y1;
   // LOT3-HPHC-VALO : prix effectifs indexés au même rythme que le prix plat (elec_growth
   // identique HP/HC → pondérations horaires invariantes sur l'horizon).
-  let priceAuto = Number.isFinite(Number(price_auto_y1)) && Number(price_auto_y1) > 0 ? Number(price_auto_y1) : price_y1;
-  let priceVb = Number.isFinite(Number(price_vb_y1)) && Number(price_vb_y1) > 0 ? Number(price_vb_y1) : price_y1;
+  let priceAuto = price_auto_y1 != null && Number.isFinite(Number(price_auto_y1)) && Number(price_auto_y1) >= 0 ? Number(price_auto_y1) : price_y1;
+  let priceVb = price_vb_y1 != null && Number.isFinite(Number(price_vb_y1)) && Number(price_vb_y1) >= 0 ? Number(price_vb_y1) : price_y1;
   let prod = prod_y1;
   let auto = auto_y1;
   let surplus = surplus_y1;
+  // Scalar long-term projection: preserve unserved PV (storage losses / stock /
+  // curtailment), rather than silently selling it from year two onwards.
+  let unservedPv = Math.max(0, prod_y1 - auto_y1 - surplus_y1);
 
   let cumulGains = 0;
 
@@ -432,31 +451,56 @@ function buildCashflows(params) {
   const _virtRestitRate = Math.max(0, Number(virtual_restitution_rate_eur_kwh) || 0);
 
   for (let y = 1; y <= horizon_years; y++) {
+    const projected = annual_energy_projection?.[y - 1];
+    if (projected) {
+      prod = projected.prod_kwh ?? prod;
+      auto = projected.auto_kwh;
+      surplus = projected.surplus_kwh ?? surplus;
+      if (isVirtualBattery) {
+        _vbImportSavings = projected.used_credit_kwh ?? 0;
+        _vbOverflow = projected.overflow_export_kwh ?? projected.surplus_kwh ?? 0;
+      }
+    } else if (battery_replacements.some(row => row.year === y && row.kind === 'replacement')) {
+      // A real replacement restores a new battery; a financial provision does not.
+      _battContrib = _battContrib_y1;
+      auto = Math.min(prod * _pvDirectRatio + _battContrib, Math.max(0, prod - unservedPv));
+      surplus = injection_allowed ? Math.max(0, prod - auto - unservedPv) : 0;
+    }
     // LID (Light-Induced Degradation) : perte irréversible en toute première année seulement.
     // Appliquée avant les gains de l'an 1, sur la base de la fiche technique panneau.
     if (y === 1 && pv_degradation_first_year_pct > 0) {
       prod   *= (1 - pv_degradation_first_year_pct / 100);
       auto    = prod * _pvDirectRatio + _battContrib;
-      surplus = Math.max(0, prod - auto);
+      unservedPv *= 1 - pv_degradation_first_year_pct / 100;
+      surplus = injection_allowed ? Math.max(0, prod - auto - unservedPv) : 0;
     }
 
-    const gain_auto = auto * priceAuto;
+    const energyPriceGrowth = Math.pow(1 + elec_growth_pct / 100, y - 1);
+    const gain_auto = projected?.current_auto_value_at_initial_rates != null
+      ? projected.current_auto_value_at_initial_rates * energyPriceGrowth : auto * priceAuto;
+    const saleRate = oa_contract_years != null && y > oa_contract_years ? oa_post_contract_rate : oa_rate;
     const gain_oa = isVirtualBattery
-      ? _vbOverflow * oa_rate           // dégradé chaque année (voir init _vbOverflow)
-      : surplus * oa_rate;
+      ? _vbOverflow * saleRate
+      : surplus * saleRate;
     const import_savings_eur = (isVirtualBattery && _vbImportSavings !== null)
-      ? Math.max(0, _vbImportSavings) * priceVb  // dégradé chaque année (voir init _vbImportSavings)
+      ? projected?.current_credit_value_at_initial_rates != null
+        ? projected.current_credit_value_at_initial_rates * energyPriceGrowth
+        : Math.max(0, _vbImportSavings) * priceVb
       : 0;
 
     // HYBRIDE : énergie cédée par le physique dégradé, récupérée par le virtuel à sa valeur nette
     // (prix évité − restitution). Évite à la fois de la perdre (ancien bug) et de la sur-créditer.
-    const transferred_recovery_eur = (isVirtualBattery && _vbImportSavings !== null)
+    const transferred_recovery_eur = (!projected && isVirtualBattery && _vbImportSavings !== null)
       ? _transferredFromPhysicalKwh * Math.max(0, priceVb - _virtRestitRate)
       : 0;
 
-    let total = gain_auto + gain_oa + import_savings_eur + transferred_recovery_eur;
+    const virtualCashout = Number(projected?.virtual_cashout_eur) || 0;
+    let total = gain_auto + gain_oa + import_savings_eur + transferred_recovery_eur + virtualCashout;
 
-    if (y === 1) total += prime_eur;
+    const primeYear = Array.isArray(prime_payments)
+      ? prime_payments.filter(row => row.year === y).reduce((sum, row) => sum + row.amount_eur, 0)
+      : y === 1 ? prime_eur : 0;
+    total += primeYear;
 
     const maintenance = capexOk ? capexNum * (maintenance_pct / 100) : 0;
 
@@ -468,22 +512,40 @@ function buildCashflows(params) {
         : null;
 
     let inverter_cost = 0;
-    if (replacementYear != null && y === replacementYear && capexOk) {
+    if (Array.isArray(inverter_replacements)) {
+      inverter_cost = inverter_replacements.filter(row => row.year === y).reduce((sum, row) => sum + row.cost_eur, 0);
+    } else if (replacementYear != null && y === replacementYear && capexOk) {
       inverter_cost = capexNum * (inverter_cost_pct / 100);
     }
 
-    total -= (maintenance + inverter_cost);
+    const battery_cost = battery_replacements.filter(r=>r.year===y).reduce((sum,r)=>sum+r.cost_eur,0);
+    total -= (maintenance + inverter_cost + battery_cost);
 
     cumulGains += total;
 
     flows.push({
       year: y,
+      auto_kwh: auto,
+      virtual_credit_used_kwh: isVirtualBattery ? _vbImportSavings ?? 0 : 0,
       gain_auto,
       gain_oa,
+      virtual_cashout_eur: virtualCashout,
       ...(isVirtualBattery ? { import_savings_eur } : {}),
       maintenance,
       inverter_cost,
-      prime: y === 1 ? prime_eur : 0,
+      battery_cost,
+      prime: primeYear,
+      oa_rate_eur_kwh: saleRate,
+      battery_age_years: batteryAgeAtYear(y, battery_replacements),
+      battery_replaced: battery_replacements.some(row => row.year === y && row.kind === 'replacement'),
+      battery_provision_eur: battery_replacements.filter(row => row.year === y && row.kind !== 'replacement').reduce((sum, row) => sum + row.cost_eur, 0),
+      ...(projected ? {
+        scenario_energy_purchase_at_initial_rates: projected.scenario_energy_purchase_at_initial_rates,
+        virtual_restitution_cost_at_initial_rates: projected.virtual_restitution_cost_at_initial_rates,
+        virtual_credit_opening_kwh: projected.virtual_credit_opening_kwh,
+        virtual_credit_end_kwh: projected.virtual_credit_end_kwh,
+        projection_energy: projected,
+      } : {}),
       total_eur: total,
       cumul_gains_eur: cumulGains,
       cumul_eur: capexOk ? -capexNum + cumulGains : cumulGains
@@ -498,7 +560,9 @@ function buildCashflows(params) {
     _battContrib *= 1 - battery_degradation_pct / 100;
     const _battContribLost = Math.max(0, _battContribBefore - _battContrib);
     auto = prod * _pvDirectRatio + _battContrib;
-    surplus = Math.max(0, prod - auto);  // garde : évite surplus négatif (edge cases batterie / round-trip)
+    unservedPv *= 1 - pv_degradation_pct / 100;
+    auto = Math.min(auto, Math.max(0, prod - unservedPv));
+    surplus = injection_allowed ? Math.max(0, prod - auto - unservedPv) : 0;
     // BUG A/B FIX — dégrader overflow VB et import_savings VB au même rythme que le PV
     if (isVirtualBattery) {
       _vbOverflow *= 1 - pv_degradation_pct / 100;
@@ -508,7 +572,7 @@ function buildCashflows(params) {
         // crédit virtuel (lossless). On l'accumule (et elle suit la dégradation PV) pour la
         // récupérer à sa valeur nette les années suivantes, au lieu de la perdre (ancien bug).
         // Sans effet pour BATTERY_VIRTUAL (battery_contribution_y1 = 0 → _battContribLost = 0).
-        _transferredFromPhysicalKwh = (_transferredFromPhysicalKwh + _battContribLost) * (1 - pv_degradation_pct / 100);
+        _transferredFromPhysicalKwh = 0; // No hypothetical credit without a new chronological availability simulation.
       }
     }
   }
@@ -521,6 +585,7 @@ function buildCashflows(params) {
 // ======================================================================
 function firstFiniteNumber(...values) {
   for (const value of values) {
+    if (value == null || value === "") continue;
     const n = Number(value);
     if (Number.isFinite(n)) return n;
   }
@@ -575,6 +640,7 @@ function computeAnnualBillAfterSolarYear1(sc, priceEurKwh) {
 }
 
 function computeBillSavingsYear1(sc, priceEurKwh) {
+  if (sc.electricity_billing) return sc.electricity_billing.bill_savings_eur;
   const consumptionKwh = firstFiniteNumber(
     sc?.conso_kwh,
     sc?.energy?.consumption_kwh,
@@ -589,52 +655,26 @@ function computeBillSavingsYear1(sc, priceEurKwh) {
   const billAfterSolar = computeAnnualBillAfterSolarYear1(sc, priceEurKwh);
   if (billAfterSolar == null) return null;
 
-  return Math.max(0, billBeforeSolar - billAfterSolar);
+  return billBeforeSolar - billAfterSolar;
 }
 
-function irr(values, guess = 0.1) {
-  let rate = guess;
-
-  for (let i = 0; i < 50; i++) {
-    let npv = 0;
-    let deriv = 0;
-
-    for (let t = 0; t < values.length; t++) {
-      const v = values[t];
-      const discount = Math.pow(1 + rate, t);
-      npv += v / discount;
-
-      if (t > 0) {
-        deriv -= (t * v) / (discount * (1 + rate));
-      }
-    }
-
-    if (Math.abs(deriv) < 1e-12) return null;
-
-    const newRate = rate - npv / deriv;
-    if (Math.abs(newRate - rate) < 1e-12) return newRate;
-
-    rate = newRate;
-  }
-
-  return null;
-}
+function irr(values) { return cashflowIrr(values).rate; }
 
 // ======================================================================
 // LCOE (coût actualisé de l'énergie)
-// Formule IEC 62722 : LCOE = (CAPEX_net + ΣOPEX_actualisé) / Σprod_actualisée
+// Definition financiere : LCOE = (CAPEX_net + ΣOPEX_actualisé) / Σprod_actualisée
 // annual_opex_eur : charge O&M annuelle constante (capex × maintenance_pct/100).
 //   Défaut 0 → comportement rétrocompatible identique à l'ancien `num += 0`.
 // ======================================================================
-function lcoe(capex_net, prod_y1, degradation_pct, horizon_years, discount_rate = 0.03, annual_opex_eur = 0) {
-  let num = capex_net;
+function lcoe(capex_ttc, prod_y1, degradation_pct, horizon_years, discount_rate = 0.03, annual_opex_eur = 0, replacements = [], aidPayments = []) {
+  let num = capex_ttc;
   let den = 0;
 
   let prod = prod_y1;
 
   for (let y = 1; y <= horizon_years; y++) {
     const factor = Math.pow(1 + discount_rate, y);
-    num += annual_opex_eur / factor;   // OPEX actualisé — correction bug (était num += 0)
+    num += (annual_opex_eur + (replacements[y - 1] ?? 0) - (aidPayments[y - 1] ?? 0)) / factor;
     den += prod / factor;
 
     prod *= 1 - degradation_pct / 100;
@@ -653,11 +693,84 @@ const HYBRID_LIKE_FINANCE = new Set(["BATTERY_HYBRID", "VEHICLE_V2H_VIRTUAL", "V
 const VIRTUAL_CREDIT_FINANCE = new Set(["BATTERY_VIRTUAL", "BATTERY_HYBRID", "VEHICLE_V2H_VIRTUAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"]);
 const PHYSICAL_DEGRADE_FINANCE = new Set(["BATTERY_PHYSICAL", "BATTERY_HYBRID", "VEHICLE_V2H_PHYSICAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"]);
 
+/** Keep tariff changes in every projected year, including residual purchases as PV degrades. */
+export function applyElectricityBillingToCashflows(flows, sc, econ, projection = {}) {
+  const billing = sc.electricity_billing;
+  if (!billing || billing.status === 'INCOMPLETE') return flows;
+  const virtual = VIRTUAL_CREDIT_FINANCE.has(sc.name);
+  const originalService = Number(sc.virtual_battery_finance?.annual_total_virtual_cost_ttc ?? sc._virtualBatteryQuote?.annual_cost_ttc) || 0;
+  const firstCreditKwh = Number(flows[0]?.virtual_credit_used_kwh) || 0;
+  const variableYear1 = Number(billing.virtual_restitution_cost_eur ?? sc.virtual_battery_finance?.annual_virtual_discharge_cost_ttc) || 0;
+  const fixedYear1 = Number(billing.virtual_service_fixed_cost_eur ?? Math.max(0, (billing.virtual_service_cost_eur ?? 0) - variableYear1));
+  const restitutionRate = Number(billing.virtual_restitution_price_eur_kwh ?? (firstCreditKwh > 0 ? variableYear1 / firstCreditKwh : 0));
+  return flows.map((f, index) => {
+    const growth = Math.pow(1 + econ.elec_growth_pct / 100, f.year - 1);
+    const beforeEnergy = billing.current_energy_bill_eur * growth;
+    // Value the remaining hourly-shaped demand directly at the future contract.
+    // This also prices imports that first appear AFTER year one as PV degrades.
+    const afterEnergy = index === 0
+      ? billing.scenario_energy_purchase_eur
+      : f.scenario_energy_purchase_at_initial_rates != null
+        ? f.scenario_energy_purchase_at_initial_rates * growth
+      : Math.max(0, (
+        billing.scenario_consumption_energy_eur
+        - f.auto_kwh * billing.scenario_effective_auto_price
+        - (f.virtual_credit_used_kwh ?? 0) * billing.scenario_effective_credit_price
+      ) * growth);
+    const tariffGain = virtual ? beforeEnergy - f.gain_auto - (f.import_savings_eur ?? 0) - afterEnergy : 0;
+    const supplierGrowth = Math.pow(1 + (projection.supplier_subscription_growth_pct ?? 0) / 100, f.year - 1);
+    const beforeSubscription = (billing.current_supplier_subscription_eur ?? 0) * supplierGrowth;
+    const afterSubscription = (billing.scenario_supplier_subscription_eur ?? 0) * supplierGrowth;
+    const before = beforeEnergy + beforeSubscription;
+    const fixedService = fixedYear1 * Math.pow(1 + (projection.virtual_subscription_growth_pct ?? 0) / 100, f.year - 1);
+    const variableService = (f.virtual_restitution_cost_at_initial_rates ?? (f.virtual_credit_used_kwh ?? 0) * restitutionRate)
+      * Math.pow(1 + (projection.virtual_restitution_growth_pct ?? 0) / 100, f.year - 1);
+    const service = index === 0 ? billing.virtual_service_cost_eur ?? 0 : virtual ? fixedService + variableService : 0;
+    const after = afterEnergy + afterSubscription + service;
+    // P2 already separates these one-time fees from the photovoltaic investment.
+    const initialFees = virtual && index === 0
+      ? Math.max(0, (f.virtual_service_cost_eur ?? 0) - originalService) + (billing.legacy_initial_service_fee_eur ?? 0)
+      : 0;
+    const billSavings = before - after;
+    return {
+      ...f,
+      supplier_tariff_gain_eur: tariffGain,
+      supplier_subscription_gain_eur: beforeSubscription - afterSubscription,
+      bill_without_project_eur: before,
+      bill_with_project_energy_eur: afterEnergy,
+      bill_with_project_and_service_eur: after,
+      electricity_bill_savings_eur: billSavings,
+      current_supplier_subscription_eur: beforeSubscription,
+      supplier_subscription_eur: afterSubscription,
+      virtual_service_cost_eur: service,
+      virtual_fixed_service_cost_eur: virtual ? fixedService : 0,
+      virtual_restitution_cost_eur: virtual ? variableService : 0,
+      initial_virtual_service_fees_eur: initialFees,
+      total_eur: billSavings + f.gain_oa + (f.virtual_cashout_eur ?? 0) + f.prime - f.maintenance - f.inverter_cost - (f.battery_cost ?? 0) - initialFees,
+    };
+  });
+}
+
 export async function computeFinance(ctx, scenarios) {
   if (process.env.NODE_ENV !== "production") {
     console.log("[A1] finance_input reçu =", ctx.finance_input);
   }
   const econ = applyInverterReplacementPolicy(ctx, pickEconomics(ctx));
+  const projection = resolveFinanceProjection(ctx);
+  const simulationContract = resolveSimulationContract({ ...ctx.simulation_contract, ...ctx.finance_input?.economic_snapshot_config?.simulation_contract });
+  if (projection.horizon_years != null) {
+    econ.horizon_years = projection.horizon_years;
+    econ.sources.horizon_years = 'finance_projection.horizon_years';
+  }
+  if (projection.maintenance_pct != null) {
+    econ.maintenance_pct = projection.maintenance_pct;
+    econ.sources.maintenance_pct = 'finance_projection.maintenance_pct';
+  }
+  if (!Number.isInteger(econ.horizon_years) || econ.horizon_years < 1 || econ.horizon_years > 100) throw new Error('Horizon financier invalide');
+  for (const key of ['pv_degradation_pct', 'battery_degradation_pct']) {
+    if (econ[key] < 0 || econ[key] > 100) throw new Error(`Dégradation invalide : ${key}`);
+  }
+  if (econ.elec_growth_pct <= -100) throw new Error('Indexation électrique invalide');
   const calculationTimestamp = new Date().toISOString();
 
   const out = {
@@ -689,6 +802,33 @@ export async function computeFinance(ctx, scenarios) {
 
     if (sc._v2 === true) {
       const capex_ttc = resolveScenarioCapexTtcV2(sc, ctx);
+      const oaCompatibility = VIRTUAL_CREDIT_FINANCE.has(sc.name)
+        ? resolveVirtualStorageOaCompatibility(simulationContract, projection) : null;
+
+      if (oaCompatibility?.status === 'BLOCKED') {
+        out.scenarios[key] = {
+          ...sc, grid_contract: simulationContract, capex_ttc, capex_net: null, prime_eur: null,
+          roi_years: null, irr_pct: null, lcoe_eur_kwh: null,
+          economie_an1: null, gain_25a: null, economie_25a: null, flows: null,
+          display_blocked: true, blocked_reason: oaCompatibility.code,
+          finance_meta: { electricity_billing: sc.electricity_billing, virtual_storage_oa_compatibility: oaCompatibility, projection_assumptions: projection },
+          finance_warnings: [oaCompatibility.code],
+          auto_pct_real: sc.conso_kwh > 0 ? sc.auto_kwh / sc.conso_kwh * 100 : 0,
+        };
+        continue;
+      }
+
+      if (sc.electricity_billing?.status === 'INCOMPLETE') {
+        out.scenarios[key] = {
+          ...sc, capex_ttc, capex_net: null, prime_eur: null,
+          roi_years: null, irr_pct: null, lcoe_eur_kwh: null,
+          economie_an1: null, gain_25a: null, economie_25a: null, flows: null,
+          finance_meta: { electricity_billing: sc.electricity_billing, virtual_storage_oa_compatibility: oaCompatibility },
+          finance_warnings: sc.electricity_billing.missing_fields.map((field) => `ELECTRICITY_CONTRACT_INCOMPLETE:${field}`),
+          auto_pct_real: sc.conso_kwh > 0 ? sc.auto_kwh / sc.conso_kwh * 100 : 0,
+        };
+        continue;
+      }
 
       if (key === "BATTERY_HYBRID") {
         console.log("[FINANCE_HYBRID_DEBUG]", JSON.stringify({
@@ -723,7 +863,10 @@ export async function computeFinance(ctx, scenarios) {
       }
 
       const kwc = sc.kwc ?? sc.metadata?.kwc ?? 0;
-      const prime = kwc < 9 ? kwc * econ.prime_lt9 : kwc * econ.prime_gte9;
+      const primeKey = kwc <= 9 ? "prime_lt9" : "prime_gte9";
+      const virtual = VIRTUAL_CREDIT_FINANCE.has(sc.name);
+      const aid = resolveScenarioAid({ projection, injectionMode: ctx.simulation_contract?.injection_mode, virtual, kwc, primeRate: econ[primeKey], horizonYears: econ.horizon_years });
+      const prime = aid.received_within_horizon_eur;
       const capex_net = Math.max(capex_ttc - prime, 0);
       const prod_y1 = sc.prod_kwh ?? 0;
       const baseScenario = scenarios.BASE;
@@ -739,9 +882,31 @@ export async function computeFinance(ctx, scenarios) {
           : HYBRID_LIKE_FINANCE.has(sc.name)
             ? (sc.energy?.physical_grid_export_kwh ?? scenarios.BATTERY_PHYSICAL?.surplus_kwh ?? scenarios.BATTERY_PHYSICAL?.energy?.surplus ?? sc.surplus_kwh ?? 0)
           : (sc.surplus_kwh ?? 0);
-      const oa_rate = kwc < 9 ? econ.oa_rate_lt_9 : econ.oa_rate_gte_9;
-      const oaRateKey = kwc < 9 ? "oa_rate_lt_9" : "oa_rate_gte_9";
-      const primeKey = kwc < 9 ? "prime_lt9" : "prime_gte9";
+      const oaTariff = resolveOaTariffForKwc(ctx, kwc);
+      const oaRateKey = oaTariff.key;
+      const sale = { ...resolveScenarioSale({ projection, injectionMode: ctx.simulation_contract?.injection_mode, virtual, configuredRate: oaTariff.rate_eur_kwh }), tariff: oaTariff };
+      const oa_rate = sale.rate_eur_kwh;
+      const batteryReplacements = PHYSICAL_DEGRADE_FINANCE.has(sc.name) ? projection.battery_replacements : [];
+      let annualEnergyProjection = null;
+      if (sc._energyProjectionInput) {
+        const { simulateAnnualScenarioEnergy } = await import('./annualScenarioEnergy.service.js');
+        annualEnergyProjection = [];
+        let openingCredit = sc._virtualBattery8760?.virtual_battery_credit_start_kwh ?? sc.energy?.reference?.virtual_credit?.opening_kwh ?? sc._energyProjectionInput.virtual_battery_input?.initial_credit_kwh ?? 0;
+        let openingCreditLots = sc._energyProjectionInput.virtual_battery_input?.initial_credit_lots ?? null;
+        for (let year = 1; year <= econ.horizon_years; year++) {
+          const result = await simulateAnnualScenarioEnergy(sc._energyProjectionInput, {
+            year,
+            pv_factor: Math.pow(1 - econ.pv_degradation_pct / 100, year - 1),
+            battery_factor: Math.pow(1 - econ.battery_degradation_pct / 100, batteryAgeAtYear(year, batteryReplacements)),
+            initial_credit_kwh: openingCredit,
+            initial_credit_lots: openingCreditLots,
+          });
+          annualEnergyProjection.push({ ...result, year, virtual_credit_opening_kwh: openingCredit });
+          openingCredit = result.virtual_credit_end_kwh ?? 0;
+          openingCreditLots = result.virtual_credit_end_lots ?? null;
+        }
+      }
+      const projectionAssumptions = { ...projection, virtual_storage_oa_compatibility: oaCompatibility, horizon_years: econ.horizon_years, maintenance_pct: econ.maintenance_pct, surplus_sale: sale, aid, battery_replacements: batteryReplacements, energy_projection_method: annualEnergyProjection ? 'annual_hourly_resimulation' : 'annual_scalar_degradation', financial_result_basis: 'nominal_before_financing' };
 
       const baseImportKwh = baseScenario?.energy?.import ?? baseScenario?.import_kwh ?? 0;
       const virtualSavingsReferenceImportKwh =
@@ -772,6 +937,13 @@ export async function computeFinance(ctx, scenarios) {
           : 0;
 
       let flows = buildCashflows({
+        battery_replacements: batteryReplacements,
+        inverter_replacements: projection.inverter_replacements,
+        prime_payments: aid.payments,
+        oa_contract_years: sale.contract_years,
+        oa_post_contract_rate: sale.post_contract_rate_eur_kwh,
+        annual_energy_projection: annualEnergyProjection,
+        injection_allowed: ctx.simulation_contract?.injection_mode !== "none",
         prod_y1,
         auto_y1,
         surplus_y1,
@@ -790,11 +962,13 @@ export async function computeFinance(ctx, scenarios) {
         virtual_overflow_export_kwh:
           sc._virtualBattery8760?.virtual_battery_overflow_export_kwh ??
           sc.energy?.virtual_battery_overflow_export_kwh ??
-          sc.surplus_kwh ??
+          sc.energy?.overflow_export_kwh ??
           0,
         battery_contribution_y1: _battContribY1,
         battery_degradation_pct: econ.battery_degradation_pct,
-        pv_degradation_first_year_pct: econ.pv_degradation_first_year_pct,
+        // The billing ledger is built from the simulated year-one production.
+        // Its hourly energy and annual cashflows must share that same reference.
+        pv_degradation_first_year_pct: sc.electricity_billing ? 0 : econ.pv_degradation_first_year_pct,
         virtual_restitution_rate_eur_kwh: virtualRestitutionRatePerKwh,
         // LOT3-HPHC-VALO : prix effectifs HP/HC du scénario (attachés par calc.controller
         // via attachHpHcPricingToScenarios) ; null → prix plat historique.
@@ -805,13 +979,20 @@ export async function computeFinance(ctx, scenarios) {
       const _isVbScenario = VIRTUAL_CREDIT_FINANCE.has(sc.name);
       if (_isVbScenario && sc.virtual_battery_finance) {
         const recurring = Number(sc.virtual_battery_finance.annual_total_virtual_cost_ttc);
+        const variable = Number(sc.virtual_battery_finance.annual_virtual_discharge_cost_ttc) || 0;
+        const fixed = Math.max(0, recurring - variable);
+        const creditY1 = flows[0]?.virtual_credit_used_kwh ?? 0;
         const act = Number(sc.virtual_battery_finance.annual_activation_fee_ttc || 0) || 0;
         const actInCapex = false;
         flows = flows.map((f, idx) => {
           const activationYear = actInCapex ? 0 : act;
-          const virtualCostYear = idx === 0 ? recurring + activationYear : recurring;
+          const setup = sc.virtual_battery_finance.one_time_setup_fee_ttc ?? sc.virtual_battery_finance.oneTimeSetupFeeTtc ?? (act===0?resolveVirtualSetupFeeTtc(sc):0);
+          const variableCost = f.virtual_restitution_cost_at_initial_rates ?? (creditY1 > 0 ? variable * (f.virtual_credit_used_kwh ?? 0) / creditY1 : 0);
+          const recurringYear = idx === 0 ? recurring : fixed * Math.pow(1 + projection.virtual_subscription_growth_pct / 100, f.year - 1)
+            + variableCost * Math.pow(1 + projection.virtual_restitution_growth_pct / 100, f.year - 1);
+          const virtualCostYear = idx === 0 ? recurringYear + activationYear + setup : recurringYear;
           const total_eur = f.total_eur - virtualCostYear;
-          return { ...f, total_eur };
+          return { ...f, virtual_service_cost_eur: f.total_eur - total_eur, total_eur };
         });
         flows = recalcCumulColumns(flows, capex_ttc);
       } else if (_isVbScenario && sc._virtualBatteryQuote?.annual_cost_ttc != null) {
@@ -821,17 +1002,27 @@ export async function computeFinance(ctx, scenarios) {
         flows = flows.map((f, idx) => {
           const virtualCostYear = idx === 0 ? opexVirtual : recurringCost;
           const total_eur = f.total_eur - virtualCostYear;
-          return { ...f, total_eur };
+          return { ...f, virtual_service_cost_eur: f.total_eur - total_eur, total_eur };
         });
         flows = recalcCumulColumns(flows, capex_ttc);
       }
 
+      // Explicit financial ledger: electricity, service expenses, revenues and aids remain separate.
+      if (sc.electricity_billing) {
+        flows = applyElectricityBillingToCashflows(flows, sc, econ, projection);
+        flows = recalcCumulColumns(flows, capex_ttc);
+      } else {
+        flows=flows.map(f=>{
+          const before=(sc.conso_kwh??sc.energy?.consumption_kwh)* (sc.pricing?.p_eff_conso??econ.price_eur_kwh) * Math.pow(1+econ.elec_growth_pct/100,f.year-1);
+          return {...f,bill_without_project_eur:before,bill_with_project_energy_eur:before-f.gain_auto-(f.import_savings_eur??0),bill_with_project_and_service_eur:before-f.gain_auto-(f.import_savings_eur??0)+(f.virtual_service_cost_eur??0)};
+        });
+      }
       const roi_years = flows.find((f) => f.cumul_eur >= 0)?.year ?? null;
       const irr_values = [-capex_ttc, ...flows.map((f) => f.total_eur)];
       const irr_pct = irr(irr_values);
       // OPEX annuel constant = maintenance_pct × CAPEX TTC (cohérent avec buildCashflows)
       const _lcoe_annual_opex = capex_ttc > 0 ? capex_ttc * (econ.maintenance_pct / 100) : 0;
-      const lcoe_eur = lcoe(capex_net, prod_y1, econ.pv_degradation_pct, econ.horizon_years, 0.03, _lcoe_annual_opex);
+      const lcoe_eur = lcoe(capex_ttc, prod_y1, econ.pv_degradation_pct, econ.horizon_years, 0.03, _lcoe_annual_opex, flows.map(f => (f.inverter_cost ?? 0) + (f.battery_cost ?? 0)), flows.map(f => f.prime ?? 0));
       const auto_pct_real = sc.conso_kwh > 0 ? (sc.auto_kwh / sc.conso_kwh) * 100 : 0;
 
       const finance_warnings = buildFinanceWarningsV2({
@@ -848,8 +1039,8 @@ export async function computeFinance(ctx, scenarios) {
       const economicBlockingWarnings = [];
       const mandatorySources = {
         price_eur_kwh: econ.sources?.price_eur_kwh,
-        [oaRateKey]: econ.sources?.[oaRateKey],
-        [primeKey]: econ.sources?.[primeKey],
+        ...(oa_rate > 0 ? { [oaRateKey]: oaTariff.source } : {}),
+        ...(prime > 0 ? { [primeKey]: econ.sources?.[primeKey] } : {}),
         elec_growth_pct: econ.sources?.elec_growth_pct,
         horizon_years: econ.sources?.horizon_years,
       };
@@ -863,12 +1054,15 @@ export async function computeFinance(ctx, scenarios) {
         financingSnapshot.enabled &&
         (financingSnapshot.taeg_pct == null ||
           financingSnapshot.insurance_eur == null ||
-          financingSnapshot.application_fee_eur == null)
+          financingSnapshot.application_fee_eur == null ||
+          financingSnapshot.other_costs_eur == null)
       ) {
         economicBlockingWarnings.push("FINANCING_INDICATIVE_ONLY_MISSING_TAEG_INSURANCE_OR_FEES");
       }
       const economicSnapshotCore = {
         schema_version: 1,
+        electricity_billing: sc.electricity_billing ?? null,
+        projection_assumptions: projectionAssumptions,
         calculated_at: calculationTimestamp,
         source: "financeService.computeFinance",
         source_detail: "values_used_by_cashflow_engine",
@@ -880,10 +1074,10 @@ export async function computeFinance(ctx, scenarios) {
         elec_growth_source: econ.sources?.elec_growth_pct ?? econ.elec_growth_source ?? null,
         oa_rate_eur_kwh: oa_rate,
         oa_rate_key: oaRateKey,
-        oa_rate_source: econ.sources?.[oaRateKey] ?? null,
+        oa_rate_source: oaTariff.source,
         oa_indexation_pct: null,
         oa_indexation_source: "not_configured",
-        prime_rate_eur_kwc: kwc < 9 ? econ.prime_lt9 : econ.prime_gte9,
+        prime_rate_eur_kwc: econ[primeKey],
         prime_rate_key: primeKey,
         prime_rate_source: econ.sources?.[primeKey] ?? null,
         prime_eur: prime,
@@ -956,25 +1150,27 @@ export async function computeFinance(ctx, scenarios) {
 
       out.scenarios[key] = {
         ...sc,
+        grid_contract: simulationContract,
         auto_pct_real,
-        capex_ttc: round(capex_ttc, 0),
-        pvInstallationPrice: round(capex_ttc, 0),
+        capex_ttc: capex_ttc,
+        pvInstallationPrice: capex_ttc,
         virtualSetupFee: _isVbScenario ? round(resolveVirtualSetupFeeTtc(sc), 0) : 0,
         virtualAnnualFees:
           _isVbScenario && sc.virtual_battery_finance
-            ? round(Number(sc.virtual_battery_finance.annual_total_virtual_cost_ttc) || 0, 2)
+            ? round(Number(sc.electricity_billing?.virtual_service_cost_eur ?? sc.virtual_battery_finance.annual_total_virtual_cost_ttc) || 0, 2)
             : 0,
-        capex_net: round(capex_net, 0),
-        prime_eur: round(prime, 0),
+        capex_net: capex_net,
+        prime_eur: prime,
         roi_years,
         irr_pct: irr_pct !== null ? round(irr_pct * 100, 2) : null,
-        lcoe_eur_kwh: lcoe_eur ? round(lcoe_eur, 4) : null,
-        economie_an1: round(annualSavings, 0),
+        lcoe_eur_kwh: lcoe_eur != null ? lcoe_eur : null,
+        economie_an1: annualSavings,
         gain_25a: flows[flows.length - 1].cumul_eur,
         economie_25a: flows[flows.length - 1].cumul_eur,
         economie_horizon_years: horizonY,
         economie_total_horizon_label: `Projection sur ${horizonY} ans`,
         finance_meta: {
+          electricity_billing: sc.electricity_billing ?? null,
           horizon_years: horizonY,
           horizon_years_display: horizonY,
           elec_growth_pct: econ.elec_growth_pct,
@@ -986,11 +1182,19 @@ export async function computeFinance(ctx, scenarios) {
           year1_net_cashflow_eur: round(year1NetCashflow, 2),
           prime_disclaimer:
             "Prime et tarifs d'obligation d'achat : sous réserve d'éligibilité du projet et des tarifs en vigueur à la date de mise en service.",
+          projection_method: projectionAssumptions.energy_projection_method,
+          projection_assumptions: projectionAssumptions,
+          virtual_storage_oa_compatibility: oaCompatibility,
+          battery_replacement_modelled: flows.some(f=>f.battery_replaced),
+          battery_replacements: batteryReplacements,
+          lcoe_scope: "Project investment, maintenance, configured replacements and aid at their actual payment years; PV production and future cashflows discounted at 3%; virtual service fees excluded",
+          irr_status: cashflowIrr(irr_values).status,
           economic_snapshot: economicSnapshot,
         },
         flows,
-        finance_warnings: [...finance_warnings, ...economicBlockingWarnings]
+        finance_warnings: [...finance_warnings, ...economicBlockingWarnings, ...projection.warnings, ...aid.warnings]
       };
+      delete out.scenarios[key]._energyProjectionInput;
       continue;
     }
 

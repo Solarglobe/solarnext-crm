@@ -18,8 +18,8 @@ const KVA_OPTIONS = [3, 6, 9, 12, 15, 18, 24, 30, 36];
 const DEFAULT_HP_RATIO = 0.7;
 const DEFAULT_HC_RATIO = 0.3;
 
-async function loadVirtualBattery(organizationId, providerCode) {
-  const result = await pool.query(
+async function loadVirtualBattery(organizationId, providerCode, db = pool) {
+  const result = await db.query(
     `SELECT tariff_grid_json, activation_fee_ht
      FROM pv_virtual_batteries
      WHERE organization_id = $1 AND provider_code = $2 AND is_active = true`,
@@ -60,13 +60,14 @@ export async function resolveVirtualBatteryActivationFeeTtcFromOrgDb(
   organizationId,
   providerCode,
   contractType,
-  meterKva
+  meterKva,
+  db = pool
 ) {
   if (!organizationId || !providerCode) return null;
   const segmentCode =
     String(contractType || "BASE").toUpperCase() === "HPHC" ? "PART_HPHC" : "PART_BASE";
 
-  const battery = await loadVirtualBattery(organizationId, String(providerCode).toUpperCase());
+  const battery = await loadVirtualBattery(organizationId, String(providerCode).toUpperCase(), db);
   if (!battery) return null;
 
   let activationFeeHt = null;

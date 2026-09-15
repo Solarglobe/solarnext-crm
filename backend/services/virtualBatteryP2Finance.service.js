@@ -10,6 +10,7 @@ import {
 } from "./pv/virtualBatteryGridResolve.service.js";
 import {
   URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01,
+  resolveUrbanSolarTariffsForDate, urbanSolarTariffReferenceDate,
 } from "../../shared/urbanSolarVirtualBatteryTariffs2026.js";
 import {
   vbLegacyMySmartAnnualContributionHt,
@@ -127,8 +128,8 @@ export function urbanBaseGridFeeHt() {
   return VB_LEGACY_URBAN_BASE_GRID_FEE_EUR_PER_KWH_HT;
 }
 
-function urbanRestitutionRateTtc(contractType, slot = null) {
-  const rates = URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.restitutionTtcPerKwh;
+function urbanRestitutionRateTtc(contractType, slot = null, edition = URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01) {
+  const rates = edition.restitutionTtcPerKwh;
   if (contractType === "HPHC") return slot === "HC" ? rates.hc : rates.hp;
   return rates.base;
 }
@@ -152,26 +153,28 @@ export function selectMySmartTier(requiredKwh) {
  * Ventilation décharge HP/HC depuis un masque optionnel 8760 (1 = HP, 0 = HC).
  * @returns {{ ok: boolean, discharged_hp_kwh?: number, discharged_hc_kwh?: number, status: string }}
  */
-export function splitDischargeHpHc(hourlyDischarge, hourlyIsHp) {
+export function splitDischargeHpHc(hourlyDischarge, hourlyIsHp, hourlyHpFraction = null) {
   const d = hourlyDischarge;
-  if (!Array.isArray(d) || d.length !== 8760) {
+  if (!Array.isArray(d) || ![8760,8784].includes(d.length)) {
     return { ok: false, status: "PARTIAL_HPHC_ALLOCATION" };
   }
-  if (!Array.isArray(hourlyIsHp) || hourlyIsHp.length !== 8760) {
+  const fractions = Array.isArray(hourlyHpFraction) && hourlyHpFraction.length === d.length ? hourlyHpFraction : null;
+  if (!fractions && (!Array.isArray(hourlyIsHp) || hourlyIsHp.length !== d.length)) {
     return { ok: false, status: "PARTIAL_HPHC_ALLOCATION" };
   }
   let hp = 0;
   let hc = 0;
-  for (let i = 0; i < 8760; i++) {
+  for (let i = 0; i < d.length; i++) {
     const x = Number(d[i]) || 0;
-    const isHp = hourlyIsHp[i] === true || hourlyIsHp[i] === 1;
-    if (isHp) hp += x;
-    else hc += x;
+    const share = fractions ? Number(fractions[i]) : hourlyIsHp[i] === true || hourlyIsHp[i] === 1 ? 1 : 0;
+    if (!Number.isFinite(share) || share < 0 || share > 1) return { ok: false, status: "PARTIAL_HPHC_ALLOCATION" };
+    hp += x * share;
+    hc += x * (1 - share);
   }
   return {
     ok: true,
-    discharged_hp_kwh: round2(hp),
-    discharged_hc_kwh: round2(hc),
+    discharged_hp_kwh: hp,
+    discharged_hc_kwh: hc,
     status: "OK",
   };
 }
@@ -200,6 +203,12 @@ export function computeVirtualBatteryP2Finance(input) {
       : null;
   const useGrid = vbHasExploitableProviderGrid(grids);
   const providerCode = String(input.providerCode || "").toUpperCase();
+  const tariffReferenceDate = providerCode === P.URBAN_SOLAR ? urbanSolarTariffReferenceDate(input.tariffReferenceDate) : null;
+  const urbanTariffs = providerCode === P.URBAN_SOLAR ? resolveUrbanSolarTariffsForDate(tariffReferenceDate) : null;
+  if (providerCode === P.URBAN_SOLAR && !urbanTariffs) return {
+    virtual_battery_finance:null, provider_tier_status:'MISSING_PROVIDER_TARIFF_FOR_DATE', missing_tier:true,
+    tariff_reference_date:tariffReferenceDate, notes:['Aucune grille Urban officielle connue pour cette date ; renseigner un contrat daté.'],
+  };
   const contractType = input.contractType === "HPHC" ? "HPHC" : "BASE";
   const installedKwc = Number(input.installedKwc) || 0;
   const meterKva = Number(input.meterKva) || 0;
@@ -274,7 +283,9 @@ export function computeVirtualBatteryP2Finance(input) {
 
   if (contractType === "HPHC") {
     hphc_allocation_status = "PARTIAL_HPHC_ALLOCATION";
-    const split = splitDischargeHpHc(input.hourlyDischargeKwh || [], input.hphcHourlyIsHp || null);
+    const commercial = input.vbSim?.commercial_ledger;
+    const split = commercial ? {ok:true,discharged_hp_kwh:commercial.used_hp_kwh,discharged_hc_kwh:commercial.used_hc_kwh}
+      : splitDischargeHpHc(input.hourlyDischargeKwh || [], input.hphcHourlyIsHp || null, input.hphcHourlyHpFraction);
     if (split.ok) {
       hphc_allocation_status = "OK";
       discharged_hp_kwh = split.discharged_hp_kwh;
@@ -285,26 +296,26 @@ export function computeVirtualBatteryP2Finance(input) {
   if (providerCode === P.URBAN_SOLAR) {
     pricing_mode = contractType === "HPHC" ? "URBAN_HPHC" : "URBAN_BASE";
     annual_activation_fee_ht = 0;
-    one_time_setup_fee_ttc = URBAN_SOLAR_ONE_TIME_SETUP_FEE_TTC;
+    one_time_setup_fee_ttc = urbanTariffs.oneTimeSetupFeeTtc;
     const rowUrban = useGrid ? vbGetSegmentRow(grids, providerCode, contractType, meterKva) : null;
     if (rowUrban && rowUrban.enabled === false) {
       notes.push("Urban Solar : ligne grille org désactivée ignorée, tarifs officiels 2026-08-01 appliqués.");
     }
     annual_subscription_ht = round2(
-      installedKwc * URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.storageSubscriptionEurPerKwcMonthHt * 12
+      installedKwc * urbanTariffs.storageSubscriptionEurPerKwcMonthHt * 12
     );
     annual_autoproducer_contribution_ht = round2(
-      URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.autoproducerContributionEurPerYearHt
+      urbanTariffs.autoproducerContributionEurPerYearHt
     );
     if (contractType === "BASE") {
       annual_virtual_discharge_cost_ttc_direct = round4(
-        discharged * urbanRestitutionRateTtc("BASE")
+        discharged * urbanRestitutionRateTtc("BASE", null, urbanTariffs)
       );
       annual_virtual_discharge_cost_ht = round4(annual_virtual_discharge_cost_ttc_direct / (1 + VAT));
     } else if (hphc_allocation_status === "OK" && discharged_hp_kwh != null && discharged_hc_kwh != null) {
       annual_virtual_discharge_cost_ttc_direct = round4(
-        discharged_hp_kwh * urbanRestitutionRateTtc("HPHC", "HP") +
-          discharged_hc_kwh * urbanRestitutionRateTtc("HPHC", "HC")
+        discharged_hp_kwh * urbanRestitutionRateTtc("HPHC", "HP", urbanTariffs) +
+          discharged_hc_kwh * urbanRestitutionRateTtc("HPHC", "HC", urbanTariffs)
       );
       annual_virtual_discharge_cost_ht = round4(annual_virtual_discharge_cost_ttc_direct / (1 + VAT));
     } else {
@@ -438,6 +449,9 @@ export function computeVirtualBatteryP2Finance(input) {
 
   const virtual_battery_finance = {
     provider_code: providerCode,
+    provider_rules: input.vbSim?.provider_rules ?? null,
+    commercial_ledger: input.vbSim?.commercial_ledger ?? null,
+    discharged_hp_kwh,discharged_hc_kwh,
     provider_tier_status: "OK",
     pricing_mode,
     required_capacity_kwh: round2(reqCap),
@@ -451,15 +465,20 @@ export function computeVirtualBatteryP2Finance(input) {
     annual_virtual_discharge_cost_ht,
     annual_virtual_discharge_cost_ttc,
     virtual_discharge_rate_base_ttc_per_kwh:
-      providerCode === P.URBAN_SOLAR ? urbanRestitutionRateTtc("BASE") : null,
+      providerCode === P.URBAN_SOLAR ? urbanRestitutionRateTtc("BASE", null, urbanTariffs) : null,
     virtual_discharge_rate_hp_ttc_per_kwh:
-      providerCode === P.URBAN_SOLAR ? urbanRestitutionRateTtc("HPHC", "HP") : null,
+      providerCode === P.URBAN_SOLAR ? urbanRestitutionRateTtc("HPHC", "HP", urbanTariffs) : null,
     virtual_discharge_rate_hc_ttc_per_kwh:
-      providerCode === P.URBAN_SOLAR ? urbanRestitutionRateTtc("HPHC", "HC") : null,
+      providerCode === P.URBAN_SOLAR ? urbanRestitutionRateTtc("HPHC", "HC", urbanTariffs) : null,
     tariff_effective_date:
-      providerCode === P.URBAN_SOLAR ? URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.effectiveDate : null,
+      urbanTariffs?.effectiveDate ?? null,
     tariff_source_label:
-      providerCode === P.URBAN_SOLAR ? URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01.sourceLabel : null,
+      urbanTariffs?.sourceLabel ?? null,
+    tariff_reference_date: tariffReferenceDate,
+    tariff_edition_id: urbanTariffs?.id ?? null,
+    tariff_source_urls: urbanTariffs?.sourceUrls ?? null,
+    restitution_tax_treatment: urbanTariffs?.restitutionTaxTreatment ?? null,
+    restitution_htt_per_kwh: urbanTariffs?.restitutionHttPerKwh ?? null,
     annual_grid_import_cost_ht,
     annual_grid_import_cost_ttc,
     annual_overflow_export_revenue_ht,

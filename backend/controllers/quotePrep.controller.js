@@ -9,6 +9,7 @@
 
 import * as quotePrepService from "../services/quotePrep/quotePrep.service.js";
 import { getVersionById } from "../routes/studies/service.js";
+import { readStudyCalculationInputs } from '../services/studyCalculationFreshness.service.js';
 
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.id ?? req.user?.userId ?? null;
@@ -23,7 +24,9 @@ export async function getQuotePrep(req, res) {
       versionId,
       organizationId: org,
     });
-    return res.json(data);
+    const source = await readStudyCalculationInputs({ studyId, versionId, organizationId: org });
+    return res.json({ ...data, detected_grid_phase: source.detected_grid_phase,
+      saved_quote_fingerprint: source.quote_fingerprint });
   } catch (e) {
     const code = e.code || e.name;
     if (code === "NOT_FOUND" || code === "NO_CALPINAGE") {
@@ -55,6 +58,7 @@ export async function putQuotePrep(req, res) {
       snapshotId: result.snapshotId,
       version_number: result.version_number,
       status: result.status,
+      saved_quote_fingerprint: result.saved_quote_fingerprint,
     });
   } catch (e) {
     const code = e.code || e.name;

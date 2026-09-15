@@ -1,0 +1,2703 @@
+{
+  "base_commit": "f84bbbd95a25cb4b32a0e4671327c7d559bcd9b9",
+  "baseline_implementation_tree": "704966e214cf749b5f4a5e74620ceabba0aad9ef",
+  "branch": "codex/release-v21-finance-2-2-1",
+  "calculation_engine": "SmartPitch V-LIGHT V21-dated-tariffs-oa-input-dependencies",
+  "financial_engine": "2.2.1",
+  "scope": "Only mission changes and explicitly reviewed tariff/meter dependencies. Original worktree preserved. Build outputs, environments, caches and real client captures excluded.",
+  "files": [
+    {
+      "path": "backend/config/schemaDefinition.js",
+      "status": "modified",
+      "classification": "required-tariff-fields-only",
+      "reason": "Only current-contract tariff, annual-bill and subscription fields are extracted; unrelated tables/stages excluded.",
+      "hunks": [
+        "@@ -37,0 +38,2 @@ export const EXPECTED_SCHEMA = {",
+        "@@ -60,0 +63,2 @@ export const EXPECTED_SCHEMA = {"
+      ]
+    },
+    {
+      "path": "backend/constants/engineVersion.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -8 +8 @@",
+        "@@ -12 +11,0 @@ export const ENGINE_VERSION = FINANCIAL_ENGINE_VERSION;"
+      ]
+    },
+    {
+      "path": "backend/controllers/calc.controller.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1,3 @@",
+        "@@ -33,0 +37,2 @@ import { simulateBattery8760 } from \"../services/batteryService.js\";",
+        "@@ -49 +54,2 @@ import { resolveP2VirtualBatterySimulationCapacityKwh } from \"../services/virtua",
+        "@@ -52 +57,0 @@ import {",
+        "@@ -88,0 +94 @@ import {",
+        "@@ -197,10 +203 @@ function monthlySumsFromHourly(values) {",
+        "@@ -230,0 +228 @@ function attachVirtualBatteryFinanceForV2hScenario({ ctx, scenario, energyResult",
+        "@@ -238,0 +237 @@ function attachVirtualBatteryFinanceForV2hScenario({ ctx, scenario, energyResult",
+        "@@ -240 +239 @@ function attachVirtualBatteryFinanceForV2hScenario({ ctx, scenario, energyResult",
+        "@@ -371,0 +371 @@ export async function calculateSmartpitch(req, res) {",
+        "@@ -458 +458,2 @@ ctx.conso = {",
+        "@@ -464,0 +466,2 @@ ctx.conso = {",
+        "@@ -467,0 +471 @@ ctx.meta.engine_consumption_source = conso.engine_consumption_source ?? \"UNKNOWN",
+        "@@ -528,0 +533,2 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -531 +537 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -543 +549 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -586,0 +593,2 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -596 +604,2 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -643,47 +652 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -780 +743 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -795,0 +759 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -802 +766 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -979,0 +944,8 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -988,0 +961,2 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -996 +970 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -999,0 +974,8 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1029 +1011 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1091,0 +1074 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1176 +1159 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1185,2 +1168,2 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1385 +1368 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1388 +1371 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1532,2 +1515,2 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1535,0 +1519 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1554,0 +1539 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1566,2 +1551,2 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1569,4 +1554 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1685 +1667 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1687,2 +1669,2 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1800 +1782 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1807 +1789 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1856,0 +1839 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1864,0 +1848 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1867,4 +1851 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1996,2 +1977,2 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -1998,0 +1980 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -2038,0 +2021,2 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -2097,0 +2082,6 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -2207,0 +2198,24 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -2216,0 +2231,8 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -2235 +2257 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -2268,0 +2291 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -2342 +2364,0 @@ if (process.env.NODE_ENV !== \"production\" && process.env.DEBUG_CALC_TRACE === \"1",
+        "@@ -2594 +2616 @@ function buildContext(form, settings) {"
+      ]
+    },
+    {
+      "path": "backend/controllers/generatePdfFromScenario.controller.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -254,0 +255,2 @@ export async function generatePdfFromScenario(req, res) {",
+        "@@ -379,0 +382,2 @@ export async function setPortalOfferFromScenario(req, res) {"
+      ]
+    },
+    {
+      "path": "backend/controllers/leads.consumption.controller.js",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -12,0 +13,2 @@ import {",
+        "@@ -38,0 +41,2 @@ export async function patchConsumption(req, res) {",
+        "@@ -163,0 +168,20 @@ export async function patchConsumption(req, res) {"
+      ]
+    },
+    {
+      "path": "backend/controllers/pdfGeneration.controller.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -7,0 +8 @@ import logger from \"../app/core/logger.js\";",
+        "@@ -16,0 +18 @@ import { isPdfBlockedByConfidence } from \"../services/calculationConfidence.serv",
+        "@@ -77,0 +80,4 @@ export async function generatePdfForVersion(params, options = {}) {",
+        "@@ -107,0 +114 @@ export async function generatePdfForVersion(params, options = {}) {",
+        "@@ -127 +134,3 @@ export async function generatePdfForVersion(params, options = {}) {",
+        "@@ -133 +142 @@ export async function generatePdfForVersion(params, options = {}) {",
+        "@@ -155,0 +165,2 @@ export async function generatePdfForVersion(params, options = {}) {",
+        "@@ -207,0 +219,2 @@ export async function generatePdf(req, res, nextOrOptions) {"
+      ]
+    },
+    {
+      "path": "backend/controllers/quotePrep.controller.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -11,0 +12 @@ import { getVersionById } from \"../routes/studies/service.js\";",
+        "@@ -26 +27,3 @@ export async function getQuotePrep(req, res) {",
+        "@@ -57,0 +61 @@ export async function putQuotePrep(req, res) {"
+      ]
+    },
+    {
+      "path": "backend/controllers/selectScenario.controller.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -189,0 +190 @@ export async function selectScenario(req, res) {"
+      ]
+    },
+    {
+      "path": "backend/controllers/studyCalc.controller.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -21,0 +22,3 @@ import { upsertFinancialScenariosForVersion } from \"../services/financialScenari",
+        "@@ -39,0 +43,6 @@ export async function runStudyCalc(req, res) {",
+        "@@ -51,5 +60,13 @@ export async function runStudyCalc(req, res) {",
+        "@@ -126,0 +144,10 @@ export async function runStudyCalc(req, res) {",
+        "@@ -183 +210,2 @@ export async function runStudyCalc(req, res) {",
+        "@@ -232,23 +260,15 @@ export async function runStudyCalc(req, res) {",
+        "@@ -291,0 +312,2 @@ export async function runStudyCalc(req, res) {",
+        "@@ -301 +323 @@ export async function runStudyCalc(req, res) {",
+        "@@ -302,0 +325 @@ export async function runStudyCalc(req, res) {"
+      ]
+    },
+    {
+      "path": "backend/controllers/studyScenarios.controller.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -6 +6 @@",
+        "@@ -8,0 +9 @@ import { CALC_ENGINE_VERSION } from \"../services/calc/calc.constants.js\";",
+        "@@ -11,0 +13,49 @@ const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;",
+        "@@ -26 +76,4 @@ export async function getStudyScenarios(req, res) {",
+        "@@ -41,0 +95 @@ export async function getStudyScenarios(req, res) {",
+        "@@ -69 +123,7 @@ export async function getStudyScenarios(req, res) {",
+        "@@ -71 +131 @@ export async function getStudyScenarios(req, res) {"
+      ]
+    },
+    {
+      "path": "backend/controllers/validateDevisTechnique.controller.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -8,4 +7,0 @@ import { getVersionById } from \"../routes/studies/service.js\";",
+        "@@ -12,0 +9,2 @@ import { runStudyCalc } from \"./studyCalc.controller.js\";",
+        "@@ -15 +12,0 @@ const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;",
+        "@@ -50,11 +47,3 @@ export async function validateDevisTechnique(req, res) {",
+        "@@ -66,0 +56 @@ export async function validateDevisTechnique(req, res) {",
+        "@@ -90,0 +81 @@ export async function validateDevisTechnique(req, res) {"
+      ]
+    },
+    {
+      "path": "backend/domains/leads/sub/detail.js",
+      "status": "modified",
+      "classification": "required-tariff-fields-only",
+      "reason": "Only current-contract tariff, annual-bill and subscription fields are extracted; unrelated tables/stages excluded.",
+      "hunks": [
+        "@@ -156 +156,6 @@ async function getDetail(req, res) {"
+      ]
+    },
+    {
+      "path": "backend/migrations/1790400000000_current_electricity_subscription.js",
+      "status": "added",
+      "classification": "required_tariff_schema_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/migrations/1790400100000_current_electricity_annual_bill.js",
+      "status": "added",
+      "classification": "required_tariff_schema_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/migrations/1790400200000_monthly_consumption_meter_scope.js",
+      "status": "added",
+      "classification": "release_fresh_database_correction",
+      "reason": "Release-only correction; not present in original workspace.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/routes/energy.routes.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Excluded prior Enedis Data Connect 2026 endpoint disable; retained CSV/R65 units, provenance, calendar and measured-consumption preservation.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -479 +480,2 @@ router.post(",
+        "@@ -662 +664 @@ router.post(",
+        "@@ -743 +745 @@ router.post(",
+        "@@ -768 +770 @@ router.post(",
+        "@@ -785 +787 @@ router.post(",
+        "@@ -789 +791 @@ router.post(",
+        "@@ -796,0 +799 @@ router.post(",
+        "@@ -798 +801,6 @@ router.post(",
+        "@@ -857 +865 @@ router.post(",
+        "@@ -862 +870,2 @@ router.post(",
+        "@@ -901,0 +911 @@ router.post(",
+        "@@ -903,0 +914,5 @@ router.post(",
+        "@@ -916 +931 @@ router.post("
+      ]
+    },
+    {
+      "path": "backend/routes/leads/detail.js",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -142,0 +143,2 @@ async function getDetail(req, res) {"
+      ]
+    },
+    {
+      "path": "backend/routes/studies.routes.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -220 +220,8 @@ router.get(",
+        "@@ -472 +479,5 @@ router.post("
+      ]
+    },
+    {
+      "path": "backend/routes/studies/service.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -446,0 +447,31 @@ export async function getStudyById(studyId, organizationId) {"
+      ]
+    },
+    {
+      "path": "backend/scripts/financial-engine-health.mjs",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -21 +21 @@ assert.equal(result.ok, true, result.errors?.join(\"; \"));"
+      ]
+    },
+    {
+      "path": "backend/services/annualScenarioEnergy.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/antiOversell.service.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -1,0 +2,20 @@ import { normalizeEquipmentBuckets } from \"./equipmentNormalize.service.js\";",
+        "@@ -66,0 +87 @@ export function isCommercialUnboundedVirtualBatteryAllowed(ctx = {}) {",
+        "@@ -152 +173 @@ export function assessScenarioAntiOversell(ctx = {}, scenario = {}) {",
+        "@@ -157 +178 @@ export function assessScenarioAntiOversell(ctx = {}, scenario = {}) {",
+        "@@ -173,0 +195 @@ export function attachAntiOversellToScenarios(ctx = {}, scenarios = {}) {",
+        "@@ -179 +201 @@ export function attachAntiOversellToScenarios(ctx = {}, scenarios = {}) {"
+      ]
+    },
+    {
+      "path": "backend/services/batteryService.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -11,0 +13,2 @@",
+        "@@ -15 +18 @@ function passThroughNoBattery(pv_hourly, conso_hourly) {",
+        "@@ -35,9 +38,9 @@ function passThroughNoBattery(pv_hourly, conso_hourly) {",
+        "@@ -69 +72 @@ export function simulateBattery8760({",
+        "@@ -72 +75 @@ export function simulateBattery8760({",
+        "@@ -74,0 +78,6 @@ export function simulateBattery8760({",
+        "@@ -86,5 +95,5 @@ export function simulateBattery8760({",
+        "@@ -102 +111 @@ export function simulateBattery8760({",
+        "@@ -114 +123,7 @@ export function simulateBattery8760({",
+        "@@ -140,0 +156 @@ export function simulateBattery8760({",
+        "@@ -142 +158 @@ export function simulateBattery8760({",
+        "@@ -165 +181 @@ export function simulateBattery8760({",
+        "@@ -169 +185 @@ export function simulateBattery8760({",
+        "@@ -217,0 +234 @@ export function simulateBattery8760({",
+        "@@ -225,0 +243,2 @@ export function simulateBattery8760({",
+        "@@ -227 +246 @@ export function simulateBattery8760({",
+        "@@ -229,6 +248,2 @@ export function simulateBattery8760({",
+        "@@ -254,6 +269,11 @@ export function simulateBattery8760({",
+        "@@ -261 +281 @@ export function simulateBattery8760({",
+        "@@ -263,2 +283,2 @@ export function simulateBattery8760({"
+      ]
+    },
+    {
+      "path": "backend/services/calc/calc.constants.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -7 +7 @@"
+      ]
+    },
+    {
+      "path": "backend/services/calculationConfidence.service.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -9,0 +10 @@ import {",
+        "@@ -12 +13 @@ import {",
+        "@@ -20 +21,2 @@ import {",
+        "@@ -28,0 +31 @@ const BLOCKING = new Set([",
+        "@@ -43,2 +46,3 @@ export function finalizeCalculationConfidence({",
+        "@@ -91,0 +96 @@ export function isPdfBlockedByConfidence(confidence) {",
+        "@@ -233,0 +239 @@ export function buildCalculationConfidenceFromCalc(ctx, scenariosFinal = {}) {"
+      ]
+    },
+    {
+      "path": "backend/services/calculationFingerprint.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/calculationInputSelection.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/confidenceMigration.service.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -13,2 +13,2 @@",
+        "@@ -19,4 +19 @@ import logger from \"../app/core/logger.js\";",
+        "@@ -66,0 +64,10 @@ function recomputeLevel(blockingWarnings, assumptions) {",
+        "@@ -99,15 +106,2 @@ export async function runConfidenceMigration() {",
+        "@@ -121,6 +115 @@ export async function runConfidenceMigration() {"
+      ]
+    },
+    {
+      "path": "backend/services/consumptionProvenance.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/consumptionService.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Excluded all preexisting usage_v3 future-equipment additions (import, estimator, proportional replacement, impact payload); retained existing additive equipment behavior plus mission calendar conservation.",
+      "hunks": [
+        "@@ -0,0 +1,2 @@",
+        "@@ -80 +82 @@ function scaleProfile(profile, annual) {",
+        "@@ -98,11 +100 @@ function monthlySumsFrom8760(hourly) {",
+        "@@ -121 +113 @@ function attachReference(result, { sourceMode, monthlyRef } = {}) {",
+        "@@ -307 +299,3 @@ function parseHourlyCSV(lines) {",
+        "@@ -309 +303,2 @@ function parseHourlyCSV(lines) {",
+        "@@ -448,98 +443,27 @@ function fillMissingHourlyCalendar(realKwhByIdx, base8760) {",
+        "@@ -546,0 +471,2 @@ function rebuildHourlyIncomplete(rows, base8760) {",
+        "@@ -567 +493,4 @@ function parseDailyCSV(lines) {",
+        "@@ -578,30 +507,17 @@ function rebuildDaily(days, base8760) {",
+        "@@ -627,2 +543,2 @@ export function buildConsumptionFromDailyPoints(points, { profil = \"active\", par",
+        "@@ -662 +578,4 @@ function parseMonthlyCSV(lines) {",
+        "@@ -694 +613 @@ function rebuildMonthly(months, base8760) {",
+        "@@ -818,0 +738,41 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {",
+        "@@ -858 +818 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {",
+        "@@ -888 +848 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {",
+        "@@ -896 +856 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {",
+        "@@ -973,2 +933,2 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {",
+        "@@ -976 +936,2 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {",
+        "@@ -979 +940 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {",
+        "@@ -981 +942 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {",
+        "@@ -984 +945 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {",
+        "@@ -1464 +1425 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {",
+        "@@ -1470 +1431,2 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {",
+        "@@ -1477 +1439 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {",
+        "@@ -1488 +1450 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {",
+        "@@ -1523 +1485 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {",
+        "@@ -1532 +1494 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {",
+        "@@ -1539,2 +1501,3 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {",
+        "@@ -1547,0 +1511 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {",
+        "@@ -1553 +1517,2 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {"
+      ]
+    },
+    {
+      "path": "backend/services/economic/economicSnapshot.service.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -7,0 +8 @@ import { withTx } from \"../../db/tx.js\";",
+        "@@ -108 +109 @@ export async function createOrUpdateEconomicSnapshot({",
+        "@@ -137,0 +139 @@ export async function createOrUpdateEconomicSnapshot({",
+        "@@ -156,0 +159 @@ export async function createOrUpdateEconomicSnapshot({"
+      ]
+    },
+    {
+      "path": "backend/services/economicsResolve.service.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -14,0 +15 @@ import { ORG_ECONOMICS_ENGINE_DEFAULTS, ORG_ECONOMICS_NUMERIC_KEYS } from \"../co",
+        "@@ -100,0 +102,23 @@ export function pickExplicitProjectTariffKwh({ energyProfile, economicSnapshot,",
+        "@@ -115,3 +139,2 @@ export function resolveRetailElectricityKwhPrice(ctx) {",
+        "@@ -119,6 +142,23 @@ export function resolveOaRateForKwc(ctx, kwc) {"
+      ]
+    },
+    {
+      "path": "backend/services/electricitySupplyContract.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/energy/solteoImportService.js",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -205 +205,2 @@ export function parseR65Json(input) {",
+        "@@ -212,2 +213,3 @@ export function parseR65Json(input) {",
+        "@@ -226 +228 @@ export function parseR65Json(input) {",
+        "@@ -278 +280,2 @@ export function parseDailyCsv(text) {",
+        "@@ -280 +283,4 @@ export function parseDailyCsv(text) {",
+        "@@ -291 +297 @@ export function parseDailyCsv(text) {",
+        "@@ -309 +315,3 @@ export function parseMonthlyCsv(text) {",
+        "@@ -311 +319,4 @@ export function parseMonthlyCsv(text) {"
+      ]
+    },
+    {
+      "path": "backend/services/energyCalendar.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/energyKpiDefinitions.service.js",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -16,5 +16,2 @@ function round2(x) {",
+        "@@ -27,5 +24,2 @@ export function computePvSelfConsumptionPct(p) {"
+      ]
+    },
+    {
+      "path": "backend/services/energyKpisNormalize.service.js",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -14 +14 @@ function round2(x) {",
+        "@@ -17,0 +18 @@ function num(v) {",
+        "@@ -43,0 +45,25 @@ export function attachNormalizedEnergyKpiFields(scenario) {",
+        "@@ -137 +163 @@ export function attachNormalizedEnergyKpiFields(scenario) {"
+      ]
+    },
+    {
+      "path": "backend/services/energyReference.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/financeProjection.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/financeService.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1,3 @@",
+        "@@ -44,0 +48 @@ import {",
+        "@@ -45,0 +50 @@ import {",
+        "@@ -81 +86,2 @@ function normalizeFinancingSnapshot(configJson, capexTtc) {",
+        "@@ -92 +98 @@ function normalizeFinancingSnapshot(configJson, capexTtc) {",
+        "@@ -95,0 +102 @@ function normalizeFinancingSnapshot(configJson, capexTtc) {",
+        "@@ -105 +112,3 @@ function pickEconomics(ctx) {",
+        "@@ -142,2 +151,2 @@ function pickEconomics(ctx) {",
+        "@@ -146,2 +155,2 @@ function pickEconomics(ctx) {",
+        "@@ -219 +228 @@ function resolveVirtualSetupFeeTtc(sc) {",
+        "@@ -317 +325,0 @@ function buildFinanceWarningsV2({",
+        "@@ -356 +364 @@ function buildFinanceWarningsV2({",
+        "@@ -388 +396,8 @@ function buildCashflows(params) {",
+        "@@ -390,0 +406 @@ function buildCashflows(params) {",
+        "@@ -398 +414 @@ function buildCashflows(params) {",
+        "@@ -411,2 +427,2 @@ function buildCashflows(params) {",
+        "@@ -415,0 +432,3 @@ function buildCashflows(params) {",
+        "@@ -434,0 +454,15 @@ function buildCashflows(params) {",
+        "@@ -440 +474,2 @@ function buildCashflows(params) {",
+        "@@ -443 +478,4 @@ function buildCashflows(params) {",
+        "@@ -445,2 +483,2 @@ function buildCashflows(params) {",
+        "@@ -448 +486,3 @@ function buildCashflows(params) {",
+        "@@ -453 +493 @@ function buildCashflows(params) {",
+        "@@ -457 +497,2 @@ function buildCashflows(params) {",
+        "@@ -459 +500,4 @@ function buildCashflows(params) {",
+        "@@ -471 +515,3 @@ function buildCashflows(params) {",
+        "@@ -475 +521,2 @@ function buildCashflows(params) {",
+        "@@ -480,0 +528,2 @@ function buildCashflows(params) {",
+        "@@ -482,0 +532 @@ function buildCashflows(params) {",
+        "@@ -486 +536,13 @@ function buildCashflows(params) {",
+        "@@ -501 +563,3 @@ function buildCashflows(params) {",
+        "@@ -511 +575 @@ function buildCashflows(params) {",
+        "@@ -523,0 +588 @@ function firstFiniteNumber(...values) {",
+        "@@ -577,0 +643 @@ function computeBillSavingsYear1(sc, priceEurKwh) {",
+        "@@ -592 +658 @@ function computeBillSavingsYear1(sc, priceEurKwh) {",
+        "@@ -595,27 +661 @@ function computeBillSavingsYear1(sc, priceEurKwh) {",
+        "@@ -625 +665 @@ function irr(values, guess = 0.1) {",
+        "@@ -629,2 +669,2 @@ function irr(values, guess = 0.1) {",
+        "@@ -637 +677 @@ function lcoe(capex_net, prod_y1, degradation_pct, horizon_years, discount_rate",
+        "@@ -655,0 +696,58 @@ const PHYSICAL_DEGRADE_FINANCE = new Set([\"BATTERY_PHYSICAL\", \"BATTERY_HYBRID\",",
+        "@@ -660,0 +759,15 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -691,0 +805,27 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -726 +866,4 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -742,3 +885,25 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -774,0 +940,7 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -793 +965 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -797 +969,3 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -807,0 +982,3 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -812 +989,5 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -814 +995 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -824 +1005 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -828,0 +1010,10 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -834 +1025 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -851,2 +1042,2 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -866 +1057,2 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -871,0 +1064,2 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -883 +1077 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -886 +1080 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -958,0 +1153 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -960,2 +1155,2 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -965 +1160 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -967,2 +1162,2 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -971,2 +1166,2 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -977,0 +1173 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -988,0 +1185,7 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -992 +1195 @@ export async function computeFinance(ctx, scenarios) {",
+        "@@ -993,0 +1197 @@ export async function computeFinance(ctx, scenarios) {"
+      ]
+    },
+    {
+      "path": "backend/services/financialIndicators.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/financialScenarios.service.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -18 +18 @@",
+        "@@ -28,2 +28 @@ function hashObject(obj) {",
+        "@@ -80,0 +80,2 @@ export async function upsertFinancialScenariosForVersion({",
+        "@@ -95 +96 @@ export async function upsertFinancialScenariosForVersion({",
+        "@@ -138,0 +140 @@ export async function upsertFinancialScenariosForVersion({"
+      ]
+    },
+    {
+      "path": "backend/services/intervalEnergy.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/leadMeters.service.js",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -25,0 +26,2 @@ export const METER_FIELDS_FROM_LEAD = [",
+        "@@ -75 +77 @@ export async function ensureDefaultLeadMeter(db, leadId, organizationId) {",
+        "@@ -96,0 +99,2 @@ export async function ensureDefaultLeadMeter(db, leadId, organizationId) {",
+        "@@ -152,0 +157,2 @@ export async function syncDefaultMeterFromLeadRow(db, leadRow) {",
+        "@@ -180,0 +187,2 @@ export async function syncDefaultMeterFromLeadRow(db, leadRow) {",
+        "@@ -344,0 +353,2 @@ export async function syncLeadFlatFromMeterRow(db, meterRow) {",
+        "@@ -372,0 +383,2 @@ export async function syncLeadFlatFromMeterRow(db, meterRow) {",
+        "@@ -412 +424 @@ export async function createLeadMeter(db, leadId, organizationId, name, copyFrom",
+        "@@ -433,0 +446,2 @@ export async function createLeadMeter(db, leadId, organizationId, name, copyFrom",
+        "@@ -476,0 +491,2 @@ const PATCHABLE_METER_COLUMNS = new Set([",
+        "@@ -482,0 +499,24 @@ const PATCHABLE_METER_COLUMNS = new Set([",
+        "@@ -610,0 +651,14 @@ export async function updateLeadMeter(db, meterId, leadId, organizationId, patch"
+      ]
+    },
+    {
+      "path": "backend/services/meterAnnualConsumption.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/monthlyAggregator.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -1,137 +1,14 @@"
+      ]
+    },
+    {
+      "path": "backend/services/pdf/pdfViewModel.mapper.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1,2 @@",
+        "@@ -14,0 +17 @@ import { buildP5DailyProfiles } from \"./pdfP5DailyProfile.js\";",
+        "@@ -65,0 +69 @@ function frozenEconomicConfigForP11(snapshotEconomic) {",
+        "@@ -290 +294,2 @@ function buildResidualBillVirtualVmFromScenario(scenario) {",
+        "@@ -298 +303 @@ function buildResidualBillVirtualVmFromScenario(scenario) {",
+        "@@ -301,0 +307 @@ function buildResidualBillVirtualVmFromScenario(scenario) {",
+        "@@ -303 +309,2 @@ function buildResidualBillVirtualVmFromScenario(scenario) {",
+        "@@ -305 +312,3 @@ function buildResidualBillVirtualVmFromScenario(scenario) {",
+        "@@ -314 +323 @@ function buildResidualBillVirtualVmFromScenario(scenario) {",
+        "@@ -321 +330 @@ function buildResidualBillVirtualVmFromScenario(scenario) {",
+        "@@ -323 +332,2 @@ function buildResidualBillVirtualVmFromScenario(scenario) {",
+        "@@ -430 +440 @@ function roundPercent(v) {",
+        "@@ -438 +448 @@ function formatCurrency0(v) {",
+        "@@ -450 +460 @@ function formatNumber0(v) {",
+        "@@ -472 +482 @@ function normalizeQuoteFinancing(configJson, capexTtc) {",
+        "@@ -476 +486,2 @@ function normalizeQuoteFinancing(configJson, capexTtc) {",
+        "@@ -481 +492,2 @@ function loanMonthlyPaymentEur(principalEur, annualRatePct, months) {",
+        "@@ -498 +510 @@ function formatEur0(v) {",
+        "@@ -542 +554 @@ function annualGainsEurFromCashflows(flows, horizonYears = 25) {",
+        "@@ -569 +581,3 @@ function buildP11Section({",
+        "@@ -571 +585 @@ function buildP11Section({",
+        "@@ -578 +592 @@ function buildP11Section({",
+        "@@ -586,2 +600,2 @@ function buildP11Section({",
+        "@@ -595 +609 @@ function buildP11Section({",
+        "@@ -604 +618 @@ function buildP11Section({",
+        "@@ -614,0 +629,3 @@ function buildP11Section({",
+        "@@ -626 +643 @@ function buildP11Section({",
+        "@@ -630,0 +648,3 @@ function buildP11Section({",
+        "@@ -650,2 +670,2 @@ function buildP11Section({",
+        "@@ -775,0 +796,4 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -949,0 +974,2 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1033 +1059 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1061 +1087,3 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1082,0 +1111,6 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1097 +1131 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1102,0 +1137,6 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1108 +1148 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1120 +1160,5 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1131 +1175 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1136,3 +1180,4 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1153,4 +1198 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1173 +1215 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1189,3 +1231 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1371 +1411 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1404,2 +1444,4 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1721 +1763 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1816 +1858 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1880 +1922 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1882 +1924 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1892 +1934,2 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -1896 +1939 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}",
+        "@@ -2962 +3005,49 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}"
+      ]
+    },
+    {
+      "path": "backend/services/pdf/verifiedEnergyPresentation.js",
+      "status": "added",
+      "classification": "required_verified_pdf_presentation",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/pdfEphemeralSnapshot.service.js",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -22,2 +22,2 @@ export function putEphemeralSnapshot(snapshot, scenarioId) {",
+        "@@ -39 +39 @@ export function getEphemeralSnapshot(id) {"
+      ]
+    },
+    {
+      "path": "backend/services/pilotageService.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -20 +21 @@",
+        "@@ -32,0 +34 @@ function getSolarWindow(hourIndex) {",
+        "@@ -42 +44 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {",
+        "@@ -45 +47 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {",
+        "@@ -51,0 +54 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {",
+        "@@ -91 +94 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {",
+        "@@ -110 +113 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {",
+        "@@ -113,2 +116,2 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {",
+        "@@ -127 +130 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {",
+        "@@ -130,2 +133,2 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {",
+        "@@ -144 +147 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {",
+        "@@ -147,2 +150,2 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {",
+        "@@ -161 +164 @@ export function buildPilotedProfile(baseLoadHourly, pvHourly, options = {}) {",
+        "@@ -164,2 +167,2 @@ for (let h = 0; h < 8760; h++) {",
+        "@@ -185,3 +188,3 @@ for (let h = 0; h < 8760; h++) {",
+        "@@ -199 +202 @@ for (let h = 0; h < 8760; h++) {",
+        "@@ -218 +221 @@ for (let h = 0; h < 8760; h++) {",
+        "@@ -224 +227 @@ for (let h = 0; h < 8760; h++) {",
+        "@@ -235,2 +238,2 @@ for (let h = 0; h < 8760; h++) {"
+      ]
+    },
+    {
+      "path": "backend/services/productionMultiPan.service.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1,3 @@",
+        "@@ -51 +54 @@ export async function computeProductionMultiPan(opts) {",
+        "@@ -54,0 +58,2 @@ export async function computeProductionMultiPan(opts) {",
+        "@@ -78,2 +83,7 @@ export async function computeProductionMultiPan(opts) {",
+        "@@ -82,0 +93,7 @@ export async function computeProductionMultiPan(opts) {",
+        "@@ -105,0 +123,2 @@ export async function computeProductionMultiPan(opts) {"
+      ]
+    },
+    {
+      "path": "backend/services/pv/hphcMask.service.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -22 +23 @@ function toMinutes(hhmm) {",
+        "@@ -41 +42,9 @@ function expandPeriods(periods) {",
+        "@@ -44,2 +53,2 @@ function expandPeriods(periods) {",
+        "@@ -54 +63 @@ function hourIsOffPeak(hour, intervals) {",
+        "@@ -57,2 +66,2 @@ function hourIsOffPeak(hour, intervals) {",
+        "@@ -63,3 +72,22 @@ export function buildHourOfDayHpFlags(offPeakPeriods) {",
+        "@@ -106 +134 @@ export function parseEnedisOffPeakLabel(label) {",
+        "@@ -114,0 +143,22 @@ export function parseEnedisOffPeakLabel(label) {",
+        "@@ -116 +166 @@ export function parseEnedisOffPeakLabel(label) {",
+        "@@ -119,0 +170 @@ export function resolveOffPeakPeriods(vbInput, ctx) {",
+        "@@ -120,0 +172 @@ export function resolveOffPeakPeriods(vbInput, ctx) {",
+        "@@ -127 +179,4 @@ export function resolveOffPeakPeriods(vbInput, ctx) {",
+        "@@ -132 +187,14 @@ export function resolveHpHcHourlyMask(vbInput, ctx) {"
+      ]
+    },
+    {
+      "path": "backend/services/pv/hphcPricing.service.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -14,2 +15,2 @@",
+        "@@ -18,2 +19,5 @@",
+        "@@ -27,0 +32 @@ function numOrNull(v) {",
+        "@@ -29 +34 @@ function numOrNull(v) {",
+        "@@ -37 +42 @@ function numOrNull(v) {",
+        "@@ -41,2 +46,3 @@ export function resolveHpHcPricingContext(ctx) {",
+        "@@ -45,7 +51,12 @@ export function resolveHpHcPricingContext(ctx) {",
+        "@@ -61,2 +72,4 @@ export function effectivePriceForHourlyWeights(weightsHourly, pricingCtx) {",
+        "@@ -65 +78 @@ export function effectivePriceForHourlyWeights(weightsHourly, pricingCtx) {",
+        "@@ -69 +82,4 @@ export function effectivePriceForHourlyWeights(weightsHourly, pricingCtx) {",
+        "@@ -77,2 +93,2 @@ function directAutoHourly(pvHourly, consoHourly) {",
+        "@@ -86,2 +102,2 @@ function importHourlyFromServed(consoHourly, ...servedSeries) {",
+        "@@ -113 +129 @@ export function buildScenarioPricing({ pricingCtx, consoHourly, autoHourly, impo",
+        "@@ -122,0 +139 @@ export function buildScenarioPricing({ pricingCtx, consoHourly, autoHourly, impo",
+        "@@ -141,2 +158,2 @@ export function attachHpHcPricingToScenarios(scenarios, ctx, battPhysicalResult,",
+        "@@ -165,2 +182,2 @@ export function attachHpHcPricingToScenarios(scenarios, ctx, battPhysicalResult,",
+        "@@ -200,2 +217,2 @@ export function attachHpHcPricingToScenarios(scenarios, ctx, battPhysicalResult,"
+      ]
+    },
+    {
+      "path": "backend/services/pvHourlyModel.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/pvgisHourly.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/pvgisMonthlyCache.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/pvgisService.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -11 +11,0 @@",
+        "@@ -34 +33,0 @@ import {",
+        "@@ -85,5 +83,0 @@ function getFallbackAnnualDcKwhPerKwp(lat, lon) {",
+        "@@ -114 +108 @@ export async function computeProductionMonthly(ctx) {",
+        "@@ -117,7 +111,3 @@ export async function computeProductionMonthly(ctx) {",
+        "@@ -142 +132 @@ export async function computeProductionMonthly(ctx) {",
+        "@@ -170,0 +161 @@ export async function computeProductionMonthly(ctx) {",
+        "@@ -235 +226 @@ function convertOrientation(o) {",
+        "@@ -237 +228 @@ function azimuthDegToPvgisAspect(azimuthDeg) {",
+        "@@ -276 +267 @@ export async function computeProductionMonthlyForOrientation(ctx, azimuthDeg, ti",
+        "@@ -278,3 +269,2 @@ export async function computeProductionMonthlyForOrientation(ctx, azimuthDeg, ti",
+        "@@ -292 +282 @@ export async function computeProductionMonthlyForOrientation(ctx, azimuthDeg, ti",
+        "@@ -298 +288 @@ export async function computeProductionMonthlyForOrientation(ctx, azimuthDeg, ti",
+        "@@ -301,0 +292 @@ export async function computeProductionMonthlyForOrientation(ctx, azimuthDeg, ti",
+        "@@ -311,0 +303 @@ function fallbackPVForOrientation(ctx, azimuthDeg, tiltDeg) {"
+      ]
+    },
+    {
+      "path": "backend/services/scenarioElectricityBilling.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/scenarioElectricitySnapshot.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/scenarioV2DisplayRepair.service.js",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1,2 @@",
+        "@@ -130,0 +133,3 @@ export function repairVirtualScenarioDisplayKpis(sc) {"
+      ]
+    },
+    {
+      "path": "backend/services/scenarioV2Mapper.service.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -165,0 +167,6 @@ export function mapScenarioToV2(scenario, ctx) {",
+        "@@ -292,0 +300,6 @@ export function mapScenarioToV2(scenario, ctx) {",
+        "@@ -321 +334,17 @@ export function mapScenarioToV2(scenario, ctx) {",
+        "@@ -327,2 +356 @@ export function mapScenarioToV2(scenario, ctx) {",
+        "@@ -340,0 +369,9 @@ export function mapScenarioToV2(scenario, ctx) {",
+        "@@ -416,0 +454 @@ export function mapScenarioToV2(scenario, ctx) {",
+        "@@ -494,0 +533,3 @@ export function mapScenarioToV2(scenario, ctx) {",
+        "@@ -523,0 +565 @@ export function mapScenarioToV2(scenario, ctx) {",
+        "@@ -542,2 +584,3 @@ export function mapScenarioToV2(scenario, ctx) {",
+        "@@ -627,0 +671,5 @@ export function mapScenarioToV2(scenario, ctx) {"
+      ]
+    },
+    {
+      "path": "backend/services/scenarios/scenarioBuilderV2.service.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -7,0 +9 @@ import { aggregateMonthly } from \"../monthlyAggregator.js\";",
+        "@@ -24,2 +26,2 @@ export function buildScenarioBaseV2(ctx) {",
+        "@@ -27,4 +29,4 @@ export function buildScenarioBaseV2(ctx) {",
+        "@@ -45,0 +48 @@ export function buildScenarioBaseV2(ctx) {",
+        "@@ -52 +55 @@ export function buildScenarioBaseV2(ctx) {",
+        "@@ -54 +57 @@ export function buildScenarioBaseV2(ctx) {",
+        "@@ -60,0 +64 @@ export function buildScenarioBaseV2(ctx) {",
+        "@@ -70 +74 @@ export function buildScenarioBaseV2(ctx) {",
+        "@@ -74 +78 @@ export function buildScenarioBaseV2(ctx) {"
+      ]
+    },
+    {
+      "path": "backend/services/selectedScenarioSnapshot.service.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -10,0 +11,2 @@ import { repairScenarioV2DisplayKpis } from \"./scenarioV2DisplayRepair.service.j",
+        "@@ -23,0 +26 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -34,0 +38,2 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -342,0 +348 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -378 +384 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -382 +388,3 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -384 +392,3 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -395,3 +405,3 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -404 +414 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -406 +416,5 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -413,0 +428 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -441,0 +457 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -454 +470 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -455,0 +472 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -509,0 +527,5 @@ export async function buildSelectedScenarioSnapshot({",
+        "@@ -520,0 +543 @@ export async function buildSelectedScenarioSnapshot({"
+      ]
+    },
+    {
+      "path": "backend/services/shading/shadingExportGuard.service.js",
+      "status": "added",
+      "classification": "new_mission_shading_export_guard",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/simulationContract.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/solarModelService.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -1,236 +1,9 @@"
+      ]
+    },
+    {
+      "path": "backend/services/solarnextAdapter.service.js",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -13,0 +14,13 @@ function degToCardinal(deg) {",
+        "@@ -34,0 +48,3 @@ export function buildLegacyPayloadFromSolarNext(solarnextPayload) {",
+        "@@ -43 +59,7 @@ export function buildLegacyPayloadFromSolarNext(solarnextPayload) {",
+        "@@ -51,0 +74 @@ export function buildLegacyPayloadFromSolarNext(solarnextPayload) {"
+      ]
+    },
+    {
+      "path": "backend/services/solarnextPayloadBuilder.service.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -9,0 +10,2 @@ import { computeProjectEconomicTotalsFromConfig } from \"./projectEconomicTotals.",
+        "@@ -11 +12,0 @@ import { resolveVirtualBatteryActivationFeeTtcFromOrgDb } from \"./virtualBattery",
+        "@@ -12,0 +14,2 @@ import { computeCalpinageShading } from \"./shading/calpinageShading.service.js\";",
+        "@@ -36 +38,0 @@ import { auditMultiPanShadingMismatch } from \"./shading/shadingCommercialAudit.s",
+        "@@ -38 +39,0 @@ import { extractPvInverterFromCalpinagePayload } from \"./pv/inverterFinanceConte",
+        "@@ -63,0 +65,2 @@ import {",
+        "@@ -121 +123,0 @@ function buildEnergyLeadRow(baseLead, meterRow) {",
+        "@@ -137 +139,2 @@ export async function resolveStudyVersionMeterContext(pool, { studyId, versionNu",
+        "@@ -155 +158 @@ export async function resolveStudyVersionMeterContext(pool, { studyId, versionNu",
+        "@@ -156,0 +160,2 @@ export async function resolveStudyVersionMeterContext(pool, { studyId, versionNu",
+        "@@ -178,0 +184 @@ export async function resolveStudyVersionMeterContext(pool, { studyId, versionNu",
+        "@@ -202,2 +208,2 @@ export async function resolveStudyVersionMeterContext(pool, { studyId, versionNu",
+        "@@ -242 +248 @@ async function loadOrgParams(organizationId) {",
+        "@@ -248 +254 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -260 +266 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -267 +273 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -359 +365 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -367,0 +374 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -451 +458 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -453 +460 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -477 +484 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -504 +511 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -533 +540 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -556,2 +563,2 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -567,12 +574,15 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -621 +631 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -625 +635 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -634,2 +644 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -640 +649 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -645 +654 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -656,3 +665,5 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -659,0 +671 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -724 +736 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -828 +840 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -964,0 +977,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -968,9 +987,4 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -997 +1011,2 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -1006,22 +1021,3 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -1064,0 +1061 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -1073,0 +1071 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -1080,0 +1079,4 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -1082,0 +1085,3 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -1091 +1096 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading",
+        "@@ -1122,0 +1128 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading"
+      ]
+    },
+    {
+      "path": "backend/services/studyCalculationFreshness.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/studyExportValidation.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/studyMeterSnapshot.service.js",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -38,0 +39,2 @@ export function buildMeterSnapshotRecord(ctx) {",
+        "@@ -126,0 +129,6 @@ export function buildMeterCalcDiffLinesFr(prev, next) {"
+      ]
+    },
+    {
+      "path": "backend/services/virtualBattery8760.service.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1,4 @@",
+        "@@ -60,19 +64,3 @@ export function aggregateVirtualBatteryMonthly(gridImportHourly, chargeHourly, d",
+        "@@ -94 +82 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config })",
+        "@@ -97 +85 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config })",
+        "@@ -100,0 +89,5 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config })",
+        "@@ -110 +103,2 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config })",
+        "@@ -129 +123 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config })",
+        "@@ -173,0 +168 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config })",
+        "@@ -181,0 +177 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config })",
+        "@@ -183,5 +179,5 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config })",
+        "@@ -199,6 +195,6 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config })",
+        "@@ -225 +221 @@ export function simulateVirtualBattery8760Rollover({",
+        "@@ -231 +227,2 @@ export function simulateVirtualBattery8760Rollover({",
+        "@@ -237 +234 @@ export function simulateVirtualBattery8760Rollover({",
+        "@@ -241,0 +239 @@ export function simulateVirtualBattery8760Rollover({",
+        "@@ -291 +289 @@ export function assertVirtualBatteryAnnualBalance(result, epsKwh = 1) {"
+      ]
+    },
+    {
+      "path": "backend/services/virtualBatteryMonthly.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/virtualBatteryP2Finance.service.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -12,0 +13 @@ import {",
+        "@@ -130,2 +131,2 @@ export function urbanBaseGridFeeHt() {",
+        "@@ -155 +156 @@ export function selectMySmartTier(requiredKwh) {",
+        "@@ -157 +158 @@ export function splitDischargeHpHc(hourlyDischarge, hourlyIsHp) {",
+        "@@ -160 +161,2 @@ export function splitDischargeHpHc(hourlyDischarge, hourlyIsHp) {",
+        "@@ -165 +167 @@ export function splitDischargeHpHc(hourlyDischarge, hourlyIsHp) {",
+        "@@ -167,3 +169,4 @@ export function splitDischargeHpHc(hourlyDischarge, hourlyIsHp) {",
+        "@@ -173,2 +176,2 @@ export function splitDischargeHpHc(hourlyDischarge, hourlyIsHp) {",
+        "@@ -202,0 +206,6 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -277 +286,3 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -288 +299 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -294 +305 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -297 +308 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -301 +312 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -306,2 +317,2 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -440,0 +452,3 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -454 +468 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -456 +470 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -458 +472 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -460 +474 @@ export function computeVirtualBatteryP2Finance(input) {",
+        "@@ -462 +476,6 @@ export function computeVirtualBatteryP2Finance(input) {"
+      ]
+    },
+    {
+      "path": "backend/services/virtualBatteryProviderRules.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/services/virtualBatteryQuoteCalculator.service.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -21,2 +21,2 @@ const DEFAULT_HC_RATIO = 0.3;",
+        "@@ -63 +63,2 @@ export async function resolveVirtualBatteryActivationFeeTtcFromOrgDb(",
+        "@@ -69 +70 @@ export async function resolveVirtualBatteryActivationFeeTtcFromOrgDb("
+      ]
+    },
+    {
+      "path": "backend/services/virtualBatteryUnboundedSim.service.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -25 +26 @@ export function simulateVirtualBattery8760Unbounded({ pv_hourly, conso_hourly })",
+        "@@ -28 +29 @@ export function simulateVirtualBattery8760Unbounded({ pv_hourly, conso_hourly })",
+        "@@ -41 +42 @@ export function simulateVirtualBattery8760Unbounded({ pv_hourly, conso_hourly })"
+      ]
+    },
+    {
+      "path": "backend/services/virtualStorageOaCompatibility.service.js",
+      "status": "added",
+      "classification": "new_mission_or_required_energy_tariff_service",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/shading/rowToRowShading.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -37,0 +39 @@ export function computeRowToRowShading({",
+        "@@ -52,0 +55 @@ export function computeRowToRowShading({",
+        "@@ -62 +65 @@ export function computeRowToRowShading({",
+        "@@ -70 +73 @@ export function computeRowToRowShading({",
+        "@@ -74,2 +77,2 @@ export function computeRowToRowShading({"
+      ]
+    },
+    {
+      "path": "backend/tests/calculationFingerprint.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/calculationInputSelection.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/consumptionConservationPipeline.test.mjs",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -1 +1 @@",
+        "@@ -7,0 +8 @@ import { loadConsumption, applyEquipmentShape } from \"../services/consumptionSer",
+        "@@ -9,0 +11,8 @@ import { aggregateMonthly } from \"../services/monthlyAggregator.js\";",
+        "@@ -44,0 +54 @@ function writeHourlyEnedisCsv(hourly) {",
+        "@@ -106 +116,5 @@ test(\"CSV Enedis horaire: l'agrégation mensuelle correspond aux données import"
+      ]
+    },
+    {
+      "path": "backend/tests/consumptionCsvPartialRebuild.test.mjs",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -9 +9 @@",
+        "@@ -16,0 +17,13 @@ import { loadConsumption } from \"../services/consumptionService.js\";",
+        "@@ -22 +35 @@ function writePartialLoadCurveCsv(avgWatts) {",
+        "@@ -61,3 +74,2 @@ test(\"CSV horaire partiel : alignement calendrier\", () => {",
+        "@@ -69 +81 @@ test(\"CSV horaire complet (>= 8760) : branche full-year inchangee\", () => {"
+      ]
+    },
+    {
+      "path": "backend/tests/consumptionCsvResolver.e2e.test.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -1,5 +1,4 @@",
+        "@@ -7,25 +6,18 @@",
+        "@@ -34,6 +26,14 @@ function buildHourlyCsvContent() {",
+        "@@ -41,49 +41,47 @@ async function run() {",
+        "@@ -91 +88,0 @@ async function run() {",
+        "@@ -93 +90 @@ async function run() {",
+        "@@ -95,5 +92 @@ async function run() {"
+      ]
+    },
+    {
+      "path": "backend/tests/consumptionSyntheticProvenance.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/controllers/studyCalculationConsistency.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/controllers/studyPdfFreshness.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/currentElectricityContract.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/currentElectricitySubscription.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/currentMeterHcBillingRegression.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/economicSnapshotPdfTraceability.test.mjs",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -44 +44,4 @@ async function buildTraceabilityVm() {",
+        "@@ -199,0 +203,4 @@ test(\"PDF keeps frozen financing when current quote financing changes\", async ()",
+        "@@ -201 +208 @@ test(\"PDF keeps frozen financing when current quote financing changes\", async ()"
+      ]
+    },
+    {
+      "path": "backend/tests/electricitySupplyContract.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/energyCalendarAndProviderCorrections.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/energyReference.test.js",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/financeProjection.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/financialEngineRegression.test.mjs",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -6,0 +7 @@ import { computeFinance } from \"../services/financeService.js\";",
+        "@@ -31 +32 @@ test(\"financial engine version is semver and kept as the legacy ENGINE_VERSION a",
+        "@@ -51,0 +53 @@ test(\"financial engine regression fixtures stay within 0.01 percent\", async () =",
+        "@@ -52,0 +55 @@ test(\"financial engine regression fixtures stay within 0.01 percent\", async () ="
+      ]
+    },
+    {
+      "path": "backend/tests/fixtures/financialRegressionCases.json",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -4,3 +4,3 @@",
+        "@@ -10,3 +10,3 @@",
+        "@@ -16,3 +16,3 @@",
+        "@@ -22,3 +22,3 @@",
+        "@@ -28,3 +28,3 @@",
+        "@@ -34,3 +34,3 @@",
+        "@@ -40,3 +40,3 @@",
+        "@@ -46,3 +46,3 @@",
+        "@@ -52,3 +52,3 @@",
+        "@@ -58,3 +58,3 @@"
+      ]
+    },
+    {
+      "path": "backend/tests/helpers/financeProjectionReference.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/hphcMask.test.mjs",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -5,0 +6,4 @@ import {",
+        "@@ -8,0 +13 @@ import {",
+        "@@ -90 +95 @@ test(\"libellés inexploitables → null (l'appelant garde le défaut)\", () => {",
+        "@@ -102,0 +108,79 @@ test(\"bout en bout : libellé C68 → masque 8760 (fenêtre Bedouelle 22h30-6h30"
+      ]
+    },
+    {
+      "path": "backend/tests/hphcPricing.test.mjs",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -44,0 +45 @@ test(\"resolveHpHcPricingContext : ok si HPHC (hint fiche compteur) + prix saisis",
+        "@@ -47 +48 @@ test(\"resolveHpHcPricingContext : ok si HPHC (hint fiche compteur) + prix saisis",
+        "@@ -50 +51,17 @@ test(\"resolveHpHcPricingContext : contract_type devis prioritaire sur le hint\",",
+        "@@ -51,0 +69,22 @@ test(\"resolveHpHcPricingContext : contract_type devis prioritaire sur le hint\",",
+        "@@ -101,0 +141 @@ test(\"attachHpHcPricingToScenarios : PV de jour + conso de nuit → p_eff_auto=H"
+      ]
+    },
+    {
+      "path": "backend/tests/installerPhaseProjectFinance.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/monthlyConsumptionMeterScope.integration.test.mjs",
+      "status": "added",
+      "classification": "release_fresh_database_correction",
+      "reason": "Release-only correction; not present in original workspace.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/pdfAchouriVirtualMapper.test.js",
+      "status": "deleted",
+      "classification": "replaced-with-anonymous-fixture",
+      "reason": "Replaced by pdfVirtualMapperSynthetic.test.js; numerical behavior retained with synthetic identity and geometry.",
+      "hunks": [
+        "Replaced by anonymized synthetic test"
+      ]
+    },
+    {
+      "path": "backend/tests/pdfRendererReadOnly.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/pdfSignedFinancingProjection.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/pdfVerifiedCalendar.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/pdfVirtualCreditCharts.test.js",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/pdfVirtualMapperSynthetic.test.js",
+      "status": "added",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Renamed and anonymized preexisting PDF regression: fictive name, generic latitude, synthetic study references.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/productionPrecisionReference.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Replaced exact customer roof angles with synthetic cardinal east/west and 45-degree tilt. Frozen public PVGIS module-yield coefficients retained for the independent rounding/energy invariant; no customer record/geolocation.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/run-integration-tests.mjs",
+      "status": "modified",
+      "classification": "mission-test-registration",
+      "reason": "Release assembly, qualification, exact inventory and operational isolation.",
+      "hunks": [
+        "@@ -38,0 +39,4 @@ const INTEGRATION_TEST_FILES = ["
+      ]
+    },
+    {
+      "path": "backend/tests/run-unit-tests.mjs",
+      "status": "modified",
+      "classification": "mission-test-registration",
+      "reason": "Release assembly, qualification, exact inventory and operational isolation.",
+      "hunks": [
+        "@@ -26,0 +27,31 @@ const UNIT_TEST_FILES = [",
+        "@@ -178,0 +210,2 @@ const MODULE_MOCK_TEST_FILES = ["
+      ]
+    },
+    {
+      "path": "backend/tests/scenarioElectricityBilling.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/scenarioElectricityBillingPresentation.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/scenarioElectricitySnapshot.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/scenariosGenerationFromQuoteConfig.test.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -23,0 +24,3 @@ import { validateDevisTechnique } from \"../controllers/validateDevisTechnique.co",
+        "@@ -118,2 +121,2 @@ async function createFixtureWithQuoteConfigBatteries(orgId) {",
+        "@@ -144,2 +147,2 @@ async function createFixtureWithQuoteConfigBatteries(orgId) {",
+        "@@ -148,0 +152 @@ async function createFixtureWithQuoteConfigBatteries(orgId) {",
+        "@@ -169 +173 @@ function mockRes() {",
+        "@@ -172 +176 @@ function mockRes() {",
+        "@@ -176 +180 @@ function mockRes() {",
+        "@@ -181,0 +186 @@ function mockRes() {",
+        "@@ -203,0 +209,5 @@ async function main() {",
+        "@@ -205 +215 @@ async function main() {",
+        "@@ -225,0 +236,17 @@ async function main() {"
+      ]
+    },
+    {
+      "path": "backend/tests/selectedMeterConsumption.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/shadingExportGuard.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Anonymized name and changed precise client mismatch to synthetic 6.5 points.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/solteoImportService.test.mjs",
+      "status": "modified",
+      "classification": "required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -126 +126 @@ test(\"parseR65Json + computeAnnualFromDaily : 608 jours Wh → fenêtre 365 j co",
+        "@@ -131 +131 @@ test(\"parseDailyCsv : unité par médiane globale — un jour d'absence à 1 800",
+        "@@ -192 +192 @@ test(\"parseMonthlyCsv + computeAnnualFromMonthly : 12 mois complets → MONTHLY_"
+      ]
+    },
+    {
+      "path": "backend/tests/studyCalculationFreshness.integration.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/studyScenarioPageSummary.integration.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/studyScenarioReads.integration.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/urbanTariffDateOaCompatibility.test.mjs",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/verifiedStudyPipeline.test.js",
+      "status": "added",
+      "classification": "synthetic_regression_test",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "backend/tests/virtualBatterySetupCapex.test.js",
+      "status": "modified",
+      "classification": "mission_plus_required_energy_tariff_prerequisite",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -31 +31 @@ function makeScenario(name, overrides = {}) {",
+        "@@ -82,6 +82,12 @@ test(\"BATTERY_VIRTUAL setup fee stays informational and does not change finance"
+      ]
+    },
+    {
+      "path": "docs/releases/v21-files.txt",
+      "status": "added",
+      "classification": "release-documentation",
+      "reason": "Release assembly, qualification, exact inventory and operational isolation.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "docs/releases/v21-finance-2.2.1.md",
+      "status": "added",
+      "classification": "release-documentation",
+      "reason": "Release assembly, qualification, exact inventory and operational isolation.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "docs/releases/v21-preproduction-runbook.md",
+      "status": "added",
+      "classification": "release-documentation",
+      "reason": "Release assembly, qualification, exact inventory and operational isolation.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "docs/releases/v21-scope.json",
+      "status": "deleted",
+      "classification": "release-documentation",
+      "reason": "Release assembly, qualification, exact inventory and operational isolation.",
+      "hunks": [
+        "Replaced by anonymized synthetic test"
+      ]
+    },
+    {
+      "path": "frontend/public/pdf-engines/engine-p1.js",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -90,0 +91,2 @@"
+      ]
+    },
+    {
+      "path": "frontend/public/pdf-engines/engine-p11.js",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -41 +41 @@ console.log(\"P11 ENGINE LOADED\");",
+        "@@ -48,247 +48,14 @@ console.log(\"P11 ENGINE LOADED\");",
+        "@@ -306 +73 @@ console.log(\"P11 ENGINE LOADED\");"
+      ]
+    },
+    {
+      "path": "frontend/public/pdf-engines/engine-p2.js",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -31 +31 @@",
+        "@@ -41,0 +42 @@",
+        "@@ -58,3 +59,4 @@",
+        "@@ -67 +69 @@"
+      ]
+    },
+    {
+      "path": "frontend/public/pdf-engines/engine-p5.js",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -17 +17 @@",
+        "@@ -29 +29 @@",
+        "@@ -109 +109 @@"
+      ]
+    },
+    {
+      "path": "frontend/public/pdf-engines/engine-p6.js",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -172 +172 @@ function drawChart(dir, bat, grid, tot) {",
+        "@@ -181 +181 @@ function drawChart(dir, bat, grid, tot) {",
+        "@@ -183 +183 @@ function drawChart(dir, bat, grid, tot) {",
+        "@@ -187,2 +187,2 @@ function drawChart(dir, bat, grid, tot) {",
+        "@@ -191 +191 @@ function drawChart(dir, bat, grid, tot) {",
+        "@@ -203 +203 @@ function drawChart(dir, bat, grid, tot) {",
+        "@@ -206,2 +206 @@ function drawChart(dir, bat, grid, tot) {"
+      ]
+    },
+    {
+      "path": "frontend/public/pdf-engines/engine-p9.js",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -50 +50 @@",
+        "@@ -79 +79 @@",
+        "@@ -150 +150 @@",
+        "@@ -310 +310 @@",
+        "@@ -355,2 +355,3 @@",
+        "@@ -361 +362 @@",
+        "@@ -369 +370 @@",
+        "@@ -372 +373 @@",
+        "@@ -406 +407 @@"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/FinanceProjectionSettings.tsx",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/ProjectionAssumptions.tsx",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/ScenarioComparisonTable.tsx",
+      "status": "modified",
+      "classification": "mission-delta-mixed-with-required-billing-reference",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -0,0 +1,5 @@",
+        "@@ -7,0 +13 @@ import { Link } from \"react-router-dom\";",
+        "@@ -11,0 +18 @@ export interface ScenarioV2Finance {",
+        "@@ -40,0 +48 @@ export interface ScenarioV2Energy {",
+        "@@ -180 +188 @@ const COLUMN_SUBTITLES: Record<string, string> = {",
+        "@@ -196 +204 @@ function formatCurrency(v: number | null | undefined): string {",
+        "@@ -198 +206 @@ function formatPercent(v: number | null | undefined): string {",
+        "@@ -203 +211 @@ function formatKwh(v: number | null | undefined): string {",
+        "@@ -229,0 +238 @@ function gridImportKwhForDisplay(energy: ScenarioV2Energy): number | null {",
+        "@@ -272 +281 @@ function stabilizedVirtualReadModel(",
+        "@@ -336,0 +346 @@ function getResidualBillEurForDisplay(finance: ScenarioV2Finance): number | null",
+        "@@ -345,0 +356 @@ function getFinanceBaselineBillBeforeSolarEuro(finance: ScenarioV2Finance): numb",
+        "@@ -356,10 +367 @@ function getScenarioFinalNetSavingsEuro(finance: ScenarioV2Finance): number | nu",
+        "@@ -426 +428 @@ function buildKeyIndicatorRows(",
+        "@@ -437,0 +440 @@ function buildKeyIndicatorRows(",
+        "@@ -441,0 +445 @@ function buildKeyIndicatorRows(",
+        "@@ -457 +461 @@ function buildKeyIndicatorRows(",
+        "@@ -471 +475 @@ function buildKeyIndicatorRows(",
+        "@@ -622,0 +627 @@ function resolveColumnBadge(",
+        "@@ -735 +740 @@ const IMPACT_LINES: Record<",
+        "@@ -739 +744 @@ const IMPACT_LINES: Record<",
+        "@@ -792,5 +797,3 @@ export default function ScenarioComparisonTable({",
+        "@@ -808,0 +812 @@ export default function ScenarioComparisonTable({",
+        "@@ -831,0 +836,2 @@ export default function ScenarioComparisonTable({",
+        "@@ -850 +856,7 @@ export default function ScenarioComparisonTable({",
+        "@@ -1017 +1029 @@ export default function ScenarioComparisonTable({",
+        "@@ -1030,11 +1042 @@ export default function ScenarioComparisonTable({",
+        "@@ -1046,0 +1049 @@ export default function ScenarioComparisonTable({",
+        "@@ -1077 +1080 @@ export default function ScenarioComparisonTable({",
+        "@@ -1080 +1083,2 @@ export default function ScenarioComparisonTable({",
+        "@@ -1082,0 +1087 @@ export default function ScenarioComparisonTable({",
+        "@@ -1127 +1132 @@ export default function ScenarioComparisonTable({",
+        "@@ -1149 +1154 @@ export default function ScenarioComparisonTable({",
+        "@@ -1171,0 +1177,4 @@ export default function ScenarioComparisonTable({",
+        "@@ -1185 +1194 @@ export default function ScenarioComparisonTable({",
+        "@@ -1203 +1212 @@ export default function ScenarioComparisonTable({",
+        "@@ -1527,2 +1536,2 @@ export default function ScenarioComparisonTable({",
+        "@@ -1534,2 +1543,2 @@ export default function ScenarioComparisonTable({",
+        "@@ -1538,3 +1547,3 @@ export default function ScenarioComparisonTable({",
+        "@@ -1712 +1721 @@ export default function ScenarioComparisonTable({"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/VirtualStorageContractSettings.tsx",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/__tests__/PdfElectricityBilling.test.tsx",
+      "status": "added",
+      "classification": "preexisting-untracked-required-dependency",
+      "reason": "Imported billing labels, source/assumptions page or supplier setting regression needed by selected components.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/__tests__/ProjectionAssumptions.test.tsx",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/__tests__/ScenarioComparisonTable.billing.test.tsx",
+      "status": "added",
+      "classification": "preexisting-untracked-required-dependency",
+      "reason": "Imported billing labels, source/assumptions page or supplier setting regression needed by selected components.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/__tests__/VirtualStorageContractSettings.test.tsx",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/__tests__/installerPhase.test.tsx",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/__tests__/resultPresentation.test.tsx",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/electricityBillingDisplay.ts",
+      "status": "added",
+      "classification": "preexisting-untracked-required-dependency",
+      "reason": "Imported billing labels, source/assumptions page or supplier setting regression needed by selected components.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/components/study/resultPresentation.ts",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/hooks/lead/useLeadDetail.ts",
+      "status": "modified",
+      "classification": "preexisting-tariff-profile-hunks-only",
+      "reason": "Edit/save current annual bill, subscription and tariff; preserve HC periods, full imported provenance and selected meter. Enedis UI, future-equipment, CRM planning changes excluded.",
+      "hunks": [
+        "@@ -50,0 +51,2 @@ import {",
+        "@@ -178 +180 @@ export interface Lead {",
+        "@@ -185,0 +188,2 @@ export interface Lead {",
+        "@@ -802 +806,3 @@ export function useLeadDetail() {",
+        "@@ -903 +909,2 @@ export function useLeadDetail() {",
+        "@@ -904,0 +912,4 @@ export function useLeadDetail() {",
+        "@@ -912 +923 @@ export function useLeadDetail() {",
+        "@@ -1059 +1070 @@ export function useLeadDetail() {",
+        "@@ -1065 +1076,4 @@ export function useLeadDetail() {"
+      ]
+    },
+    {
+      "path": "frontend/src/modules/installers/InstallerQuotePrepPanel.tsx",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -136,0 +137,3 @@ export default function InstallerQuotePrepPanel({",
+        "@@ -148,0 +152,3 @@ export default function InstallerQuotePrepPanel({",
+        "@@ -158 +164,6 @@ export default function InstallerQuotePrepPanel({",
+        "@@ -225 +236,2 @@ export default function InstallerQuotePrepPanel({",
+        "@@ -279,0 +292,2 @@ export default function InstallerQuotePrepPanel({",
+        "@@ -352 +366,2 @@ export default function InstallerQuotePrepPanel({",
+        "@@ -440,0 +456,2 @@ export default function InstallerQuotePrepPanel({"
+      ]
+    },
+    {
+      "path": "frontend/src/modules/leads/LeadDetail/LeadMeterModal.tsx",
+      "status": "modified",
+      "classification": "preexisting-tariff-profile-hunks-only",
+      "reason": "Edit/save current annual bill, subscription and tariff; preserve HC periods, full imported provenance and selected meter. Enedis UI, future-equipment, CRM planning changes excluded.",
+      "hunks": [
+        "@@ -17 +17 @@ import type { OverviewLeadSnapshot } from \"./overviewSave\";",
+        "@@ -37,0 +38 @@ import EquipmentCard from \"./EquipmentCard\";",
+        "@@ -117 +118 @@ function emptyDraft(): OverviewLeadSnapshot {",
+        "@@ -202,0 +204,2 @@ export default function LeadMeterModal({",
+        "@@ -336,0 +340,9 @@ export default function LeadMeterModal({",
+        "@@ -338 +349,0 @@ export default function LeadMeterModal({",
+        "@@ -339,0 +351 @@ export default function LeadMeterModal({",
+        "@@ -341,2 +352,0 @@ export default function LeadMeterModal({",
+        "@@ -407,2 +417,2 @@ export default function LeadMeterModal({",
+        "@@ -414 +424,5 @@ export default function LeadMeterModal({",
+        "@@ -421,0 +436 @@ export default function LeadMeterModal({",
+        "@@ -567,0 +583,4 @@ export default function LeadMeterModal({",
+        "@@ -571,2 +590,3 @@ export default function LeadMeterModal({",
+        "@@ -587 +607 @@ export default function LeadMeterModal({",
+        "@@ -958 +978 @@ export default function LeadMeterModal({",
+        "@@ -962,2 +982,2 @@ export default function LeadMeterModal({",
+        "@@ -964,0 +985 @@ export default function LeadMeterModal({",
+        "@@ -968 +989 @@ export default function LeadMeterModal({",
+        "@@ -998 +1019 @@ export default function LeadMeterModal({",
+        "@@ -1009 +1030 @@ export default function LeadMeterModal({",
+        "@@ -1047,0 +1069,4 @@ export default function LeadMeterModal({",
+        "@@ -1067,0 +1093,36 @@ export default function LeadMeterModal({"
+      ]
+    },
+    {
+      "path": "frontend/src/modules/leads/LeadDetail/OverviewTab.tsx",
+      "status": "modified",
+      "classification": "preexisting-tariff-profile-hunks-only",
+      "reason": "Edit/save current annual bill, subscription and tariff; preserve HC periods, full imported provenance and selected meter. Enedis UI, future-equipment, CRM planning changes excluded.",
+      "hunks": [
+        "@@ -66,0 +67 @@ import CustomSelect from \"./CustomSelect\";",
+        "@@ -357 +358 @@ export interface OverviewLead {",
+        "@@ -364,0 +366,2 @@ export interface OverviewLead {",
+        "@@ -500 +503 @@ interface OverviewTabProps {",
+        "@@ -653,4 +656 @@ export default function OverviewTab({",
+        "@@ -657,0 +658,4 @@ export default function OverviewTab({",
+        "@@ -721 +725 @@ export default function OverviewTab({",
+        "@@ -728,0 +733 @@ export default function OverviewTab({",
+        "@@ -972,0 +978 @@ export default function OverviewTab({",
+        "@@ -2059 +2065 @@ export default function OverviewTab({",
+        "@@ -2062,0 +2069 @@ export default function OverviewTab({",
+        "@@ -2066,2 +2073,2 @@ export default function OverviewTab({",
+        "@@ -2070 +2077 @@ export default function OverviewTab({",
+        "@@ -2092 +2099 @@ export default function OverviewTab({",
+        "@@ -2097 +2104 @@ export default function OverviewTab({",
+        "@@ -2135,0 +2143,4 @@ export default function OverviewTab({",
+        "@@ -2155,0 +2167,36 @@ export default function OverviewTab({"
+      ]
+    },
+    {
+      "path": "frontend/src/modules/leads/LeadDetail/__tests__/LeadMeterModal.profile.test.tsx",
+      "status": "added",
+      "classification": "preexisting-untracked-required-tariff-dependency",
+      "reason": "Edit/save current annual bill, subscription and tariff; preserve HC periods, full imported provenance and selected meter. Enedis UI, future-equipment, CRM planning changes excluded.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/modules/leads/LeadDetail/__tests__/currentElectricityBill.test.ts",
+      "status": "added",
+      "classification": "preexisting-untracked-required-tariff-dependency",
+      "reason": "Edit/save current annual bill, subscription and tariff; preserve HC periods, full imported provenance and selected meter. Enedis UI, future-equipment, CRM planning changes excluded.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/modules/leads/LeadDetail/__tests__/energyProfilePreservation.test.ts",
+      "status": "added",
+      "classification": "preexisting-untracked-required-tariff-dependency",
+      "reason": "Edit/save current annual bill, subscription and tariff; preserve HC periods, full imported provenance and selected meter. Enedis UI, future-equipment, CRM planning changes excluded.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/modules/leads/LeadDetail/__tests__/overviewSubscription.test.ts",
+      "status": "added",
+      "classification": "preexisting-untracked-required-tariff-dependency",
+      "reason": "Edit/save current annual bill, subscription and tariff; preserve HC periods, full imported provenance and selected meter. Enedis UI, future-equipment, CRM planning changes excluded.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/modules/leads/LeadDetail/currentElectricityBill.ts",
+      "status": "added",
+      "classification": "preexisting-untracked-required-tariff-dependency",
+      "reason": "Edit/save current annual bill, subscription and tariff; preserve HC periods, full imported provenance and selected meter. Enedis UI, future-equipment, CRM planning changes excluded.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/modules/leads/LeadDetail/overviewSave.ts",
+      "status": "modified",
+      "classification": "preexisting-tariff-profile-hunks-only",
+      "reason": "Edit/save current annual bill, subscription and tariff; preserve HC periods, full imported provenance and selected meter. Enedis UI, future-equipment, CRM planning changes excluded.",
+      "hunks": [
+        "@@ -46 +46 @@ export interface OverviewLeadSnapshot {",
+        "@@ -53,0 +54,2 @@ export interface OverviewLeadSnapshot {",
+        "@@ -103 +105,2 @@ export function applyMeterRowToLeadSnapshot(",
+        "@@ -105 +108 @@ export function applyMeterRowToLeadSnapshot(",
+        "@@ -118,0 +122,2 @@ export function applyMeterRowToLeadSnapshot(",
+        "@@ -123,0 +129,22 @@ export function applyMeterRowToLeadSnapshot(",
+        "@@ -137 +164 @@ export function buildMeterAutosavePayload(",
+        "@@ -174,0 +202,2 @@ export function buildConsumptionPayload("
+      ]
+    },
+    {
+      "path": "frontend/src/modules/pv/VirtualBatterySettings.tsx",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -118 +118 @@ export default function VirtualBatterySettings() {",
+        "@@ -123 +123,3 @@ export default function VirtualBatterySettings() {",
+        "@@ -127,0 +130,10 @@ export default function VirtualBatterySettings() {",
+        "@@ -188,0 +201,14 @@ export default function VirtualBatterySettings() {",
+        "@@ -283 +309 @@ function SegmentAccordion({",
+        "@@ -295,0 +322,41 @@ function SegmentAccordion({",
+        "@@ -301 +367,0 @@ function SegmentAccordion({",
+        "@@ -340,10 +405,0 @@ function SegmentAccordion({"
+      ]
+    },
+    {
+      "path": "frontend/src/modules/pv/__tests__/VirtualBatterySettings.supply.test.tsx",
+      "status": "added",
+      "classification": "preexisting-untracked-required-dependency",
+      "reason": "Imported billing labels, source/assumptions page or supplier setting regression needed by selected components.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/FullReport/PdfPage7HybridBattery.tsx",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -11,0 +12 @@ import { getCrmApiBaseWithWindowFallback } from \"@/config/crmApiBase\";",
+        "@@ -26,0 +28 @@ interface P7HybridBatteryData {",
+        "@@ -402 +404 @@ export default function PdfPage7HybridBattery({",
+        "@@ -405,2 +407 @@ export default function PdfPage7HybridBattery({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/FullReport/PdfPage7VehicleV2h.tsx",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -5,0 +6 @@ import { getCrmApiBaseWithWindowFallback } from \"@/config/crmApiBase\";",
+        "@@ -20,0 +22 @@ interface VehicleV2hPdfData {",
+        "@@ -240 +242 @@ export default function PdfPage7VehicleV2h({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/FullReport/PdfPage7VirtualBattery.tsx",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -8,0 +10 @@ import { getCrmApiBaseWithWindowFallback } from \"@/config/crmApiBase\";",
+        "@@ -23,0 +26 @@ interface P7VirtualBatteryData {",
+        "@@ -51 +54 @@ function fmtKwh(v: unknown): string {",
+        "@@ -124,0 +128,2 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -210,2 +215,2 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -215 +220 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -219 +224 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -222 +227 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -228,3 +233,2 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -233,3 +237,3 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -276,2 +280,2 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -294 +298 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -296 +300 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -301 +305 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -314 +318 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -319,2 +323,2 @@ export default function PdfPage7VirtualBattery({",
+        "@@ -326 +330 @@ export default function PdfPage7VirtualBattery({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/FullReport/PdfPage9.tsx",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -66 +66 @@ export default function PdfPage9({ data }: { data?: P9Data }) {"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/FullReport/components/ChartP9.tsx",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -15 +15 @@ export default function ChartP9({ scenario }: ChartP9Props) {",
+        "@@ -21 +21 @@ export default function ChartP9({ scenario }: ChartP9Props) {"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/ChartP5DayProfile.tsx",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -31,0 +32 @@ interface ChartP5DayProfileProps {",
+        "@@ -37,0 +39 @@ export default function ChartP5DayProfile({",
+        "@@ -50 +52 @@ export default function ChartP5DayProfile({",
+        "@@ -54 +56 @@ export default function ChartP5DayProfile({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/PdfPage1.tsx",
+      "status": "modified",
+      "classification": "mission-delta-mixed-with-required-billing-reference",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -32 +32 @@ export default function PdfPage1({",
+        "@@ -199 +199 @@ export default function PdfPage1({",
+        "@@ -231 +231 @@ export default function PdfPage1({",
+        "@@ -249,0 +250 @@ export default function PdfPage1({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/PdfPage10.tsx",
+      "status": "modified",
+      "classification": "mission-delta-mixed-with-required-billing-reference",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -272 +272 @@ export default function PdfPage10({",
+        "@@ -349 +349 @@ export default function PdfPage10({",
+        "@@ -375,0 +376 @@ export default function PdfPage10({",
+        "@@ -592 +593 @@ export default function PdfPage10({",
+        "@@ -594,3 +595,3 @@ export default function PdfPage10({",
+        "@@ -610 +611 @@ export default function PdfPage10({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/PdfPage11.tsx",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -74,0 +75 @@ export default function PdfPage11({",
+        "@@ -76,3 +77,6 @@ export default function PdfPage11({",
+        "@@ -81,4 +85,3 @@ export default function PdfPage11({",
+        "@@ -180 +183 @@ export default function PdfPage11({",
+        "@@ -185 +188 @@ export default function PdfPage11({",
+        "@@ -192 +195 @@ export default function PdfPage11({",
+        "@@ -194 +197 @@ export default function PdfPage11({",
+        "@@ -199 +202 @@ export default function PdfPage11({",
+        "@@ -203 +206 @@ export default function PdfPage11({",
+        "@@ -207 +210 @@ export default function PdfPage11({",
+        "@@ -248 +251 @@ export default function PdfPage11({",
+        "@@ -294 +297 @@ export default function PdfPage11({",
+        "@@ -297,2 +300,2 @@ export default function PdfPage11({",
+        "@@ -310,2 +313,2 @@ export default function PdfPage11({",
+        "@@ -323,2 +326,2 @@ export default function PdfPage11({",
+        "@@ -336,2 +339,2 @@ export default function PdfPage11({",
+        "@@ -347 +350 @@ export default function PdfPage11({",
+        "@@ -349,2 +352,2 @@ export default function PdfPage11({",
+        "@@ -359 +362 @@ export default function PdfPage11({",
+        "@@ -361,3 +364,3 @@ export default function PdfPage11({",
+        "@@ -366 +369 @@ export default function PdfPage11({",
+        "@@ -369 +372 @@ export default function PdfPage11({",
+        "@@ -399 +402 @@ export default function PdfPage11({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/PdfPage2.tsx",
+      "status": "modified",
+      "classification": "mission-delta-mixed-with-required-billing-reference",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -33,0 +34 @@ export default function PdfPage2({",
+        "@@ -43,2 +44,2 @@ export default function PdfPage2({",
+        "@@ -57 +58 @@ export default function PdfPage2({",
+        "@@ -67 +68 @@ export default function PdfPage2({",
+        "@@ -122 +123 @@ export default function PdfPage2({",
+        "@@ -186 +187 @@ export default function PdfPage2({",
+        "@@ -203 +204 @@ export default function PdfPage2({",
+        "@@ -207 +208 @@ export default function PdfPage2({",
+        "@@ -282 +283 @@ export default function PdfPage2({",
+        "@@ -369 +370 @@ export default function PdfPage2({",
+        "@@ -392 +393 @@ export default function PdfPage2({",
+        "@@ -403 +404 @@ export default function PdfPage2({",
+        "@@ -410 +411 @@ export default function PdfPage2({",
+        "@@ -417 +418 @@ export default function PdfPage2({",
+        "@@ -425 +426 @@ export default function PdfPage2({",
+        "@@ -523 +524 @@ export default function PdfPage2({",
+        "@@ -668 +669 @@ export default function PdfPage2({",
+        "@@ -771 +772 @@ export default function PdfPage2({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/PdfPage3.tsx",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -109 +109 @@ export default function PdfPage3({",
+        "@@ -318 +318 @@ export default function PdfPage3({",
+        "@@ -333,2 +333,2 @@ export default function PdfPage3({",
+        "@@ -339 +339 @@ export default function PdfPage3({",
+        "@@ -347,2 +347,2 @@ export default function PdfPage3({",
+        "@@ -365 +365 @@ export default function PdfPage3({",
+        "@@ -376 +376 @@ export default function PdfPage3({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/PdfPage4.tsx",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -36 +37 @@ function fmtKwh(v: number | null | undefined): string {",
+        "@@ -75,0 +77,2 @@ export interface P4Data {",
+        "@@ -181,2 +184,2 @@ export default function PdfPage4({",
+        "@@ -198 +201 @@ export default function PdfPage4({",
+        "@@ -201 +204 @@ export default function PdfPage4({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/PdfPage5.tsx",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -46,0 +47,2 @@ export default function PdfPage5({",
+        "@@ -53 +55 @@ export default function PdfPage5({",
+        "@@ -61 +63 @@ export default function PdfPage5({",
+        "@@ -208 +210 @@ export default function PdfPage5({",
+        "@@ -235 +237 @@ export default function PdfPage5({",
+        "@@ -237 +239 @@ export default function PdfPage5({",
+        "@@ -339 +341 @@ export default function PdfPage5({",
+        "@@ -343 +345 @@ export default function PdfPage5({",
+        "@@ -363,2 +365,2 @@ export default function PdfPage5({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/PdfPage6.tsx",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -54,0 +55 @@ export default function PdfPage6({",
+        "@@ -56 +57 @@ export default function PdfPage6({",
+        "@@ -133 +134 @@ export default function PdfPage6({",
+        "@@ -166 +167 @@ export default function PdfPage6({",
+        "@@ -173 +174 @@ export default function PdfPage6({",
+        "@@ -177 +178 @@ export default function PdfPage6({",
+        "@@ -181 +182 @@ export default function PdfPage6({",
+        "@@ -200 +201 @@ export default function PdfPage6({",
+        "@@ -212,2 +213,2 @@ export default function PdfPage6({",
+        "@@ -224,2 +225,2 @@ export default function PdfPage6({",
+        "@@ -253 +254 @@ export default function PdfPage6({",
+        "@@ -256 +257 @@ export default function PdfPage6({",
+        "@@ -270 +271 @@ export default function PdfPage6({",
+        "@@ -290,3 +291,3 @@ export default function PdfPage6({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/PdfPage7.tsx",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -10,0 +12 @@ import { getCrmApiBaseWithWindowFallback } from \"@/config/crmApiBase\";",
+        "@@ -36,0 +39 @@ interface P7Data {",
+        "@@ -59 +62 @@ function fmtKwh(v: number | null | undefined): string {",
+        "@@ -136 +139 @@ export default function PdfPage7({",
+        "@@ -138 +141,2 @@ export default function PdfPage7({",
+        "@@ -254 +258 @@ export default function PdfPage7({",
+        "@@ -293 +297 @@ export default function PdfPage7({",
+        "@@ -295 +299 @@ export default function PdfPage7({",
+        "@@ -362 +366 @@ export default function PdfPage7({",
+        "@@ -381 +385 @@ export default function PdfPage7({",
+        "@@ -387 +391 @@ export default function PdfPage7({",
+        "@@ -405 +409 @@ export default function PdfPage7({",
+        "@@ -408 +412 @@ export default function PdfPage7({",
+        "@@ -460 +464 @@ export default function PdfPage7({",
+        "@@ -470 +474 @@ export default function PdfPage7({",
+        "@@ -522 +526 @@ export default function PdfPage7({",
+        "@@ -524 +528 @@ export default function PdfPage7({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/PdfPage8.tsx",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -25 +25 @@ function getStorageUrl(",
+        "@@ -39,0 +40 @@ export default function PdfPage8({",
+        "@@ -80 +81 @@ export default function PdfPage8({",
+        "@@ -122 +123 @@ export default function PdfPage8({",
+        "@@ -160 +161 @@ export default function PdfPage8({"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/PdfPageVerifiedAssumptions.tsx",
+      "status": "added",
+      "classification": "preexisting-untracked-required-dependency",
+      "reason": "Imported billing labels, source/assumptions page or supplier setting regression needed by selected components.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/__tests__/pdfVerifiedProjection.test.tsx",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/index.tsx",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -106,0 +108 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/PdfLegacyPort/pdf-page11-premium.css",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -20 +20 @@",
+        "@@ -22 +22 @@",
+        "@@ -29 +29 @@",
+        "@@ -35 +35 @@",
+        "@@ -367,0 +368,15 @@"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/StudySnapshotPdfPage.tsx",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -15,0 +16 @@ import { getCrmApiBaseWithWindowFallback } from \"@/config/crmApiBase\";",
+        "@@ -41,0 +43 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version",
+        "@@ -87 +89 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version",
+        "@@ -88,0 +91,2 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version",
+        "@@ -90 +94,11 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version",
+        "@@ -92 +106,3 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version",
+        "@@ -122 +138 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/__tests__/studyPdfReadiness.test.ts",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/pdf/studyPdfReadiness.ts",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/studies/ScenariosPage.tsx",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -7 +7,2 @@",
+        "@@ -20,0 +22,9 @@ const API_BASE = getCrmApiBaseWithWindowFallback();",
+        "@@ -70,0 +81,16 @@ export default function ScenariosPage() {",
+        "@@ -84,0 +111 @@ export default function ScenariosPage() {",
+        "@@ -109 +136 @@ export default function ScenariosPage() {",
+        "@@ -111 +138 @@ export default function ScenariosPage() {",
+        "@@ -129 +156,13 @@ export default function ScenariosPage() {",
+        "@@ -130,0 +170,10 @@ export default function ScenariosPage() {",
+        "@@ -138,0 +188 @@ export default function ScenariosPage() {",
+        "@@ -143 +193 @@ export default function ScenariosPage() {",
+        "@@ -154,0 +205 @@ export default function ScenariosPage() {",
+        "@@ -155,0 +207,2 @@ export default function ScenariosPage() {",
+        "@@ -156,0 +210 @@ export default function ScenariosPage() {",
+        "@@ -158 +212 @@ export default function ScenariosPage() {",
+        "@@ -162,2 +216 @@ export default function ScenariosPage() {",
+        "@@ -169,0 +223,3 @@ export default function ScenariosPage() {",
+        "@@ -171,11 +227,4 @@ export default function ScenariosPage() {",
+        "@@ -184,2 +233,3 @@ export default function ScenariosPage() {",
+        "@@ -187 +237,48 @@ export default function ScenariosPage() {",
+        "@@ -190,0 +288,2 @@ export default function ScenariosPage() {",
+        "@@ -201,0 +301,8 @@ export default function ScenariosPage() {",
+        "@@ -646 +753 @@ export default function ScenariosPage() {",
+        "@@ -652 +759,2 @@ export default function ScenariosPage() {",
+        "@@ -654 +762,3 @@ export default function ScenariosPage() {",
+        "@@ -658 +768 @@ export default function ScenariosPage() {",
+        "@@ -661 +771 @@ export default function ScenariosPage() {",
+        "@@ -699 +809 @@ export default function ScenariosPage() {",
+        "@@ -743 +853 @@ export default function ScenariosPage() {",
+        "@@ -787 +897 @@ export default function ScenariosPage() {",
+        "@@ -797 +907 @@ export default function ScenariosPage() {",
+        "@@ -801,0 +912,9 @@ export default function ScenariosPage() {",
+        "@@ -807 +926 @@ export default function ScenariosPage() {",
+        "@@ -817 +936 @@ export default function ScenariosPage() {",
+        "@@ -832 +951 @@ export default function ScenariosPage() {"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/studies/StudyQuoteBuilder.tsx",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -0,0 +1,2 @@",
+        "@@ -259,0 +262,4 @@ interface FinancingConfig {",
+        "@@ -262,0 +269,3 @@ interface EconomicData {",
+        "@@ -291,0 +301 @@ interface QuotePrepResponse {",
+        "@@ -322 +332 @@ function mergeFinancing(raw: Partial<FinancingConfig> | null | undefined, totals",
+        "@@ -326 +336 @@ function mergeFinancing(raw: Partial<FinancingConfig> | null | undefined, totals",
+        "@@ -980,0 +991,3 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1040,0 +1054 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1116,2 +1130,6 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1136 +1154 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1138,3 +1156 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1141,0 +1158,2 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1144 +1162 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1147 +1165,4 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1148,0 +1170 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1209 +1231 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1221 +1243 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1246 +1268,3 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1249 +1273 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1272,0 +1297,2 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1277 +1303 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1519,0 +1546 @@ export default function StudyQuoteBuilder() {",
+        "@@ -1557,0 +1585,3 @@ export default function StudyQuoteBuilder() {",
+        "@@ -2040,0 +2071,2 @@ export default function StudyQuoteBuilder() {",
+        "@@ -2042,0 +2075,2 @@ export default function StudyQuoteBuilder() {",
+        "@@ -2080 +2114 @@ export default function StudyQuoteBuilder() {",
+        "@@ -2106 +2140 @@ export default function StudyQuoteBuilder() {"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/studies/__tests__/ScenariosPage.freshness.test.tsx",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/studies/__tests__/ScenariosPage.history.test.tsx",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/studies/__tests__/ScenariosPage.safety.test.tsx",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -3 +3 @@",
+        "@@ -93,2 +93,2 @@ describe(\"ScenariosPage — front de sécurité\", () => {",
+        "@@ -117 +117,2 @@ describe(\"ScenariosPage — front de sécurité\", () => {",
+        "@@ -134 +135 @@ describe(\"ScenariosPage — front de sécurité\", () => {",
+        "@@ -151 +152 @@ describe(\"ScenariosPage — front de sécurité\", () => {"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/studies/__tests__/StudyQuoteBuilder.saving.test.tsx",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/src/pages/studies/__tests__/StudyQuoteBuilder.test.tsx",
+      "status": "modified",
+      "classification": "mission-only",
+      "reason": "Calculations UI, saved-quote acknowledgement, freshness/history, OA, phase, signed horizon/financing PDF or projection traceability.",
+      "hunks": [
+        "@@ -9,0 +10 @@ import { MemoryRouter, Route, Routes } from \"react-router-dom\";",
+        "@@ -17 +18,2 @@ describe(\"StudyQuoteBuilder\", () => {"
+      ]
+    },
+    {
+      "path": "frontend/src/types/pvVirtualBatterySettings.ts",
+      "status": "modified",
+      "classification": "preexisting-required-dependency",
+      "reason": "Reference-energy/TTC supplier billing compatibility with new mapper; read-only PDF rendering; provenance/assumptions rendering; dated supplier settings.",
+      "hunks": [
+        "@@ -3 +3 @@",
+        "@@ -20,0 +21 @@ export interface VirtualBatteryRow {"
+      ]
+    },
+    {
+      "path": "frontend/tests/vitePdfAssets.test.mjs",
+      "status": "added",
+      "classification": "mission-new",
+      "reason": "New calculation safety / presentation functionality and behavioral regressions.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "frontend/vite.config.ts",
+      "status": "modified",
+      "classification": "mission-hunk-only",
+      "reason": "SPA fallback file-extension regex mjs? -> m?js only. Preexisting Google Maps production guard excluded.",
+      "hunks": [
+        "@@ -271 +271 @@ export default defineConfig(({ mode }) => {"
+      ]
+    },
+    {
+      "path": "infrastructure/docs/restore.md",
+      "status": "modified",
+      "classification": "release-secret-redaction",
+      "reason": "Remove a preexisting secret literal from the delivered snapshot; original working directory and Git history unchanged.",
+      "hunks": [
+        "@@ -208 +208 @@ EOF"
+      ]
+    },
+    {
+      "path": "shared/currentElectricitySubscription.d.ts",
+      "status": "added",
+      "classification": "required_energy_tariff_pdf_shared_contract",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "shared/currentElectricitySubscription.js",
+      "status": "added",
+      "classification": "required_energy_tariff_pdf_shared_contract",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "shared/electricityBillDisplay.d.ts",
+      "status": "added",
+      "classification": "required_energy_tariff_pdf_shared_contract",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "shared/electricityBillDisplay.js",
+      "status": "added",
+      "classification": "required_energy_tariff_pdf_shared_contract",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "shared/studyDisplay.d.ts",
+      "status": "added",
+      "classification": "required_energy_tariff_pdf_shared_contract",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "shared/studyDisplay.js",
+      "status": "added",
+      "classification": "required_energy_tariff_pdf_shared_contract",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "New file"
+      ]
+    },
+    {
+      "path": "shared/urbanSolarVirtualBatteryTariffs2026.d.ts",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -1,0 +2 @@ export interface UrbanSolarVirtualBatteryTariffs20260801 {",
+        "@@ -3,0 +5,4 @@ export interface UrbanSolarVirtualBatteryTariffs20260801 {",
+        "@@ -28 +33,3 @@ export function urbanSolarNearestKva(meterKva: number): number;"
+      ]
+    },
+    {
+      "path": "shared/urbanSolarVirtualBatteryTariffs2026.js",
+      "status": "modified",
+      "classification": "mission_pure",
+      "reason": "Mission or required tariff/calculation dependency, checked against the preserved pre-implementation baseline.",
+      "hunks": [
+        "@@ -1,0 +2 @@ export const URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01 = Object.freeze({",
+        "@@ -3,0 +5,5 @@ export const URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01 = Object.freeze({",
+        "@@ -13,0 +20,13 @@ export const URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01 = Object.freeze({",
+        "@@ -54,0 +74,17 @@ export const URBAN_SOLAR_VIRTUAL_BATTERY_TARIFFS_2026_08_01 = Object.freeze({",
+        "@@ -63 +98,0 @@ export function urbanSolarNearestKva(meterKva) {"
+      ]
+    }
+  ]
+}

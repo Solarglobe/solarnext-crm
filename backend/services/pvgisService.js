@@ -1,3 +1,4 @@
+import {fetchPvgisMonthlyReference} from './pvgisMonthlyCache.service.js';
 // ======================================================================
 // SMARTPITCH — PVGIS SERVICE (Solarglobe 2025)
 // ----------------------------------------------------------------------
@@ -8,7 +9,6 @@
 // ✔ Température et IAM : déjà dans PVGIS ERA5 — aucun double comptage
 // ======================================================================
 
-import fetch from "node-fetch";
 import logger from "../app/core/logger.js";
 import { recordPvgisApiCall } from "../app/core/metrics.js";
 import { round } from "./utils/helpers.js";
@@ -31,7 +31,6 @@ import {
   PVGIS_FALLBACK_DC_KWH_KWP_CENTER,
   PVGIS_FALLBACK_DC_KWH_KWP_SW,
   PVGIS_FALLBACK_DC_KWH_KWP_SE,
-  PVGIS_FETCH_TIMEOUT_MS,
   PVGIS_DEFAULT_TILT_DEG,
 } from "./core/engineConstants.js";
 
@@ -82,11 +81,6 @@ function getFallbackAnnualDcKwhPerKwp(lat, lon) {
   return ref;
 }
 
-function timeout(ms) {
-  return new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("PVGIS timeout")), ms)
-  );
-}
 
 export async function computeProductionMonthly(ctx) {
   const { lat, lon, orientation, inclinaison } = ctx.site;
@@ -111,16 +105,12 @@ export async function computeProductionMonthly(ctx) {
 
   logger.info("PVGIS_PVCALC_REQUEST", { context: { calculationType: "shading" } });
 
-  let js = null;
+  let js = null,reference=null;
 
   try {
-    const res = await Promise.race([fetch(url), timeout(PVGIS_FETCH_TIMEOUT_MS)]);
-    recordPvgisApiCall(res.ok ? "ok" : String(res.status));
-    if (!res.ok) {
-      console.error("❌ PVGIS HTTP ERROR:", res.status);
-      throw new Error("PVGIS HTTP " + res.status);
-    }
-    js = await res.json();
+    reference=await fetchPvgisMonthlyReference(url,{offline:ctx.settings?.calculation_offline===true});
+    js=reference.data;
+    recordPvgisApiCall('ok');
   } catch (err) {
     recordPvgisApiCall("error");
     logger.error("PVGIS_FETCH_ERROR", { error: err });
@@ -139,7 +129,7 @@ export async function computeProductionMonthly(ctx) {
   // ===================================================================
   const monthly_raw_kwh = months.map(m => {
     const val = Number(m?.E_m ?? 0);
-    return val > 0 ? round(val, 0) : 0;
+    return val > 0 ? val : 0;
   });
 
   const annual_raw_kwh = monthly_raw_kwh.reduce((a, b) => a + b, 0);
@@ -168,6 +158,7 @@ export async function computeProductionMonthly(ctx) {
   const annual_ac_kwh = monthly_ac_kwh.reduce((a, b) => a + b, 0);
 
   return {
+    reference:reference?{key:reference.key,data_hash:reference.data_hash,url:reference.url,retrieved_at:reference.retrieved_at}:null,
     monthly_raw_kwh,
     annual_raw_kwh,
     monthly_kwh: monthly_ac_kwh,
@@ -232,9 +223,9 @@ function convertOrientation(o) {
 }
 
 /** Azimut degrés (0=N, 90=E, 180=S) → PVGIS aspect (0=South, 90=West, -90=East). */
-function azimuthDegToPvgisAspect(azimuthDeg) {
+export function azimuthDegToPvgisAspect(azimuthDeg) {
   if (typeof azimuthDeg !== "number" || !Number.isFinite(azimuthDeg)) return 0;
-  let aspect = 180 - azimuthDeg;
+  let aspect = azimuthDeg - 180;
   if (aspect > 180) aspect -= 360;
   if (aspect < -180) aspect += 360;
   return aspect;
@@ -273,11 +264,10 @@ export async function computeProductionMonthlyForOrientation(ctx, azimuthDeg, ti
     `&raddatabase=PVGIS-ERA5` +
     `&outputformat=json`;
 
-  let js = null;
+  let js = null,reference=null;
   try {
-    const res = await Promise.race([fetch(url), timeout(PVGIS_FETCH_TIMEOUT_MS)]);
-    if (!res.ok) throw new Error("PVGIS HTTP " + res.status);
-    js = await res.json();
+    reference=await fetchPvgisMonthlyReference(url,{offline:ctx.settings?.calculation_offline===true});
+    js=reference.data;
   } catch (err) {
     return fallbackPVForOrientation(ctx, azimuthDeg, tiltDeg);
   }
@@ -289,16 +279,17 @@ export async function computeProductionMonthlyForOrientation(ctx, azimuthDeg, ti
 
   const monthly_raw_kwh = months.map(m => {
     const val = Number(m?.E_m ?? 0);
-    return val > 0 ? round(val, 0) : 0;
+    return val > 0 ? val : 0;
   });
   const annual_raw_kwh = monthly_raw_kwh.reduce((a, b) => a + b, 0);
 
   const { factorAC } = _computeFactorAC(ctx);
 
-  const monthly_ac_kwh = monthly_raw_kwh.map(v => round(v * factorAC, 0));
+  const monthly_ac_kwh = monthly_raw_kwh.map(v => v * factorAC);
   const annual_ac_kwh = monthly_ac_kwh.reduce((a, b) => a + b, 0);
 
   return {
+    reference:reference?{key:reference.key,data_hash:reference.data_hash,url:reference.url,retrieved_at:reference.retrieved_at}:null,
     monthly_raw_kwh,
     annual_raw_kwh,
     monthly_kwh: monthly_ac_kwh,
@@ -309,6 +300,7 @@ export async function computeProductionMonthlyForOrientation(ctx, azimuthDeg, ti
 function fallbackPVForOrientation(ctx, azimuthDeg, tiltDeg) {
   const out = fallbackPV(ctx);
   return {
+    source:out.source??'FALLBACK_ESTIMATE',
     monthly_raw_kwh: out.monthly_raw_kwh,
     annual_raw_kwh: out.annual_raw_kwh,
     monthly_kwh: out.monthly_kwh,

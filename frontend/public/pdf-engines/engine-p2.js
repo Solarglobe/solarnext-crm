@@ -28,7 +28,7 @@
   }
 
   /** Progression 5/10/15/20/25 ans : ratios 20%, 40%, 60%, 80%, 100% */
-  const RATIOS = { 5: 0.2, 10: 0.4, 15: 0.6, 20: 0.8, 25: 1 };
+
 
   function renderP2(payload) {
     if (!payload || !payload.p2_auto) {
@@ -39,6 +39,7 @@
     }
 
     const a = payload.p2_auto;
+    const horizon=Number(String(a.p2_horizon||"25").match(/\d+/)?.[0])||25;
 
     // META
     set("p2_client", a.p2_client);
@@ -55,16 +56,17 @@
       // p2_eco_5..25 calculés depuis la vraie série de flux indexée (baseline commune
       // à toutes les variantes). La règle de trois (RATIOS) ne sert plus que de
       // fallback pour les payloads antérieurs au correctif.
-      const sansExplicit = parseEur(a["p2_sans_" + y]);
-      const avecExplicit = parseEur(a["p2_avec_" + y]);
-      const ecoExplicit = parseEur(a["p2_eco_" + y]);
+      const effectiveYear=y===25?horizon:Math.min(y,horizon);
+      const sansExplicit = parseEur(a["p2_sans_" + effectiveYear]);
+      const avecExplicit = parseEur(a["p2_avec_" + effectiveYear]);
+      const ecoExplicit = parseEur(a["p2_eco_" + effectiveYear]);
       if (sansExplicit != null && avecExplicit != null && ecoExplicit != null) {
         set("p2_sans_" + y, formatEur(sansExplicit));
         set("p2_avec_" + y, formatEur(avecExplicit));
         set("p2_eco_" + y, formatEur(ecoExplicit));
         return;
       }
-      const r = RATIOS[y];
+      const r = effectiveYear/horizon;
       set("p2_sans_" + y, formatEur(sans25 != null ? Math.round(sans25 * r) : null));
       set("p2_avec_" + y, formatEur(avec25 != null ? Math.round(avec25 * r) : null));
       set("p2_eco_" + y, formatEur(eco25 != null ? Math.round(eco25 * r) : null));

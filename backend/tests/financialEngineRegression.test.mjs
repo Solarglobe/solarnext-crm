@@ -4,6 +4,7 @@ import test from "node:test";
 
 import { FINANCIAL_ENGINE_VERSION, ENGINE_VERSION } from "../constants/engineVersion.js";
 import { computeFinance } from "../services/financeService.js";
+import { referenceFlatProject } from "./helpers/financeProjectionReference.mjs";
 import {
   buildFinancialRegressionReport,
   compareFinancialScenarioResults,
@@ -28,7 +29,7 @@ function assertWithinRelativeTolerance(actual, expected, label, tolerancePct = 0
 test("financial engine version is semver and kept as the legacy ENGINE_VERSION alias", () => {
   assert.match(FINANCIAL_ENGINE_VERSION, /^\d+\.\d+\.\d+$/);
   assert.equal(ENGINE_VERSION, FINANCIAL_ENGINE_VERSION);
-  assert.equal(FINANCIAL_ENGINE_VERSION, "2.1.0");
+  assert.equal(FINANCIAL_ENGINE_VERSION, "2.2.1");
 });
 
 test("financial engine regression fixtures stay within 0.01 percent", async () => {
@@ -49,7 +50,9 @@ test("financial engine regression fixtures stay within 0.01 percent", async () =
     for (const [scenarioId, expected] of Object.entries(fixture.expected)) {
       const actual = out.scenarios[scenarioId];
       assert.ok(actual, `${fixture.name}.${scenarioId} missing`);
+      const independent = referenceFlatProject(fixture.ctx, fixture.scenarios[scenarioId]);
       for (const [key, expectedValue] of Object.entries(expected)) {
+        assertWithinRelativeTolerance(independent[key], expectedValue, `${fixture.name}.${scenarioId}.${key} independent reference`);
         assertWithinRelativeTolerance(actual[key], expectedValue, `${fixture.name}.${scenarioId}.${key}`);
       }
     }

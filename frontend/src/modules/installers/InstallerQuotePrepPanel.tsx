@@ -134,6 +134,9 @@ export default function InstallerQuotePrepPanel({
   locked,
   value,
   onPersisted,
+  detectedPhase=null,
+  phaseDecision,
+  onPhaseDecision,
   saveToQuotePrep = true,
   allowManualPower = false,
   autoCompute = true,
@@ -146,6 +149,9 @@ export default function InstallerQuotePrepPanel({
   locked: boolean;
   value?: InstallerCostResult | null;
   onPersisted: (result: InstallerCostResult | null) => void;
+  detectedPhase?: ElectricalType|null;
+  phaseDecision?:{detected_phase:ElectricalType|null;retained_phase:ElectricalType|null;difference_confirmed:boolean};
+  onPhaseDecision?:(decision:{detected_phase:ElectricalType|null;retained_phase:ElectricalType|null;difference_confirmed:boolean})=>void;
   saveToQuotePrep?: boolean;
   allowManualPower?: boolean;
   autoCompute?: boolean;
@@ -155,7 +161,12 @@ export default function InstallerQuotePrepPanel({
   const [installers, setInstallers] = useState<InstallerListRow[]>([]);
   const [installerId, setInstallerId] = useState(value?.installer?.id ?? "");
   const [installationType, setInstallationType] = useState<InstallationType>(value?.installation_type ?? "ROOF_SUPERIMPOSED");
-  const [electricalType, setElectricalType] = useState<ElectricalType>(value?.electrical_type ?? "MONO");
+  const [electricalType, setElectricalType] = useState<ElectricalType|"">(value?.electrical_type ?? "");
+  const [phaseConfirmed,setPhaseConfirmed]=useState(phaseDecision?.difference_confirmed===true && phaseDecision?.detected_phase===detectedPhase && phaseDecision?.retained_phase===value?.electrical_type);
+  const phaseCallbackRef=useRef(onPhaseDecision);
+  phaseCallbackRef.current=onPhaseDecision;
+  useEffect(()=>{phaseCallbackRef.current?.({detected_phase:detectedPhase,retained_phase:electricalType||null,difference_confirmed:phaseConfirmed});},[detectedPhase,electricalType,phaseConfirmed]);
+  useEffect(()=>{setPhaseConfirmed(phaseDecision?.difference_confirmed===true && phaseDecision.detected_phase===detectedPhase && phaseDecision.retained_phase===electricalType);},[detectedPhase,electricalType,phaseDecision?.difference_confirmed,phaseDecision?.detected_phase,phaseDecision?.retained_phase]);
   const [selectedOptions, setSelectedOptions] = useState<string[]>(value?.options?.map((o) => o.code) ?? []);
   const [cableOverrideEnabled, setCableOverrideEnabled] = useState(Boolean(value?.option_overrides?.some((o) => o.code === "CABLE_AND_CONNECTION")));
   const [cableOverride, setCableOverride] = useState(
@@ -222,7 +233,8 @@ export default function InstallerQuotePrepPanel({
         : null;
 
   const computeAndPersist = useCallback(async () => {
-    if (locked || !installerId || !effectiveProjectPowerWc || effectiveProjectPowerWc <= 0) return;
+    if (locked || !installerId || !effectiveProjectPowerWc || effectiveProjectPowerWc <= 0 || !electricalType) return;
+    if(detectedPhase && detectedPhase!==electricalType && !phaseConfirmed) { setError("Confirmez la différence entre phase détectée et phase technique retenue."); return; }
     if (manualOverrideEnabled && !manualReason.trim()) {
       setError("Le motif est obligatoire pour une modification manuelle globale.");
       return;
@@ -277,6 +289,8 @@ export default function InstallerQuotePrepPanel({
     effectiveProjectPowerWc,
     installationType,
     electricalType,
+    detectedPhase,
+    phaseConfirmed,
     optionInputs,
     manualOverrideEnabled,
     manualOverride,
@@ -349,7 +363,8 @@ export default function InstallerQuotePrepPanel({
         </label>
         <label className="installers-field">
           Électrique
-          <select className="installers-select" value={electricalType} disabled={locked} onChange={(e) => setElectricalType(e.target.value as ElectricalType)}>
+          <select className="installers-select" value={electricalType} disabled={locked} onChange={(e) => {setElectricalType(e.target.value as ElectricalType);setPhaseConfirmed(false);}}>
+            <option value="">Choisir la phase technique retenue</option>
             {ELECTRICAL_TYPES.map((type) => <option key={type} value={type}>{ELECTRICAL_TYPE_LABELS[type]}</option>)}
           </select>
         </label>
@@ -438,6 +453,8 @@ export default function InstallerQuotePrepPanel({
         </Button>
       ) : null}
       {computing ? <p className="installers-muted">Calcul installateur...</p> : null}
+      <p>Phase détectée au compteur : {detectedPhase?ELECTRICAL_TYPE_LABELS[detectedPhase]:"non renseignée"}. Phase technique retenue : {electricalType?ELECTRICAL_TYPE_LABELS[electricalType]:"à choisir"}.</p>
+      {detectedPhase && electricalType && detectedPhase!==electricalType && <label role="alert"><input type="checkbox" disabled={locked} checked={phaseConfirmed} onChange={e=>setPhaseConfirmed(e.target.checked)}/>Je confirme la phase technique retenue malgré la différence avec le compteur.</label>}
       {error ? <div className="installer-quote-error">{error}</div> : null}
       {result ? <InstallerCostSummary result={result} /> : null}
       {!locked && result ? <Button onClick={() => showCrmInlineToast("Calcul installateur sauvegardé dans la préparation.", "success")}>Calcul sauvegardé</Button> : null}

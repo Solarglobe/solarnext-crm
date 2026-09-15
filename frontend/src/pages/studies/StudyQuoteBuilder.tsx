@@ -1,3 +1,5 @@
+import VirtualStorageContractSettings, {type VirtualStorageContract} from "../../components/study/VirtualStorageContractSettings";
+import FinanceProjectionSettings, {type FinanceProjection} from "../../components/study/FinanceProjectionSettings";
 /**
  * Préparation du devis technique — quote-builder (page existante refondue).
  * Route : /studies/:studyId/quote-builder
@@ -257,9 +259,16 @@ interface FinancingConfig {
   amount: number;
   duration_months: number;
   interest_rate_annual: number;
+  taeg_pct?:number|null;
+  insurance_eur?:number|null;
+  application_fee_eur?:number|null;
+  other_costs_eur?:number|null;
 }
 
 interface EconomicData {
+  finance_projection?: FinanceProjection;
+  simulation_contract?: VirtualStorageContract;
+  electrical_phase_decision?: {detected_phase:"MONO"|"TRI"|null;retained_phase:"MONO"|"TRI"|null;difference_confirmed:boolean};
   items: QuotePrepItem[];
   batteries: { physical: BatteryOption; virtual: BatteryOption };
   conditions: {
@@ -289,6 +298,7 @@ interface QuotePrepResponse {
   } | null;
   study_version_id: string;
   lead_meter_power_kva?: number;
+  detected_grid_phase?: "MONO"|"TRI"|null;
   /** Type de client : PRO → TVA 20% forcée sur toutes les lignes */
   lead_customer_type?: "PERSON" | "PRO";
   lead_siret?: string | null;
@@ -319,11 +329,11 @@ function mergeFinancing(raw: Partial<FinancingConfig> | null | undefined, totals
   const duration = Math.max(0, Number(f.duration_months) || 0);
   const rate = Number(f.interest_rate_annual);
   const rateOk = Number.isFinite(rate) ? rate : 0;
-  const enabled = duration > 0 && rateOk > 0;
+  const enabled = duration > 0 && Number.isFinite(rate) && rateOk >= 0;
   let amount = Number(f.amount);
   if (!Number.isFinite(amount) || amount < 0) amount = 0;
   if (enabled && amount <= 0 && totalsTtc > 0) amount = totalsTtc;
-  return { enabled, amount, duration_months: duration, interest_rate_annual: rateOk };
+  return { ...f, enabled, amount, duration_months: duration, interest_rate_annual: rateOk };
 }
 
 const DEFAULT_VAT_RATE = 20;
@@ -978,6 +988,9 @@ export default function StudyQuoteBuilder() {
   const [status, setStatus] = useState<"DRAFT" | "READY_FOR_STUDY">("DRAFT");
   const [snapshotVersion, setSnapshotVersion] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string|null>(null);
+  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const [detectedPhase,setDetectedPhase] = useState<"MONO"|"TRI"|null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canSaveRef = useRef(false);
@@ -1038,6 +1051,7 @@ export default function StudyQuoteBuilder() {
         technicalSummaryToPayload(prep.technical_snapshot_summary)
       );
       setLeadMeterPowerKva(prep.lead_meter_power_kva ?? 9);
+      setDetectedPhase(prep.detected_grid_phase??null);
       const resolvedCustomerType = prep.lead_customer_type ?? "PERSON";
       setLeadCustomerType(resolvedCustomerType);
       setOrgPvVirtualBattery(prep.organization_pv_virtual_battery ?? null);
@@ -1113,8 +1127,12 @@ export default function StudyQuoteBuilder() {
   }, []);
 
   const persistDraft = useCallback(
-    async (data: EconomicData) => {
-      if (!studyId || !versionId || locked) return;
+    async (data: EconomicData): Promise<string> => {
+      if (!studyId || !versionId || locked) throw new Error("Devis non modifiable");
+      const previousSave=saveQueueRef.current;
+      let releaseSave:()=>void=()=>{};
+      saveQueueRef.current=new Promise<void>(resolve=>{releaseSave=resolve;});
+      await previousSave.catch(()=>{});
       setSaving(true);
       setSaveStatus("saving");
       try {
@@ -1133,19 +1151,23 @@ export default function StudyQuoteBuilder() {
           `${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/quote-prep`,
           { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
         );
-        const body = await res.json().catch(() => ({})) as { error?: string; version_number?: number };
+        const body = await res.json().catch(() => ({})) as { error?: string; version_number?: number; saved_quote_fingerprint?:string };
         if (!res.ok) {
-          setSaveStatus("error");
-          showToast(body.error || `Erreur ${res.status}`, false);
-          return;
+          throw new Error(body.error || `Erreur ${res.status}`);
         }
+        if(!body.saved_quote_fingerprint) throw new Error("Sauvegarde sans référence vérifiable : relancez l’enregistrement.");
+        setSaveError(null);
         setSnapshotVersion(body.version_number ?? snapshotVersion ?? null);
         setSaveStatus("saved");
-        setTimeout(() => setSaveStatus("idle"), 2000);
+        return body.saved_quote_fingerprint;
       } catch (e) {
         setSaveStatus("error");
-        showToast(e instanceof Error ? e.message : "Erreur sauvegarde", false);
+        const message=e instanceof Error?e.message:"Erreur sauvegarde";
+        setSaveError(message);
+        showToast(message, false);
+        throw e;
       } finally {
+        releaseSave();
         setSaving(false);
       }
     },
@@ -1206,7 +1228,7 @@ export default function StudyQuoteBuilder() {
     if (!canSaveRef.current || locked || !versionId) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      persistDraft(economic);
+      void persistDraft(economic).catch(()=>{});
       debounceRef.current = null;
     }, 800);
     return () => {
@@ -1218,7 +1240,7 @@ export default function StudyQuoteBuilder() {
   useEffect(() => {
     if (locked) return;
     const f = economic.financing ?? DEFAULT_FINANCING;
-    const active = (f.duration_months ?? 0) > 0 && (f.interest_rate_annual ?? 0) > 0;
+    const active = (f.duration_months ?? 0) > 0 && (f.interest_rate_annual ?? 0) >= 0;
     if (!active || totalsForSync.ttc <= 0) return;
     if ((f.amount ?? 0) > 0) return;
     setEconomic((d) => ({
@@ -1243,10 +1265,12 @@ export default function StudyQuoteBuilder() {
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
-      await persistDraft(economic);
+      const phase=economic.electrical_phase_decision;
+      if(detectedPhase && (!phase?.retained_phase || (phase.retained_phase!==detectedPhase && !phase.difference_confirmed))) throw new Error("Confirmez la phase technique retenue et toute différence avec la phase détectée.");
+      const savedFingerprint=await persistDraft(economic);
       const res = await apiFetch(
         `${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/validate-devis-technique`,
-        { method: "POST", headers: { "Content-Type": "application/json" } }
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({expected_quote_fingerprint:savedFingerprint}) }
       );
       const body = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -1270,11 +1294,13 @@ export default function StudyQuoteBuilder() {
         showToast(confirmationMessage, true, { variant: "premium", durationMs: 5200 });
         navigate(`/studies/${studyId}`);
       }
+    } catch(e) {
+      setSaveError(e instanceof Error?e.message:"Validation impossible");
     } finally {
       setValidatingDevis(false);
       setSaving(false);
     }
-  }, [studyId, versionId, locked, validatingDevis, navigate, persistDraft, economic]);
+  }, [studyId, versionId, locked, validatingDevis, navigate, persistDraft, economic, detectedPhase]);
 
   /**
    * Gate marge négative : calcule la marge courante et affiche la confirmation
@@ -1517,6 +1543,7 @@ export default function StudyQuoteBuilder() {
         </div>
       </header>
 
+      {saveError && <p role="alert" className="sn-badge sn-badge-danger">{saveError} Vos modifications restent dans le formulaire.</p>}
       <div className="sqb-workbench sn-card">
         {studyId && versionId && (
           <>
@@ -1555,6 +1582,9 @@ export default function StudyQuoteBuilder() {
               versionId={versionId}
               projectPowerWc={installerProjectPowerWc}
               locked={locked}
+              detectedPhase={detectedPhase}
+              phaseDecision={economic.electrical_phase_decision}
+              onPhaseDecision={decision=>setEconomic(prev=>JSON.stringify(prev.electrical_phase_decision)===JSON.stringify(decision)?prev:{...prev,electrical_phase_decision:decision})}
               value={economic.installer_cost ?? null}
               onPersisted={handleInstallerCostPersisted}
             />
@@ -2038,8 +2068,12 @@ export default function StudyQuoteBuilder() {
             </p>
           </section>
 
+          <FinanceProjectionSettings value={economic.finance_projection} disabled={locked} onChange={value=>setEconomic(prev=>({...prev,finance_projection:value}))}/>
+          <VirtualStorageContractSettings value={economic.simulation_contract} disabled={locked} onChange={value=>setEconomic(prev=>({...prev,simulation_contract:value}))}/>
           <section className="sqb-section sqb-section--financing sqb-financing">
           <h2 className="sqb-h2">Financement</h2>
+          <p>ROI et TRI principaux mesurent le projet avant crédit. Financement indicatif tant que les frais et l’assurance ne sont pas renseignés ; saisir 0 lorsqu’ils sont confirmés nuls.</p>
+          <div className="sqb-financing-inline">{([["taeg_pct","TAEG communiqué (%)"],["insurance_eur","Assurance totale sur la durée (€)"],["application_fee_eur","Frais de dossier (€)"],["other_costs_eur","Autres coûts du crédit (€)"]] as const).map(([key,label])=><label key={key}>{label}<input className="sn-input" type="number" step="0.01" min="0" disabled={locked} value={economic.financing?.[key]??""} placeholder="Non renseigné" onChange={e=>setEconomic(prev=>({...prev,financing:{...DEFAULT_FINANCING,...prev.financing,[key]:e.target.value===""?null:Number(e.target.value)}}))}/></label>)}</div>
           <div className="sqb-financing-panel">
           <div className="sqb-financing-inline">
             <label className="sqb-label sqb-field-inline">
@@ -2077,7 +2111,7 @@ export default function StudyQuoteBuilder() {
                     const months = Math.max(0, Math.floor(n));
                     const next = { ...DEFAULT_FINANCING, ...d.financing, duration_months: months };
                     const ttc = computeTotals(d).ttc;
-                    const active = months > 0 && (next.interest_rate_annual ?? 0) > 0;
+                    const active = months > 0 && (next.interest_rate_annual ?? 0) >= 0;
                     if (active && (next.amount ?? 0) <= 0 && ttc > 0) next.amount = ttc;
                     return { ...d, financing: next };
                   })
@@ -2103,7 +2137,7 @@ export default function StudyQuoteBuilder() {
                       interest_rate_annual: Math.max(0, n),
                     };
                     const ttc = computeTotals(d).ttc;
-                    const active = (next.duration_months ?? 0) > 0 && (next.interest_rate_annual ?? 0) > 0;
+                    const active = (next.duration_months ?? 0) > 0 && (next.interest_rate_annual ?? 0) >= 0;
                     if (active && (next.amount ?? 0) <= 0 && ttc > 0) next.amount = ttc;
                     return { ...d, financing: next };
                   })

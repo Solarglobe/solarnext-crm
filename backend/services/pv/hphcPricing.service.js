@@ -1,3 +1,4 @@
+import {isEnergyYear,getCalendar} from '../energyCalendar.service.js';
 /**
  * LOT3-HPHC-VALO — Valorisation HP/HC des économies par « prix effectifs » (p_eff).
  *
@@ -11,12 +12,15 @@
  * Ces p_eff remplacent le prix plat dans financeService — UNIQUEMENT quand sc.pricing existe
  * (contrat HPHC + prix HP/HC saisis fiche compteur). Sinon : comportement historique inchangé.
  *
- * Les p_eff restent exacts sur 25 ans : HP et HC croissent du même elec_growth_pct, donc la
- * pondération horaire est invariante dans le temps (pas besoin de refondre buildCashflows).
+ * Les p_eff décrivent les flux de l'année simulée. La projection financière applique ensuite
+ * les hypothèses de variation des prix et de production du moteur financier.
  */
 
-import { resolveHpHcHourlyMask } from "./hphcMask.service.js";
-import { resolveP2ContractType } from "../virtualBatteryP2Finance.service.js";
+import {
+  buildHpHcHourlyMask,
+  buildHpHcHourlyFractions,
+  resolveCurrentOffPeakPeriods,
+} from "./hphcMask.service.js";
 
 const H8760 = 8760;
 
@@ -25,8 +29,9 @@ function round5(n) {
 }
 
 function numOrNull(v) {
+  if (v == null || v === "") return null;
   const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 /**
@@ -34,21 +39,27 @@ function numOrNull(v) {
  * À appeler une fois par calcul, après construction de ctx.form/ctx.virtual_battery_input.
  *
  * @param {object} ctx contexte moteur (form.params.elec_price_hp/hc_eur_kwh injectés par le Lot 2)
- * @returns {{ hourlyIsHp: boolean[], priceHp: number, priceHc: number } | null}
+ * @returns {{ hourlyIsHp: boolean[], hourlyHpFraction: number[], priceHp: number, priceHc: number } | null}
  */
 export function resolveHpHcPricingContext(ctx) {
   const params = ctx?.form?.params ?? {};
-  const priceHp = numOrNull(params.elec_price_hp_eur_kwh);
-  const priceHc = numOrNull(params.elec_price_hc_eur_kwh);
+  const lead = ctx?.form?.lead ?? {};
+  const priceHp = numOrNull(params.elec_price_hp_eur_kwh ?? lead.elec_price_hp_eur_kwh);
+  const priceHc = numOrNull(params.elec_price_hc_eur_kwh ?? lead.elec_price_hc_eur_kwh);
   if (priceHp == null || priceHc == null) return null;
 
-  const contractType = resolveP2ContractType(ctx?.virtual_battery_input ?? {}, ctx);
-  if (contractType !== "HPHC") return null;
+  // Le contrat de référence est celui du compteur, indépendamment du contrat de la BV.
+  const hpHc = params.hp_hc ?? lead.hp_hc;
+  const tariffType = params.tariff_type ?? lead.tariff_type;
+  const isHpHc = tariffType != null && String(tariffType).trim() !== ""
+    ? ["hp_hc", "hphc"].includes(String(tariffType).trim().toLowerCase())
+    : hpHc === true || String(hpHc).toLowerCase() === "oui";
+  if (!isHpHc) return null;
 
-  const hourlyIsHp = resolveHpHcHourlyMask(ctx?.virtual_battery_input ?? {}, ctx);
-  if (!Array.isArray(hourlyIsHp) || hourlyIsHp.length !== H8760) return null;
-
-  return { hourlyIsHp, priceHp, priceHc };
+  const periods = resolveCurrentOffPeakPeriods(ctx);
+  const hourlyIsHp = buildHpHcHourlyMask(periods);
+  const hourlyHpFraction = buildHpHcHourlyFractions(periods, getCalendar(ctx?.conso?.hourly,ctx?.conso?.calendar));
+  return { hourlyIsHp, hourlyHpFraction, priceHp, priceHc };
 }
 
 /**
@@ -58,15 +69,20 @@ export function resolveHpHcPricingContext(ctx) {
  * @returns {number|null} null si série absente/invalide ou flux nul (l'appelant garde le prix plat)
  */
 export function effectivePriceForHourlyWeights(weightsHourly, pricingCtx) {
-  if (!pricingCtx || !Array.isArray(weightsHourly) || weightsHourly.length !== H8760) return null;
-  const { hourlyIsHp, priceHp, priceHc } = pricingCtx;
+  if (!pricingCtx || !isEnergyYear(weightsHourly)) return null;
+  const { hourlyIsHp, hourlyHpFraction, priceHp, priceHc } = pricingCtx;
+  const hasFractions = Array.isArray(hourlyHpFraction) && hourlyHpFraction.length === weightsHourly.length;
+  if (!hasFractions && (!Array.isArray(hourlyIsHp) || hourlyIsHp.length !== weightsHourly.length)) return null;
   let sumW = 0;
   let sumWp = 0;
-  for (let h = 0; h < H8760; h++) {
+  for (let h = 0; h < weightsHourly.length; h++) {
     const w = Number(weightsHourly[h]) || 0;
     if (w <= 0) continue;
     sumW += w;
-    sumWp += w * (hourlyIsHp[h] === true || hourlyIsHp[h] === 1 ? priceHp : priceHc);
+    const hpFraction = hasFractions
+      ? Math.max(0, Math.min(1, Number(hourlyHpFraction[h]) || 0))
+      : hourlyIsHp[h] === true || hourlyIsHp[h] === 1 ? 1 : 0;
+    sumWp += w * (hpFraction * priceHp + (1 - hpFraction) * priceHc);
   }
   if (sumW <= 0) return null;
   return round5(sumWp / sumW);
@@ -74,8 +90,8 @@ export function effectivePriceForHourlyWeights(weightsHourly, pricingCtx) {
 
 /** min(pv, conso) heure par heure — autoconso directe (identique passThroughNoBattery). */
 function directAutoHourly(pvHourly, consoHourly) {
-  const out = new Array(H8760);
-  for (let h = 0; h < H8760; h++) {
+  const out = new Array(consoHourly.length);
+  for (let h = 0; h < consoHourly.length; h++) {
     out[h] = Math.min(Number(pvHourly[h]) || 0, Number(consoHourly[h]) || 0);
   }
   return out;
@@ -83,8 +99,8 @@ function directAutoHourly(pvHourly, consoHourly) {
 
 /** max(0, conso − servi) heure par heure — import réseau résiduel. */
 function importHourlyFromServed(consoHourly, ...servedSeries) {
-  const out = new Array(H8760);
-  for (let h = 0; h < H8760; h++) {
+  const out = new Array(consoHourly.length);
+  for (let h = 0; h < consoHourly.length; h++) {
     let served = 0;
     for (const s of servedSeries) served += Number(s?.[h]) || 0;
     out[h] = Math.max(0, (Number(consoHourly[h]) || 0) - served);
@@ -110,7 +126,7 @@ function sum(arr) {
  * @returns {object|null} bloc sc.pricing (mode HPHC) ou null
  */
 export function buildScenarioPricing({ pricingCtx, consoHourly, autoHourly, importHourly, vbDischargeHourly }) {
-  if (!pricingCtx || !Array.isArray(consoHourly) || consoHourly.length !== H8760) return null;
+  if (!pricingCtx || !isEnergyYear(consoHourly)) return null;
   const p_eff_conso = effectivePriceForHourlyWeights(consoHourly, pricingCtx);
   if (p_eff_conso == null) return null;
   return {
@@ -120,6 +136,7 @@ export function buildScenarioPricing({ pricingCtx, consoHourly, autoHourly, impo
     p_eff_conso,
     p_eff_auto: effectivePriceForHourlyWeights(autoHourly, pricingCtx),
     p_eff_import: effectivePriceForHourlyWeights(importHourly, pricingCtx),
+    p_eff_import_current: effectivePriceForHourlyWeights(importHourly, pricingCtx),
     p_eff_vb: effectivePriceForHourlyWeights(vbDischargeHourly, pricingCtx),
   };
 }
@@ -138,8 +155,8 @@ export function attachHpHcPricingToScenarios(scenarios, ctx, battPhysicalResult,
   if (!pricingCtx || !scenarios || typeof scenarios !== "object") return;
   const pvHourly = ctx?.pv?.hourly;
   const consoHourly = ctx?.conso?.hourly;
-  if (!Array.isArray(pvHourly) || pvHourly.length !== H8760) return;
-  if (!Array.isArray(consoHourly) || consoHourly.length !== H8760) return;
+  if (!isEnergyYear(pvHourly)) return;
+  if (!isEnergyYear(consoHourly)) return;
 
   const baseAuto = directAutoHourly(pvHourly, consoHourly);
   const baseImport = importHourlyFromServed(consoHourly, baseAuto);
@@ -162,8 +179,8 @@ export function attachHpHcPricingToScenarios(scenarios, ctx, battPhysicalResult,
       ? battPhysicalResult.direct_self_consumption_hourly
       : baseAuto;
     const discharge = battPhysicalResult.batt_discharge_hourly;
-    const physAuto = new Array(H8760);
-    for (let h = 0; h < H8760; h++) {
+    const physAuto = new Array(consoHourly.length);
+    for (let h = 0; h < consoHourly.length; h++) {
       physAuto[h] = (Number(direct[h]) || 0) + (Number(discharge[h]) || 0);
     }
     P.pricing = buildScenarioPricing({
@@ -197,8 +214,8 @@ export function attachHpHcPricingToScenarios(scenarios, ctx, battPhysicalResult,
       const direct = Array.isArray(battPhysicalResult.direct_self_consumption_hourly)
         ? battPhysicalResult.direct_self_consumption_hourly
         : baseAuto;
-      hybAuto = new Array(H8760);
-      for (let h = 0; h < H8760; h++) {
+      hybAuto = new Array(consoHourly.length);
+      for (let h = 0; h < consoHourly.length; h++) {
         hybAuto[h] =
           (Number(direct[h]) || 0) + (Number(battPhysicalResult.batt_discharge_hourly[h]) || 0);
       }

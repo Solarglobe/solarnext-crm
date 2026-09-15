@@ -13,22 +13,16 @@ function round2(x) {
 }
 
 /**
- * Taux d'autoconsommation = (production − énergie injectée au réseau) / production.
- * Définition standard FR (photovoltaique.info / Enedis) : l'autoconsommée est ce qui n'est PAS injecté.
- * Les pertes de conversion d'une batterie ne sont PAS une injection → elles ne baissent pas ce taux.
- * (Avant : on divisait l'énergie *délivrée* par la production, ce qui soustrayait à tort les pertes
- *  batterie → l'hybride affichait <100 % alors qu'il n'injecte quasi rien.)
+ * Utilisation utile de la production : solaire direct + restitution solaire / production.
+ * La capture avant pertes et la couverture des besoins sont des indicateurs distincts.
  * @param {{ production_kwh: number, surplus_kwh?: number, total_pv_used_on_site_kwh?: number }} p
  * @returns {number | null} pourcentage 0–100
  */
 export function computePvSelfConsumptionPct(p) {
   const prod = Number(p?.production_kwh);
   if (!Number.isFinite(prod) || prod <= 0) return null;
-  const injected = Number(p?.surplus_kwh);
-  if (Number.isFinite(injected) && injected >= 0) {
-    return round2(clampPct(((prod - injected) / prod) * 100));
-  }
-  // Fallback (surplus indisponible) : ancien calcul énergie utilisée / production.
+  // Useful PV delivered to loads; capture before storage losses is a separate ratio.
+  if (p?.total_pv_used_on_site_kwh == null) return null;
   const used = Number(p?.total_pv_used_on_site_kwh);
   if (!Number.isFinite(used) || used < 0) return null;
   return round2(clampPct((used / prod) * 100));

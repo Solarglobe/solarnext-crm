@@ -43,7 +43,7 @@ export interface OverviewLeadSnapshot {
   consumption_annual_kwh?: number;
   consumption_annual_calculated_kwh?: number;
   consumption_pdl?: string;
-  hp_hc?: boolean;
+  hp_hc?: boolean | null;
   supplier_name?: string;
   consumption_profile?: string;
   tariff_type?: string;
@@ -51,6 +51,8 @@ export interface OverviewLeadSnapshot {
   elec_price_base_eur_kwh?: number | null;
   elec_price_hp_eur_kwh?: number | null;
   elec_price_hc_eur_kwh?: number | null;
+  electricity_subscription_ttc_month?: number | null;
+  electricity_annual_bill_ttc?: number | null;
   grid_type?: string;
   meter_power_kva?: number;
   /** Pilotage charge — chaîne moteur (ex. « ve pac ballon ») */
@@ -100,9 +102,10 @@ export function buildLeadPatch(
 
 /** Champs conso / équipements / profil portés par `lead_meters` (synchronisés sur `leads` si compteur par défaut). */
 export function applyMeterRowToLeadSnapshot(
-  meter: Record<string, unknown>
+  meter: Record<string, unknown>,
+  options?: { partial?: boolean }
 ): Partial<OverviewLeadSnapshot> {
-  return {
+  const snapshot: Partial<OverviewLeadSnapshot> = {
     consumption_pdl: meter.consumption_pdl as OverviewLeadSnapshot["consumption_pdl"],
     meter_power_kva: meter.meter_power_kva as OverviewLeadSnapshot["meter_power_kva"],
     grid_type: meter.grid_type as OverviewLeadSnapshot["grid_type"],
@@ -116,11 +119,35 @@ export function applyMeterRowToLeadSnapshot(
     elec_price_base_eur_kwh: meter.elec_price_base_eur_kwh as OverviewLeadSnapshot["elec_price_base_eur_kwh"],
     elec_price_hp_eur_kwh: meter.elec_price_hp_eur_kwh as OverviewLeadSnapshot["elec_price_hp_eur_kwh"],
     elec_price_hc_eur_kwh: meter.elec_price_hc_eur_kwh as OverviewLeadSnapshot["elec_price_hc_eur_kwh"],
+    electricity_subscription_ttc_month: meter.electricity_subscription_ttc_month as OverviewLeadSnapshot["electricity_subscription_ttc_month"],
+    electricity_annual_bill_ttc: meter.electricity_annual_bill_ttc as OverviewLeadSnapshot["electricity_annual_bill_ttc"],
     energy_profile: meter.energy_profile as OverviewLeadSnapshot["energy_profile"],
     equipement_actuel: meter.equipement_actuel as OverviewLeadSnapshot["equipement_actuel"],
     equipement_actuel_params: meter.equipement_actuel_params as OverviewLeadSnapshot["equipement_actuel_params"],
     equipements_a_venir: meter.equipements_a_venir as OverviewLeadSnapshot["equipements_a_venir"],
   };
+  // A PATCH response may omit unchanged fields. A full meter switch must still
+  // clear missing fields so another meter's profile can never be inherited.
+  return options?.partial
+    ? Object.fromEntries(Object.entries(snapshot).filter(([, value]) => value !== undefined))
+    : snapshot;
+}
+
+/** Update only the engine of this meter's profile; preserve C68, source data and metadata. */
+export function mergeEnergyProfileEngine(profile: unknown, engine?: object | null): unknown {
+  if (engine === null) return null; // Explicit profile deletion.
+  if (engine === undefined) return profile ?? null;
+  const object = (value: unknown): Record<string, unknown> =>
+    value != null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const base = object(profile);
+  const engineFields = Object.fromEntries(Object.entries(engine).filter(([, value]) => value !== undefined));
+  return { ...base, engine: { ...object(base.engine), ...engineFields } };
+}
+
+/** A lead response describes the default meter, not necessarily the selected meter. */
+export function leadResponseWithoutMeterFields(row: Record<string, unknown>): Record<string, unknown> {
+  const meterFields = new Set(Object.keys(applyMeterRowToLeadSnapshot({})));
+  return Object.fromEntries(Object.entries(row).filter(([key]) => !meterFields.has(key)));
 }
 
 /** Payload PATCH /api/leads/:leadId/meters/:id — autosave fiche (nom + conso + équipements + profil). */
@@ -134,7 +161,7 @@ export function buildMeterAutosavePayload(
   return {
     ...cons,
     ...(name ? { name } : {}),
-    energy_profile: formLead.energy_profile ?? null,
+    ...(formLead.energy_profile === undefined ? {} : { energy_profile: formLead.energy_profile }),
   };
 }
 
@@ -172,6 +199,8 @@ export function buildConsumptionPayload(
     ...(formLead.elec_price_base_eur_kwh !== undefined ? { elec_price_base_eur_kwh: formLead.elec_price_base_eur_kwh } : {}),
     ...(formLead.elec_price_hp_eur_kwh !== undefined ? { elec_price_hp_eur_kwh: formLead.elec_price_hp_eur_kwh } : {}),
     ...(formLead.elec_price_hc_eur_kwh !== undefined ? { elec_price_hc_eur_kwh: formLead.elec_price_hc_eur_kwh } : {}),
+    ...(formLead.electricity_subscription_ttc_month !== undefined ? { electricity_subscription_ttc_month: formLead.electricity_subscription_ttc_month } : {}),
+    ...(formLead.electricity_annual_bill_ttc !== undefined ? { electricity_annual_bill_ttc: formLead.electricity_annual_bill_ttc } : {}),
     grid_type: formLead.grid_type,
     meter_power_kva: formLead.meter_power_kva,
     consumption_pdl: formLead.consumption_pdl,

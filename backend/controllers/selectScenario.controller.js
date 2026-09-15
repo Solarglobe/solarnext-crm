@@ -187,6 +187,7 @@ export async function selectScenario(req, res) {
       fileName: doc?.file_name,
     });
   } catch (e) {
+    if (e.status === 409) return res.status(409).json({ error: e.code, message: e.message });
     console.error("[selectScenario.controller] selectScenario:", e);
     if (e.message && e.message.includes("scenarios_v2")) {
       return res.status(400).json({ error: e.message });

@@ -13,6 +13,7 @@ import "./pdf-print.css";
 import "./PdfEngine/pdf-unified.css";
 import "./study-report-page.css";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
+import { areStudyPdfChartsRendered } from './studyPdfReadiness';
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
 
@@ -39,6 +40,7 @@ function getIdsFromUrl(): { studyId: string; versionId: string; renderToken: str
 }
 
 export default function StudySnapshotPdfPage(props?: { studyId?: string; versionId?: string }) {
+  const [renderComplete,setRenderComplete]=useState(false);
   const urlIds = useMemo(() => getIdsFromUrl(), []);
   const { studyId: paramStudyId, versionId: paramVersionId } = useParams<{ studyId?: string; versionId?: string }>();
   const studyId = props?.studyId ?? urlIds.studyId ?? paramStudyId ?? "";
@@ -84,12 +86,26 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version
       .catch(() => setStatus("error"));
   }, [studyId, versionId, renderToken]);
 
-  // __pdf_render_ready = true uniquement après rendu effectif (données présentes)
+  // Wait for the actual chart DOM: missing legacy scripts must never produce a blank successful PDF.
   useEffect(() => {
+    setRenderComplete(false);
+    window.__pdf_render_ready=false;
     if (status === "success" && viewModel != null) {
-      (window as unknown as { __pdf_render_ready?: boolean }).__pdf_render_ready = true;
+      const root=document.getElementById('pdf-root');
+      if(!root)return;
+      const check=()=>{
+        if(!areStudyPdfChartsRendered(root))return;
+        window.__pdf_render_ready=true;
+        setRenderComplete(true);
+        observer.disconnect();
+      };
+      const observer=new MutationObserver(check);
+      observer.observe(root,{childList:true,subtree:true,attributes:true,attributeFilter:['style']});
+      const frame=window.requestAnimationFrame(check);
       return () => {
-        (window as unknown as { __pdf_render_ready?: boolean }).__pdf_render_ready = false;
+        window.cancelAnimationFrame(frame);
+        observer.disconnect();
+        window.__pdf_render_ready = false;
       };
     }
   }, [status, viewModel]);
@@ -119,7 +135,7 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version
       <PdfLegacyPort viewModel={vm} />
       <div
         id="pdf-ready"
-        data-status={status === "success" && viewModel != null ? "ready" : "pending"}
+        data-status={renderComplete ? "ready" : "pending"}
         aria-hidden="true"
       />
     </div>

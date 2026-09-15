@@ -63,7 +63,7 @@ export default function PdfPage9({ data }: { data?: P9Data }) {
       <div className="pdf-hero-impact" style={{ textAlign: "center", margin: "12px 0" }}>
         <div style={{ fontSize: 11, opacity: 0.85 }}>Gain net estimé sur {horizonYears} ans</div>
         <div style={{ fontSize: 28, fontWeight: 800, color: "#C39847" }}>
-          {finalNet != null ? `${finalNet >= 0 ? "+ " : ""}${Math.abs(Math.round(finalNet)).toLocaleString("fr-FR")} €` : EMPTY}
+          {finalNet != null ? `${finalNet >= 0 ? "+ " : "- "}${Math.abs(Math.round(finalNet)).toLocaleString("fr-FR")} €` : EMPTY}
         </div>
         {sc?.label ? <div style={{ fontSize: 10, marginTop: 6 }}>Scénario : {val(sc.label)}</div> : null}
       </div>

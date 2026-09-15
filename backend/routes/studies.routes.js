@@ -217,7 +217,14 @@ router.get(
   async (req, res) => {
     try {
       const org = orgId(req);
-      const data = await service.getStudyById(req.params.id, org);
+      const summaryView = req.query.view === "scenarios";
+      const versionId = req.query.version_id;
+      if (summaryView && (typeof versionId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(versionId))) {
+        return res.status(400).json({ error: "version_id requis pour la vue scénarios" });
+      }
+      const data = summaryView
+        ? await service.getStudyScenarioPageSummary(req.params.id, versionId, org)
+        : await service.getStudyById(req.params.id, org);
       if (!data) return res.status(404).json({ error: "Étude non trouvée" });
       res.json(data);
     } catch (e) {
@@ -469,7 +476,11 @@ router.post(
 );
 
 // Lecture scenarios_v2 (aucun calcul, lecture pure)
-import { getStudyScenarios } from "../controllers/studyScenarios.controller.js";
+import { getStudyScenarios, getStudyScenarioFreshness, getStudyScenarioHistory, getStudyScenarioHistoryEntry } from "../controllers/studyScenarios.controller.js";
+
+router.get('/:studyId/versions/:versionId/scenarios/freshness',verifyJWT,requirePermission('study.manage'),getStudyScenarioFreshness);
+router.get('/:studyId/versions/:versionId/scenarios/history',verifyJWT,requirePermission('study.manage'),getStudyScenarioHistory);
+router.get('/:studyId/versions/:versionId/scenarios/history/:historyId',verifyJWT,requirePermission('study.manage'),getStudyScenarioHistoryEntry);
 
 router.get(
   "/:studyId/versions/:versionId/scenarios",

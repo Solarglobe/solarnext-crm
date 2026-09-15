@@ -4,7 +4,8 @@
  * Données : GET study + GET scenarios (aucun recalcul ici).
  */
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { consumptionSourceLabel } from "../../components/study/resultPresentation";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../services/api";
 import { forkStudyVersionApi, patchStudyTitle, type StudyWithVersions } from "../../services/studies.service";
@@ -17,6 +18,15 @@ import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 import { openAuthenticatedDocumentInNewTab } from "@/utils/documentDownload";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
+
+type HistoryEntry = { id: string; computed_at?: string; input_fingerprint?: string; scenario_count?: number };
+type FreshnessState = {
+  is_locked?: boolean; selected_scenario_id?: string | null; needs_recompute?: boolean;
+  stale_snapshot?: boolean; engine_coherent?: boolean; snapshot_engine_version?: string | null;
+  current_engine_version?: string | null; display_blocked?: boolean; export_blocked?: boolean;
+  blocked_reason?: string | null; stale_reason?: string | null; input_fingerprint?: string | null;
+  calculated_at?: string | null; history_count?: number;
+};
 
 type ScenarioId =
   | "BASE" | "BATTERY_PHYSICAL" | "BATTERY_VIRTUAL" | "BATTERY_HYBRID"
@@ -68,6 +78,22 @@ export default function ScenariosPage() {
   const navigate = useNavigate();
   const [studyPack, setStudyPack] = useState<StudyWithVersions | null>(null);
   const [studyLoadError, setStudyLoadError] = useState<string | null>(null);
+  const [calculationHistory,setCalculationHistory]=useState<HistoryEntry[]>([]);
+  const [historyCount,setHistoryCount]=useState(0);
+  const [historyOpen,setHistoryOpen]=useState(false);
+  const [historyNextOffset,setHistoryNextOffset]=useState<number|null>(null);
+  const [historyLoading,setHistoryLoading]=useState(false);
+  const [historyError,setHistoryError]=useState<string|null>(null);
+  const historyRequestRef=useRef(0);
+  const freshnessBusyRef=useRef(false);
+  const resultRevisionRef=useRef("");
+  const [latestScenarios,setLatestScenarios]=useState<ScenarioV2Type[]>([]);
+  const [historicalSelection,setHistoricalSelection]=useState("");
+  const historicalSelectionRef=useRef("");
+  historicalSelectionRef.current=historicalSelection;
+  const scenarioFetchQueueRef=useRef<Promise<void>|null>(null);
+  const activeViewRef=useRef("");
+  activeViewRef.current=`${studyId}/${versionId}`;
   const [scenarios, setScenarios] = useState<ScenarioV2Type[]>([]);
   const [scenariosError, setScenariosError] = useState<string | null>(null);
   const [versionNumber, setVersionNumber] = useState<number | null>(null);
@@ -82,6 +108,7 @@ export default function ScenariosPage() {
   const [needsRecompute, setNeedsRecompute] = useState(false);
   const [snapshotEngineVersion, setSnapshotEngineVersion] = useState<string | null>(null);
   const [currentEngineVersion, setCurrentEngineVersion] = useState<string | null>(null);
+  const [inputFingerprint, setInputFingerprint] = useState<string | null>(null);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [recomputing, setRecomputing] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -106,9 +133,9 @@ export default function ScenariosPage() {
       : study?.study_number ?? "Étude";
 
   const refreshStudy = useCallback(async () => {
-    if (!studyId) return;
+    if (!studyId || !versionId) return;
     try {
-      const res = await apiFetch(`${API_BASE}/api/studies/${encodeURIComponent(studyId)}`);
+      const res = await apiFetch(`${API_BASE}/api/studies/${encodeURIComponent(studyId)}?view=scenarios&version_id=${encodeURIComponent(versionId)}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         setStudyLoadError((err as { error?: string }).error || `Erreur ${res.status}`);
@@ -126,8 +153,30 @@ export default function ScenariosPage() {
     }
   }, [studyId, versionId]);
 
-  const fetchScenariosOnly = useCallback(async () => {
+  const applyFreshness = useCallback((body: FreshnessState, partial = false) => {
+    setVersionLocked(body.is_locked === true);
+    setSelectedScenarioId(parseSelectedScenarioId(body.selected_scenario_id));
+    const blocked=body.needs_recompute === true || body.stale_snapshot === true || body.engine_coherent === false || body.export_blocked === true || body.display_blocked === true;
+    setNeedsRecompute(previous => blocked || (partial && previous));
+    setSnapshotEngineVersion(body.snapshot_engine_version ?? null);
+    setCurrentEngineVersion(body.current_engine_version ?? null);
+    setBlockedReason(previous => body.stale_reason ?? body.blocked_reason ?? (partial ? previous : null));
+    setInputFingerprint(body.input_fingerprint ?? null);
+    setHistoryCount(body.history_count ?? 0);
+  }, []);
+
+  const fetchScenariosOnly = useCallback(async ({background=false}:{background?:boolean}={}) => {
     if (!studyId || !versionId) return;
+    if(background&&scenarioFetchQueueRef.current)return;
+    const previous=scenarioFetchQueueRef.current;
+    let release=()=>{};
+    const current=new Promise<void>(resolve=>{release=resolve;});
+    scenarioFetchQueueRef.current=current;
+    if(previous)await previous;
+    const viewKey=`${studyId}/${versionId}`;
+    const finish=()=>{release();if(scenarioFetchQueueRef.current===current)scenarioFetchQueueRef.current=null;};
+    if(activeViewRef.current!==viewKey){finish();return;}
+    if(!background){
     setScenariosError(null);
     setScenarios([]);
     setVersionLocked(false);
@@ -136,11 +185,12 @@ export default function ScenariosPage() {
     setSnapshotEngineVersion(null);
     setCurrentEngineVersion(null);
     setBlockedReason(null);
+    }
     try {
       const res = await apiFetch(
         `${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/scenarios`
       );
-      const body = (await res.json().catch(() => ({}))) as {
+      const body = (await res.json().catch(() => ({}))) as FreshnessState & {
         ok?: boolean;
         scenarios?: ScenarioV2Type[];
         error?: string;
@@ -152,42 +202,91 @@ export default function ScenariosPage() {
         snapshot_engine_version?: string | null;
         current_engine_version?: string | null;
         display_blocked?: boolean;
+        export_blocked?: boolean;
         blocked_reason?: string | null;
+        stale_reason?: string | null;
+        input_fingerprint?: string | null;
       };
+      if(activeViewRef.current!==viewKey)return;
       if (res.status === 404 && body.error === "SCENARIOS_NOT_GENERATED") {
-        setScenariosError("SCENARIOS_NOT_GENERATED");
+        if(!background)setScenariosError("SCENARIOS_NOT_GENERATED");
         return;
       }
       if (!res.ok) {
-        setScenariosError(body.error || `Erreur ${res.status}`);
-        showToast("Erreur chargement scénarios", true);
+        if(!background){setScenariosError(body.error || `Erreur ${res.status}`);showToast("Erreur chargement scénarios", true);}
         return;
       }
       if (body.ok && Array.isArray(body.scenarios)) {
         if (import.meta.env.DEV) {
           console.log("[SCENARIOS_V2]", body.scenarios.length, "scénarios");
         }
+        setLatestScenarios(body.scenarios);
+        resultRevisionRef.current=JSON.stringify([body.calculated_at??null,body.input_fingerprint??null]);
+        if(!background||historicalSelectionRef.current===""){
         setScenarios(body.scenarios);
-        setVersionLocked(body.is_locked === true);
-        setSelectedScenarioId(parseSelectedScenarioId(body.selected_scenario_id));
-        setNeedsRecompute(
-          body.needs_recompute === true ||
-            body.stale_snapshot === true ||
-            body.engine_coherent === false ||
-            body.display_blocked === true
-        );
-        setSnapshotEngineVersion(body.snapshot_engine_version ?? null);
-        setCurrentEngineVersion(body.current_engine_version ?? null);
-        setBlockedReason(body.blocked_reason ?? null);
+        setHistoricalSelection("");
+        historicalSelectionRef.current="";
+        }
+        applyFreshness(body);
       }
     } catch (e) {
-      setScenariosError(e instanceof Error ? e.message : "Erreur chargement scénarios");
-      showToast("Erreur chargement scénarios", true);
+      if(!background){setScenariosError(e instanceof Error ? e.message : "Erreur chargement scénarios");showToast("Erreur chargement scénarios", true);}
+    } finally {
+      finish();
     }
-  }, [studyId, versionId]);
+  }, [studyId, versionId, applyFreshness]);
+
+  const refreshFreshness = useCallback(async () => {
+    if (!studyId || !versionId || freshnessBusyRef.current || scenarioFetchQueueRef.current) return;
+    const viewKey=`${studyId}/${versionId}`;
+    freshnessBusyRef.current=true;
+    try {
+      const res=await apiFetch(`${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/scenarios/freshness`);
+      if (!res.ok) return;
+      const body=await res.json() as FreshnessState;
+      if(activeViewRef.current!==viewKey)return;
+      applyFreshness(body, true);
+      const revision=JSON.stringify([body.calculated_at??null,body.input_fingerprint??null]);
+      if(resultRevisionRef.current!==revision)await fetchScenariosOnly({background:true});
+    } catch { /* The last readable result stays visible; server export guards remain authoritative. */ }
+    finally { freshnessBusyRef.current=false; }
+  }, [studyId,versionId,applyFreshness,fetchScenariosOnly]);
+
+  const loadHistoryIndex = useCallback(async (offset=0) => {
+    if(!studyId||!versionId)return;
+    const viewKey=`${studyId}/${versionId}`;
+    setHistoryOpen(true);setHistoryLoading(true);setHistoryError(null);
+    try {
+      const res=await apiFetch(`${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/scenarios/history?offset=${offset}&limit=20`);
+      if(!res.ok)throw Error("Historique indisponible");
+      const body=await res.json() as {items:HistoryEntry[];total:number;next_offset:number|null};
+      if(activeViewRef.current!==viewKey)return;
+      setCalculationHistory(previous=>offset===0?body.items:[...previous,...body.items.filter(entry=>!previous.some(old=>old.id===entry.id))]);
+      setHistoryCount(body.total);setHistoryNextOffset(body.next_offset);
+    } catch(e){if(activeViewRef.current===viewKey)setHistoryError(e instanceof Error?e.message:"Historique indisponible");}
+    finally{if(activeViewRef.current===viewKey)setHistoryLoading(false);}
+  }, [studyId,versionId]);
+
+  const selectHistory = useCallback(async (id:string) => {
+    const request=++historyRequestRef.current;
+    historicalSelectionRef.current=id;setHistoricalSelection(id);setHistoryError(null);
+    if(id===""){setScenarios(latestScenarios);setHistoryLoading(false);return;}
+    setScenarios([]);
+    const viewKey=`${studyId}/${versionId}`;
+    setHistoryLoading(true);
+    try {
+      const res=await apiFetch(`${API_BASE}/api/studies/${encodeURIComponent(studyId??"")}/versions/${encodeURIComponent(versionId??"")}/scenarios/history/${encodeURIComponent(id)}`);
+      if(!res.ok)throw Error("Ce résultat historique n’a pas pu être chargé");
+      const body=await res.json() as {scenarios:ScenarioV2Type[]};
+      if(request===historyRequestRef.current&&activeViewRef.current===viewKey)setScenarios(body.scenarios);
+    } catch(e){if(request===historyRequestRef.current)setHistoryError(e instanceof Error?e.message:"Historique indisponible");}
+    finally{if(request===historyRequestRef.current)setHistoryLoading(false);}
+  },[studyId,versionId,latestScenarios]);
 
   useEffect(() => {
     if (!studyId || !versionId) return;
+    setCalculationHistory([]);setHistoryOpen(false);setHistoryNextOffset(null);setHistoryError(null);
+    ++historyRequestRef.current;
     let cancelled = false;
     (async () => {
       setInitialLoad(true);
@@ -198,6 +297,14 @@ export default function ScenariosPage() {
       cancelled = true;
     };
   }, [studyId, versionId, refreshStudy, fetchScenariosOnly]);
+
+  useEffect(()=>{
+    const refreshIfVisible=()=>{if(document.visibilityState==='visible')void refreshFreshness();};
+    window.addEventListener('focus',refreshIfVisible);
+    document.addEventListener('visibilitychange',refreshIfVisible);
+    const timer=window.setInterval(refreshIfVisible,30000);
+    return()=>{window.removeEventListener('focus',refreshIfVisible);document.removeEventListener('visibilitychange',refreshIfVisible);window.clearInterval(timer);};
+  },[refreshFreshness]);
 
   const handleSelectScenario = useCallback(
     async (scenarioId: ScenarioId, ctx?: Partial<ScenarioSelectContext>) => {
@@ -643,22 +750,25 @@ export default function ScenariosPage() {
     >
       <div style={{ minWidth: 240, flex: "1 1 320px" }}>
         <strong style={{ display: "block", color: "var(--sn-text-primary)" }}>
-          Snapshot périmé — recalcul requis
+          Données modifiées — recalcul nécessaire
         </strong>
         {blockedReason ? (
           <span
             data-testid="scenarios-blocked-reason"
             className="sg-helper"
-            style={{ display: "block", marginTop: 2, fontFamily: "monospace", fontSize: 11 }}
+            style={{ display: "block", marginTop: 2, fontSize: 11 }}
+            title={blockedReason}
           >
-            Raison : {blockedReason}
+            {blockedReason === "STALE_SNAPSHOT_ENGINE_VERSION"
+              ? "Les règles de calcul ont évolué depuis cette étude."
+              : "Les données ou les paramètres ont changé depuis ce calcul."}
           </span>
         ) : null}
         <span className="sg-helper" style={{ display: "block", marginTop: 4 }}>
-          Ces résultats proviennent d&apos;une version de calcul périmée
+          Résultats historiques conservés
           {snapshotEngineVersion ? ` (${snapshotEngineVersion})` : ""}
           {currentEngineVersion ? ` → moteur actuel ${currentEngineVersion}` : ""}.
-          Les valeurs batterie ci-dessous ne sont pas fiables tant que le calcul n&apos;est pas relancé.
+          Les exports client sont désactivés jusqu’au recalcul. Référence : {inputFingerprint ?? "ancienne étude sans empreinte"}.
         </span>
       </div>
       <button
@@ -696,7 +806,7 @@ export default function ScenariosPage() {
     );
   }
 
-  if (scenariosError || scenarios.length === 0) {
+  if (scenariosError || (scenarios.length === 0 && historicalSelection === "")) {
     return (
       <div className="scenarios-page" style={{ padding: "var(--spacing-24)", maxWidth: 720, margin: "0 auto" }}>
         <div className="sn-card sn-card-premium" style={{ padding: "var(--spacing-24)" }}>
@@ -740,7 +850,7 @@ export default function ScenariosPage() {
       <div style={{ position: "relative", zIndex: 1 }}>
         {headerBlock}
 
-        <StudyCalcTracePanel data={versionTraceData} />
+        {historicalSelection===""&&<StudyCalcTracePanel data={versionTraceData} />}
 
         <header className="scenarios-page-header" style={{ marginBottom: "var(--spacing-24)" }}>
           <div
@@ -784,7 +894,7 @@ export default function ScenariosPage() {
             )}
           </div>
           <p className="sg-helper" style={{ margin: "0 0 var(--spacing-8) 0", maxWidth: 640 }}>
-            Analyse basée sur votre profil réel de consommation.
+            {consumptionSourceLabel(scenarios[0]?.consumption_source)}. ROI et TRI : rentabilité du projet avant coût du crédit.
           </p>
           <p className="sg-helper" style={{ margin: "0 0 var(--spacing-4) 0" }}>
             Version v{versionNumber ?? "?"}
@@ -794,17 +904,26 @@ export default function ScenariosPage() {
           </p>
           {projectInvestmentTtc != null ? (
             <p className="sg-helper" style={{ margin: "8px 0 0", fontWeight: 700 }}>
-              Investissement total du projet utilisé pour ROI/TRI : {fmtEur0(projectInvestmentTtc)} TTC
+              Installation sans stockage (SolarGlobe + installateur) : {fmtEur0(projectInvestmentTtc)} TTC
             </p>
           ) : null}
         </header>
 
+        {historyCount>0&&!historyOpen&&<button type="button" className="sn-btn sn-btn-secondary" onClick={()=>void loadHistoryIndex()}>Consulter l’historique ({historyCount})</button>}
+        {historyOpen&&<div>
+          <label>Résultats à consulter<select className="sn-input" value={historicalSelection} onChange={e=>void selectHistory(e.target.value)}><option value="">Dernier calcul</option>{calculationHistory.map(entry=><option key={entry.id} value={entry.id}>Historique {entry.computed_at??entry.id} · {entry.input_fingerprint?.slice(0,12)??"sans empreinte"}</option>)}</select></label>
+          {historyNextOffset!==null&&<button type="button" disabled={historyLoading} onClick={()=>void loadHistoryIndex(historyNextOffset)}>Charger les calculs précédents</button>}
+          {historyNextOffset===null&&calculationHistory.length<historyCount&&<button type="button" disabled={historyLoading} onClick={()=>void loadHistoryIndex()}>Actualiser l’historique</button>}
+          {historyLoading&&<p>Chargement de l’historique…</p>}
+          {historyError&&<p role="alert">{historyError}</p>}
+        </div>}
+        {historicalSelection!==""&&<p role="status">Consultation historique — export client désactivé. Référence {calculationHistory.find(entry=>entry.id===historicalSelection)?.input_fingerprint??"sans empreinte"}.</p>}
         {recomputeBanner}
         <div
           {...(needsRecompute ? { "data-testid": "scenarios-stale", "aria-disabled": true } : {})}
           style={{
             marginBottom: "var(--spacing-24)",
-            ...(needsRecompute ? { opacity: 0.45, pointerEvents: "none" as const } : {}),
+            ...(needsRecompute ? { opacity: 0.8 } : {}),
           }}
         >
           <ScenarioComparisonTable
@@ -814,7 +933,7 @@ export default function ScenariosPage() {
             versionId={versionId ?? undefined}
             onSelectScenario={handleSelectScenario}
             onSetPortalOffer={handleSetPortalOffer}
-            selectionDisabled={pdfFlowBusy || redownloading || isReadOnly || needsRecompute}
+            selectionDisabled={pdfFlowBusy || redownloading || isReadOnly || needsRecompute || historicalSelection!==""}
             selectingId={selectingId}
             portalOfferBusyId={portalOfferBusyId}
             versionLocked={versionLocked}
@@ -829,7 +948,7 @@ export default function ScenariosPage() {
           {...(needsRecompute ? { "data-testid": "scenarios-chart-stale", "aria-disabled": true } : {})}
           style={{
             marginBottom: "var(--spacing-24)",
-            ...(needsRecompute ? { opacity: 0.45, pointerEvents: "none" as const } : {}),
+            ...(needsRecompute ? { opacity: 0.8 } : {}),
           }}
         >
           <ScenarioEconomicsChart orderedScenarios={orderedScenarios} height={400} />

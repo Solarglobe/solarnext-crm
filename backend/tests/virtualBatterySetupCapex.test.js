@@ -28,7 +28,7 @@ function makeScenario(name, overrides = {}) {
   };
 }
 
-test("BATTERY_VIRTUAL setup fee stays informational and does not change finance outputs", async () => {
+test("BATTERY_VIRTUAL setup fee is paid once outside PV CAPEX and recurring costs", async () => {
   const ctx = {
     finance_input: { capex_ttc: 6800 },
     settings: {
@@ -79,11 +79,17 @@ test("BATTERY_VIRTUAL setup fee stays informational and does not change finance 
   assert.equal(out.virtualAnnualFees, 285.04);
   assert.equal(out.virtual_battery_finance.annual_total_virtual_cost_ttc, 285.04);
   assert.equal(out.virtual_battery_finance.annual_activation_fee_ttc, 0);
-  assert.deepEqual(out.flows, withoutSetupFee.flows);
-  assert.equal(out.irr_pct, withoutSetupFee.irr_pct);
-  assert.equal(out.roi_years, withoutSetupFee.roi_years);
-  assert.equal(out.gain_25a, withoutSetupFee.gain_25a);
-  assert.equal(Math.round(out.flows[0].total_eur * 100) / 100, 407.04);
-  assert.equal(Math.round(out.flows[1].total_eur * 100) / 100, 436.67);
+  assert.equal(Math.round((withoutSetupFee.flows[0].total_eur - out.flows[0].total_eur) * 100) / 100, 299);
+  for (let i = 1; i < out.flows.length; i++) assert.equal(out.flows[i].total_eur, withoutSetupFee.flows[i].total_eur);
+  assert.ok(out.irr_pct < withoutSetupFee.irr_pct);
+  assert.equal(Math.round((withoutSetupFee.gain_25a - out.gain_25a) * 100) / 100, 299);
+  // No confirmed surplus-sale contract: no invented OA income on top of the
+  // credited energy. Year two also pays restitution on the degraded volume.
+  assert.equal(out.flows[0].gain_oa, 0);
+  assert.equal(Math.round(out.flows[0].total_eur * 100) / 100, 81.11);
+  const year2Credit = 2449 * 0.995;
+  const year2Service = 48 + year2Credit * (237.04 / 2449);
+  assert.equal(Math.round(out.flows[1].virtual_service_cost_eur * 100) / 100, Math.round(year2Service * 100) / 100);
+  assert.equal(Math.round(out.flows[1].total_eur * 100) / 100, Math.round((3411 * 0.995 * 0.195 * 1.05 - year2Service) * 100) / 100);
   assert.doesNotMatch(JSON.stringify(out), /offerts|pris en charge par SolarGlobe|inclus dans l'investissement/i);
 });

@@ -10,16 +10,13 @@
  *   PVGIS_FALLBACK_USED, VB_COST_UNCONFIGURED_BLOCK_PDF, FAR_SHADING_UNAVAILABLE_BLOCK_PDF,
  *   SHADING_PAN_MISMATCH_BLOCK_PDF, SHADING_GEOMETRY_BLOCK_PDF
  *
- * Codes qui restent VRAIMENT bloquants (inchanges) :
- *   CALC_INVALID_8760_PROFILE, VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE
+ * Les faits critiques d'ombrage sont réévalués avant tout déclassement : une
+ * hauteur/échelle absente ou un écart au seuil de blocage ne devient pas une réserve.
  */
 
 import { pool } from "../config/db.js";
 import logger from "../app/core/logger.js";
-
-const TRULY_BLOCKING = new Set([
-  "CALC_INVALID_8760_PROFILE",
-]);
+import { shadingExportBlockers } from './shading/shadingExportGuard.service.js';
 
 const NOW_NON_BLOCKING = new Set([
   "PVGIS_FALLBACK_USED",
@@ -64,6 +61,16 @@ function recomputeLevel(blockingWarnings, assumptions) {
   return "HIGH";
 }
 
+export function migrateCalculationConfidence(cc) {
+  if(!cc||typeof cc!=='object')return cc;
+  const original=Array.isArray(cc.blocking_warnings)?cc.blocking_warnings:[];
+  const notices=Array.isArray(cc.non_blocking_warnings)?cc.non_blocking_warnings:[];
+  const blocking=Array.from(new Set([...original.filter(w=>!NOW_NON_BLOCKING.has(String(w))),...shadingExportBlockers({assumptions:cc.assumptions??{}}).map(item=>item.code)]));
+  const nonBlocking=Array.from(new Set([...notices,...original.filter(w=>NOW_NON_BLOCKING.has(String(w)))]))
+    .filter(w=>!blocking.includes(w));
+  return {...cc,level:recomputeLevel(blocking,cc.assumptions),blocking_warnings:blocking,non_blocking_warnings:nonBlocking};
+}
+
 export async function runConfidenceMigration() {
   // Trouver les study_versions avec level="BLOCKED" dans calculation_confidence
   let rows;
@@ -96,21 +103,8 @@ export async function runConfidenceMigration() {
     const cc = row.cc;
     if (!cc || typeof cc !== "object") { skipped++; continue; }
 
-    const origBlocking = Array.isArray(cc.blocking_warnings) ? cc.blocking_warnings : [];
-    const origNonBlocking = Array.isArray(cc.non_blocking_warnings) ? cc.non_blocking_warnings : [];
-
-    const stillBlocking = origBlocking.filter(w => TRULY_BLOCKING.has(String(w)));
-    const toMove = origBlocking.filter(w => NOW_NON_BLOCKING.has(String(w)));
-    // Codes inconnus : gardes dans blocking par securite
-    const unknown = origBlocking.filter(w => !TRULY_BLOCKING.has(String(w)) && !NOW_NON_BLOCKING.has(String(w)));
-
-    const newBlocking = [...stillBlocking, ...unknown];
-
-    // Si rien ne change (toutes les codes sont vraiment bloquants), ignorer
-    if (newBlocking.length === origBlocking.length) { skipped++; continue; }
-
-    const newNonBlocking = Array.from(new Set([...origNonBlocking, ...toMove]));
-    const newLevel = recomputeLevel(newBlocking, cc.assumptions);
+    const next=migrateCalculationConfidence(cc);
+    if(JSON.stringify(next)===JSON.stringify(cc)){skipped++;continue;}
 
     try {
       await pool.query(
@@ -118,12 +112,7 @@ export async function runConfidenceMigration() {
          SET data_json = jsonb_set(data_json, '{calculation_confidence}', $1::jsonb)
          WHERE id = $2`,
         [
-          JSON.stringify({
-            ...cc,
-            level: newLevel,
-            blocking_warnings: newBlocking,
-            non_blocking_warnings: newNonBlocking,
-          }),
+          JSON.stringify(next),
           row.id,
         ]
       );

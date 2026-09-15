@@ -1,6 +1,6 @@
 /**
  * FRONT DE SÉCURITÉ — Scénarios périmés / ambigus
- * Vérifie : blocage display_blocked/needs_recompute, bandeau "Snapshot périmé — recalcul requis",
+ * Vérifie : blocage display_blocked/needs_recompute, bandeau "Données modifiées — recalcul nécessaire",
  * raison technique, neutralisation des chiffres/comparaison, et badge profil conso brut/piloté.
  */
 import React from "react";
@@ -90,8 +90,8 @@ describe("ScenariosPage — front de sécurité", () => {
     await waitFor(() => {
       expect(screen.getByTestId("scenarios-recompute-banner")).toBeInTheDocument();
     });
-    expect(screen.getByText("Snapshot périmé — recalcul requis")).toBeInTheDocument();
-    expect(screen.getByTestId("scenarios-blocked-reason")).toHaveTextContent("STALE_SNAPSHOT_ENGINE_VERSION");
+    expect(screen.getByText("Données modifiées — recalcul nécessaire")).toBeInTheDocument();
+    expect(screen.getByTestId("scenarios-blocked-reason")).toHaveTextContent("Les règles de calcul ont évolué depuis cette étude.");
     // Chiffres neutralisés : le tableau et le graphe de comparaison sont désactivés (pointer-events none)
     const masked = screen.getByTestId("scenarios-stale");
     expect(masked).toHaveAttribute("aria-disabled", "true");
@@ -114,7 +114,8 @@ describe("ScenariosPage — front de sécurité", () => {
 
     const masked = await screen.findByTestId("scenarios-stale");
     // pointer-events: none empêche tout clic (sélection scénario = génération PDF)
-    expect(masked).toHaveStyle({ pointerEvents: "none" });
+    expect(masked).not.toHaveStyle({ pointerEvents: "none" });
+    expect(screen.getByRole("button",{name:"Choisir sans stockage"})).toBeDisabled();
   });
 
   it("TEST 3 — scénario non piloté : badge 'Profil brut'", async () => {
@@ -131,7 +132,7 @@ describe("ScenariosPage — front de sécurité", () => {
 
     const badge = await screen.findByTestId("scenario-conso-profile-BASE");
     expect(badge).toHaveTextContent("Profil brut");
-    expect(badge).toHaveTextContent("Enedis réelle");
+    expect(badge).toHaveTextContent("Courbe horaire Enedis");
   });
 
   it("TEST 4 — scénario piloté : badge 'Profil piloté'", async () => {
@@ -148,6 +149,6 @@ describe("ScenariosPage — front de sécurité", () => {
 
     const badge = await screen.findByTestId("scenario-conso-profile-BASE");
     expect(badge).toHaveTextContent("Profil piloté");
-    expect(badge).toHaveTextContent("Synthétique mensuelle");
+    expect(badge).toHaveTextContent("Profil estimé depuis la consommation mensuelle");
   });
 });

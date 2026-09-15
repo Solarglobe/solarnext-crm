@@ -18,7 +18,7 @@ const result = calculateRoiTriVan({
 });
 
 assert.equal(result.ok, true, result.errors?.join("; "));
-assert.equal(FINANCIAL_ENGINE_VERSION, "2.1.0");
+assert.equal(FINANCIAL_ENGINE_VERSION, "2.2.1");
 assert.ok(result.triPct > 0, "TRI must be positive on reference scenario");
 assert.ok(result.vanEur > 0, "VAN must be positive on reference scenario");
 

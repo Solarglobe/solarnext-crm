@@ -1,3 +1,4 @@
+import { displayKwh } from "@shared/studyDisplay.js";
 /**
  * Page batterie virtuelle — même système que PdfLegacyPort P7 (PdfPageLayout + PdfHeader legacy).
  */
@@ -6,6 +7,7 @@ import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "@/components/pdf/PdfHeader";
 import { usePdfOrgBranding } from "../PdfLegacyPort/pdfOrgBrandingContext";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
+import { electricityBillingNote, type ElectricityBilling } from "@/components/study/electricityBillingDisplay";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
 const PLACEHOLDER_LOGO = "/client-portal/logo-solarglobe.png";
@@ -21,6 +23,7 @@ function getStorageUrl(
 }
 
 interface P7VirtualBatteryData {
+  electricity_billing?: ElectricityBilling | null;
   meta?: { client?: string; ref?: string; date?: string; date_display?: string };
   title?: string;
   subtitle?: string;
@@ -48,7 +51,7 @@ function num(v: unknown): number | null {
 function fmtKwh(v: unknown): string {
   const n = num(v);
   if (n == null) return EMPTY;
-  return `${Math.round(n).toLocaleString("fr-FR")} kWh`;
+  return displayKwh(n);
 }
 
 function fmtPctFromRatio(v: unknown): string {
@@ -122,6 +125,8 @@ export default function PdfPage7VirtualBattery({
   const withBattery = data.with_virtual_battery ?? {};
   const maxTheoretical = data.max_theoretical ?? {};
   const kpis = (data as { kpis?: Record<string, unknown> }).kpis ?? {};
+  const billing = data.electricity_billing;
+  const estimatedBill = billing ? num(billing.bill_after_eur) : num(kpis.estimated_annual_bill_eur);
   const overflowExportKwh = num(kpis.overflow_export_kwh ?? data.source?.overflow_export_kwh) ?? 0;
   const limits = Array.isArray(data.limits) ? data.limits.slice(0, 3) : [];
 
@@ -207,32 +212,31 @@ export default function PdfPage7VirtualBattery({
           <div className="card soft" style={CARD_SOFT_BASE}>
             <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
               {isHybrid
-                ? "Énergie solaire utilisée (direct + batterie physique + crédit virtuel)"
-                : "Énergie solaire utilisée (direct + crédit virtuel)"}
+                ? "Énergie valorisée : solaire local + crédit"
+                : "Énergie valorisée : direct + crédit"}
             </div>
             <div style={{ fontSize: "6.5mm", fontWeight: 800, lineHeight: 1 }}>{fmtKwh(kpis.energy_solar_used_kwh ?? withBattery.pv_total_used_kwh)}</div>
             <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
-              {`Vous utiliserez environ ${fmtKwh(kpis.energy_solar_used_kwh ?? withBattery.pv_total_used_kwh)} de votre production solaire`}
+              {`Solaire local et crédit utilisés : environ ${fmtKwh(kpis.energy_solar_used_kwh ?? withBattery.pv_total_used_kwh)} au bilan comptable`}
             </div>
           </div>
           <div className="card soft" style={CARD_SOFT_BASE}>
-            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Énergie restante à acheter</div>
+            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Énergie facturée hors crédit</div>
             <div style={{ fontSize: "6.5mm", fontWeight: 800, lineHeight: 1 }}>{fmtKwh(kpis.energy_grid_import_kwh ?? withBattery.grid_import_kwh)}</div>
             <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
-              {`Il vous restera environ ${fmtKwh(kpis.energy_grid_import_kwh ?? withBattery.grid_import_kwh)} à acheter au réseau`}
+              {`Il vous restera environ ${fmtKwh(kpis.energy_grid_import_kwh ?? withBattery.grid_import_kwh)} facturés hors crédit, en plus des frais du service`}
             </div>
           </div>
           <div className="card soft" style={CARD_SOFT_BASE}>
             <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Facture annuelle estimée</div>
             <div style={{ fontSize: "6.5mm", fontWeight: 800, lineHeight: 1 }}>
-              {num(kpis.estimated_annual_bill_eur) != null
-                ? `${Math.round(num(kpis.estimated_annual_bill_eur) as number).toLocaleString("fr-FR")} €`
-                : EMPTY}
+              {billing?.status === "INCOMPLETE" ? "Contrat à compléter" : estimatedBill != null
+                ? `${Math.round(estimatedBill).toLocaleString("fr-FR")} €` : EMPTY}
             </div>
             <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
-              {num(kpis.estimated_annual_bill_eur) != null
-                ? `Votre facture d’électricité sera d’environ ${Math.round(num(kpis.estimated_annual_bill_eur) as number).toLocaleString("fr-FR")} € par an (hors abonnement compteur)`
-                : EMPTY}
+              {electricityBillingNote(billing)}
+              {billing?.status === "FULL" && billing.scenario_supplier_subscription_eur != null
+                ? `, dont ${Math.round(billing.scenario_supplier_subscription_eur).toLocaleString("fr-FR")} € d’abonnement par an.` : ""}
             </div>
           </div>
         </div>
@@ -273,8 +277,8 @@ export default function PdfPage7VirtualBattery({
             >
               <div style={{ fontWeight: 700, fontSize: "3.2mm", color: brandHex }}>
                 {isHybrid
-                  ? "Ce que le stockage (physique + virtuel) change — couverture de vos besoins"
-                  : "Ce que la batterie virtuelle change — couverture de vos besoins"}
+                  ? "Ce que le stockage (physique + virtuel) change — bilan comptable des besoins"
+                  : "Ce que la batterie virtuelle change — bilan comptable des besoins"}
               </div>
               {row("Sans crédit virtuel", pctS, "linear-gradient(90deg,#9ca3af,#6b7280)", false)}
               {row(
@@ -291,14 +295,14 @@ export default function PdfPage7VirtualBattery({
             <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Max théorique</div>
             <MetricRow label="Production" value={fmtKwh(maxTheoretical.production_kwh)} />
             <MetricRow label="Consommation" value={fmtKwh(maxTheoretical.consumption_kwh)} />
-            <MetricRow label="Autonomie max" value={fmtPctFromRatio(maxTheoretical.autonomy_ratio)} isLast />
+            <MetricRow label="Production / consommation" value={fmtPctFromRatio(maxTheoretical.autonomy_ratio)} isLast />
             <p style={{ margin: "2mm 0 0", fontSize: "2.85mm", color: "#666", fontStyle: "italic", lineHeight: 1.35 }}>
-              Même avec un crédit virtuel parfait, ce seuil ne peut pas être dépassé.
+              Ce ratio annuel ne tient pas compte d’un éventuel crédit acquis avant la période.
             </p>
           </div>
 
           <div className="card soft" style={CARD_SOFT_BASE}>
-            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Pourquoi pas 100 %</div>
+            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Conditions du bilan comptable</div>
             <ul style={{ margin: "0", paddingLeft: "4mm", fontSize: "3.05mm", color: "#444", lineHeight: 1.42 }}>
               {limits.map((item) => (
                 <li key={item} style={{ marginBottom: "1mm" }}>
@@ -311,19 +315,19 @@ export default function PdfPage7VirtualBattery({
 
         <div className="card soft" style={{ ...CARD_SOFT_BASE, borderColor: "rgba(195, 152, 71, 0.42)", background: "linear-gradient(180deg, rgba(195,152,71,.1), #fdfcf9)", flexShrink: 0 }}>
           <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
-            Besoins couverts par le solaire
+            Solaire local et crédit comptable
           </div>
           <div style={{ fontSize: "5.2mm", fontWeight: 800 }}>
             {num(kpis.solar_coverage_pct) != null
               ? Number(kpis.solar_coverage_pct) >= 50
-                ? "Plus de la moitié de votre consommation est couverte par votre installation solaire"
-                : `Vous couvrez environ ${Number(kpis.solar_coverage_pct).toFixed(1).replace(".", ",")} % de vos besoins avec votre installation solaire`
+                ? "Plus de la moitié des besoins est valorisée par solaire local et crédit"
+                : `Vous couvrez environ ${Number(kpis.solar_coverage_pct).toFixed(1).replace(".", ",")} % des besoins par solaire local et crédit`
               : EMPTY}
           </div>
           <p style={{ margin: "1.2mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
             {overflowExportKwh > 1
               ? `${Math.round(overflowExportKwh).toLocaleString("fr-FR")} kWh de surplus restent non valorisés selon la capacité étudiée.`
-              : "Dans ce scénario, la production indiquée est entièrement valorisée : usage direct puis crédit virtuel restitué."}
+              : "Le crédit inutilisé en fin de période reste un solde comptable, pas une consommation solaire locale."}
           </p>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { getCalendar, calendarParts } from '../energyCalendar.service.js';
 /**
  * Masque horaire HP/HC (8760) pour la ventilation de la restitution batterie virtuelle.
  *
@@ -19,7 +20,7 @@ function toMinutes(hhmm) {
   if (!m) return null;
   const h = Number(m[1]);
   const min = Number(m[2]);
-  if (!Number.isFinite(h) || !Number.isFinite(min) || h < 0 || h > 24 || min < 0 || min > 59) return null;
+  if (!Number.isFinite(h) || !Number.isFinite(min) || h < 0 || h > 24 || min < 0 || min > 59 || (h === 24 && min !== 0)) return null;
   return h * 60 + min;
 }
 
@@ -38,11 +39,19 @@ function expandPeriods(periods) {
       out.push([0, e]);
     }
   }
-  return out;
+  // Une minute creuse ne doit être comptée qu'une fois si des plages se chevauchent.
+  out.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const [start, end] of out) {
+    const previous = merged[merged.length - 1];
+    if (previous && start <= previous[1]) previous[1] = Math.max(previous[1], end);
+    else merged.push([start, end]);
+  }
+  return merged;
 }
 
-/** Une heure [h:00, h+1:00) est HC si ≥ 30 min couvertes par une plage creuse. */
-function hourIsOffPeak(hour, intervals) {
+/** Part HC d'une heure [h:00, h+1:00), sans arrondir les bornes des plages. */
+function hourOffPeakFraction(hour, intervals) {
   const hs = hour * 60;
   const he = hs + 60;
   let covered = 0;
@@ -51,18 +60,37 @@ function hourIsOffPeak(hour, intervals) {
     const hi = Math.min(he, e);
     if (hi > lo) covered += hi - lo;
   }
-  return covered >= 30;
+  return Math.min(60, covered) / 60;
 }
 
-/** @returns {boolean[]} 24 flags, true = HP (heure pleine), false = HC (heure creuse). */
-export function buildHourOfDayHpFlags(offPeakPeriods) {
+/** @returns {number[]} 24 parts HP entre 0 et 1 ; ex. 22h30 début HC → 0.5 à 22h. */
+export function buildHourOfDayHpFractions(offPeakPeriods) {
   const periods = Array.isArray(offPeakPeriods) && offPeakPeriods.length ? offPeakPeriods : DEFAULT_OFF_PEAK_PERIODS;
   const intervals = expandPeriods(periods);
   // Garde-fou : si la config est invalide (aucun intervalle), on retombe sur le défaut.
   const safe = intervals.length ? intervals : expandPeriods(DEFAULT_OFF_PEAK_PERIODS);
-  const flags = [];
-  for (let h = 0; h < 24; h++) flags.push(!hourIsOffPeak(h, safe));
-  return flags;
+  return Array.from({ length: 24 }, (_, h) => 1 - hourOffPeakFraction(h, safe));
+}
+
+/** Masque historique : conservé pour les consommateurs booléens, pas pour valoriser l'énergie. */
+export function buildHourOfDayHpFlags(offPeakPeriods) {
+  return buildHourOfDayHpFractions(offPeakPeriods).map((hpFraction) => hpFraction > 0.5);
+}
+
+/** @returns {number[]} 8760 parts HP, motif journalier répété. */
+export function buildHpHcHourlyFractions(offPeakPeriods, calendar = null) {
+  const hp24 = buildHourOfDayHpFractions(offPeakPeriods);
+  if (!calendar) return Array.from({ length: 8760 }, (_, i) => hp24[i % 24]);
+  return calendarParts(calendar).map(p => {
+    if (!p.minute) return hp24[p.hour];
+    const intervals = expandPeriods(offPeakPeriods?.length ? offPeakPeriods : DEFAULT_OFF_PEAK_PERIODS);
+    let hc = 0;
+    for (let minute = 0; minute < 60; minute++) {
+      const clock = (p.hour * 60 + p.minute + minute) % 1440;
+      if (intervals.some(([s,e]) => clock >= s && clock < e)) hc++;
+    }
+    return 1 - hc / 60;
+  });
 }
 
 /** @returns {boolean[]} 8760 flags (true = HP), motif journalier répété. Heure 0 = minuit 1er janvier. */
@@ -103,7 +131,7 @@ export function parseEnedisOffPeakLabel(label) {
     const eh = Number(rm[3]);
     const em = rm[4] === "" ? 0 : Number(rm[4]);
     if (![sh, sm, eh, em].every(Number.isFinite)) continue;
-    if (sh > 24 || eh > 24 || sm > 59 || em > 59) continue;
+    if (sh > 24 || eh > 24 || sm > 59 || em > 59 || (sh === 24 && sm !== 0) || (eh === 24 && em !== 0)) continue;
     const start = `${String(sh).padStart(2, "0")}:${String(sm).padStart(2, "0")}`;
     const end = `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
     if (start === end) continue;
@@ -112,22 +140,62 @@ export function parseEnedisOffPeakLabel(label) {
   return out.length ? out : null;
 }
 
+/** Current imported meter hours only; no future schedule and no assumed window. */
+export function resolveKnownCurrentOffPeakPeriods(energyProfile) {
+  const validPeriods = (value) => {
+    if (!Array.isArray(value) || value.length === 0) return null;
+    const time = (raw) => typeof raw === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(raw);
+    if (!value.every((period) => time(period?.start) && time(period?.end) && period.start !== period.end)) return null;
+    return value.map(({ start, end }) => ({ start, end }));
+  };
+  const contract = energyProfile?.contract;
+  const structured = validPeriods(contract?.off_peak_periods)
+    ?? validPeriods(parseEnedisOffPeakLabel(contract?.plage_hc));
+  if (structured) return structured;
+  // Older form saves retained only engine. Its displayed current contract still
+  // contains the imported window, e.g. "HP/HC (22H30-6H30) — 18 kVA — 230/400 V".
+  // Anchor on that current-contract format instead of scraping any time range.
+  const summary = energyProfile?.engine?.contract_summary;
+  const current = typeof summary === "string"
+    ? summary.match(/^\s*HP\s*\/\s*HC\s*\(([^)]+)\)(?:\s*[—–-]|\s*$)/i)
+    : null;
+  return current ? validPeriods(parseEnedisOffPeakLabel(current[1])) : null;
+}
+
 /** Résout les plages creuses depuis la config devis/lead/settings, sinon défaut. */
-export function resolveOffPeakPeriods(vbInput, ctx) {
+export function resolveKnownVirtualOffPeakPeriods(vbInput, ctx) {
   const candidates = [
     vbInput?.off_peak_periods,
     vbInput?.offPeakPeriods,
+    ctx?.form?.params?.current_off_peak_periods,
     ctx?.form?.params?.off_peak_periods,
+    ctx?.form?.lead?.current_off_peak_periods,
     ctx?.form?.lead?.off_peak_periods,
     ctx?.settings?.pv?.virtual_battery?.off_peak_periods,
   ];
   for (const c of candidates) {
     if (Array.isArray(c) && c.length) return c;
   }
-  return DEFAULT_OFF_PEAK_PERIODS;
+  return resolveKnownCurrentOffPeakPeriods(ctx?.form?.lead?.energy_profile ?? ctx?.lead?.energy_profile ?? ctx?.energy_profile);
+}
+export function resolveOffPeakPeriods(vbInput, ctx) {
+  return resolveKnownVirtualOffPeakPeriods(vbInput,ctx) ?? DEFAULT_OFF_PEAK_PERIODS;
 }
 
 /** Masque 8760 HP/HC résolu depuis la config (avec défaut 23h→07h). */
 export function resolveHpHcHourlyMask(vbInput, ctx) {
-  return buildHpHcHourlyMask(resolveOffPeakPeriods(vbInput, ctx));
+  return resolveHpHcHourlyFractions(vbInput, ctx).map(f => f > 0.5);
+}
+
+/** Parts HP utilisées pour valoriser les kWh sans arrondir les minutes creuses. */
+export function resolveHpHcHourlyFractions(vbInput, ctx) {
+  return buildHpHcHourlyFractions(resolveOffPeakPeriods(vbInput, ctx), getCalendar(ctx?.conso?.hourly, ctx?.conso?.calendar));
+}
+
+/** Plages du contrat actuel ; les réglages du futur fournisseur ne modifient jamais la référence. */
+export function resolveCurrentOffPeakPeriods(ctx) {
+  const candidates = [ctx?.form?.params?.current_off_peak_periods, ctx?.form?.lead?.current_off_peak_periods, ctx?.form?.params?.off_peak_periods, ctx?.form?.lead?.off_peak_periods];
+  return candidates.find((periods) => Array.isArray(periods) && periods.length)
+    ?? resolveKnownCurrentOffPeakPeriods(ctx?.form?.lead?.energy_profile ?? ctx?.lead?.energy_profile ?? ctx?.energy_profile)
+    ?? DEFAULT_OFF_PEAK_PERIODS;
 }

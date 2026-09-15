@@ -1,0 +1,1 @@
+export function electricityBillDisplay<T extends {bill_before_eur?: number|null;bill_after_eur?: number|null;bill_savings_eur?: number|null}>(billing:T|null|undefined,digits?:number): (T & {bill_before_eur:number|null;bill_after_eur:number|null;bill_savings_eur:number|null})|null;

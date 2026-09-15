@@ -52,8 +52,9 @@ export default function PdfPage6({
     is_virtual_credit_scenario?: boolean;
     totals?: { overflow_export_kwh?: number | null };
   };
+  // The physical graph intentionally excludes credit; billing context is separate.
   const isVirtualCreditScenario = p6Data.is_virtual_credit_scenario === true;
-  const overflowExportKwh = Number(p6Data.totals?.overflow_export_kwh ?? 0);
+  const hasVirtualCreditBilling = Boolean((viewModel?.results_reference as { virtual_credit?: unknown } | undefined)?.virtual_credit) || isVirtualCreditScenario;
 
   return (
     <PdfPageLayout
@@ -130,7 +131,7 @@ export default function PdfPage6({
           flexShrink: 0,
         }}
       >
-        Sur une année type, le générateur réduit nettement la part d&apos;énergie prélevée sur le réseau.
+        {isVirtualCreditScenario ? "Les besoins sont répartis entre solaire local, crédit virtuel utilisé et complément hors crédit." : "Les résultats distinguent le solaire utilisé et les prélèvements physiques au réseau."}
       </p>
 
       {/* 2. Texte explicatif court */}
@@ -163,22 +164,22 @@ export default function PdfPage6({
       >
         <div style={{ marginBottom: "2mm", flexShrink: 0 }}>
           <h3 style={{ margin: 0, color: brandHex, fontWeight: 800, fontSize: "4.5mm" }}>
-            Autonomie énergétique et prélèvements réseau sur l&apos;année
+            {isVirtualCreditScenario ? "Solaire local et crédit virtuel sur l’année" : "Autonomie énergétique et prélèvements réseau sur l’année"}
           </h3>
         </div>
 
         <div className="p6-legend" style={{ display: "flex", gap: "8mm", alignItems: "center", fontSize: "3mm", marginBottom: "1mm" }}>
           <span className="leg" style={{ display: "flex", gap: "2mm", alignItems: "center" }}>
             <i style={{ display: "inline-block", width: "7mm", height: "3mm", borderRadius: "999mm", background: "#86D8F1" }} />
-            PV utilisée
+            Solaire local
           </span>
           <span className="leg" style={{ display: "flex", gap: "2mm", alignItems: "center" }}>
             <i style={{ display: "inline-block", width: "7mm", height: "3mm", borderRadius: "999mm", background: "#B3F4C4" }} />
-            {isVirtualCreditScenario ? "Crédit virtuel restitué" : "Décharge batterie"}
+            {isVirtualCreditScenario ? "Crédit virtuel utilisé" : "Décharge batterie"}
           </span>
           <span className="leg" style={{ display: "flex", gap: "2mm", alignItems: "center" }}>
             <i style={{ display: "inline-block", width: "7mm", height: "3mm", borderRadius: "999mm", background: "#CFCBFF" }} />
-            Import réseau
+            {isVirtualCreditScenario ? "Complément hors crédit" : "Import réseau"}
           </span>
           <span className="leg" style={{ display: "flex", gap: "2mm", alignItems: "center" }}>
             <b style={{ display: "inline-block", width: "12mm", height: "1.6mm", background: "#e6ebf2", borderRadius: "2mm" }} />
@@ -197,7 +198,7 @@ export default function PdfPage6({
           <div style={{ display: "flex", gap: "3mm", alignItems: "center" }}>
             <div style={{ width: "9mm", height: "9mm", borderRadius: "999mm", background: "#86D8F1" }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Part couverte par le solaire</div>
+              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>{isVirtualCreditScenario ? "Solaire + crédit virtuel" : "Part couverte par le solaire"}</div>
               <div style={{ fontSize: "3mm", color: "#6b7280" }}>Part couverte en bilan annuel</div>
             </div>
           </div>
@@ -209,8 +210,8 @@ export default function PdfPage6({
           <div style={{ display: "flex", gap: "3mm", alignItems: "center" }}>
             <div style={{ width: "9mm", height: "9mm", borderRadius: "999mm", background: "#CFCBFF" }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Énergie restante à acheter</div>
-              <div style={{ fontSize: "3mm", color: "#6b7280" }}>kWh & coût estimé</div>
+              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>{isVirtualCreditScenario ? "Complément hors crédit" : "Prélèvements physiques au réseau"}</div>
+              <div style={{ fontSize: "3mm", color: "#6b7280" }}>{isVirtualCreditScenario ? 'Coût du complément, hors frais du service' : hasVirtualCreditBilling ? 'Coût énergie avant crédit et frais de service' : 'Coût énergie hors abonnement'}</div>
             </div>
           </div>
           <div style={{ fontSize: "5.6mm", fontWeight: 800, marginTop: "2mm" }} id="p6_grid_kwh">—</div>
@@ -221,8 +222,8 @@ export default function PdfPage6({
           <div style={{ display: "flex", gap: "3mm", alignItems: "center" }}>
             <div style={{ width: "9mm", height: "9mm", borderRadius: "999mm", background: "#B3F4C4" }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Production PV valorisée</div>
-              <div style={{ fontSize: "3mm", color: "#6b7280" }}>Part de production utilisée ou créditée</div>
+              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>{isVirtualCreditScenario ? "Crédit virtuel utilisé" : "Production solaire utile"}</div>
+              <div style={{ fontSize: "3mm", color: "#6b7280" }}>{isVirtualCreditScenario ? "Prélèvements compensés par le crédit" : "Solaire direct + restitution physique / production"}</div>
             </div>
           </div>
           <div style={{ fontSize: "5.6mm", fontWeight: 800, marginTop: "2mm" }} id="p6_auto_pct">—</div>
@@ -250,10 +251,10 @@ export default function PdfPage6({
           }}
         >
           <div style={{ fontSize: "3.1mm", fontWeight: 600, color: brandHex, marginBottom: "1.2mm" }}>
-            Une production locale significative
+            Production locale et besoins
           </div>
           <div style={{ fontSize: "2.9mm", lineHeight: 1.35, color: "#444" }}>
-            L&apos;installation couvre déjà une part importante des besoins du site.
+            {isVirtualCreditScenario ? "Le bilan additionne le solaire local et les crédits utilisés pendant la période." : "La couverture affichée rapporte le solaire utile aux besoins du site."}
           </div>
         </div>
 
@@ -267,7 +268,7 @@ export default function PdfPage6({
           }}
         >
           <div style={{ fontSize: "3.1mm", fontWeight: 600, color: brandHex, marginBottom: "1.2mm" }}>
-            Une dépendance au réseau maîtrisée
+            Prélèvements au réseau
           </div>
           <div style={{ fontSize: "2.9mm", lineHeight: 1.35, color: "#444" }}>
             Le réseau reste nécessaire, principalement en hiver et en dehors des périodes de production.
@@ -287,9 +288,9 @@ export default function PdfPage6({
             Des marges d&apos;optimisation possibles
           </div>
           <div style={{ fontSize: "2.9mm", lineHeight: 1.35, color: "#444" }}>
-            {isVirtualCreditScenario && overflowExportKwh <= 1
-              ? "Dans ce scénario, la production indiquée est entièrement valorisée : usage direct puis crédit virtuel restitué."
-              : "Une partie de votre production solaire peut rester non valorisée uniquement si un surplus réel dépasse la capacité étudiée."}
+            {isVirtualCreditScenario
+              ? "Le crédit virtuel réduit les kWh facturés ; les prélèvements physiques restent des échanges avec le réseau."
+              : "Les flux présentés séparent le solaire direct, la restitution physique et les prélèvements réseau."}
           </div>
         </div>
       </div>

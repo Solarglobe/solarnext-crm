@@ -31,6 +31,7 @@ export default function PdfPage2({
   };
 }) {
   const p2Auto = viewModel?.fullReport?.p2?.p2_auto ?? {};
+  const horizonYears=Number(String(p2Auto.p2_horizon??"25").match(/\d+/)?.[0])||25;
   const p2Text = (key: string, fallback = "—") => {
     const value = p2Auto[key];
     return value !== null && value !== undefined && value !== "" ? String(value) : fallback;
@@ -40,8 +41,8 @@ export default function PdfPage2({
     const parsed = Number(String(value).replace(/\s/g, "").replace("€", "").replace(",", "."));
     return Number.isFinite(parsed) ? parsed : null;
   };
-  const p2Sans25 = parseEur(p2Auto.p2_sans_25 ?? p2Auto.p2_sans_solaire);
-  const p2Avec25 = parseEur(p2Auto.p2_avec_25 ?? p2Auto.p2_avec_solaire);
+  const p2Sans25 = parseEur(p2Auto[`p2_sans_${horizonYears}`] ?? p2Auto.p2_sans_solaire);
+  const p2Avec25 = parseEur(p2Auto[`p2_avec_${horizonYears}`] ?? p2Auto.p2_avec_solaire);
   const p2BarPct =
     p2Sans25 != null && p2Avec25 != null && p2Sans25 > 0
       ? Math.round(((p2Sans25 - p2Avec25) / p2Sans25) * 100)
@@ -54,7 +55,7 @@ export default function PdfPage2({
     value != null && Number.isFinite(value) ? `${Math.round(value).toLocaleString("fr-FR")} €` : "—";
   const p2MilestoneText = (
     key: "sans" | "avec" | "eco",
-    years: 5 | 10 | 15 | 20 | 25,
+    years: number,
   ) => {
     const explicit = p2Text(`p2_${key}_${years}`, "");
     if (explicit) return explicit;
@@ -64,7 +65,7 @@ export default function PdfPage2({
         : key === "avec"
           ? p2Avec25
           : parseEur(p2Auto.p2_economie_totale ?? p2Auto.p2_economie_nette);
-    return formatEur(base != null ? base * (years / 25) : null);
+    return formatEur(base != null ? base * (Math.min(years,horizonYears) / horizonYears) : null);
   };
   const financialScopeNote = p2Text("p2_financial_scope_note", "");
 
@@ -119,7 +120,7 @@ export default function PdfPage2({
                 />
               ) : null
             }
-            badge="Étude financière 25 ans"
+            badge={`Étude financière ${horizonYears} ans`}
             metaColumn={
               <div
                 className="meta-compact"
@@ -183,7 +184,7 @@ export default function PdfPage2({
               letterSpacing: "0.02em",
             }}
           >
-            Comparatif financier et indicateurs (25 ans)
+            Comparatif financier et indicateurs ({horizonYears} ans)
           </h2>
 
           {/* Hero compact — id p2_eco_25_hero rempli par engine-p2.js */}
@@ -200,11 +201,11 @@ export default function PdfPage2({
             <h2
               style={{ margin: 0, fontSize: "3.9mm", fontWeight: 700, color: "#333" }}
             >
-              Sur 25 ans, le projet permet d&apos;éviter plus de{" "}
+              Sur {horizonYears} ans, les gains d’exploitation cumulés sont estimés à{" "}
               <strong style={{ color: brandHex }}>
                 <span id="p2_eco_25_hero">{p2Text("p2_economie_totale")}</span>
               </strong>{" "}
-              de dépenses d&apos;électricité.
+              (hors investissement).
             </h2>
             <p style={{ margin: "1.15mm 0 0 0", fontSize: "3.2mm", color: "#555" }}>
               Dont{" "}
@@ -279,7 +280,7 @@ export default function PdfPage2({
                       align="right"
                       style={{ padding: "1.45mm 2mm 1.55mm", fontWeight: 700, color: brandHex }}
                     >
-                      Avec solaire
+                      Solde avec projet
                     </th>
                     <th
                       align="right"
@@ -366,7 +367,7 @@ export default function PdfPage2({
                       {p2MilestoneText("eco", 15)}
                     </td>
                   </tr>
-                  <tr className="p2-table-body-row" style={{ borderBottom: "0.12mm solid rgba(0,0,0,0.06)" }}>
+                  {horizonYears>20&&<tr className="p2-table-body-row" style={{ borderBottom: "0.12mm solid rgba(0,0,0,0.06)" }}>
                     <td style={{ padding: "1.32mm 2mm 1.32mm 0" }}>20 ans</td>
                     <td
                       id="p2_sans_20"
@@ -389,7 +390,7 @@ export default function PdfPage2({
                     >
                       {p2MilestoneText("eco", 20)}
                     </td>
-                  </tr>
+                  </tr>}
                   <tr
                     className="p2-highlight-row"
                     style={{
@@ -400,21 +401,21 @@ export default function PdfPage2({
                     <td
                       style={{ padding: "1.42mm 2mm 1.42mm 0", fontWeight: 600 }}
                     >
-                      25 ans
+                      {horizonYears} ans
                     </td>
                     <td
                       id="p2_sans_25"
                       align="right"
                       style={{ padding: "1.42mm 2mm", fontWeight: 600 }}
                     >
-                      {p2MilestoneText("sans", 25)}
+                      {p2MilestoneText("sans", horizonYears)}
                     </td>
                     <td
                       id="p2_avec_25"
                       align="right"
                       style={{ padding: "1.42mm 2mm", fontWeight: 600, color: brandHex }}
                     >
-                      {p2MilestoneText("avec", 25)}
+                      {p2MilestoneText("avec", horizonYears)}
                     </td>
                     <td
                       id="p2_eco_25"
@@ -422,7 +423,7 @@ export default function PdfPage2({
                       className="p2-highlight-value"
                       style={{ padding: "1.42mm 0 1.42mm 2mm", fontWeight: 600, color: "#2d7a3e" }}
                     >
-                      {p2MilestoneText("eco", 25)}
+                      {p2MilestoneText("eco", horizonYears)}
                     </td>
                   </tr>
                 </tbody>
@@ -520,7 +521,7 @@ export default function PdfPage2({
                   L&apos;évolution du prix de l&apos;électricité est intégrée dans les calculs
                 </li>
                 <li style={{ margin: 0, gridColumn: "1 / -1" }}>
-                  Les performances sont estimées sur l&apos;horizon de 25 ans
+                  Les performances sont estimées sur l&apos;horizon de {horizonYears} ans
                 </li>
               </ul>
             </div>
@@ -665,7 +666,7 @@ export default function PdfPage2({
                     marginBottom: "1.95mm",
                   }}
                 >
-                  Comparatif facture — 25 ans
+                  Soldes d’exploitation — {horizonYears} ans
                 </div>
                 <div
                   className="p2-bar-container"
@@ -768,7 +769,7 @@ export default function PdfPage2({
                         textAlign: "center" as const,
                       }}
                     >
-                      Avec solaire
+                      Solde avec projet
                     </label>
                   </div>
                 </div>

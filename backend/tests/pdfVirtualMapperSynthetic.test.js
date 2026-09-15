@@ -1,6 +1,6 @@
 /**
- * ACHOURI virtual battery PDF mapper guard.
- * Usage: node --test backend/tests/pdfAchouriVirtualMapper.test.js
+ * Synthetic virtual battery PDF mapper guard.
+ * Usage: node --test backend/tests/pdfVirtualMapperSynthetic.test.js
  */
 
 import test from "node:test";
@@ -11,8 +11,8 @@ function buildSnapshot({ production, direct, credit, gridImport, capex }) {
   return {
     computed_at: "2026-08-28T10:00:00.000Z",
     scenario_type: "BATTERY_VIRTUAL",
-    client: { full_name: "Sami ACHOURI" },
-    site: { puissance_compteur_kva: 9, type_reseau: "mono", lat: 48.958094 },
+    client: { full_name: "Client fictif" },
+    site: { puissance_compteur_kva: 9, type_reseau: "mono", lat: 48 },
     hardware: { kwc: production > 5000 ? 6 : 3 },
     installation: { panneaux_nombre: production > 5000 ? 12 : 6 },
     energy: {
@@ -48,14 +48,14 @@ function buildSnapshot({ production, direct, credit, gridImport, capex }) {
   };
 }
 
-test("ACHOURI 3 kWc PDF VM keeps direct, credit and reconciled production distinct", () => {
+test("Synthetic 3 kWc PDF VM keeps direct, credit and reconciled production distinct", () => {
   const vm = mapSelectedScenarioSnapshotToPdfViewModel(buildSnapshot({
     production: 3410,
     direct: 962,
     credit: 2448.771,
     gridImport: 7589,
     capex: 6800,
-  }), { studyNumber: "SGS-2026-0166" });
+  }), { studyNumber: "SYNTHETIC-PDF-3" });
 
   assert.equal(vm.production.annualProductionKwh, 3411);
   assert.equal(vm.fullReport.p2.p2_auto.p2_production, "3 411 kWh");
@@ -74,19 +74,19 @@ test("ACHOURI 3 kWc PDF VM keeps direct, credit and reconciled production distin
   assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupBillingPolicy, "outside_pv_investment");
   assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupFeeIncludedInCapex, false);
   assert.match(vm.fullReport.p10.residual_bill_virtual.virtualStorageFeesIndexationNote, /maintenus constants/);
-  assert.match(vm.fullReport.p2.p2_auto.p2_financial_scope_note, /hors frais ponctuels/);
-  assert.match(vm.fullReport.p11.data.financial_scope_note, /hors frais ponctuels/);
+  assert.match(vm.fullReport.p2.p2_auto.p2_financial_scope_note, /inclus dans les flux/);
+  assert.match(vm.fullReport.p11.data.financial_scope_note, /incluant les frais ponctuels de crédit virtuel/);
   assert.doesNotMatch(JSON.stringify(vm.fullReport), /offerts|pris en charge par SolarGlobe|inclus dans l'investissement/i);
 });
 
-test("ACHOURI 6 kWc PDF VM keeps direct, credit and reconciled production distinct", () => {
+test("Synthetic 6 kWc PDF VM keeps direct, credit and reconciled production distinct", () => {
   const vm = mapSelectedScenarioSnapshotToPdfViewModel(buildSnapshot({
     production: 6778,
     direct: 1124,
     credit: 5654.602,
     gridImport: 4221,
     capex: 10700,
-  }), { studyNumber: "SGS-2026-0165" });
+  }), { studyNumber: "SYNTHETIC-PDF-6" });
 
   assert.equal(vm.production.annualProductionKwh, 6779);
   assert.equal(vm.fullReport.p2.p2_auto.p2_production, "6 779 kWh");
@@ -111,7 +111,7 @@ test("UrbanSolar 299 EUR setup fee is shown outside PV investment, never waived"
     gridImport: 7589,
     capex: 6800,
   });
-  const vm = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, { studyNumber: "SGS-2026-0166" });
+  const vm = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, { studyNumber: "SYNTHETIC-PDF-3" });
 
   assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupFee, 0);
   assert.equal(vm.fullReport.p10.residual_bill_virtual.virtualStorageSetupCommercialFee, 299);

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 /**
  * Mapper scénarios V2 — structure unifiée pour persistance (PDF-ready, study_versions.data_json.scenarios_v2).
  * Les montants financiers viennent du moteur (financeService) ; ce fichier ne fait que structurer pour la persistance.
@@ -163,6 +164,12 @@ export function mapScenarioToV2(scenario, ctx) {
   const selfProductionPctLegacy = solarCoverPct;
 
   const energyBase = {
+    reference: scenario.energy?.reference ?? null,
+    physical_grid_import_kwh: scenario.energy?.reference?.annual?.grid_to_load_kwh ?? scenario.energy?.physical_grid_import_kwh ?? null,
+    physical_grid_export_kwh: scenario.energy?.reference?.annual?.physical_export_kwh ?? scenario.energy?.physical_grid_export_kwh ?? null,
+    battery_stock_change_kwh: scenario.energy?.reference?.annual?.stock_change_kwh ?? null,
+    curtailment_kwh: scenario.energy?.reference?.annual?.curtailment_kwh ?? null,
+    captured_pv_before_storage_losses_pct: scenario.energy?.captured_pv_before_storage_losses_pct ?? null,
     production_kwh: prodKwh,
     consumption_kwh: consoKwh,
     autoconsumption_kwh: pvUsedKwh ?? autoKwh,
@@ -290,6 +297,12 @@ export function mapScenarioToV2(scenario, ctx) {
     energy.energy_grid_import_kwh = round2(Math.max(0, gridImport));
   }
 
+  const ref = energy.reference;
+  if(ref?.validation?.status === "verified") {
+    const a=ref.annual, useful=a.direct_kwh+a.battery_discharge_solar_kwh;
+    energy.monthly=ref.monthly.map(m=>({...m,prod:m.production_kwh,conso:m.consumption_kwh,auto:m.direct_kwh+m.battery_discharge_solar_kwh,import:m.grid_to_load_kwh,surplus:m.physical_export_kwh,direct_self_consumption_kwh:m.direct_kwh,battery_discharge_kwh:m.battery_discharge_solar_kwh,battery_losses_kwh:m.storage_losses_kwh}));
+    Object.assign(energy,{production_kwh:a.production_kwh,consumption_kwh:a.consumption_kwh,autoconsumption_kwh:useful,total_pv_used_on_site_kwh:useful,energy_solar_used_kwh:useful,direct_self_consumption_kwh:a.direct_kwh,battery_discharge_kwh:a.battery_discharge_solar_kwh,grid_import_kwh:a.grid_to_load_kwh,energy_grid_import_kwh:a.grid_to_load_kwh,import_kwh:a.grid_to_load_kwh,exported_kwh:a.physical_export_kwh,surplus_kwh:a.physical_export_kwh,pv_self_consumption_pct:ref.ratios.useful_pv_utilization==null?null:ref.ratios.useful_pv_utilization*100,solar_coverage_pct:ref.ratios.solar_coverage==null?null:ref.ratios.solar_coverage*100,site_autonomy_pct:ref.ratios.solar_coverage==null?null:ref.ratios.solar_coverage*100,site_solar_or_credit_used_kwh:useful+(ref.virtual_credit?.used_kwh??0)});
+  }
   const financeBase = {
     capex_ttc: scenario.capex_ttc ?? null,
     capex_net: scenario.capex_net ?? null,
@@ -318,14 +331,29 @@ export function mapScenarioToV2(scenario, ctx) {
     residual_bill_eur: scenario.residual_bill_eur ?? null,
     surplus_revenue_eur: scenario.surplus_revenue_eur ?? null
   };
-  if (isVirtualLike) {
+  const electricityBilling = scenario.electricity_billing ?? scenario.finance?.electricity_billing ?? null;
+  if (electricityBilling) {
+    Object.assign(finance, {
+      electricity_billing: electricityBilling,
+      baseline_annual_bill_eur: electricityBilling.bill_before_eur,
+      estimated_annual_bill_eur: electricityBilling.bill_after_eur,
+      residual_bill_eur: electricityBilling.bill_after_eur,
+      bill_after_eur: electricityBilling.bill_after_eur,
+      bill_savings_eur: electricityBilling.bill_savings_eur,
+    });
+    if (electricityBilling.status === "INCOMPLETE") {
+      Object.assign(finance, {
+        economie_year_1: null, economie_total: null, roi_years: null, payback: null,
+        irr_pct: null, lcoe: null, annual_cashflows: null, note: "Contrat à compléter",
+      });
+    }
+  } else if (isVirtualLike) {
     const vf = scenario.virtual_battery_finance;
     const p2TotalBill =
       vf && typeof vf === "object"
         ? round2(
             (Number(vf.annual_grid_import_cost_ttc) || 0) +
-              (Number(vf.annual_total_virtual_cost_ttc) || 0) -
-              (Number(vf.annual_overflow_export_revenue_ttc) || 0)
+              (Number(vf.annual_total_virtual_cost_ttc) || 0)
           )
         : null;
     finance.estimated_annual_bill_eur = round2(
@@ -336,6 +364,15 @@ export function mapScenarioToV2(scenario, ctx) {
         finance.residual_bill_eur
       )
     );
+  }
+
+  const oaCompatibility=finance.finance_meta?.virtual_storage_oa_compatibility;
+  if (oaCompatibility?.status === 'BLOCKED') {
+    Object.assign(finance, {
+      economie_year_1:null,economie_total:null,roi_years:null,payback:null,irr_pct:null,lcoe:null,annual_cashflows:null,
+      estimated_annual_bill_eur:null,residual_bill_eur:null,bill_after_eur:null,bill_savings_eur:null,
+      note:oaCompatibility.message,
+    });
   }
 
   const costs = {
@@ -414,6 +451,7 @@ export function mapScenarioToV2(scenario, ctx) {
 
   const shadingSrc = ctx?.shading ?? ctx?.form?.installation?.shading ?? {};
   const shading = {
+    commercial_audit: ctx?.meta?.shading_commercial_audit ?? null,
     near_loss_pct:  shadingSrc.nearLossPct ?? shadingSrc.near_loss_pct ?? null,
     far_loss_pct:   shadingSrc.farLossPct  ?? shadingSrc.far_loss_pct  ?? null,
     total_loss_pct: resolveShadingTotalLossPct(shadingSrc, ctx?.form)  ?? null,
@@ -492,6 +530,9 @@ export function mapScenarioToV2(scenario, ctx) {
     anti_oversell_flags: Array.isArray(scenario.anti_oversell_flags) ? scenario.anti_oversell_flags : [],
     model_version: "ENGINE_V2",
     production_assumptions: productionAssumptions,
+    production_reference: scenario.production_reference ?? ctx.meta?.production_reference ?? null,
+    provider_capacity_contract: scenario.provider_capacity_contract ?? null,
+    energy_calendar: ctx.conso?.calendar ?? scenario.energy?.reference?.calendar ?? null,
   };
 
   const batteryPhysicalMetrics =
@@ -521,6 +562,7 @@ export function mapScenarioToV2(scenario, ctx) {
       : {};
 
   const mappedScenario = {
+    grid_contract: scenario.grid_contract ?? ctx.simulation_contract ?? null,
     scenario_type: id,
     id,
     label,
@@ -539,8 +581,9 @@ export function mapScenarioToV2(scenario, ctx) {
     // TRACABILITE PROFIL DE CONSO — verite calculee exposee a l'API (front + PDF lisent la meme source).
     consumption_source: (() => {
       const m = String(ctx?.meta?.consumption_source_mode ?? "").toUpperCase();
-      if (m.includes("CSV_HOURLY") || m.includes("PROFILE_8760")) return "ENEDIS_HOURLY";
-      if (m.includes("DAILY")) return "ENEDIS_DAILY";
+      if (m.includes("CSV_HOURLY")) return "IMPORTED_HOURLY";
+      if (m.includes("PROFILE_8760")) return "PROVIDED_HOURLY_PROFILE";
+      if (m.includes("DAILY")) return "IMPORTED_DAILY_RECONSTRUCTED";
       if (m.includes("MONTHLY")) return "MONTHLY_SYNTHETIC";
       if (m.includes("ANNUAL")) return "ANNUAL_SYNTHETIC";
       if (m) return "FALLBACK";
@@ -625,5 +668,10 @@ export function mapScenarioToV2(scenario, ctx) {
   if (process.env.NODE_ENV !== "production" && process.env.DEBUG_SCENARIO_V2_MAP === "1") {
     console.log("[A1] scenario mappé =", JSON.stringify(mappedScenario, null, 2));
   }
+  if(mappedScenario.energy?.reference) mappedScenario.results_trace={
+    scenario_id:id,engine_version:ctx.meta?.scenarios_engine_version??mappedScenario.scenarios_engine_version,
+    calculated_at:mappedScenario.energy.reference.simulated_at,
+    hash:createHash("sha256").update(JSON.stringify({energy:mappedScenario.energy.reference.input_hash,credit:mappedScenario.energy.reference.virtual_credit??null,economics:mappedScenario.finance?.finance_meta?.economic_snapshot?.hash??null,contract:mappedScenario.grid_contract})).digest("hex")
+  };
   return mappedScenario;
 }

@@ -12,6 +12,7 @@
  */
 
 import { ORG_ECONOMICS_ENGINE_DEFAULTS, ORG_ECONOMICS_NUMERIC_KEYS } from "../config/orgEconomics.common.js";
+import { resolveKnownCurrentOffPeakPeriods } from "./pv/hphcMask.service.js";
 
 /** @deprecated Import direct préféré : `ORG_ECONOMICS_ENGINE_DEFAULTS` depuis `config/orgEconomics.common.js` */
 export const DEFAULT_ECONOMICS_FALLBACK = { ...ORG_ECONOMICS_ENGINE_DEFAULTS };
@@ -98,6 +99,29 @@ export function pickExplicitProjectTariffKwh({ energyProfile, economicSnapshot, 
   return null;
 }
 
+/** Customer contract first; project/org prices only fill a missing customer tariff. */
+export function resolveCurrentMeterTariffKwh({ meter = {}, explicitPriceKwh, defaultPriceKwh }) {
+  const positive = (value) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const base = positive(meter.elec_price_base_eur_kwh);
+  const hp = positive(meter.elec_price_hp_eur_kwh);
+  const hc = positive(meter.elec_price_hc_eur_kwh);
+  // Flat fallback only: hourly HP/HC pricing values each flow when available.
+  const hphcFallback = hp != null && hc != null
+    ? Math.round(((hp * 16 + hc * 8) / 24) * 100000) / 100000
+    : null;
+  const isHpHc = meter.hp_hc === true || ["hp_hc", "hphc"].includes(String(meter.tariff_type ?? "").toLowerCase());
+  const customerPrice = isHpHc ? hphcFallback ?? base : base ?? hphcFallback;
+  return customerPrice ?? positive(explicitPriceKwh) ?? positive(defaultPriceKwh) ?? DEFAULT_ECONOMICS_FALLBACK.price_eur_kwh;
+}
+
+/** Existing meter schedule from Enedis; never derived from the future BV option. */
+export function resolveCurrentMeterOffPeakPeriods(energyProfile) {
+  return resolveKnownCurrentOffPeakPeriods(energyProfile);
+}
+
 function mergedEconomicsFromCtx(ctx) {
   const f = ctx.form || {};
   return overlayFormEconomics(mergeOrgEconomicsPartial(ctx.settings?.economics), f.economics);
@@ -112,14 +136,30 @@ export function resolveRetailElectricityKwhPrice(ctx) {
   return Number.isFinite(n) && n >= 0 ? n : DEFAULT_ECONOMICS_FALLBACK.price_eur_kwh;
 }
 
-/** Taux OA effectif selon kWc installé (< 3, 3–9, 9–36 kWc). */
-export function resolveOaRateForKwc(ctx, kwc) {
-  const e = mergedEconomicsFromCtx(ctx);
+/** Historical parameter names retained; thresholds include 3 and 9 kWc. */
+export function resolveOaRateKeyForKwc(kwc) {
   const k = Number(kwc) || 0;
-  const lt3 = Number(e.oa_rate_lt_3 ?? DEFAULT_ECONOMICS_FALLBACK.oa_rate_lt_3);
-  const lt = Number(e.oa_rate_lt_9 ?? DEFAULT_ECONOMICS_FALLBACK.oa_rate_lt_9);
-  const gte = Number(e.oa_rate_gte_9 ?? DEFAULT_ECONOMICS_FALLBACK.oa_rate_gte_9);
-  if (k > 0 && k < 3) return lt3;
-  if (k < 9) return lt;
-  return gte;
+  return k > 0 && k <= 3 ? "oa_rate_lt_3" : k <= 9 ? "oa_rate_lt_9" : "oa_rate_gte_9";
+}
+
+/** Taux de surplus configuré, avec un seul résolveur de paliers. */
+export function resolveOaRateForKwc(ctx, kwc) {
+  return resolveOaTariffForKwc(ctx, kwc).rate_eur_kwh;
+}
+
+export function resolveOaTariffForKwc(ctx, kwc) {
+  const requestedKey = resolveOaRateKeyForKwc(kwc);
+  const keys = requestedKey === 'oa_rate_lt_3' ? [requestedKey, 'oa_rate_lt_9'] : [requestedKey];
+  const org = Object.hasOwn(ctx.settings ?? {}, 'economics_raw')
+    ? ctx.settings.economics_raw ?? {}
+    : ctx.settings?.economics ?? {};
+  for (const key of keys) {
+    for (const [values, source] of [[ctx.form?.economics, 'form.economics'], [org, 'organizations.settings_json.economics']]) {
+      const value = values?.[key];
+      if (value != null && value !== '' && typeof value !== 'boolean' && typeof value !== 'object' && Number.isFinite(Number(value)) && Number(value) >= 0) {
+        return { rate_eur_kwh: Number(value), key, requested_key: requestedKey, source: `${source}.${key}`, uses_broader_configured_tier: key !== requestedKey };
+      }
+    }
+  }
+  return { rate_eur_kwh: 0, key: requestedKey, requested_key: requestedKey, source: 'no_configured_surplus_price_zero', uses_broader_configured_tier: false };
 }

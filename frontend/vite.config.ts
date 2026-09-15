@@ -268,7 +268,7 @@ export default defineConfig(({ mode }) => {
           if (p.startsWith("/assets/")) return false;
           if (p === "/dp-tool" || p.startsWith("/dp-tool/")) return false;
           if (p.startsWith("/config/") || p.startsWith("/calpinage/") || p.startsWith("/shared/")) return false;
-          if (/\.(ico|png|jpe?g|gif|svg|webp|css|mjs?|map|json|woff2?|ttf|eot|pdf|html?)$/i.test(p)) return false;
+          if (/\.(ico|png|jpe?g|gif|svg|webp|css|m?js|map|json|woff2?|ttf|eot|pdf|html?)$/i.test(p)) return false;
           if (p.startsWith("/api") || p.startsWith("/auth") || p.startsWith("/pdf-assets")) return false;
           if (
             p.startsWith("/financial-quote-pdf-render") ||

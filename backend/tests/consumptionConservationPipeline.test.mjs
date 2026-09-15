@@ -1,11 +1,20 @@
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 import { loadConsumption, applyEquipmentShape } from "../services/consumptionService.js";
+import {parisParts} from "../services/energyCalendar.service.js";
 import { aggregateMonthly } from "../services/monthlyAggregator.js";
+
+const fixtureDirectories = new Set();
+after(() => {
+  for (const directory of fixtureDirectories) {
+    if (path.dirname(path.resolve(directory)) !== path.resolve(os.tmpdir())) throw new Error('UNEXPECTED_FIXTURE_DIRECTORY');
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const MARKED_MONTHLY = [2860, 2340, 1820, 910, 600, 540, 510, 510, 840, 910, 1690, 2470];
@@ -42,6 +51,7 @@ function buildGenericHourly(total) {
 
 function writeHourlyEnedisCsv(hourly) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "solarnext-conso-"));
+  fixtureDirectories.add(dir);
   const file = path.join(dir, "enedis-hourly.csv");
   const lines = ["startDate,powerInWatts"];
   const start = Date.UTC(2025, 0, 1, 0, 0, 0);
@@ -103,7 +113,11 @@ test("CSV Enedis horaire: l'agrégation mensuelle correspond aux données import
   const out = loadConsumption({ mode: "annuelle", annuelle_kwh: sum(expectedMonthly) }, csvPath);
 
   assert.equal(out.engine_consumption_source, "CSV_HOURLY_FULL_YEAR");
-  assertMonthlyEqual(monthlyFromHourly(out.hourly), expectedMonthly);
+  // Input timestamps are UTC; billing months are Europe/Paris. Sum the
+  // measured values independently using each retained UTC instant.
+  const actualMonths=Array(12).fill(0);
+  out.calendar.instants.forEach((instant,i)=>{const j=Math.min(hourly.length-1,Math.floor((Date.parse(instant)-Date.UTC(2025,0,1))/3600000));assert.ok(Math.abs(out.hourly[i]-hourly[j])<1e-8);actualMonths[parisParts(instant).month]+=hourly[j];});
+  assertMonthlyEqual(monthlyFromHourly(out.hourly), actualMonths);
 });
 
 test("équipements actuels: ils remodèlent l'horaire mais ne modifient pas les mois de référence", () => {

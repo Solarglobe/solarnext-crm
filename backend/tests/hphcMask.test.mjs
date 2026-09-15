@@ -3,9 +3,14 @@ import test from "node:test";
 import {
   buildHourOfDayHpFlags,
   buildHpHcHourlyMask,
+  buildHourOfDayHpFractions,
+  buildHpHcHourlyFractions,
+  resolveHpHcHourlyFractions,
+  resolveCurrentOffPeakPeriods,
   resolveHpHcHourlyMask,
   resolveOffPeakPeriods,
   parseEnedisOffPeakLabel,
+  resolveKnownCurrentOffPeakPeriods,
 } from "../services/pv/hphcMask.service.js";
 
 const countHc = (flags) => flags.filter((isHp) => !isHp).length;
@@ -87,7 +92,7 @@ test("libellés inexploitables → null (l'appelant garde le défaut)", () => {
   assert.equal(parseEnedisOffPeakLabel("HC (99H99-88H88)"), null);
 });
 
-test("bout en bout : libellé C68 → masque 8760 (fenêtre Bedouelle 22h30-6h30)", () => {
+test("le masque historique conserve sa convention booléenne pour 22h30-6h30", () => {
   const periods = parseEnedisOffPeakLabel("HC (22H30-6H30)");
   const flags = buildHourOfDayHpFlags(periods);
   // 22:30→06:30 : h22 couverte 30 min (≥30 → HC), h23..h5 pleines, h6 couverte 30 min (HC)
@@ -99,4 +104,83 @@ test("bout en bout : libellé C68 → masque 8760 (fenêtre Bedouelle 22h30-6h30
   assert.equal(flags[21], true, "21h = HP");
   const mask = buildHpHcHourlyMask(periods);
   assert.equal(mask.length, 8760);
+});
+
+test("valorisation 22h30–6h30 : exactement 8 HC par jour, deux heures mixtes", () => {
+  const periods = parseEnedisOffPeakLabel("HC (22H30-6H30)");
+  const fractions = buildHourOfDayHpFractions(periods);
+  assert.equal(fractions[22], 0.5);
+  assert.equal(fractions[6], 0.5);
+  assert.equal(fractions[23], 0);
+  assert.equal(fractions[7], 1);
+  assert.equal(fractions.reduce((hc, hp) => hc + 1 - hp, 0), 8);
+  const hourly = buildHpHcHourlyFractions(periods);
+  assert.equal(hourly.length, 8760);
+  assert.equal(hourly.reduce((hc, hp) => hc + 1 - hp, 0), 8 * 365);
+  assert.deepEqual(resolveHpHcHourlyFractions({ off_peak_periods: periods }, {}), hourly);
+});
+
+test("plages à la minute et chevauchantes : aucune minute perdue ni comptée deux fois", () => {
+  const exact = buildHourOfDayHpFractions(parseEnedisOffPeakLabel("HC (1H28-6H58;13H58-16H28)"));
+  assert.ok(Math.abs(exact.reduce((hc, hp) => hc + 1 - hp, 0) - 8) < 1e-10);
+  const overlap = buildHourOfDayHpFractions([
+    { start: "22:30", end: "06:30" },
+    { start: "23:00", end: "02:00" },
+  ]);
+  assert.equal(overlap.reduce((hc, hp) => hc + 1 - hp, 0), 8);
+  assert.ok(overlap.every((hp) => hp >= 0 && hp <= 1));
+});
+
+test("les horaires de référence viennent du compteur, jamais de la batterie virtuelle", () => {
+  const current = [{ start: "22:30", end: "06:30" }];
+  const future = [{ start: "12:00", end: "20:00" }];
+  const ctx = {
+    form: { params: { off_peak_periods: current } },
+    virtual_battery_input: { off_peak_periods: future },
+    settings: { pv: { virtual_battery: { off_peak_periods: future } } },
+  };
+  assert.deepEqual(resolveCurrentOffPeakPeriods(ctx), current);
+  delete ctx.form.params.off_peak_periods;
+  assert.deepEqual(resolveCurrentOffPeakPeriods(ctx), [{ start: "23:00", end: "07:00" }]);
+});
+
+test("ancien résumé importé seul restitue les heures creuses réelles à la minute", () => {
+  const profile = { engine: { contract_summary: "HP/HC (22H30-6H30) — 18 kVA — 230/400 V" } };
+  const actual = [{ start: "22:30", end: "06:30" }];
+  assert.deepEqual(resolveKnownCurrentOffPeakPeriods(profile), actual);
+  const fractions = buildHourOfDayHpFractions(resolveKnownCurrentOffPeakPeriods(profile));
+  assert.equal(fractions[22], 0.5);
+  assert.equal(fractions[6], 0.5);
+  assert.equal(fractions.reduce((hc, hp) => hc + 1 - hp, 0), 8);
+  const ctx = { form: { lead: { energy_profile: profile } } };
+  assert.deepEqual(resolveCurrentOffPeakPeriods(ctx), actual);
+  assert.deepEqual(resolveOffPeakPeriods({}, ctx), actual);
+  const future = [{ start: "01:00", end: "09:00" }];
+  assert.deepEqual(resolveOffPeakPeriods({ off_peak_periods: future }, ctx), future);
+  assert.deepEqual(resolveCurrentOffPeakPeriods({ ...ctx, virtual_battery_input: { off_peak_periods: future } }), actual);
+});
+
+test("contrat structuré courant prioritaire sur son libellé et sur le résumé historique", () => {
+  const current = [{ start: "01:28", end: "06:58" }, { start: "13:58", end: "16:28" }];
+  const profile = {
+    contract: { off_peak_periods: current, plage_hc: "HC (22H30-6H30)", future_off_peak_periods: [{ start: "12:00", end: "20:00" }] },
+    engine: { contract_summary: "HP/HC (23H-7H) — 18 kVA" },
+  };
+  assert.deepEqual(resolveKnownCurrentOffPeakPeriods(profile), current);
+  const copied = resolveKnownCurrentOffPeakPeriods(profile);
+  copied[0].start = "00:00";
+  assert.equal(profile.contract.off_peak_periods[0].start, "01:28");
+  delete profile.contract.off_peak_periods;
+  assert.deepEqual(resolveKnownCurrentOffPeakPeriods(profile), [{ start: "22:30", end: "06:30" }]);
+});
+
+test("sans horaires actuels exploitables, aucune future plage ni horaire supposé n’est retenu", () => {
+  for (const profile of [
+    {},
+    { contract: { future_off_peak_periods: [{ start: "12:00", end: "20:00" }], futures_plages_hc: "HC (0H56-6H56;14H56-16H56)" } },
+    { engine: { contract_summary: "HP/HC — 18 kVA — 230/400 V" } },
+    { engine: { contract_summary: "Futures plages HP/HC (0H56-6H56;14H56-16H56)" } },
+    { engine: { contract_summary: "Base (22H30-6H30) — 18 kVA" } },
+    { engine: { contract_summary: "HP/HC (99H-7H) — 18 kVA" } },
+  ]) assert.equal(resolveKnownCurrentOffPeakPeriods(profile), null);
 });

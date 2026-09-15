@@ -21,6 +21,9 @@ const __dirname = dirname(__filename);
 
 import { pool } from "../config/db.js";
 import { validateDevisTechnique } from "../controllers/validateDevisTechnique.controller.js";
+import { readStudyCalculationInputs, assertStudyCalculationCurrent } from '../services/studyCalculationFreshness.service.js';
+import { ensureDefaultLeadMeter } from '../services/leadMeters.service.js';
+import { assertQuoteRevision } from '../services/calculationFingerprint.service.js';
 
 const PREFIX = "SCN_QCFG";
 
@@ -115,8 +118,8 @@ async function createFixtureWithQuoteConfigBatteries(orgId) {
     payload: { ...geometry, gps: { lat: 48.8566, lon: 2.3522 } },
   };
   await pool.query(
-    `INSERT INTO calpinage_snapshots (study_id, study_version_id, organization_id, version_number, snapshot_json, is_active)
-     VALUES ($1, $2, $3, 1, $4::jsonb, true)`,
+    `INSERT INTO calpinage_snapshots (study_id, study_version_id, organization_id, version_number, snapshot_json)
+     VALUES ($1, $2, $3, 1, $4::jsonb)`,
     [studyId, versionId, orgId, JSON.stringify(snapshotJson)]
   );
 
@@ -141,11 +144,12 @@ async function createFixtureWithQuoteConfigBatteries(orgId) {
   };
 
   await pool.query(
-    `INSERT INTO economic_snapshots (study_id, study_version_id, organization_id, version_number, status, config_json, is_active)
-     VALUES ($1, $2, $3, 1, 'DRAFT', $4::jsonb, true)`,
+    `INSERT INTO economic_snapshots (study_id, study_version_id, organization_id, version_number, status, config_json)
+     VALUES ($1, $2, $3, 1, 'DRAFT', $4::jsonb)`,
     [studyId, versionId, orgId, JSON.stringify(economicConfig)]
   );
 
+  await ensureDefaultLeadMeter(pool, leadId, orgId);
   return { orgId, studyId, versionId, leadId, addressId };
 }
 
@@ -166,19 +170,20 @@ async function cleanup(ids) {
 
 function mockRes() {
   const out = { statusCode: null, body: null };
-  return {
+  const response = {
     status(code) {
       out.statusCode = code;
-      return out;
+      return response;
     },
     json(data) {
       out.body = data;
-      return out;
+      return response;
     },
     get captured() {
       return out;
     },
   };
+  return response;
 }
 
 const EXPECTED_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
@@ -201,8 +206,13 @@ async function main() {
   const { studyId, versionId, orgId } = ids;
   const res = mockRes();
   try {
+    const source = await readStudyCalculationInputs({studyId,versionId,organizationId:orgId});
+    assertQuoteRevision(source.quote_fingerprint,source.quote_fingerprint);
+    const refused = mockRes();
+    await validateDevisTechnique({params:{studyId,versionId},user:{organizationId:orgId},body:{expected_quote_fingerprint:'outdated'}},refused);
+    assert(refused.captured.statusCode===409,'Une ancienne révision du devis doit être refusée avant calcul');
     await validateDevisTechnique(
-      { params: { studyId, versionId }, user: { organizationId: orgId } },
+      { params: { studyId, versionId }, user: { organizationId: orgId }, body:{expected_quote_fingerprint:source.quote_fingerprint} },
       res
     );
   } catch (e) {
@@ -223,6 +233,23 @@ async function main() {
   );
   const dataJson = row.rows[0]?.data_json ?? {};
   const scenariosV2 = dataJson.scenarios_v2;
+  await assertStudyCalculationCurrent({studyId,versionId,organizationId:orgId});
+  await pool.query('UPDATE lead_meters SET electricity_annual_bill_ttc=2000 WHERE lead_id=$1',[ids.leadId]);
+  let staleBlocked=false;
+  try { await assertStudyCalculationCurrent({studyId,versionId,organizationId:orgId}); }
+  catch(error){staleBlocked=error.code==='CALCULATION_INPUTS_CHANGED';}
+  assert(staleBlocked,'Changement facture immédiatement périmé et export refusé');
+  const updatedSource=await readStudyCalculationInputs({studyId,versionId,organizationId:orgId});
+  const recalculated=mockRes();
+  await validateDevisTechnique({params:{studyId,versionId},user:{organizationId:orgId},
+    body:{expected_quote_fingerprint:updatedSource.quote_fingerprint}},recalculated);
+  assert(recalculated.captured.statusCode == null || recalculated.captured.statusCode===200,
+    `Recalcul après modification : ${JSON.stringify(recalculated.captured.body)}`);
+  const after=await assertStudyCalculationCurrent({studyId,versionId,organizationId:orgId});
+  assert(after.current.history_count===1,'Une génération antérieure conservée, sans la renvoyer pendant le contrôle de fraîcheur');
+  const archived=(await pool.query("SELECT data_json#>'{calculation_history,0,scenarios}' AS scenarios FROM study_versions WHERE id=$1",[versionId])).rows[0].scenarios;
+  assert(JSON.stringify(archived)===JSON.stringify(scenariosV2),
+    'Les anciens résultats conservés sans modification');
 
   assert(Array.isArray(scenariosV2), "scenarios_v2 doit être un tableau");
   const actualIds = scenariosV2.map((s) => s?.id ?? s?.name).filter(Boolean);

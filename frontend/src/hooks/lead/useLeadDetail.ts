@@ -48,6 +48,8 @@ import {
   buildConsumptionPayload,
   applyMeterRowToLeadSnapshot,
   buildMeterAutosavePayload,
+  mergeEnergyProfileEngine,
+  leadResponseWithoutMeterFields,
 } from "../../modules/leads/LeadDetail/overviewSave";
 import type {
   EquipementActuelParams,
@@ -175,7 +177,7 @@ export interface Lead {
   consumption_annual_kwh?: number;
   consumption_annual_calculated_kwh?: number;
   consumption_pdl?: string;
-  hp_hc?: boolean;
+  hp_hc?: boolean | null;
   supplier_name?: string;
   consumption_profile?: string;
   tariff_type?: string;
@@ -183,6 +185,8 @@ export interface Lead {
   elec_price_base_eur_kwh?: number | null;
   elec_price_hp_eur_kwh?: number | null;
   elec_price_hc_eur_kwh?: number | null;
+  electricity_subscription_ttc_month?: number | null;
+  electricity_annual_bill_ttc?: number | null;
   grid_type?: string;
   meter_power_kva?: number;
   equipement_actuel?: string | null;
@@ -799,7 +803,9 @@ export function useLeadDetail() {
     setFormLead((fl) => {
       if (!fl) return null;
       if (opts?.preserveDirtyForm && editedDuringAutosaveRef.current) return fl;
-      return normalizeLeadEquipmentFields({ ...fl, ...row } as Lead);
+      const hasSelectedMeter = selectedMeterIdRef.current != null
+        && metersListRef.current.some((meter) => meter.id === selectedMeterIdRef.current);
+      return normalizeLeadEquipmentFields({ ...fl, ...(hasSelectedMeter ? leadResponseWithoutMeterFields(row) : row) } as Lead);
     });
   }, []);
 
@@ -900,8 +906,13 @@ export function useLeadDetail() {
       setFormLead((fl) => {
         if (!fl) return null;
         if (editedDuringAutosaveRef.current) return fl;
-        return normalizeLeadEquipmentFields({ ...fl, ...applyMeterRowToLeadSnapshot(detail) } as Lead);
+        if (selectedMeterIdRef.current !== meterId) return fl;
+        return normalizeLeadEquipmentFields({ ...fl, ...applyMeterRowToLeadSnapshot(detail, { partial: true }) } as Lead);
       });
+      if (Object.prototype.hasOwnProperty.call(detail, "energy_profile") && !editedDuringAutosaveRef.current) {
+        setEnergyEngine((previous) => selectedMeterIdRef.current === meterId
+          ? parseEnergyEngineFromProfile(detail.energy_profile) : previous);
+      }
       if (row.consumption_monthly !== undefined && !monthlyGridEditingRef.current && !editedDuringAutosaveRef.current) {
         setMonthlyLocal(row.consumption_monthly);
       }
@@ -909,7 +920,7 @@ export function useLeadDetail() {
     if (detail.is_default === true) {
       setData((prev) => {
         if (!prev) return prev;
-        const merged = { ...prev.lead, ...applyMeterRowToLeadSnapshot(detail) } as Lead;
+        const merged = { ...prev.lead, ...applyMeterRowToLeadSnapshot(detail, { partial: true }) } as Lead;
         const leadNorm = normalizeLeadEquipmentFields(merged);
         const st = prev.stages.find((s) => s.id === leadNorm.stage_id);
         return {
@@ -1056,13 +1067,16 @@ export function useLeadDetail() {
     monthlyGridEditingRef.current = editing;
   }, []);
 
-  const handleEnergyEngineChange = useCallback((engine: EnergyEngineResult | null) => {
+  const handleEnergyEngineChange = useCallback((engine: EnergyEngineResult | null, importedProfile?: unknown) => {
     if (isReadOnly) return;
     lastOverviewEditKindRef.current = "form";
     if (isAutosaveInFlightRef.current) editedDuringAutosaveRef.current = true;
     setEnergyEngine(engine);
     setFormLead((prev) =>
-      prev ? { ...prev, energy_profile: engine ? { engine } : null } : null
+      prev ? { ...prev, energy_profile: mergeEnergyProfileEngine(
+        importedProfile !== undefined ? importedProfile : prev.energy_profile,
+        engine
+      ) } : null
     );
     setOverviewDirty(true);
   }, [isReadOnly]);

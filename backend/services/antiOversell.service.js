@@ -1,4 +1,24 @@
 import { normalizeEquipmentBuckets } from "./equipmentNormalize.service.js";
+import {resolveVirtualProviderRules} from './virtualBatteryProviderRules.service.js';
+
+export function hasPublishedUnlimitedVirtualContract(ctx={}) {
+  try {
+    const rules=resolveVirtualProviderRules(ctx.virtual_battery_input??{});
+    return rules.provider==='URBAN_SOLAR'&&rules.settlement==='monthly'&&rules.capacity_kwh===null&&Array.isArray(rules.sources)&&rules.sources.length>0;
+  } catch {return false;}
+}
+
+/** Clear only the obsolete auto-capacity warning once the simulation actually
+ * used the published unlimited contract. Other commercial risks remain intact. */
+export function attachVerifiedVirtualCapacity(scenario) {
+  const rules=scenario?._virtualBattery8760?.provider_rules;
+  if(rules?.provider!=='URBAN_SOLAR'||rules.settlement!=='monthly'||rules.capacity_kwh!==null||!rules.sources?.length)return false;
+  scenario.provider_capacity_contract={capacity_kwh:null,unlimited:true,source:'provider_published_contract',rules_id:rules.id,sources:rules.sources};
+  scenario._virtualBatteryP2={...scenario._virtualBatteryP2,capacity_auto_from_unbounded:false,auto_selected_capacity_from_required:false,capacity_source:'provider_published_contract',provider_tier_status:'CONFIRMED_UNLIMITED',selected_capacity_kwh:null,simulation_capacity_kwh:null};
+  scenario._vb_capacity_auto_from_unbounded=false;
+  for(const key of ['finance_warnings','anti_oversell_flags'])if(Array.isArray(scenario[key]))scenario[key]=scenario[key].filter(code=>code!=='VB_CAPACITY_AUTO_UNBOUNDED');
+  return true;
+}
 
 const CSV_HOURLY_RE = /^CSV_HOURLY/i;
 
@@ -64,6 +84,7 @@ function equipmentSignals(ctx) {
 }
 
 export function isCommercialUnboundedVirtualBatteryAllowed(ctx = {}) {
+  if(hasPublishedUnlimitedVirtualContract(ctx))return true;
   if (ctx?._vb_commercial_enforce_no_unbounded === true) return false;
   if (ctx?.virtual_battery_input?.allow_unbounded_for_commercial === true) return true;
   if (ctx?.virtual_battery_input?.allow_unbounded_for_debug === true) return true;
@@ -149,12 +170,12 @@ export function assessScenarioAntiOversell(ctx = {}, scenario = {}) {
     if (autonomyPct != null && autonomyPct > 85) add(flags, "VB_AUTONOMY_OVER_85", 35);
     if (consumption > 0 && gridImport != null && gridImport / consumption < 0.05) add(flags, "VB_IMPORT_NEAR_ZERO", 35);
     const p2 = scenario._virtualBatteryP2 || {};
-    if (
+    if (!hasPublishedUnlimitedVirtualContract(ctx) && (
       p2.capacity_auto_from_unbounded === true ||
       p2.auto_selected_capacity_from_required === true ||
       scenario._vb_capacity_auto_from_unbounded === true ||
       scenario._vb_unbounded_disabled_for_commercial_use === true
-    ) {
+    )) {
       add(flags, "VB_CAPACITY_AUTO_UNBOUNDED", 100);
     }
   }
@@ -171,12 +192,13 @@ export function assessScenarioAntiOversell(ctx = {}, scenario = {}) {
 export function attachAntiOversellToScenarios(ctx = {}, scenarios = {}) {
   for (const [key, sc] of Object.entries(scenarios || {})) {
     if (!sc || typeof sc !== "object") continue;
+    const correctedCapacity=attachVerifiedVirtualCapacity(sc);
     const assessment = assessScenarioAntiOversell(ctx, sc);
     sc.anti_oversell_flags = Array.from(new Set([
       ...(Array.isArray(sc.anti_oversell_flags) ? sc.anti_oversell_flags : []),
       ...assessment.anti_oversell_flags,
     ]));
-    sc.oversell_risk_score = Math.max(Number(sc.oversell_risk_score) || 0, assessment.oversell_risk_score);
+    sc.oversell_risk_score = correctedCapacity ? assessment.oversell_risk_score : Math.max(Number(sc.oversell_risk_score) || 0, assessment.oversell_risk_score);
     if (sc.anti_oversell_flags.length > 0) {
       sc.finance_warnings = Array.from(new Set([
         ...(Array.isArray(sc.finance_warnings) ? sc.finance_warnings : []),

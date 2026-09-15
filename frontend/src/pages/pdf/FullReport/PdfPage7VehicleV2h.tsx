@@ -3,6 +3,7 @@ import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "@/components/pdf/PdfHeader";
 import { usePdfOrgBranding } from "../PdfLegacyPort/pdfOrgBrandingContext";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
+import { electricityBillingNote, type ElectricityBilling } from "@/components/study/electricityBillingDisplay";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
 const PLACEHOLDER_LOGO = "/client-portal/logo-solarglobe.png";
@@ -18,6 +19,7 @@ function getStorageUrl(
 }
 
 interface VehicleV2hPdfData {
+  electricity_billing?: ElectricityBilling | null;
   meta?: { client?: string; ref?: string; date?: string; date_display?: string; scenario_label?: string };
   title?: string;
   subtitle?: string;
@@ -237,7 +239,7 @@ export default function PdfPage7VehicleV2h({
         <MetricCard brandHex={brandHex} label="Restitution V2H" value={fmtKwh(kpis.vehicle_discharge_kwh)} sub="energie fournie a la maison" />
         <MetricCard brandHex={brandHex} label="Achat reseau evite" value={fmtKwh(kpis.grid_bought_less_kwh)} sub="vs scenario sans stockage" />
         <MetricCard brandHex={brandHex} label="Reste a acheter" value={fmtKwh(kpis.final_grid_import_kwh)} sub="import maison apres V2H" />
-        <MetricCard brandHex={brandHex} label="Facture estimee" value={fmtEur(kpis.estimated_annual_bill_eur)} sub={`couverture solaire ${fmtPct(kpis.solar_coverage_pct)}`} />
+        <MetricCard brandHex={brandHex} label="Facture estimee" value={data.electricity_billing?.status === "INCOMPLETE" ? "Contrat à compléter" : fmtEur(data.electricity_billing ? data.electricity_billing.bill_after_eur : kpis.estimated_annual_bill_eur)} sub={data.electricity_billing ? electricityBillingNote(data.electricity_billing) : `couverture solaire ${fmtPct(kpis.solar_coverage_pct)}`} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2.8mm", flex: "0 0 auto", minHeight: 0, marginTop: "1.4mm" }}>

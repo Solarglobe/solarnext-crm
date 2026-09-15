@@ -1,3 +1,6 @@
+import {buildPanHourly} from './pvHourlyModel.service.js';
+import {getPvgisHourlyReference} from './pvgisHourly.service.js';
+import {calendarForLength,bindCalendar,monthlySums} from './energyCalendar.service.js';
 /**
  * Production par pan (multi-pente réel).
  * Réutilise pvgisService.computeProductionMonthlyForOrientation par pan.
@@ -48,10 +51,12 @@ export async function computeProductionMultiPan(opts) {
 
   const ctx = {
     site: { lat: site.lat, lon: site.lon },
-    settings,
+    settings:{...settings,calculation_offline:opts.offline===true},
     ...(pvInverter ? { form: { pv_inverter: pvInverter } } : {}),
   };
 
+  const calendar=opts.calendar??calendarForLength();
+  const hourlySum=Array(calendar.length).fill(0);
   const byPan = [];
   let monthlyKwhSum = Array(12).fill(0);
   let annualKwhTotal = 0;
@@ -75,11 +80,23 @@ export async function computeProductionMultiPan(opts) {
     const monthlyBeforeShading = (raw.monthly_kwh || []).map((v) => v * kwpPan);
     const annualBeforeShading = (raw.annual_kwh || 0) * kwpPan;
 
-    const monthlyKwh = monthlyBeforeShading.map((v) => v * multiplier);
-    const annualKwh = annualBeforeShading * multiplier;
+    const hourlyShade=Array.isArray(pan.shading_hourly)?pan.shading_hourly:null;
+    const expectedMonthly = hourlyShade ? monthlyBeforeShading : monthlyBeforeShading.map(v=>v*multiplier);
+    const hourlyReference=await getPvgisHourlyReference({latitude:site.lat,longitude:site.lon,azimuth,tilt,reference_year:settings.pv?.pvgis_reference_year??2020},{offline:opts.offline===true});
+    const hourly=buildPanHourly({monthly_kwh:expectedMonthly,latitude:site.lat,longitude:site.lon,azimuth,tilt,calendar,pvgis_hourly:hourlyReference.hourly,shading_hourly:hourlyShade});
+    const monthlyKwh=monthlySums(hourly,calendar);
+    const annualKwh=monthlyKwh.reduce((a,b)=>a+b,0);
+    hourly.forEach((v,i)=>hourlySum[i]+=v);
 
     byPan.push({
       panId,
+      monthly_source:raw.source??'PVGIS_MONTHLY_AC',monthly_reference:raw.reference??null,
+      hourly_data_hash:hourlyReference.data_hash??null,
+      hourly_source:hourlyReference.source,
+      hourly_reference_key:hourlyReference.key,
+      hourly_reference_request:hourlyReference.request,
+      hourly_warning:hourlyReference.warning??null,
+      azimuth,tilt,power_kwc:kwpPan,
       annualKwh: round(annualKwh, 2),
       monthlyKwh: monthlyKwh.map((v) => round(v, 2)),
       annualKwhBeforeShading: round(annualBeforeShading, 2),
@@ -103,6 +120,8 @@ export async function computeProductionMultiPan(opts) {
     byPan,
     annualKwh,
     monthlyKwh,
+    hourly:bindCalendar(hourlySum,calendar),
+    calendar,
   };
 }
 

@@ -36,6 +36,10 @@ if (!process.env.DATABASE_URL) {
 // ─── Liste exhaustive des tests nécessitant une DB ───────────────────────────
 
 const INTEGRATION_TEST_FILES = [
+  'tests/monthlyConsumptionMeterScope.integration.test.mjs',
+  'tests/studyScenarioPageSummary.integration.test.mjs',
+  'tests/studyScenarioReads.integration.test.mjs',
+  'tests/studyCalculationFreshness.integration.test.mjs',
   'tests/backfill-client-ids-for-client-leads.test.mjs',
   'tests/calpinage-concurrency.integration.test.js',
   'tests/calpinage-geometry-hash-snapshot.test.js',

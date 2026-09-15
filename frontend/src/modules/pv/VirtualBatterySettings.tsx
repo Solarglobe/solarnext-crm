@@ -115,14 +115,26 @@ export default function VirtualBatterySettings() {
     showToast("Valeurs 2026 chargées (réinitialisation)");
   };
 
-  const updateRow = (providerCode: string, segmentKey: SegmentKey, kva: string, field: keyof VirtualBatteryRow, value: number | boolean) => {
+  const updateRow = (providerCode: string, segmentKey: SegmentKey, kva: string, field: keyof VirtualBatteryRow, value: number | boolean | undefined) => {
     setData((prev) => {
       const next = JSON.parse(JSON.stringify(prev));
       const prov = next.providers[providerCode];
       if (!prov?.segments?.[segmentKey]?.rowsByKva?.[kva]) return prev;
-      (next.providers[providerCode].segments[segmentKey].rowsByKva[kva] as Record<string, unknown>)[field] = value;
+      const row = next.providers[providerCode].segments[segmentKey].rowsByKva[kva] as Record<string, unknown>;
+      if (value === undefined) delete row[field];
+      else row[field] = value;
       return next;
     });
+  };
+
+  const updateProviderMetadata = (providerCode: string, field: "effectiveDate" | "sourceLabel", value: string) => {
+    setData((prev) => ({
+      ...prev,
+      providers: {
+        ...prev.providers,
+        [providerCode]: { ...prev.providers[providerCode], [field]: value || undefined },
+      },
+    }));
   };
 
   const updateCapacityTier = (providerCode: string, index: number, field: "kwh" | "abonnement_month_ht", value: number) => {
@@ -185,6 +197,20 @@ export default function VirtualBatterySettings() {
           return (
             <div key={providerCode} className="pv-virtual-provider-card">
               <h3>{provider.label}</h3>
+
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+                <label>
+                  Date d’effet de la grille fournisseur
+                  <input type="date" className="pv-vb-input" value={provider.effectiveDate ?? ""}
+                    onChange={(e) => updateProviderMetadata(providerCode, "effectiveDate", e.target.value)} />
+                </label>
+                <label style={{ flex: "1 1 300px" }}>
+                  Référence de la grille fournisseur
+                  <input type="text" className="pv-vb-input" style={{ width: "100%" }} value={provider.sourceLabel ?? ""}
+                    placeholder="Nom de l’offre, facture ou grille tarifaire"
+                    onChange={(e) => updateProviderMetadata(providerCode, "sourceLabel", e.target.value)} />
+                </label>
+              </div>
 
               {isMySmart && (
                 <CapacityTiersBlock
@@ -280,7 +306,7 @@ function SegmentAccordion({
   segmentKey: SegmentKey;
   rowsByKva: Record<string, VirtualBatteryRow>;
   providerCode: string;
-  onUpdateRow: (providerCode: string, segmentKey: SegmentKey, kva: string, field: keyof VirtualBatteryRow, value: number | boolean) => void;
+  onUpdateRow: (providerCode: string, segmentKey: SegmentKey, kva: string, field: keyof VirtualBatteryRow, value: number | boolean | undefined) => void;
 }) {
   const [open, setOpen] = useState(segmentKey === "PARTICULIER_BASE");
   const isHphc = isHphcSegment(segmentKey);
@@ -293,12 +319,52 @@ function SegmentAccordion({
       </button>
       {open ? (
         <div className="pv-vb-accordion__body">
+          <h4>Fourniture d’électricité — TTC</h4>
+          <p className="pv-eco-hint">
+            Prix des achats réseau lorsque le crédit virtuel ne couvre pas la consommation.
+            Sans grille personnalisée, le calcul utilise le catalogue fournisseur daté.
+            Pour une offre personnalisée, renseignez les prix du kWh et l’abonnement TTC.
+          </p>
+          <table className="sn-ui-table sn-ui-table--editable pv-vb-table" aria-label={`Fourniture ${providerCode} ${segmentKey}`}>
+            <thead><tr>
+              <th>kVA</th>
+              <th>Abonnement fournisseur €/mois TTC</th>
+              {isHphc ? <><th>Achat HP €/kWh TTC</th><th>Achat HC €/kWh TTC</th></> : <th>Achat BASE €/kWh TTC</th>}
+              {providerCode === "URBAN_SOLAR" && <th>Contribution incluse dans l’abonnement</th>}
+            </tr></thead>
+            <tbody>
+              {KVA_KEYS.filter((kva) => rowsByKva[kva]).map((kva) => {
+                const row = rowsByKva[kva];
+                const supplyInput = (field: keyof VirtualBatteryRow, label: string, step: number) => (
+                  <input type="number" min={0} step={step}
+                    aria-label={`${label} ${kva} kVA ${providerCode} ${segmentKey}`}
+                    value={typeof row[field] === "number" ? row[field] as number : ""}
+                    placeholder="Catalogue"
+                    onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, field,
+                      e.target.value === "" ? undefined : Number(e.target.value))}
+                    className="pv-vb-input pv-vb-input--w120" />
+                );
+                return <tr key={kva}>
+                  <td>{kva}</td>
+                  <td>{supplyInput("abonnement_fixed_month_ttc", "Abonnement fournisseur TTC", 0.01)}</td>
+                  {isHphc ? <>
+                    <td>{supplyInput("electricity_hp_ttc_per_kwh", "Achat HP TTC", 0.0001)}</td>
+                    <td>{supplyInput("electricity_hc_ttc_per_kwh", "Achat HC TTC", 0.0001)}</td>
+                  </> : <td>{supplyInput("electricity_base_ttc_per_kwh", "Achat BASE TTC", 0.0001)}</td>}
+                  {providerCode === "URBAN_SOLAR" && <td><input type="checkbox"
+                    aria-label={`Contribution incluse ${kva} kVA ${providerCode} ${segmentKey}`}
+                    checked={row.abonnement_includes_contribution ?? true}
+                    onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "abonnement_includes_contribution", e.target.checked)} /></td>}
+                </tr>;
+              })}
+            </tbody>
+          </table>
+          <h4 style={{ marginTop: 24 }}>Stockage virtuel — HT</h4>
           <table className="sn-ui-table sn-ui-table--editable pv-vb-table">
             <thead>
               <tr>
                 <th>kVA</th>
                 <th style={{ textAlign: "right" }}>Abo €/kWc/mois</th>
-                <th style={{ textAlign: "right" }}>Abo fixe €/mois</th>
                 {isHphc ? (
                   <>
                     <th style={{ textAlign: "right" }}>Restit. HP</th>
@@ -334,16 +400,6 @@ function SegmentAccordion({
                         step={0.01}
                         value={row.abonnement_per_kwc_month || ""}
                         onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "abonnement_per_kwc_month", Number(e.target.value) || 0)}
-                        className="pv-vb-input pv-vb-input--w90"
-                      />
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={row.abonnement_fixed_month || ""}
-                        onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "abonnement_fixed_month", Number(e.target.value) || 0)}
                         className="pv-vb-input pv-vb-input--w90"
                       />
                     </td>

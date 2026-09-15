@@ -64,6 +64,7 @@ import {
 } from "./meterFormOptions";
 import PillPicker from "./PillPicker";
 import CustomSelect from "./CustomSelect";
+import { buildCurrentElectricityBillPreview, currentElectricityTariffType, currentElectricityTariffPatch } from "./currentElectricityBill";
 
 /** Choix d’ajout : 1 entrée = 1 groupe ou 1 ligne dans un groupe existant. */
 const EQUIPMENT_ADD_CHOICES: {
@@ -354,7 +355,7 @@ export interface OverviewLead {
   consumption_annual_kwh?: number;
   consumption_annual_calculated_kwh?: number;
   consumption_pdl?: string;
-  hp_hc?: boolean;
+  hp_hc?: boolean | null;
   supplier_name?: string;
   consumption_profile?: string;
   tariff_type?: string;
@@ -362,6 +363,8 @@ export interface OverviewLead {
   elec_price_base_eur_kwh?: number | null;
   elec_price_hp_eur_kwh?: number | null;
   elec_price_hc_eur_kwh?: number | null;
+  electricity_subscription_ttc_month?: number | null;
+  electricity_annual_bill_ttc?: number | null;
   grid_type?: string;
   meter_power_kva?: number;
   property_type?: string;
@@ -497,7 +500,7 @@ interface OverviewTabProps {
   onGeoValidationSuccess: () => void;
   /** Conso moteur PDL (CSV) — même source que le calcul */
   energyEngine?: EnergyEngineResult | null;
-  onEnergyEngineChange?: (engine: EnergyEngineResult | null) => void;
+  onEnergyEngineChange?: (engine: EnergyEngineResult | null, importedProfile?: unknown) => void;
   /** Supprime le profil énergie côté serveur et remet à null (après succès) */
   onDeleteEnergyProfile?: () => Promise<void>;
   /** Message de succès après suppression (ex. "Profil énergie supprimé") */
@@ -650,11 +653,12 @@ export default function OverviewTab({
             annual_source_label: payload.annual_kwh_source_label,
             contract_summary: contractSummaryLabel(payload.contract),
             phase_detection: payload.contract?.phase_detection ?? null,
-          });
+          }, payload.energy_profile);
         }
-        if (payload.lead_updates && Object.keys(payload.lead_updates).length > 0) {
-          onLeadChange(payload.lead_updates as Partial<OverviewLead>);
-        }
+        onLeadChange({
+          ...((payload.lead_updates ?? {}) as Partial<OverviewLead>),
+          ...((!payload.hourly || payload.annual_kwh == null) && payload.energy_profile !== undefined ? { energy_profile: payload.energy_profile } : {}),
+        });
         const reused = payload.import_debug?.reused_files;
         const reusedLabel =
           Array.isArray(reused) && reused.length ? ` (+ réutilisés : ${reused.join(", ")})` : "";
@@ -718,7 +722,7 @@ export default function OverviewTab({
           annual_source_label: payload.annual_kwh_source_label,
           contract_summary: contractSummaryLabel(payload.contract),
           phase_detection: payload.contract?.phase_detection ?? null,
-        });
+        }, payload.energy_profile);
       }
       onLeadChange({
         hp_hc: true,
@@ -726,6 +730,7 @@ export default function OverviewTab({
         elec_price_hp_eur_kwh: manualHphc.elec_price_hp_eur_kwh,
         elec_price_hc_eur_kwh: manualHphc.elec_price_hc_eur_kwh,
         ...((payload.lead_updates ?? {}) as Partial<OverviewLead>),
+        ...((!payload.hourly || payload.annual_kwh == null) && payload.energy_profile !== undefined ? { energy_profile: payload.energy_profile } : {}),
       });
       setEnergyFileName(names.length ? names.join(", ") : fileList[0].name);
       const w = payload.import_debug?.warnings;
@@ -970,6 +975,7 @@ export default function OverviewTab({
         ? lead.consumption_annual_calculated_kwh ?? 0
         : annualFromEngine;
   const siteAddr = siteAddress;
+  const electricityBillPreview = buildCurrentElectricityBillPreview(lead, consumptionMonthly, annualFromEngine);
   const isGeoVerified = isTruthyFlag(siteAddr?.is_geo_verified);
   const hasLatLon = siteAddr?.lat != null && siteAddr?.lon != null;
   const addressQualityUi = qualityUiFromSite({
@@ -2056,18 +2062,19 @@ export default function OverviewTab({
         <div className="crm-lead-overview-subblock">
           <h3 className="crm-lead-overview-subheading">Réseau électrique, contrat et équipement</h3>
           <div className="crm-lead-fields">
-            <div className="crm-lead-field">
+            {currentElectricityTariffType(lead) !== "TEMPO" && <div className="crm-lead-field">
               <label>HP/HC</label>
               <PillPicker
                 options={[
+                  { value: "unknown", label: "Non renseigné" },
                   { value: "no", label: "Non" },
                   { value: "yes", label: "Oui" },
                 ]}
-                value={lead.hp_hc ? "yes" : "no"}
-                onChange={(v) => onLeadChange({ hp_hc: v === "yes" })}
+                value={currentElectricityTariffType(lead) === "HPHC" ? "yes" : currentElectricityTariffType(lead) === "BASE" ? "no" : "unknown"}
+                onChange={(v) => onLeadChange(currentElectricityTariffPatch(v === "yes" ? "hp_hc" : v === "no" ? "base" : undefined))}
                 allowDeselect={false}
               />
-            </div>
+            </div>}
             <div className="crm-lead-field">
               <label>Fournisseur</label>
               <input
@@ -2089,12 +2096,12 @@ export default function OverviewTab({
               <PillPicker
                 options={TARIFF_TYPE_OPTIONS}
                 value={lead.tariff_type ?? ""}
-                onChange={(v) => onLeadChange({ tariff_type: v })}
+                onChange={(v) => onLeadChange(currentElectricityTariffPatch(v))}
               />
             </div>
             {/* LOT2-PRIX-COMPTEUR : prix électricité client (facture fournisseur — absent des flux
                 Enedis). Vide = défaut réglages organisation. */}
-            {lead.hp_hc === true || lead.tariff_type === "hp_hc" ? (
+            {currentElectricityTariffType(lead) === "HPHC" ? (
               <>
                 <div className="crm-lead-field">
                   <label>Prix HP (€/kWh TTC)</label>
@@ -2133,6 +2140,10 @@ export default function OverviewTab({
                   />
                 </div>
               </>
+            ) : currentElectricityTariffType(lead) === "TEMPO" ? (
+              <div className="crm-lead-field crm-lead-field-full">
+                <small>Tempo : calcul au prix moyen annuel, sans détail par couleur de jour. Renseignez la facture et la consommation des mêmes 12 mois.</small>
+              </div>
             ) : (
               <div className="crm-lead-field">
                 <label>Prix élec (€/kWh TTC)</label>
@@ -2153,6 +2164,42 @@ export default function OverviewTab({
                 />
               </div>
             )}
+            <div className="crm-lead-field">
+              <label>Facture annuelle électricité TTC (€)</label>
+              <input
+                className="sn-input"
+                type="number"
+                min={0}
+                step={0.01}
+                value={lead.electricity_annual_bill_ttc ?? ""}
+                onChange={(e) => onLeadChange({
+                  electricity_annual_bill_ttc: e.target.value === "" ? null : Number(e.target.value),
+                })}
+                placeholder="Montant total sur 12 mois"
+              />
+              <small>Total facturé sur 12 mois, abonnement compris. Utilisez la consommation des mêmes 12 mois.</small>
+            </div>
+            <div className="crm-lead-field">
+              <label>Abonnement électricité TTC (€/mois)</label>
+              <input
+                className="sn-input"
+                type="number"
+                min={0}
+                step={0.01}
+                value={lead.electricity_subscription_ttc_month ?? ""}
+                onChange={(e) => onLeadChange({
+                  electricity_subscription_ttc_month: e.target.value === "" ? null : Number(e.target.value),
+                })}
+                placeholder="Montant figurant sur la facture"
+              />
+              <small>
+                {electricityBillPreview.subscriptionMessage}
+                {electricityBillPreview.subscription.reference?.source_url && <> <a href={electricityBillPreview.subscription.reference.source_url} target="_blank" rel="noopener noreferrer">Voir la grille EDF</a></>}
+              </small>
+            </div>
+            <div className={`crm-lead-field crm-lead-field-full${electricityBillPreview.error ? " sn-energy-error" : ""}`} role={electricityBillPreview.error ? "alert" : undefined}>
+              <small>{electricityBillPreview.message}</small>
+            </div>
             <div className="crm-lead-field crm-lead-field-full">
               <label>Type de réseau</label>
               <PillPicker

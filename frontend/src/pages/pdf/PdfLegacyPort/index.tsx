@@ -1,3 +1,4 @@
+import PdfPageVerifiedAssumptions from './PdfPageVerifiedAssumptions';
 /**
  * CP-PDF-V2-020 — Portage fidèle du PDF legacy Solarglobe
  * Remplace FullReport : structure DOM, IDs, couleurs legacy conservés.
@@ -104,6 +105,7 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
       {Boolean(fr.p9) && <PdfPage8 organization={organization} viewModel={viewModel} />}
       <PdfPage10 organization={organization} viewModel={viewModel} onReady={onP10Ready} />
       {hasFinancingPage ? <PdfPage11 organization={organization} viewModel={viewModel} /> : null}
+      <PdfPageVerifiedAssumptions viewModel={viewModel} />
       <PdfPageMethodologySolarGlobe viewModel={viewModel} organization={organization} />
       <PdfPage12 organization={organization} viewModel={viewModel} />
       </div>

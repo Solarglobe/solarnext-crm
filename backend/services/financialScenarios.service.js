@@ -15,7 +15,7 @@
  * (le caller doit faire `void upsertFinancialScenariosForVersion(...).catch(...)`).
  */
 
-import { createHash } from "crypto";
+import { fingerprint } from './calculationFingerprint.service.js';
 import { pool } from "../config/db.js";
 import { FINANCIAL_ENGINE_VERSION } from "../constants/engineVersion.js";
 
@@ -25,8 +25,7 @@ import { FINANCIAL_ENGINE_VERSION } from "../constants/engineVersion.js";
 function hashObject(obj) {
   if (obj == null) return null;
   try {
-    const json = JSON.stringify(obj, Object.keys(obj).sort());
-    return createHash("sha256").update(json).digest("hex");
+    return fingerprint(obj);
   } catch {
     return null;
   }
@@ -78,6 +77,8 @@ export async function upsertFinancialScenariosForVersion({
   solarnextPayload,
   scenariosV2,
   userId = null,
+  db = pool,
+  strict = false,
 }) {
   if (!Array.isArray(scenariosV2) || scenariosV2.length === 0) return;
 
@@ -92,7 +93,7 @@ export async function upsertFinancialScenariosForVersion({
     const label = scenario?.label ?? defaultLabel(scenarioId);
 
     try {
-      await pool.query(
+      await db.query(
         `INSERT INTO financial_scenarios (
            organization_id, study_id, study_version_id, scenario_id,
            label,
@@ -136,6 +137,7 @@ export async function upsertFinancialScenariosForVersion({
         ]
       );
     } catch (err) {
+      if (strict) throw err;
       // Log non-bloquant : ne jamais interrompre le flux métier
       console.error("[financialScenarios] upsert failed for scenarioId =", scenarioId, err?.message);
     }

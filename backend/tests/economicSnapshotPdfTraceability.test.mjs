@@ -41,7 +41,10 @@ async function buildTraceabilityVm() {
       economics_raw: originalEconomics,
       economics: originalEconomics,
     },
-    form: {},
+    // Confirmed contractual fixture: this test verifies frozen rights, not an
+    // assumed entitlement inferred from organisation-wide tariff parameters.
+    form: { finance_projection: { surplus_sale_type: 'oa', aid_eligibility: 'eligible', aid_payment_schedule: [{ year: 1, share_pct: 100 }] } },
+    simulation_contract: { injection_mode: 'allowed' },
     finance_input: {
       capex_ttc: 10000,
       economic_snapshot_config: {
@@ -197,8 +200,12 @@ test("PDF keeps frozen financing when current quote financing changes", async ()
   const financing = vm.fullReport.p11.data.financing;
 
   assert.equal(financing.enabled, true);
+  assert.match(vm.fullReport.p11.data.financial_scope_note, /assurance totale 0 €.*frais de dossier 0 €/);
+  assert.match(vm.fullReport.p11.data.financial_scope_note, /conditions à confirmer auprès du prêteur/);
+  assert.equal(financing.insurance_eur, 0);
+  assert.equal(financing.application_fee_eur, 0);
   assert.equal(financing.duration_months, 120);
-  assert.equal(financing.taeg_display, "5,0 %");
+  assert.equal(financing.taeg_display, "5,4 %");
   assert.equal(financing.montant_finance_display, "10\u202f000 \u20ac");
   assert.notEqual(financing.duration_months, 240);
   assert.notEqual(financing.montant_finance_display, "99\u202f999 \u20ac");

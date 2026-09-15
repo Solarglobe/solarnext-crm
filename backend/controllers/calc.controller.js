@@ -1,3 +1,6 @@
+import {isEnergyYear,getCalendar,bindCalendar,monthlySums,copyEnergy} from '../services/energyCalendar.service.js';
+import {getPvgisHourlyReference} from '../services/pvgisHourly.service.js';
+import {resolveKnownVirtualOffPeakPeriods} from '../services/pv/hphcMask.service.js';
 // ======================================================================
 // SMARTPITCH V-LIGHT — Contrôleur principal
 // ======================================================================
@@ -31,6 +34,8 @@ import { aggregateMonthly } from "../services/monthlyAggregator.js";
 import { buildScenario } from "../services/scenarioService.js";
 import { buildScenarioBaseV2 } from "../services/scenarios/scenarioBuilderV2.service.js";
 import { simulateBattery8760 } from "../services/batteryService.js";
+import { buildEnergyReference, validateEnergyBalance } from "../services/energyReference.service.js";
+import { resolveSimulationContract } from "../services/simulationContract.service.js";
 import { computeVirtualBatteryAnnualCost } from "../services/virtualBatteryCreditModel.service.js";
 import {
   simulateVirtualBattery8760,
@@ -46,10 +51,10 @@ import {
   resolveP2ContractType,
 } from "../services/virtualBatteryP2Finance.service.js";
 import { resolveP2VirtualBatterySimulationCapacityKwh } from "../services/virtualBatteryP2CapacityResolve.service.js";
-import { resolveHpHcHourlyMask } from "../services/pv/hphcMask.service.js";
+import { resolveHpHcHourlyMask, resolveHpHcHourlyFractions } from "../services/pv/hphcMask.service.js";
+import { attachScenarioElectricityBilling, resolveVirtualSupplyPricing } from "../services/scenarioElectricityBilling.service.js";
 import {
   resolveHpHcPricingContext,
-  effectivePriceForHourlyWeights,
   attachHpHcPricingToScenarios,
 } from "../services/pv/hphcPricing.service.js";
 import { mapScenarioToV2 } from "../services/scenarioV2Mapper.service.js";
@@ -86,6 +91,7 @@ import {
   attachAntiOversellToScenarios,
   isCommercialUnboundedVirtualBatteryAllowed,
   markVirtualBatteryUnboundedBlocked,
+  attachVerifiedVirtualCapacity,
 } from "../services/antiOversell.service.js";
 
 function round(n, d = 2) {
@@ -194,16 +200,7 @@ function addEnergyKpisToScenario(scenario, ctx) {
 }
 
 function monthlySumsFromHourly(values) {
-  if (!Array.isArray(values) || values.length !== 8760) return Array(12).fill(null);
-  const daysPerMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  const out = [];
-  let index = 0;
-  for (const days of daysPerMonth) {
-    let sum = 0;
-    for (let h = 0; h < days * 24; h++, index++) sum += Number(values[index]) || 0;
-    out.push(Math.round(sum));
-  }
-  return out;
+  return isEnergyYear(values) ? monthlySums(values) : Array(12).fill(null);
 }
 
 function attachVirtualBatteryFinanceForV2hScenario({ ctx, scenario, energyResult, virtualCapacityKwh }) {
@@ -228,6 +225,7 @@ function attachVirtualBatteryFinanceForV2hScenario({ ctx, scenario, energyResult
     const contractType = resolveP2ContractType(vbInput, ctx);
     const p2Wrap = computeVirtualBatteryP2Finance({
       providerCode: providerRaw,
+      tariffReferenceDate:vbInput.tariff_reference_date??null,
       contractType,
       installedKwc,
       meterKva: Number(ctx.site?.puissance_kva ?? ctx.form?.params?.puissance_kva ?? 9),
@@ -236,8 +234,9 @@ function attachVirtualBatteryFinanceForV2hScenario({ ctx, scenario, energyResult
       selectedCapacityKwh: virtualCapacityKwh,
       hourlyDischargeKwh: vbSim.virtual_battery_hourly_discharge_kwh,
       hphcHourlyIsHp: contractType === "HPHC" ? (vbInput.hphc_hourly_slot_is_hp ?? resolveHpHcHourlyMask(vbInput, ctx)) : null,
+      hphcHourlyHpFraction: contractType === "HPHC" ? resolveHpHcHourlyFractions(vbInput, ctx) : null,
       tariffElectricityPerKwh:
-        effectivePriceForHourlyWeights(vbSim.virtual_battery_hourly_grid_import_kwh, ctx._hphcPricingCtx) ?? tariffKwh,
+        resolveVirtualSupplyPricing(ctx, vbSim, contractType).priceImport,
       oaRatePerKwh: oaRate,
       virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
     });
@@ -369,6 +368,7 @@ export async function calculateSmartpitch(req, res) {
     // 0) Contexte global
     // ------------------------------------------------------------
     const ctx = buildContext(form, settings);
+    ctx.simulation_contract = resolveSimulationContract(form.simulation_contract ?? {});
     ctx.form = form;
     if (
       solarnextPayloadForLog?.shading_commercial_audit &&
@@ -455,16 +455,20 @@ if (Math.abs(load8760Sum - (conso.annual_kwh ?? 0)) >= 0.1) {
 
 // Valeurs utilisées par scenarioBuilderV2 : hourly et annual_kwh = SUM(hourly)
 ctx.conso = {
-  hourly: conso.hourly,
+  calendar: getCalendar(conso.hourly,conso.calendar??mergedConso.calendar),
+  hourly: bindCalendar(conso.hourly,getCalendar(conso.hourly,conso.calendar??mergedConso.calendar)),
   annual_kwh: annualExact,
   clamped: conso.hourly,
   monthly_kwh_ref: Array.isArray(conso.monthly_kwh_ref) ? conso.monthly_kwh_ref.slice(0, 12) : monthlySumsFromHourly(conso.hourly),
   consumption_source_mode: conso.consumption_source_mode ?? null,
 };
 
+ctx.virtual_battery_input = {...(ctx.virtual_battery_input??{}),calendar:ctx.conso.calendar,
+  off_peak_periods:resolveKnownVirtualOffPeakPeriods(ctx.virtual_battery_input,ctx)};
 // META
 ctx.meta.conso_annuelle_kwh = annualExact;
 ctx.meta.engine_consumption_source = conso.engine_consumption_source ?? "UNKNOWN";
+ctx.meta.consumption_provenance = conso.provenance ?? mergedConso.provenance ?? null;
 ctx.meta.consumption_source_mode = conso.consumption_source_mode ?? null;
 // OPTIMISATION SOLAIRE DES USAGES — option explicite (defaut NON). Jamais deduite du statut client ni des equipements.
 ctx.solar_piloting_enabled = (form?.params?.solar_piloting_enabled === true) || (form?.solar_piloting_enabled === true);
@@ -526,9 +530,11 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
         moduleWp: resolvedModuleWp,
         pv_inverter: form.pv_inverter,
         globalShadingLossPct: form.shadingLossPct,
+        calendar:ctx.conso.calendar,
+        offline:req.body.local_offline_calculation===true,
       });
       productionMultiPan = multiResult;
-      const pvHourly = solarModelService.buildHourlyPV(multiResult.monthlyKwh, ctx);
+      const pvHourly = multiResult.hourly;
       const maxPanelsMp = Math.floor(Number(form?.maison?.panneaux_max || 0));
       const installedKwcMp =
         maxPanelsMp > 0
@@ -540,7 +546,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
         monthly: multiResult.monthlyKwh,
         total_raw_kwh: multiResult.annualKwh,
         total_kwh: multiResult.annualKwh,
-        source: "PVGIS-MultiPan+HourlyModelAC",
+        source: multiResult.byPan.some(p=>String(p.monthly_source).toUpperCase().includes('FALLBACK')) ? "FALLBACK-MultiPan+OrientationHourlyAC" : multiResult.byPan.some(p=>p.hourly_source==='NOAA_ISOTROPIC_ESTIMATE') ? "PVGIS-MultiPan+NOAA-Hourly-Estimate" : "PVGIS-MultiPan+OrientationHourlyAC",
         fromMultiPan: true,
         ...(installedKwcMp != null ? { kwc: installedKwcMp, panelsCount: maxPanelsMp } : {}),
       };
@@ -584,6 +590,8 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
 
       const kwc = resolveKwcMono(form);
       const monthly_total = (pvMonthly.monthly_kwh || []).map((v) => (Number(v) || 0) * kwc);
+      const monoAzimuth={N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315}[String(ctx.site.orientation??'S').toUpperCase()]??180;
+      ctx.pvgis_hourly_reference=await getPvgisHourlyReference({latitude:ctx.site.lat,longitude:ctx.site.lon,azimuth:monoAzimuth,tilt:ctx.site.inclinaison??30,reference_year:ctx.settings?.pv?.pvgis_reference_year??2020},{offline:req.body.local_offline_calculation===true});
       const pvHourly = solarModelService.buildHourlyPV(monthly_total, ctx);
       const annual_total = monthly_total.reduce((a, b) => a + b, 0);
       ctx.pv = {
@@ -593,7 +601,8 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
         monthly: monthly_total,
         total_raw_kwh: pvMonthly.annual_raw_kwh != null ? pvMonthly.annual_raw_kwh * kwc : null,
         total_kwh: annual_total,
-        source: pvMonthly.source + "+HourlyModelAC",
+        source: pvMonthly.source + (ctx.pvgis_hourly_reference.hourly ? "+PVGIS-HourlyAC" : "+NOAA-Hourly-Estimate"),
+        monthly_reference:pvMonthly.reference??null,
       };
       if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1") {
         const pvH = ctx.pv.hourly || [];
@@ -640,53 +649,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       }
     }
 
-    let _clippingSummary = {
-      clipped_kwh: 0,
-      loss_pct: 0,
-      source: "not_applicable",
-    };
-    // ------------------------------------------------------------
-    // Clipping onduleur : ecretage de la production horaire a la puissance nominale AC totale.
-    // Sans effet si pv_inverter.inverter_nominal_kw_total est absent ou nul.
-    // ------------------------------------------------------------
-    const _inverterNominalKwTotal = form?.pv_inverter?.inverter_nominal_kw_total;
-    if (
-      _inverterNominalKwTotal != null &&
-      Number.isFinite(Number(_inverterNominalKwTotal)) &&
-      Number(_inverterNominalKwTotal) > 0 &&
-      Array.isArray(ctx.pv?.hourly)
-    ) {
-      const _cap = Number(_inverterNominalKwTotal);
-      let _clippedKwh = 0;
-      const _beforeClipKwh = ctx.pv.hourly.reduce((a, b) => a + (Number(b) || 0), 0);
-      ctx.pv.hourly = ctx.pv.hourly.map((h) => {
-        const hh = Number(h) || 0;
-        if (hh > _cap) {
-          _clippedKwh += hh - _cap;
-          return _cap;
-        }
-        return hh;
-      });
-      const _afterClipKwh = ctx.pv.hourly.reduce((a, b) => a + (Number(b) || 0), 0);
-      _clippingSummary = {
-        clipped_kwh: Math.round(_clippedKwh * 10) / 10,
-        loss_pct:
-          _beforeClipKwh > 0
-            ? Math.round((_clippedKwh / _beforeClipKwh) * 10000) / 100
-            : 0,
-        source: "inverter_nominal_kw_total",
-      };
-      if (_clippedKwh > 0.1) {
-        ctx.pv.clipped_kwh = _clippingSummary.clipped_kwh;
-        ctx.pv.clipping_loss_pct = _clippingSummary.loss_pct;
-        if (process.env.NODE_ENV !== "production") {
-          console.log(`[INVERTER CLIPPING] nominalKw=${_cap} clipped=${_clippedKwh.toFixed(1)} kWh`);
-        }
-      }
-      ctx.pv.total_kwh = Math.round(_afterClipKwh * 100) / 100;
-    }
-    attachPostPvgisLossBreakdown(ctx, form, _clippingSummary);
-
+    const _inverterNominalKwTotal = Number(form?.pv_inverter?.inverter_nominal_kw_total);
     // ------------------------------------------------------------
     // 3) PRODUCTION PV HORAIRE (déjà rempli ci-dessus)
     // ------------------------------------------------------------
@@ -777,7 +740,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
         );
 
         // shadingFactor8760 pondéré : moyenne pondérée des facteurs horaires
-        const weighted8760 = new Array(8760).fill(0);
+        const weighted8760 = new Array(ctx.conso.hourly.length).fill(0);
         let weightedLossPct = 0;
         let weightedPitchMin = 0;
         let weightedPitchActual = 0;
@@ -793,13 +756,14 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               panelHeightM: Number(pan.panelHeightM),
               latitudeDeg: lat,
               longitudeDeg: lon,
+              calendar:ctx.conso.calendar,
             });
           } catch (e) {
             // Pan invalide → skip silencieux
             continue;
           }
 
-          for (let h = 0; h < 8760; h++) {
+          for (let h = 0; h < weighted8760.length; h++) {
             weighted8760[h] += result.shadingFactor8760[h] * panWeight;
           }
           weightedLossPct += result.annualLossPct * panWeight;
@@ -977,6 +941,14 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     // PILOTAGE_BUDGET_MODE=legacy (défaut) → parts 35/20/10 inchangées.
     // PILOTAGE_BUDGET_MODE=equipment_prudent → budget dérivé des équipements (plafonné).
     // ------------------------------------------------------------
+    bindCalendar(ctx.pv.hourly,ctx.conso.calendar);
+    ctx.pv.hourly_before_clipping=copyEnergy(ctx.pv.hourly);
+    const beforeClipping=ctx.pv.hourly.reduce((s,v)=>s+v,0);
+    if(Number.isFinite(_inverterNominalKwTotal)&&_inverterNominalKwTotal>0)ctx.pv.hourly=bindCalendar(ctx.pv.hourly.map(v=>Math.min(v,_inverterNominalKwTotal)),ctx.conso.calendar);
+    const afterClipping=ctx.pv.hourly.reduce((s,v)=>s+v,0);
+    const _clippingSummary={clipped_kwh:beforeClipping-afterClipping,loss_pct:beforeClipping>0?(beforeClipping-afterClipping)/beforeClipping*100:0,source:Number.isFinite(_inverterNominalKwTotal)&&_inverterNominalKwTotal>0?'inverter_nominal_kw_total':'not_applicable'};
+    ctx.pv.clipped_kwh=_clippingSummary.clipped_kwh;ctx.pv.clipping_loss_pct=_clippingSummary.loss_pct;ctx.pv.total_kwh=afterClipping;
+    attachPostPvgisLossBreakdown(ctx,form,_clippingSummary);
     const pilotageBudget = resolvePilotageBudgetFromEquipment(mergedConso, {});
     const pilotage = buildPilotedProfile(
       conso.hourly,
@@ -986,6 +958,8 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     ctx.conso_p_pilotee = pilotage.conso_pilotee_hourly;
     ctx.pilotage_stats = pilotage.stats;
 
+    bindCalendar(ctx.pv.hourly,ctx.conso.calendar);
+    bindCalendar(ctx.conso.hourly,ctx.conso.calendar);
     // ROUTAGE PROFIL DE CALCUL — une seule verite par dossier.
     // base_hourly = profil de base (Enedis reel ou synthetique). hourly = profil reellement calcule.
     // Le profil pilote n'entre dans les calculs QUE si l'optimisation solaire est explicitement activee.
@@ -993,10 +967,18 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       ? arr.reduce((h, v, i) => (((h * 31) + Math.round((Number(v) || 0) * 1000) + i) >>> 0), (2166136261 >>> 0)).toString(16)
       : null;
     ctx.conso.base_hourly = ctx.conso.hourly;
-    if (ctx.solar_piloting_enabled === true && Array.isArray(ctx.conso_p_pilotee) && ctx.conso_p_pilotee.length === 8760) {
+    if (ctx.solar_piloting_enabled === true && isEnergyYear(ctx.conso_p_pilotee)) {
       ctx.conso.hourly = ctx.conso_p_pilotee;
       ctx.conso.clamped = ctx.conso_p_pilotee;
     }
+    bindCalendar(ctx.conso.hourly,ctx.conso.calendar);
+    ctx.pv.monthly=monthlySums(ctx.pv.hourly,ctx.conso.calendar);
+    ctx.pv.total_kwh=ctx.pv.hourly.reduce((a,b)=>a+b,0);
+    ctx.meta.production_reference={model_version:'pvgis-hourly-oriented-monthly-ac-v1',calendar:ctx.conso.calendar,monthly_reference:ctx.pv.monthly_reference??null,
+      estimated_hourly_shape:ctx.productionMultiPan?ctx.productionMultiPan.byPan.some(p=>p.hourly_source==='NOAA_ISOTROPIC_ESTIMATE'):ctx.pvgis_hourly_reference?.hourly==null,
+      pans:ctx.productionMultiPan?.byPan??null,
+      ...(ctx.pvgis_hourly_reference?{source:ctx.pvgis_hourly_reference.source,dataset_key:ctx.pvgis_hourly_reference.key,data_hash:ctx.pvgis_hourly_reference.data_hash??null,request:ctx.pvgis_hourly_reference.request,warning:ctx.pvgis_hourly_reference.warning??null}:{}),
+      loss_boundary:'monthly_AC_target_then_explicit_site_losses_once'};
     ctx.meta.base_consumption_profile_hash = _hashHourly(ctx.conso.base_hourly);
     ctx.meta.calculated_consumption_profile_hash = _hashHourly(ctx.conso.hourly);
     ctx.meta.scenario_uses_piloted_profile = ctx.solar_piloting_enabled === true;
@@ -1026,7 +1008,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
 
     if (batteryEnabled) {
       const consoHourly = resolveRawScenarioConsumptionHourly(ctx);
-      const hasConso8760 = Array.isArray(consoHourly) && consoHourly.length === 8760;
+      const hasConso8760 = isEnergyYear(consoHourly);
 
       if (!hasConso8760) {
         const skipped = JSON.parse(JSON.stringify(baseScenario));
@@ -1089,6 +1071,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           const monthlySurplusBefore = monthlySumsFromHourly(batt.surplus_before_battery_hourly);
           const monthlyChargeInput = monthlySumsFromHourly(batt.batt_charge_input_hourly);
           batteryScenario.energy = {
+            reference: buildEnergyReference({ pv: ctx.pv.hourly, load: consoHourly, battery: batt, scenarioId: "BATTERY_PHYSICAL", provenance: ctx.meta?.consumption_provenance ?? null, injectionLimitKw: ctx.simulation_contract?.injection_limit_kw ?? null }),
             prod: baseScenario.energy.prod,
             auto: batt.auto_kwh,
             surplus: batt.surplus_kwh,
@@ -1173,7 +1156,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       }
     }
 
-    if (ctx.virtual_battery_input?.enabled === true) {
+    if (ctx.virtual_battery_input?.enabled === true && ctx.simulation_contract.virtual_credit_eligibility !== false && ctx.simulation_contract.injection_mode !== "none") {
       const virtualScenario = JSON.parse(JSON.stringify(baseScenario));
       virtualScenario.name = "BATTERY_VIRTUAL";
       virtualScenario.battery = "virtual";
@@ -1182,8 +1165,8 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       virtualScenario.scenario_uses_piloted_profile = ctx.solar_piloting_enabled === true;
 
       const consoHourlyVirtual = resolveRawScenarioConsumptionHourly(ctx);
-      const hasConso8760Vb = Array.isArray(consoHourlyVirtual) && consoHourlyVirtual.length === 8760;
-      const hasPv8760Vb = Array.isArray(ctx.pv?.hourly) && ctx.pv.hourly.length === 8760;
+      const hasConso8760Vb = isEnergyYear(consoHourlyVirtual);
+      const hasPv8760Vb = isEnergyYear(ctx.pv?.hourly);
 
       if (!hasConso8760Vb || !hasPv8760Vb) {
         if (process.env.NODE_ENV !== "production") {
@@ -1382,10 +1365,10 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               years: 10,
             });
             if (vbRollover?.ok) {
-              vbSim = vbRollover.stabilized;
+              // Preserve the true first year; stabilized figures are informational only.
             }
           }
-          const vbStabilizedSim = vbSim;
+          const vbStabilizedSim = vbRollover?.stabilized ?? vbSim;
           virtualScenario.virtual_battery_rollover = buildVirtualBatteryRolloverMeta({
             enabled: rolloverEnabled && vbRollover?.ok,
             rollover: vbRollover?.ok ? vbRollover : null,
@@ -1529,10 +1512,11 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           virtualScenario.year1 = virtualScenario.virtual_battery_rollover?.year1 ?? null;
           virtualScenario.stabilized = virtualScenario.virtual_battery_rollover?.stabilized ?? null;
           virtualScenario.convergence_year = virtualScenario.virtual_battery_rollover?.convergence_year ?? 1;
-          virtualScenario.virtual_credit_start_kwh = virtualScenario.virtual_battery_rollover?.virtual_credit_start_kwh ?? 0;
-          virtualScenario.virtual_credit_end_kwh = virtualScenario.virtual_battery_rollover?.virtual_credit_end_kwh ?? remaining_credit_kwh;
+          virtualScenario.virtual_credit_start_kwh = vbSim.virtual_battery_credit_start_kwh ?? 0;
+          virtualScenario.virtual_credit_end_kwh = vbSim.virtual_battery_credit_end_kwh ?? remaining_credit_kwh;
 
           virtualScenario._virtualBattery8760 = {
+            calendar:vbSim.calendar,commercial_ledger:vbSim.commercial_ledger,provider_rules:vbSim.provider_rules,
             virtual_battery_capacity_kwh: vbSim.virtual_battery_capacity_kwh,
             virtual_battery_credit_start_kwh: vbSim.virtual_battery_credit_start_kwh,
             virtual_battery_credit_end_kwh: vbSim.virtual_battery_credit_end_kwh,
@@ -1552,6 +1536,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           if (useP2) {
             const p2Wrap = computeVirtualBatteryP2Finance({
               providerCode: providerRaw,
+              tariffReferenceDate:vbInput.tariff_reference_date??null,
               contractType,
               installedKwc,
               meterKva,
@@ -1563,13 +1548,10 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 null,
               hourlyDischargeKwh: vbSim.virtual_battery_hourly_discharge_kwh,
               hphcHourlyIsHp: contractType === "HPHC" ? (vbInput.hphc_hourly_slot_is_hp ?? resolveHpHcHourlyMask(vbInput, ctx)) : null,
-              // LOT3-HPHC-VALO : l'import résiduel VB est facturé à son prix effectif HP/HC
-              // (pondéré par les heures d'import réelles) quand le contexte existe, sinon prix plat.
+              hphcHourlyHpFraction: contractType === "HPHC" ? resolveHpHcHourlyFractions(vbInput, ctx) : null,
+              // Purchases outside virtual credit use the selected supplier's contract.
               tariffElectricityPerKwh:
-                effectivePriceForHourlyWeights(
-                  vbSim.virtual_battery_hourly_grid_import_kwh,
-                  ctx._hphcPricingCtx
-                ) ?? tariffKwh,
+                resolveVirtualSupplyPricing(ctx, vbSim, contractType, meterKva).priceImport,
               oaRatePerKwh: oaRate,
               virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
             });
@@ -1682,10 +1664,10 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     // Condition : batterie physique simulée avec succès ET batterie virtuelle activée.
     // Principe : la VB ne voit que le surplus que la batterie physique n'a pas absorbé.
     // -----------------------------------------------------------------------
-    if (battPhysicalResult !== null && ctx.virtual_battery_input?.enabled === true) {
+    if (battPhysicalResult !== null && ctx.virtual_battery_input?.enabled === true && ctx.simulation_contract?.virtual_credit_eligibility !== false && ctx.simulation_contract?.injection_mode !== "none") {
       const consoHourlyHybrid = resolveRawScenarioConsumptionHourly(ctx);
-      const hasSurplus8760H = Array.isArray(battPhysicalResult.surplus_hourly) && battPhysicalResult.surplus_hourly.length === 8760;
-      const hasConso8760H = Array.isArray(consoHourlyHybrid) && consoHourlyHybrid.length === 8760;
+      const hasSurplus8760H = isEnergyYear(battPhysicalResult.surplus_hourly);
+      const hasConso8760H = isEnergyYear(consoHourlyHybrid);
 
       const hybridScenario = JSON.parse(JSON.stringify(scenarios.BATTERY_PHYSICAL));
       hybridScenario.name = "BATTERY_HYBRID";
@@ -1797,14 +1779,14 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 years: 10,
               });
               if (vbRolloverH?.ok) {
-                vbSimHEffective = vbRolloverH.stabilized;
+                // Keep real opening credit in financial year one.
               }
             }
             hybridScenario.virtual_battery_rollover = buildVirtualBatteryRolloverMeta({
               enabled: rolloverEnabledH && vbRolloverH?.ok,
               rollover: vbRolloverH?.ok ? vbRolloverH : null,
               year1: vbYear1SimH,
-              stabilized: vbSimHEffective,
+              stabilized: vbRolloverH?.stabilized ?? vbSimHEffective,
             });
 
             const vbCreditsUsed = vbSimHEffective.virtual_battery_total_discharged_kwh ?? 0;
@@ -1854,6 +1836,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             if (useP2H) {
               const p2WrapH = computeVirtualBatteryP2Finance({
                 providerCode: providerRawH,
+                tariffReferenceDate:vbInputH.tariff_reference_date??null,
                 contractType: contractTypeH,
                 installedKwc: installedKwcH,
                 meterKva: meterKvaH,
@@ -1862,12 +1845,10 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 selectedCapacityKwh: simCapacityKwhH,
                 hourlyDischargeKwh: vbSimHEffective.virtual_battery_hourly_discharge_kwh,
                 hphcHourlyIsHp: contractTypeH === "HPHC" ? (vbInputH.hphc_hourly_slot_is_hp ?? resolveHpHcHourlyMask(vbInputH, ctx)) : null,
+                hphcHourlyHpFraction: contractTypeH === "HPHC" ? resolveHpHcHourlyFractions(vbInputH, ctx) : null,
                 // LOT3-HPHC-VALO : import résiduel hybride au prix effectif HP/HC (cf. scénario virtuel).
                 tariffElectricityPerKwh:
-                  effectivePriceForHourlyWeights(
-                    vbSimHEffective.virtual_battery_hourly_grid_import_kwh,
-                    ctx._hphcPricingCtx
-                  ) ?? tariffKwhH,
+                  resolveVirtualSupplyPricing(ctx, vbSimHEffective, contractTypeH).priceImport,
                 oaRatePerKwh: oaRateH,
                 virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
               });
@@ -1993,9 +1974,10 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             hybridScenario.year1 = hybridScenario.virtual_battery_rollover?.year1 ?? null;
             hybridScenario.stabilized = hybridScenario.virtual_battery_rollover?.stabilized ?? null;
             hybridScenario.convergence_year = hybridScenario.virtual_battery_rollover?.convergence_year ?? 1;
-            hybridScenario.virtual_credit_start_kwh = hybridScenario.virtual_battery_rollover?.virtual_credit_start_kwh ?? 0;
-            hybridScenario.virtual_credit_end_kwh = hybridScenario.virtual_battery_rollover?.virtual_credit_end_kwh ?? hybridRemainingCredit;
+            hybridScenario.virtual_credit_start_kwh = vbSimHEffective.virtual_battery_credit_start_kwh ?? 0;
+            hybridScenario.virtual_credit_end_kwh = vbSimHEffective.virtual_battery_credit_end_kwh ?? hybridRemainingCredit;
             hybridScenario._virtualBattery8760 = {
+              calendar:vbSimHEffective.calendar,commercial_ledger:vbSimHEffective.commercial_ledger,provider_rules:vbSimHEffective.provider_rules,
               virtual_battery_capacity_kwh: vbSimHEffective.virtual_battery_capacity_kwh,
               virtual_battery_credit_start_kwh: vbSimHEffective.virtual_battery_credit_start_kwh,
               virtual_battery_credit_end_kwh: vbSimHEffective.virtual_battery_credit_end_kwh,
@@ -2035,6 +2017,8 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
         }
       }
     }
+
+    } // End physical + virtual scenario; finance and response apply to every configuration.
 
 
     // -----------------------------------------------------------------------
@@ -2095,6 +2079,12 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               annual: { prod_kwh: e.production_kwh, conso_kwh: e.consumption_kwh, auto_kwh: e.auto_kwh, surplus_kwh: e.surplus_kwh },
             };
             const v2hTrace = e._hourlyTrace && typeof e._hourlyTrace === "object" ? e._hourlyTrace : null;
+            if (v2hTrace) sc._electricityHourly = {
+              auto: Array.isArray(v2hTrace.direct_self_consumption_hourly)
+                ? v2hTrace.direct_self_consumption_hourly.map((v, h) => v + (v2hTrace.physical_battery_discharge_hourly?.[h] ?? 0) + (v2hTrace.vehicle_v2h_discharge_hourly?.[h] ?? 0))
+                : null,
+              import: v2hTrace.grid_import_hourly ?? null,
+            };
             if (
               v2hTrace &&
               Array.isArray(v2hTrace.auto_hourly) &&
@@ -2205,6 +2195,30 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     }
 
     for (const _sk of Object.keys(scenarios)) {
+      if (_sk === "BATTERY_VIRTUAL" || _sk === "BATTERY_HYBRID") {
+        const sc = scenarios[_sk];
+        if (!sc._skipped) {
+          sc.energy.reference = buildEnergyReference({ pv: ctx.pv.hourly, load: resolveRawScenarioConsumptionHourly(ctx), battery: _sk === "BATTERY_HYBRID" ? battPhysicalResult : null, scenarioId: _sk, provenance: ctx.meta?.consumption_provenance ?? null });
+          const vb = sc._virtualBattery8760;
+          if (Array.isArray(vb?.virtual_battery_hourly_charge_kwh)) sc.energy.reference.virtual_credit = {
+            accounting_only: true,
+            credited_kwh: vb.virtual_battery_total_charged_kwh,
+            used_kwh: vb.virtual_battery_total_discharged_kwh,
+            opening_kwh: vb.virtual_battery_credit_start_kwh,
+            closing_kwh: vb.virtual_battery_credit_end_kwh,
+            overflow_kwh: vb.virtual_battery_overflow_export_kwh,
+            expired_kwh:vb.commercial_ledger?.expired_kwh??0,
+            cashout_kwh:vb.commercial_ledger?.cashout_kwh??0,
+            cashout_eur:vb.commercial_ledger?.cashout_eur??0,
+            provider_rules:vb.provider_rules??null,
+            closing_lots:vb.commercial_ledger?.closing_lots??null,
+            periods:vb.commercial_ledger?.periods??aggregateVirtualBatteryMonthly(vb.virtual_battery_hourly_grid_import_kwh,vb.virtual_battery_hourly_charge_kwh,vb.virtual_battery_hourly_discharge_kwh,vb.virtual_battery_hourly_credit_balance_kwh),
+            monthly:Array.from({length:12},(_,month)=>({month,credited_kwh:monthlySums(vb.virtual_battery_hourly_charge_kwh,ctx.conso.calendar)[month],used_credit_kwh:monthlySums(vb.virtual_battery_hourly_discharge_kwh,ctx.conso.calendar)[month]})),
+          };
+        }
+      }
+      scenarios[_sk].production_reference=ctx.meta.production_reference;
+      attachVerifiedVirtualCapacity(scenarios[_sk]);
       attachNormalizedEnergyKpiFields(scenarios[_sk]);
     }
 
@@ -2213,6 +2227,14 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     // sinon (contrat BASE, prix non saisis) : comportement historique inchangé au bit près.
     if (ctx._hphcPricingCtx) {
       attachHpHcPricingToScenarios(scenarios, ctx, battPhysicalResult, ctx._hphcPricingCtx);
+    }
+    attachScenarioElectricityBilling(scenarios, ctx, battPhysicalResult);
+    for (const [id,sc] of Object.entries(scenarios)) {
+      if(sc?._skipped||!['BASE','BATTERY_PHYSICAL','BATTERY_VIRTUAL','BATTERY_HYBRID'].includes(id))continue;
+      sc._energyProjectionInput={scenario_id:id,pv_hourly:ctx.pv.hourly,pv_unclipped_hourly:ctx.pv.hourly_before_clipping,inverter_nominal_kw_total:_inverterNominalKwTotal,conso_hourly:ctx.conso.hourly,calendar:ctx.conso.calendar,
+        battery:ctx.battery_input??ctx.form?.battery_input??{},virtual_battery_input:ctx.virtual_battery_input,
+        current_contract:sc.electricity_billing?.current_contract,scenario_contract:sc.electricity_billing?.scenario_contract,
+        restitution:sc.electricity_billing?.virtual_restitution,injection_limit_kw:ctx.simulation_contract?.injection_limit_kw??null};
     }
 
     // ======================================================================
@@ -2232,7 +2254,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       console.error("[SMARTPITCH ERROR] Missing params", { someObject: ctx.form });
       throw new Error("SMARTPITCH_PARAMS_MISSING");
     }
-    if (!ctx.form.params.tarif_kwh && ctx.form.params.tarif_actuel) {
+    if (ctx.form.params.tarif_kwh == null && ctx.form.params.tarif_actuel != null) {
       ctx.form.params.tarif_kwh = ctx.form.params.tarif_actuel;
     }
 
@@ -2266,6 +2288,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     // Contrôle équilibre énergétique : CONSOMMATION = auto + import ; PRODUCTION = auto + surplus
     for (const [key, sc] of Object.entries(scenariosFinal)) {
       if (!sc) continue;
+      if(sc.energy?.reference){const issues=validateEnergyBalance(sc.energy.reference.annual);if(issues.length)throw new Error(issues.join("; "));continue;}
 
       const consumption =
         sc.conso_kwh ?? sc.energy?.conso ?? 0;
@@ -2339,7 +2362,6 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
 
     return res.json(ctxFinal);
 
-  }
   } catch (err) {
     console.error("❌ ERREUR SMARTPITCH :", err);
     if (err instanceof CalcEngineValidationError && err.code === CALC_INVALID_8760_PROFILE) {
@@ -2591,7 +2613,7 @@ function buildContext(form, settings) {
   };
 
   const rawSettings = settings && typeof settings === "object" ? settings : {};
-  const rawEconomics =
+  const rawEconomics = Object.hasOwn(rawSettings,"economics_raw") ? rawSettings.economics_raw :
     rawSettings.economics && typeof rawSettings.economics === "object" ? rawSettings.economics : null;
   const mergedEconomics = mergeOrgEconomicsPartial(
     rawEconomics

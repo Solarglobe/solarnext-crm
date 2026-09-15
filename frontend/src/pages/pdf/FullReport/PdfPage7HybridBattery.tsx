@@ -9,6 +9,7 @@ import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "@/components/pdf/PdfHeader";
 import { usePdfOrgBranding } from "../PdfLegacyPort/pdfOrgBrandingContext";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
+import { electricityBillingNote, type ElectricityBilling } from "@/components/study/electricityBillingDisplay";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
 const PLACEHOLDER_LOGO = "/client-portal/logo-solarglobe.png";
@@ -24,6 +25,7 @@ function getStorageUrl(
 }
 
 interface P7HybridBatteryData {
+  electricity_billing?: ElectricityBilling | null;
   meta?: { client?: string; ref?: string; date?: string; date_display?: string };
   title?: string;
   subtitle?: string;
@@ -399,11 +401,10 @@ export default function PdfPage7HybridBattery({
               Facture annuelle estimée
             </div>
             <div style={{ fontSize: "6.5mm", fontWeight: 800, lineHeight: 1 }}>
-              {fmtEur(kpis.estimated_annual_bill_eur)}
+              {data.electricity_billing?.status === "INCOMPLETE" ? "Contrat à compléter" : fmtEur(data.electricity_billing ? data.electricity_billing.bill_after_eur : kpis.estimated_annual_bill_eur)}
             </div>
             <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
-              Après application des deux couches de stockage — hors abonnement compteur
-              (part fixe du fournisseur)
+              {electricityBillingNote(data.electricity_billing)}
             </div>
           </div>
         </div>

@@ -7,9 +7,10 @@ import {
   overlayFormEconomics,
   resolveElectricityGrowthPctFromOrg,
 } from "./economicsResolve.service.js";
+import { shadingExportBlockers, SHADING_EXPORT_BLOCKING_CODES } from './shading/shadingExportGuard.service.js';
 
 // Codes qui bloquent HARD la génération de PDF.
-// Seul 1 code reste vraiment bloquant :
+// Données invalides et géométrie explicitement incomplète/incohérente bloquent.
 //   - CALC_INVALID_8760_PROFILE  : données de calcul corrompues/absentes, aucun PDF exploitable possible
 //
 // Les codes suivants sont intentionnellement ABSENTS (classés non-bloquants, affichés en avertissement UI) :
@@ -17,7 +18,8 @@ import {
 //   - VB_COST_UNCONFIGURED_BLOCK_PDF           : coût batterie non configuré, PDF autorisé avec mention
 //   - FAR_SHADING_UNAVAILABLE_BLOCK_PDF        : masque horizon indisponible, calcul dégradé acceptable
 //   - SHADING_PAN_MISMATCH_BLOCK_PDF           : décalage panneaux/ombrage, avertissement qualitatif
-//   - SHADING_GEOMETRY_BLOCK_PDF               : géométrie ombrage avec réserves, PDF autorisé
+//   - SHADING_GEOMETRY_BLOCK_PDF               : ancien code générique ; les faits critiques
+//                                               connus sont contrôlés séparément ci-dessous
 //   - VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE : scénario VB déjà _skipped=true → n'apparaît pas dans le PDF ;
 //                                                bloquer TOUS les PDFs (y compris BASE) à cause du scénario
 //                                                VB skippé n'a aucun sens.
@@ -26,6 +28,7 @@ import {
 // isPdfBlockedByConfidence ne se base PAS sur le champ level mais uniquement sur cette liste.
 const BLOCKING = new Set([
   "CALC_INVALID_8760_PROFILE",
+  ...SHADING_EXPORT_BLOCKING_CODES,
 ]);
 
 /**
@@ -40,8 +43,9 @@ export function finalizeCalculationConfidence({
   non_blocking_warnings = [],
   assumptions = {},
 }) {
-  const bw = Array.from(new Set((blocking_warnings || []).filter(Boolean)));
-  const nbw = Array.from(new Set((non_blocking_warnings || []).filter(Boolean)));
+  const geometryBlocks=shadingExportBlockers({assumptions}).map(item=>item.code);
+  const bw = Array.from(new Set([...(blocking_warnings || []).filter(Boolean),...geometryBlocks]));
+  const nbw = Array.from(new Set((non_blocking_warnings || []).filter(w=>w&&!bw.includes(w))));
 
   let level = "HIGH";
   if (bw.length > 0) {
@@ -89,6 +93,7 @@ export function finalizeCalculationConfidence({
 
 export function isPdfBlockedByConfidence(confidence) {
   if (!confidence || typeof confidence !== "object") return false;
+  if(shadingExportBlockers({assumptions:confidence.assumptions??{}}).length)return true;
   // Ne pas court-circuiter sur confidence.level === "BLOCKED" : des études stockées avant
   // ce changement ont level="BLOCKED" à cause de PVGIS_FALLBACK_USED qui est maintenant
   // non-bloquant. On vérifie uniquement les codes présents dans BLOCKING.
@@ -231,6 +236,7 @@ export function buildCalculationConfidenceFromCalc(ctx, scenariosFinal = {}) {
     shading_source: shadingSrc.farSource ?? shadingSrc.far_source ?? null,
     far_shading_unavailable: auditFlags.farHorizonUnavailable === true,
     shading_pan_mismatch: auditFlags.shadingPanMismatch === true,
+    shading_pan_mismatch_abs_diff: auditFlags.shadingPanMismatchAbsDiff ?? null,
     shading_geometry_strict_warnings: Array.isArray(auditFlags.geometryWarnings)
       ? auditFlags.geometryWarnings
       : [],

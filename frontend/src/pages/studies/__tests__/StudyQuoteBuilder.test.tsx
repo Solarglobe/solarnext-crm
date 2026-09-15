@@ -7,6 +7,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import {setAuthToken} from "../../../services/api";
 import StudyQuoteBuilder from "../StudyQuoteBuilder";
 
 describe("StudyQuoteBuilder", () => {
@@ -14,7 +15,8 @@ describe("StudyQuoteBuilder", () => {
   const mockVersionId = "version-456";
 
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>[]}));
+    setAuthToken("test-memory-token");
     vi.stubGlobal("localStorage", {
       getItem: vi.fn(() => "fake-token"),
       setItem: vi.fn(),

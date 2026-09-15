@@ -72,16 +72,19 @@ export default function PdfPage11({
     if (!Number.isFinite(raw)) return "—";
     return fmtEur(raw);
   };
+  const horizonYears=Number(p11Meta.horizon_years_pdf)||ecoSeries.length||25;
   const maxChart = Math.max(1, ...ecoSeries, ...paySeries);
-  const chartBars = Array.from({ length: 25 }, (_, i) => {
-    const x = 170 + i * ((2400 - 190) / 25);
-    const groupW = (2400 - 190) / 25;
+  const minChart = Math.min(0,...ecoSeries,...paySeries);
+  const chartScale=(value:number)=>30+610*(maxChart-value)/(maxChart-minChart);
+  const zeroY=chartScale(0);
+  const chartBars = Array.from({ length: horizonYears }, (_, i) => {
+    const x = 170 + i * ((2400 - 190) / horizonYears);
+    const groupW = (2400 - 190) / horizonYears;
     const eco = Number.isFinite(ecoSeries[i]) ? ecoSeries[i] : 0;
     const pay = Number.isFinite(paySeries[i]) ? paySeries[i] : 0;
-    const plotH = 610;
-    const ecoH = (eco / maxChart) * plotH;
-    const payH = (pay / maxChart) * plotH;
-    return { x, groupW, ecoH, payH };
+    const ecoH = Math.abs(chartScale(eco)-zeroY);
+    const payH = Math.abs(chartScale(pay)-zeroY);
+    return { x, groupW, ecoH, payH, ecoY:Math.min(zeroY,chartScale(eco)),payY:Math.min(zeroY,chartScale(pay)),negative:eco<0 };
   });
 
   const logoUrl = useMemo(() => {
@@ -177,34 +180,34 @@ export default function PdfPage11({
         <div className="p11-central">
           <div id="p11_chart_wrap" className="p11-chart">
             <div className="p11-chart__head">
-              <p className="p11-chart__title">Projection 25 ans — économies et financement</p>
+              <p className="p11-chart__title">Projection {horizonYears} ans — économies et financement</p>
             </div>
             <div className="p11-chart__inner">
               <div className="p11-chart__legend">
                 <span>
-                  <span className="p11-leg-eco" aria-hidden /> Économies annuelles (estimation)
+                  <span className="p11-leg-eco" aria-hidden /> Flux annuels du projet (avant crédit)
                 </span>
                 <span>
                   <span className="p11-leg-pay" aria-hidden /> Versements annuels au prêt
                 </span>
               </div>
               <div className="p11-chart__svg-wrap">
-                <svg id="p11_chart" viewBox="0 0 2400 700" aria-label="Projection 25 ans : économies et remboursement">
+                <svg id="p11_chart" viewBox="0 0 2400 700" aria-label={`Projection ${horizonYears} ans : économies et remboursement`}>
                   <rect x="0" y="0" width="2400" height="700" fill="#fdfcf9" rx="8" />
-                  <line x1="150" y1="640" x2="2360" y2="640" stroke="#cfc7b8" strokeWidth="3" />
+                  <line x1="150" y1={zeroY} x2="2360" y2={zeroY} stroke="#cfc7b8" strokeWidth="3" />
                   {chartBars.map((bar, index) => (
                     <g key={index}>
                       <rect
                         x={bar.x + bar.groupW * 0.12}
-                        y={640 - bar.ecoH}
+                        y={bar.ecoY}
                         width={bar.groupW * 0.34}
                         height={bar.ecoH}
                         rx="5"
-                        fill="#c99b34"
+                        fill={bar.negative?"#b91c1c":"#c99b34"}
                       />
                       <rect
                         x={bar.x + bar.groupW * 0.54}
-                        y={640 - bar.payH}
+                        y={bar.payY}
                         width={bar.groupW * 0.34}
                         height={bar.payH}
                         rx="5"
@@ -245,7 +248,7 @@ export default function PdfPage11({
               <div className="p11-read__stack">
                 <div className="p11-read__kv">
                   <span className="p11-read__label">
-                    {p11Text(postLoan.economies_net_25_label, "Gain net estimé à 25 ans après coût du financement")}
+                    {p11Text(postLoan.economies_net_25_label, `Gain net estimé à ${horizonYears} ans après coût du financement`)}
                   </span>
                   <span id="p11_net_25" className="p11-read__val">
                     {fmtEur(postLoan.economies_net_25_eur)}
@@ -291,11 +294,11 @@ export default function PdfPage11({
         {/* C — Synthèse années clés */}
         <div id="p11_quick_table" className="p11-synth">
           <p className="p11-synth__title">Synthèse — années clés</p>
-          <div className="p11-synth__grid" id="p11_summary_grid">
+          <div className="p11-synth__grid" id="p11_summary_grid" style={{gridTemplateColumns:`repeat(${horizonYears>20?6:5}, minmax(0, 1fr))`}}>
             <div className="p11-synth__card">
               <div className="p11-synth__year">Année 1</div>
-              <div className="p11-synth__mini" role="group" aria-label="Économie et solde annuel année 1">
-                <span className="p11-synth__h">Économie</span>
+              <div className="p11-synth__mini" role="group" aria-label="Flux du projet et solde annuel année 1">
+                <span className="p11-synth__h">Flux annuel</span>
                 <span className="p11-synth__h">Solde annuel</span>
                 <span className="p11-synth__v" id="p11_syn_gain_1">
                   {fmtEur(ecoSeries[0])}
@@ -307,8 +310,8 @@ export default function PdfPage11({
             </div>
             <div className="p11-synth__card">
               <div className="p11-synth__year">Année 5</div>
-              <div className="p11-synth__mini" role="group" aria-label="Économie et solde annuel année 5">
-                <span className="p11-synth__h">Économie</span>
+              <div className="p11-synth__mini" role="group" aria-label="Flux du projet et solde annuel année 5">
+                <span className="p11-synth__h">Flux annuel</span>
                 <span className="p11-synth__h">Solde annuel</span>
                 <span className="p11-synth__v" id="p11_syn_gain_5">
                   {fmtEur(ecoSeries[4])}
@@ -320,8 +323,8 @@ export default function PdfPage11({
             </div>
             <div className="p11-synth__card">
               <div className="p11-synth__year">Année 10</div>
-              <div className="p11-synth__mini" role="group" aria-label="Économie et solde annuel année 10">
-                <span className="p11-synth__h">Économie</span>
+              <div className="p11-synth__mini" role="group" aria-label="Flux du projet et solde annuel année 10">
+                <span className="p11-synth__h">Flux annuel</span>
                 <span className="p11-synth__h">Solde annuel</span>
                 <span className="p11-synth__v" id="p11_syn_gain_10">
                   {fmtEur(ecoSeries[9])}
@@ -333,8 +336,8 @@ export default function PdfPage11({
             </div>
             <div className="p11-synth__card">
               <div className="p11-synth__year">Année 15</div>
-              <div className="p11-synth__mini" role="group" aria-label="Économie et solde annuel année 15">
-                <span className="p11-synth__h">Économie</span>
+              <div className="p11-synth__mini" role="group" aria-label="Flux du projet et solde annuel année 15">
+                <span className="p11-synth__h">Flux annuel</span>
                 <span className="p11-synth__h">Solde annuel</span>
                 <span className="p11-synth__v" id="p11_syn_gain_15">
                   {fmtEur(ecoSeries[14])}
@@ -344,10 +347,10 @@ export default function PdfPage11({
                 </span>
               </div>
             </div>
-            <div className="p11-synth__card">
+            {horizonYears>20&&<div className="p11-synth__card">
               <div className="p11-synth__year">Année 20</div>
-              <div className="p11-synth__mini" role="group" aria-label="Économie et solde annuel année 20">
-                <span className="p11-synth__h">Économie</span>
+              <div className="p11-synth__mini" role="group" aria-label="Flux du projet et solde annuel année 20">
+                <span className="p11-synth__h">Flux annuel</span>
                 <span className="p11-synth__h">Solde annuel</span>
                 <span className="p11-synth__v" id="p11_syn_gain_20">
                   {fmtEur(ecoSeries[19])}
@@ -356,17 +359,17 @@ export default function PdfPage11({
                   {summarySolde(20)}
                 </span>
               </div>
-            </div>
+            </div>}
             <div className="p11-synth__card">
-              <div className="p11-synth__year">Année 25</div>
-              <div className="p11-synth__mini" role="group" aria-label="Économie et solde annuel année 25">
-                <span className="p11-synth__h">Économie</span>
+              <div className="p11-synth__year">Année {horizonYears}</div>
+              <div className="p11-synth__mini" role="group" aria-label={`Flux du projet et solde annuel année ${horizonYears}`}>
+                <span className="p11-synth__h">Flux annuel</span>
                 <span className="p11-synth__h">Solde annuel</span>
                 <span className="p11-synth__v" id="p11_syn_gain_25">
-                  {fmtEur(ecoSeries[24])}
+                  {fmtEur(ecoSeries[horizonYears-1])}
                 </span>
                 <span className="p11-synth__v" id="p11_syn_reste_25">
-                  {summarySolde(25)}
+                  {summarySolde(horizonYears)}
                 </span>
               </div>
             </div>
@@ -396,7 +399,7 @@ export default function PdfPage11({
             <span className="p11-engine-bridge__value" id="p11_eco">
               {ecoSeries.length ? `${fmtEur(ecoSeries[0])} / an` : "—"}
             </span>
-            <span className="p11-engine-bridge__label">Taux nominal</span>
+            <span className="p11-engine-bridge__label">TAEG renseigné</span>
             <span className="p11-engine-bridge__value" id="p11_taeg">
               {p11Text(financing.taeg_display)}
             </span>

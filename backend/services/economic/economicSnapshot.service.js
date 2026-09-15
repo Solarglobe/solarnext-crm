@@ -5,6 +5,7 @@
 
 import { pool } from "../../config/db.js";
 import { withTx } from "../../db/tx.js";
+import { quoteFingerprint } from '../calculationFingerprint.service.js';
 
 export const ERROR_CODES = {
   NO_CALPINAGE_SNAPSHOT: "NO_CALPINAGE_SNAPSHOT",
@@ -105,7 +106,7 @@ export async function createOrUpdateEconomicSnapshot({
 
   return withTx(pool, async (client) => {
     const versionRes = await client.query(
-      `SELECT id, study_id FROM study_versions WHERE id = $1 AND organization_id = $2`,
+      `SELECT id, study_id FROM study_versions WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
       [studyVersionId, organizationId]
     );
     if (versionRes.rows.length === 0) {
@@ -135,6 +136,7 @@ export async function createOrUpdateEconomicSnapshot({
         snapshotId: row.id,
         version_number: row.version_number,
         status: "DRAFT",
+        saved_quote_fingerprint: quoteFingerprint(configPayload),
       };
     }
 
@@ -154,6 +156,7 @@ export async function createOrUpdateEconomicSnapshot({
       snapshotId: newRow.id,
       version_number: newRow.version_number,
       status: newRow.status || "DRAFT",
+      saved_quote_fingerprint: quoteFingerprint(configPayload),
     };
   });
 }

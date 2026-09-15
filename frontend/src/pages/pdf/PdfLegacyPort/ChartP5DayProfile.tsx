@@ -29,12 +29,14 @@ interface ChartP5DayProfileProps {
   production_kw: number[];
   consommation_kw: number[];
   batterie_kw?: number[];
+  direct_kw?: number[];
 }
 
 export default function ChartP5DayProfile({
   production_kw,
   consommation_kw,
   batterie_kw = [],
+  direct_kw,
 }: ChartP5DayProfileProps) {
   const rows = useMemo(() => {
     const pad = (arr: number[]) =>
@@ -47,11 +49,11 @@ export default function ChartP5DayProfile({
       return {
         prod,
         conso,
-        auto: Math.min(prod, conso),
+        auto: direct_kw?.[i] ?? Math.min(prod, conso),
         batt: b[i] ?? 0,
       };
     });
-  }, [production_kw, consommation_kw, batterie_kw]);
+  }, [production_kw, consommation_kw, batterie_kw, direct_kw]);
 
   const PADDING_LEFT = 130;
   const PADDING_RIGHT = 55;
