@@ -1,5 +1,7 @@
 # Release SmartPitch V21 / finance 2.2.1
 
+**Candidat : `SmartPitch-V21-finance-2.2.1-rc1`. Publication bloquée.** Le tag local de ce nom identifie le commit à utiliser pour tous les composants ; aucun push, déploiement ou promotion n'est autorisé par cette préparation.
+
 Release assemblée le 15 septembre 2026 sur `codex/release-v21-finance-2-2-1`, depuis `f84bbbd95a25cb4b32a0e4671327c7d559bcd9b9`.
 
 Le backend, le frontend, les services partagés et les sources des moteurs PDF doivent être construits depuis le même commit de cette branche. Le moteur de calcul est `SmartPitch V-LIGHT V21-dated-tariffs-oa-input-dependencies` ; le moteur financier est `2.2.1`. Les versions génériques des packages npm ne constituent pas une identification suffisante de cette release.
@@ -17,6 +19,10 @@ Le backend, le frontend, les services partagés et les sources des moteurs PDF d
 Le périmètre inclut les seules dépendances tarifaires et de compteur indispensables qui n'étaient pas présentes dans le commit de base. Les ajouts Consuel, messagerie, planning, Data Connect, équipements futurs `usage_v3`, dessin de toiture, télémétrie et configuration locale ne sont pas embarqués.
 
 Un test PDF préexistant a été remplacé par une fixture synthétique anonymisée. Un littéral sensible préexistant dans la documentation de restauration a été retiré de la copie de release ; aucune rotation distante et aucune réécriture de l'historique Git n'ont été effectuées. Sa validité doit être vérifiée par l'opérateur avant une livraison distante.
+
+Le précontrôle du candidat confirme que ce littéral était la clé applicative `MAIL_ENCRYPTION_KEY` utilisée pour chiffrer les identifiants de messagerie en AES-256-GCM. Il est déjà présent dans l'historique poussé et correspond encore à la configuration du backend de production. Il doit donc être traité comme potentiellement actif et exposé. Sa valeur et son empreinte ne sont pas publiées dans ce rapport. Le retrait du fichier courant ne révoque pas la clé.
+
+Avant toute publication, faire approuver un renouvellement coordonné de cette clé avec ré-enchiffrement des données qu'elle protège, vérification de déchiffrement et mise à jour des configurations de reprise. Un simple remplacement de variable rendrait les identifiants existants illisibles. L'inventaire des secrets SMTP/IMAP et jetons OAuth concernés doit déterminer les accès à révoquer ou renouveler si leur confidentialité ne peut être établie. Aucun secret n'a été déchiffré pour ce précontrôle ; aucune rotation ou réécriture d'historique n'a été réalisée.
 
 La liste exacte des chemins se trouve dans `v21-files.txt`. Le classement et les portions modifiées sont détaillés dans `v21-scope.json`. Les preuves de l'état initial, de la préservation du dossier d'origine et le diff final complet sont conservés séparément, hors paquet livré.
 

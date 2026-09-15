@@ -17,6 +17,10 @@ Ne pas utiliser `.github/workflows/deploy.yml` pour cette qualification : son é
 
 ## Identité obligatoire de la release
 
+Le candidat est identifié par le tag local `SmartPitch-V21-finance-2.2.1-rc1`. Résoudre ce tag en SHA complet avant toute construction, puis utiliser exclusivement ce SHA pour backend, frontend, fichiers partagés et moteurs PDF. Le tag et la branche restent locaux tant que les conditions de publication ne sont pas remplies.
+
+**Blocage préalable de publication :** la clé de chiffrement retirée de `infrastructure/docs/restore.md` est déjà dans l'historique distant et correspond encore à la configuration de production. Le renouvellement contrôlé de `MAIL_ENCRYPTION_KEY`, avec conservation et ré-enchiffrement des données protégées, nécessite l'accord explicite de l'opérateur. Ne pas publier ce candidat ni réutiliser cette clé en préproduction avant résolution de ce blocage. Aucun accès SMTP/IMAP ou OAuth ne doit être copié vers la recette.
+
 | Composant | Identité à contrôler |
 |---|---|
 | Calcul photovoltaïque | `SmartPitch V-LIGHT V21-dated-tariffs-oa-input-dependencies` |
