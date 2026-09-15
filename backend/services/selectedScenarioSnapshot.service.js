@@ -1,4 +1,4 @@
-import { assertClientStudyExportable, getClientStudyExportBlock } from '../../shared/shading/clientStudyExport.js';
+import { assertClientStudyExportable, getClientStudyExportBlock, getStudyShadingState } from '../../shared/shading/clientStudyExport.js';
 /**
  * Construction du snapshot complet figé au clic "Choisir ce scénario".
  * Agrège : lead/site_address (client, site), quote-prep (installation, equipment),
@@ -546,6 +546,7 @@ export async function buildSelectedScenarioSnapshot({
     installation,
     equipment,
     shading,
+    ...getStudyShadingState({ shading }),
 
     energy,
     finance,

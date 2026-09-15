@@ -40,7 +40,8 @@ describe("PdfLegacyPort — méthodologie SolarGlobe", () => {
     expect(text).toContain("Résultats");
     expect(text).toMatch(/Implantation réelle du projet/i);
     expect(text).toMatch(/production solaire/i);
-    expect(text).toMatch(/Environnement et ombrage/i);
+    expect(text).not.toMatch(/Environnement et ombrage|Ombrages & rendement|Environnement & masques solaires/i);
+    expect(container.textContent).not.toContain('L’ombrage est intégré');
     expect(text).toMatch(/Autoconsommation/i);
     expect(text).toMatch(/Simulation économique/i);
     expect(text).toMatch(/Hypothèses et limites/i);

@@ -37,6 +37,13 @@ test('a saved quote changed before validation never starts the engine',async()=>
   assert.equal(t.captured.code,409);assert.equal(t.captured.body.error,'QUOTE_REVISION_CHANGED');
   assert.equal(calculations,0);assert.equal(mutations.length,0);
 });
+
+test('a UUID or partial number cannot silently target a different numbered version',async()=>{
+  for (const value of ['1bae4f00-785f-48fe-904f-5d51b6fe95dc','1abc','1.5','0','9007199254740992']) {
+    const t=setup();t.req.params.versionId=value;await runStudyCalc(t.req,t.res);
+    assert.equal(t.captured.code,400);assert.equal(calculations,0);assert.equal(statements.length,0);
+  }
+});
 test('input changed during calculation returns conflict without persisting or success',async()=>{
   const t=setup();changeDuringCalculation=true;await runStudyCalc(t.req,t.res);
   assert.equal(t.captured.code,409);assert.equal(t.captured.body.error,'CALCULATION_INPUTS_CHANGED');

@@ -732,7 +732,10 @@ export async function ensureLeadCommercialProposalFromScenarioPdf(params) {
     studyVersionId,
     scenarioKey
   );
-  if (existing) {
+  // Deduplicate only the same emitted document. A new generation must not reuse an older PDF.
+  const sameSource = sourceStudyVersionDocumentId && existing?.metadata_json?.source_study_version_document_id === String(sourceStudyVersionDocumentId);
+  const sameBytesWithoutSource = !sourceStudyVersionDocumentId && existing?.file_hash === computeFileHash(pdfBuffer);
+  if (existing && (sameSource || sameBytesWithoutSource)) {
     return { ok: true, status: "existing", document: existing };
   }
 
@@ -1540,6 +1543,7 @@ export async function listOrganizationDocuments({
       ed.entity_id,
       ed.document_type,
       ed.document_category,
+      ed.metadata_json,
       ed.display_name,
       ed.file_name,
       ed.mime_type,

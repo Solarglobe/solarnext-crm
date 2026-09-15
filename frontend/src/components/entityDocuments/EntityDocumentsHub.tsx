@@ -215,6 +215,7 @@ export default function EntityDocumentsHub({
 
   const handleDownload = async (doc: EntityDocument) => {
     if (!getAuthToken()) return;
+    if (doc.documentArchived && doc.documentWarning && !window.confirm(doc.documentWarning)) return;
     setDownloadingId(doc.id);
     setError(null);
     try {
@@ -370,6 +371,8 @@ export default function EntityDocumentsHub({
                     >
                       <div className={styles.cardRow1}>
                         <h4 className={styles.cardTitle}>{title}</h4>
+                        {doc.documentWarning && <p role="note">{doc.documentWarning}</p>}
+                        {doc.documentCurrent && <span>Document actuel</span>}
                         <div className={styles.hubChipRow}>
                           {lifecycle ? (
                             <span

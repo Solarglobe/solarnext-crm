@@ -49,6 +49,7 @@ const SETTINGS = { calculation_offline: true, pricing: { kit_panel_power_w: 485 
     site: SITE,
     settings: SETTINGS,
     pans: onePan,
+    globalShadingLossPct: shadingPct,
     moduleWp: 485,
   });
   assert(Array.isArray(r1.byPan) && r1.byPan.length === 1, "byPan.length === 1");
@@ -124,9 +125,9 @@ const SETTINGS = { calculation_offline: true, pricing: { kit_panel_power_w: 485 
   const s0Pan = r3.byPan.find((p) => p.panId === "s0");
   const s20Pan = r3.byPan.find((p) => p.panId === "s20");
   assert(s0Pan && s20Pan, "byPan s0 et s20");
-  assert(s0Pan.annualKwh > s20Pan.annualKwh, "pan 0% > pan 20%");
+  assert(s0Pan.annualKwh === s20Pan.annualKwh, "persisted per-pan loss excluded without current global assessment");
   const ratio = s20Pan.annualKwh / s0Pan.annualKwh;
-  assert(ratio >= 0.78 && ratio <= 0.82, "pan 20% ≈ 80% du pan 0%");
+  assert(ratio === 1 && r3.shadingLossPct === null && r3.shadingApplied === false, "unassessed shading stays null and does not reduce production");
 
   // ----- 3b) Ombrage global calepinage : applique le % officiel apres PVGIS, meme si les pans sont a 0% -----
   console.log("\n--- 3b) Shading global calepinage ---");
@@ -151,6 +152,18 @@ const SETTINGS = { calculation_offline: true, pricing: { kit_panel_power_w: 485 
     Math.abs(rGlobal.annualKwh - expectedGlobal) / expectedGlobal < 0.001,
     "shading global 3.9% deduit la production multi-pan"
   );
+
+  // An attested tiny loss is applied once; legacy panel/hourly losses are excluded.
+  const preciseLoss = 0.016869870659674824;
+  const legacyPans = pansNoShading.map(p => ({...p, shadingCombinedPct: 99, shading_hourly: Array(8760).fill(99)}));
+  const excluded = await computeProductionMultiPan({site:SITE,settings:SETTINGS,pans:legacyPans,moduleWp:485,globalShadingLossPct:null});
+  assert(excluded.shadingLossPct === null && excluded.shadingApplied === false, 'unassessed remains null and explicitly excluded');
+  assert(Math.abs(excluded.annualKwh - rNoGlobal.annualKwh) < 1e-8, 'legacy pan and hourly losses never reused');
+  const tiny = await computeProductionMultiPan({site:SITE,settings:SETTINGS,pans:legacyPans,moduleWp:485,globalShadingLossPct:preciseLoss});
+  assert(tiny.shadingLossPct === preciseLoss && tiny.shadingApplied === true, 'exact tiny loss retained');
+  assert(Math.abs(tiny.hourly.reduce((a,b)=>a+b,0) - excluded.hourly.reduce((a,b)=>a+b,0) * (1 - preciseLoss / 100)) < 1e-8, 'tiny loss applied exactly once');
+  const zero = await computeProductionMultiPan({site:SITE,settings:SETTINGS,pans:legacyPans,moduleWp:485,globalShadingLossPct:0});
+  assert(zero.shadingLossPct === 0 && zero.shadingApplied === true && Math.abs(zero.annualKwh-excluded.annualKwh)<1e-8, 'certified zero distinct from unavailable');
 
   // ----- 4) Robustesse : pas de NaN, monthly 12, >= 0 -----
   console.log("\n--- 4) Robustesse ---");

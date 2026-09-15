@@ -11,6 +11,11 @@ function apiRoot(): string {
 }
 
 export type OrganizationDocumentListItem = {
+  documentCurrent?: boolean;
+  documentArchived?: boolean;
+  documentVerification?: string;
+  documentWarning?: string | null;
+
   id: string;
   entity_type: string;
   entity_id: string;

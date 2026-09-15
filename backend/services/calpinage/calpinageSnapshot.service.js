@@ -17,7 +17,7 @@ function hasGps(geometryJson) {
 }
 
 function hasValidatedRoofData(geometryJson) {
-  if (geometryJson?.geometryContractVersion) return geometryJson.backendCommercialGeometry?.officialNearShadingAllowed === true;
+  if (geometryJson?.geometryContractVersion) return geometryJson.backendCommercialGeometry?.officialPvPlacementAllowed === true;
   const vrd = geometryJson?.validatedRoofData;
   return vrd && typeof vrd === "object" && Array.isArray(vrd.pans);
 }
@@ -158,9 +158,8 @@ export async function createCalpinageSnapshot(studyId, studyVersionId, organizat
       }
 
       // 6) Shading : accepté null/absent (validation sans Analyse Ombres). Rejet uniquement si shading présent mais invalide.
-      if (geometryJson.shading !== null && geometryJson.shading !== undefined && !hasShadingNormalized(geometryJson)) {
-        throw err(ERROR_CODES.SHADING_NOT_COMPUTED, "Ombrage non calculé (shading.normalized manquant)");
-      }
+      // A valid calepinage may be frozen without a shading assessment.
+
 
       // 7) MAX(version_number) pour cette étude (unicité study_id + version_number)
       const maxRes = await client.query(

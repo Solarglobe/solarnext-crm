@@ -1,4 +1,4 @@
-import { assertClientStudyExportable, getClientStudyExportBlock } from '../../shared/shading/clientStudyExport.js';
+import { assertClientStudyExportable, getClientStudyExportBlock, getStudyShadingState } from '../../shared/shading/clientStudyExport.js';
 import { energyTolerance, validateEnergyBalance, ENERGY_REFERENCE_VERSION } from "./energyReference.service.js";
 import { cashflowIrr } from "./financialIndicators.service.js";
 import { resolveVirtualStorageOaCompatibility } from './virtualStorageOaCompatibility.service.js';
@@ -11,7 +11,7 @@ export function validateStudyScenarioForExport(scenario, expectedScenarioId) {
   if (shadingBlock.blocked) errors.push(shadingBlock.code + ': ' + shadingBlock.reasons.join(', '));
   const ref=scenario?.energy?.reference;
   const id=scenario?.id ?? scenario?.scenario_type ?? scenario?.name;
-  for(const block of shadingExportBlockers({audit:scenario?.shading?.commercial_audit,assumptions:scenario?.calculation_confidence?.assumptions??{}}))errors.push(`${block.code}: ${block.message}`);
+  if (getStudyShadingState(scenario).shadingIncluded) for(const block of shadingExportBlockers({audit:scenario?.shading?.commercial_audit,assumptions:scenario?.calculation_confidence?.assumptions??{}}))errors.push(`${block.code}: ${block.message}`);
   if (String(id).includes('VIRTUAL') || id === 'BATTERY_HYBRID') {
     const meta=scenario?.finance?.finance_meta??scenario?.finance_meta??{};
     const stored=meta.virtual_storage_oa_compatibility??meta.projection_assumptions?.virtual_storage_oa_compatibility;

@@ -451,6 +451,10 @@ export function mapScenarioToV2(scenario, ctx) {
 
   const shadingSrc = ctx?.shading ?? ctx?.form?.installation?.shading ?? {};
   const shading = {
+    shadingIncluded: shadingSrc.shadingIncluded === true,
+    shadingApplied: shadingSrc.shadingApplied === true,
+    shadingLossPct: shadingSrc.shadingLossPct ?? null,
+    shadingExclusionReason: shadingSrc.shadingExclusionReason ?? null,
     assessment: shadingSrc.assessment ?? null,
     distribution: shadingSrc.distribution ?? null,
     near: shadingSrc.near ?? null,

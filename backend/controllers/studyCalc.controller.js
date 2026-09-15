@@ -35,8 +35,8 @@ export async function runStudyCalc(req, res) {
     if (!org) return res.status(401).json({ error: "Non authentifié" });
 
     const studyId = req.params.studyId;
-    const versionNum = parseInt(req.params.versionId, 10);
-    if (isNaN(versionNum) || versionNum < 1) {
+    const versionNum = Number(req.params.versionId);
+    if (!/^[1-9]\d*$/.test(String(req.params.versionId)) || !Number.isSafeInteger(versionNum)) {
       return res.status(400).json({ error: "Numéro de version invalide" });
     }
 

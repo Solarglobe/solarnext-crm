@@ -1,3 +1,6 @@
+// Fictitious keys belong exclusively to this isolated test worker.
+process.env.SHADING_ATTESTATION_SECRET = 'test-only-shading-attestation-not-a-real-key';
+process.env.SHADING_ATTESTATION_KEY_ID = 'unit-local-v1';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {flatRoofSurvey,clearHorizon,rect} from './fixtures/flat-roof-survey.mjs';

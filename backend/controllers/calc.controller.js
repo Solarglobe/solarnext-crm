@@ -140,8 +140,8 @@ function attachPostPvgisLossBreakdown(ctx, form, clipping) {
   const factorAC = etaInv * (1 - L_CABLE) * (1 - L_SOIL) * (1 - L_MISMATCH) * (1 - L_AVAIL);
   const firstYearPct = Number(ctx.pv.panel_first_year_loss_pct || 0);
   const clippingPct = Number(clipping?.loss_pct || 0);
-  const shadingPct = Number(form?.shadingLossPct);
-  const shadingLossPct = Number.isFinite(shadingPct) && shadingPct > 0 ? Math.max(0, Math.min(100, shadingPct)) : 0;
+  const shadingPct = form?.shadingLossPct;
+  const shadingLossPct = typeof shadingPct === "number" && Number.isFinite(shadingPct) && shadingPct >= 0 && shadingPct <= 100 ? shadingPct : null;
   const combinedFactor =
     factorAC *
     (1 - Math.max(0, Math.min(100, firstYearPct)) / 100) *
@@ -166,7 +166,9 @@ function attachPostPvgisLossBreakdown(ctx, form, clipping) {
         note: "Estimation heure par heure sur la courbe PV 8760h du moteur SolarNext.",
       },
       panel_first_year_loss_pct: Math.round(firstYearPct * 100) / 100,
-      calepinage_shading_loss_pct: Math.round(shadingLossPct * 100) / 100,
+      calepinage_shading_loss_pct: shadingLossPct,
+      shadingApplied: shadingLossPct != null,
+      shadingExclusionReason: shadingLossPct == null ? (form?.shadingExclusionReason ?? "not_evaluated") : null,
       effective_loss_pct_excluding_calepinage_shading: Math.round((1 - combinedFactor) * 10000) / 100,
       notes: [
         "PVGIS appele avec loss=0",

@@ -1,6 +1,6 @@
 {
-  "lat": 49,
-  "lon": 2,
+  "lat": 49.17144,
+  "lon": 2.375402,
   "panelsCount": 10,
   "powerKwc": 5,
   "geometry": {
@@ -10,53 +10,53 @@
         "production": "multi-pan"
       },
       "version": "calpinage_v1_final",
-      "generatedAt": "2020-01-01T00:00:00.000Z"
+      "generatedAt": "2026-09-15T07:14:26.947Z"
     },
     "pans": [
       {
-        "id": "fictional-reference-1",
-        "name": "Fictional geometry fixture",
+        "id": "pan-1",
+        "name": "Pan 1",
         "points": [
           {
             "h": 3.3,
             "x": 320.8724925867783,
             "y": 271.39934916274194,
-            "id": "fictional-reference-2",
+            "id": "pan-1-0",
             "hPhysicsSource": "explicit_pan_vertex"
           },
           {
             "h": 3.3,
             "x": 251.87545787545793,
             "y": 461.697622318158,
-            "id": "fictional-reference-3",
+            "id": "pan-1-1",
             "hPhysicsSource": "explicit_pan_vertex"
           },
           {
             "h": 3.1,
             "x": 357.0402930402931,
             "y": 499.5347058695272,
-            "id": "fictional-reference-4",
+            "id": "pan-1-2",
             "hPhysicsSource": "explicit_pan_vertex"
           },
           {
             "h": 3.1,
             "x": 407.67521367521374,
             "y": 349.8556547619047,
-            "id": "fictional-reference-5",
+            "id": "pan-1-3",
             "hPhysicsSource": "explicit_pan_vertex"
           },
           {
             "h": 3,
             "x": 464.98726670155247,
             "y": 368.2177688383045,
-            "id": "fictional-reference-6",
+            "id": "pan-1-4",
             "hPhysicsSource": "explicit_pan_vertex"
           },
           {
             "h": 3,
             "x": 478.34153148438867,
             "y": 330.93711298622003,
-            "id": "fictional-reference-7",
+            "id": "pan-1-5",
             "hPhysicsSource": "explicit_pan_vertex"
           }
         ],
@@ -143,11 +143,11 @@
       }
     ],
     "panel": {
-      "id": "fictional-reference-8",
-      "name": "Fictional geometry fixture",
+      "id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
+      "name": "AIKO Neostar 2S+ 500W",
       "brand": "AIKO",
       "model": "AIO-A500-MAH60Db",
-      "panel_id": "fictional-reference-8",
+      "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
       "power_wc": 500,
       "width_mm": 1134,
       "height_mm": 1954,
@@ -159,7 +159,7 @@
     },
     "phase": 3,
     "phase3": {
-      "activePanId": "fictional-reference-1"
+      "activePanId": "pan-1"
     },
     "totals": {
       "panels_count": 10,
@@ -169,7 +169,7 @@
         {
           "count": 10,
           "label": "AIKO AIKO Neostar 2S+ 500W",
-          "panel_id": "fictional-reference-8",
+          "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
           "power_wc": 500,
           "total_power_wc": 5000
         }
@@ -214,43 +214,43 @@
       "perPanel": [
         {
           "lossPct": 0,
-          "panelId": "fictional-reference-9"
+          "panelId": "ac076374-868a-4f2f-b415-da30c8f050d4_0"
         },
         {
           "lossPct": 0,
-          "panelId": "fictional-reference-10"
+          "panelId": "ac076374-868a-4f2f-b415-da30c8f050d4_1"
         },
         {
           "lossPct": 0,
-          "panelId": "fictional-reference-11"
+          "panelId": "ac076374-868a-4f2f-b415-da30c8f050d4_2"
         },
         {
           "lossPct": 0,
-          "panelId": "fictional-reference-12"
+          "panelId": "ac076374-868a-4f2f-b415-da30c8f050d4_3"
         },
         {
           "lossPct": 0,
-          "panelId": "fictional-reference-13"
+          "panelId": "ac076374-868a-4f2f-b415-da30c8f050d4_4"
         },
         {
           "lossPct": 0,
-          "panelId": "fictional-reference-14"
+          "panelId": "ac076374-868a-4f2f-b415-da30c8f050d4_5"
         },
         {
           "lossPct": 0,
-          "panelId": "fictional-reference-15"
+          "panelId": "ac076374-868a-4f2f-b415-da30c8f050d4_6"
         },
         {
           "lossPct": 0,
-          "panelId": "fictional-reference-16"
+          "panelId": "ac076374-868a-4f2f-b415-da30c8f050d4_7"
         },
         {
           "lossPct": 0,
-          "panelId": "fictional-reference-17"
+          "panelId": "ac076374-868a-4f2f-b415-da30c8f050d4_8"
         },
         {
           "lossPct": 0,
-          "panelId": "fictional-reference-18"
+          "panelId": "ac076374-868a-4f2f-b415-da30c8f050d4_9"
         }
       ],
       "totalLossPct": 0,
@@ -272,12 +272,12 @@
       }
     },
     "inverter": {
-      "id": "fictional-reference-19",
-      "name": "Fictional geometry fixture",
+      "id": "2cdb9dc8-3893-4995-b5a3-ab9119962f5f",
+      "name": "ATMOCE MI-500",
       "brand": "ATMOCE",
       "model_ref": "MI-500",
       "nominal_va": 500,
-      "inverter_id": "fictional-reference-19",
+      "inverter_id": "2cdb9dc8-3893-4995-b5a3-ab9119962f5f",
       "inverter_type": "micro",
       "inverter_family": "MICRO",
       "nominal_power_kw": null,
@@ -298,10 +298,10 @@
       "espacementHorizontalCm": 2
     },
     "panelSpec": {
-      "id": "fictional-reference-8",
+      "id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
       "brand": "AIKO",
       "model": "AIO-A500-MAH60Db",
-      "panel_id": "fictional-reference-8",
+      "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
       "power_wc": 500,
       "width_mm": 1134,
       "height_mm": 1954,
@@ -312,8 +312,8 @@
     },
     "roofState": {
       "gps": {
-        "lat": 49,
-        "lon": 2
+        "lat": 49.17144,
+        "lon": 2.375402
       },
       "map": {
         "zoom": 20,
@@ -368,7 +368,7 @@
               "y": 330.93711298622003
             }
           ],
-          "derivedFromPanId": "fictional-reference-1",
+          "derivedFromPanId": "pan-1",
           "derivedTopologySource": "computePansFromGeometryCore_v1"
         }
       ],
@@ -378,7 +378,7 @@
       "obstacles": [],
       "contoursBati": [
         {
-          "id": "fictional-reference-20",
+          "id": "c7d46b3d-2b69-4dd0-8ef2-17581d9e0a5d",
           "points": [
             {
               "h": 3.3,
@@ -428,16 +428,16 @@
       }
     },
     "geometry3d": null,
-    "activePanId": "fictional-reference-1",
+    "activePanId": "pan-1",
     "featureFlags": {},
     "frozenBlocks": [
       {
-        "id": "fictional-reference-21",
-        "panId": "fictional-reference-1",
+        "id": "ac076374-868a-4f2f-b415-da30c8f050d4",
+        "panId": "pan-1",
         "panels": [
           {
-            "id": "fictional-reference-22",
-            "name": "Fictional geometry fixture",
+            "id": "589dbe6d-1117-4eeb-9143-212458f606ad",
+            "name": "AIKO Neostar 2S+ 500W",
             "brand": "AIKO",
             "state": "valid",
             "center": {
@@ -445,9 +445,9 @@
               "y": 288.18116308022604
             },
             "enabled": true,
-            "panelId": "fictional-reference-8",
+            "panelId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "powerWc": 500,
-            "panel_id": "fictional-reference-8",
+            "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "power_wc": 500,
             "model_ref": "AIO-A500-MAH60Db",
             "projection": {
@@ -482,13 +482,13 @@
             },
             "panelWidthMm": 1134,
             "panelHeightMm": 1954,
-            "panelCatalogId": "fictional-reference-8",
+            "panelCatalogId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "localRotationDeg": 0,
             "panelOrientation": "PAYSAGE"
           },
           {
-            "id": "fictional-reference-23",
-            "name": "Fictional geometry fixture",
+            "id": "22b35178-3912-4659-8e85-df495fc56e7f",
+            "name": "AIKO Neostar 2S+ 500W",
             "brand": "AIKO",
             "state": "valid",
             "center": {
@@ -496,9 +496,9 @@
               "y": 295.0278833005165
             },
             "enabled": true,
-            "panelId": "fictional-reference-8",
+            "panelId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "powerWc": 500,
-            "panel_id": "fictional-reference-8",
+            "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "power_wc": 500,
             "model_ref": "AIO-A500-MAH60Db",
             "projection": {
@@ -533,13 +533,13 @@
             },
             "panelWidthMm": 1134,
             "panelHeightMm": 1954,
-            "panelCatalogId": "fictional-reference-8",
+            "panelCatalogId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "localRotationDeg": 0,
             "panelOrientation": "PAYSAGE"
           },
           {
-            "id": "fictional-reference-24",
-            "name": "Fictional geometry fixture",
+            "id": "8d804666-1e6f-49d0-a58e-73b5000f49d4",
+            "name": "AIKO Neostar 2S+ 500W",
             "brand": "AIKO",
             "state": "valid",
             "center": {
@@ -547,9 +547,9 @@
               "y": 299.5451454099179
             },
             "enabled": true,
-            "panelId": "fictional-reference-8",
+            "panelId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "powerWc": 500,
-            "panel_id": "fictional-reference-8",
+            "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "power_wc": 500,
             "model_ref": "AIO-A500-MAH60Db",
             "projection": {
@@ -584,13 +584,13 @@
             },
             "panelWidthMm": 1134,
             "panelHeightMm": 1954,
-            "panelCatalogId": "fictional-reference-8",
+            "panelCatalogId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "localRotationDeg": 0,
             "panelOrientation": "PAYSAGE"
           },
           {
-            "id": "fictional-reference-25",
-            "name": "Fictional geometry fixture",
+            "id": "4193a3be-4b40-4237-bba0-ef5e4f0bc382",
+            "name": "AIKO Neostar 2S+ 500W",
             "brand": "AIKO",
             "state": "valid",
             "center": {
@@ -598,9 +598,9 @@
               "y": 306.3918656302084
             },
             "enabled": true,
-            "panelId": "fictional-reference-8",
+            "panelId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "powerWc": 500,
-            "panel_id": "fictional-reference-8",
+            "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "power_wc": 500,
             "model_ref": "AIO-A500-MAH60Db",
             "projection": {
@@ -635,13 +635,13 @@
             },
             "panelWidthMm": 1134,
             "panelHeightMm": 1954,
-            "panelCatalogId": "fictional-reference-8",
+            "panelCatalogId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "localRotationDeg": 0,
             "panelOrientation": "PAYSAGE"
           },
           {
-            "id": "fictional-reference-26",
-            "name": "Fictional geometry fixture",
+            "id": "806f33b7-2be4-49cc-9bbb-2600b7ff384a",
+            "name": "AIKO Neostar 2S+ 500W",
             "brand": "AIKO",
             "state": "valid",
             "center": {
@@ -649,9 +649,9 @@
               "y": 310.90912773960974
             },
             "enabled": true,
-            "panelId": "fictional-reference-8",
+            "panelId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "powerWc": 500,
-            "panel_id": "fictional-reference-8",
+            "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "power_wc": 500,
             "model_ref": "AIO-A500-MAH60Db",
             "projection": {
@@ -686,13 +686,13 @@
             },
             "panelWidthMm": 1134,
             "panelHeightMm": 1954,
-            "panelCatalogId": "fictional-reference-8",
+            "panelCatalogId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "localRotationDeg": 0,
             "panelOrientation": "PAYSAGE"
           },
           {
-            "id": "fictional-reference-27",
-            "name": "Fictional geometry fixture",
+            "id": "ded04980-319b-426c-aeef-f18ba3ef4d78",
+            "name": "AIKO Neostar 2S+ 500W",
             "brand": "AIKO",
             "state": "valid",
             "center": {
@@ -700,9 +700,9 @@
               "y": 317.7558479599002
             },
             "enabled": true,
-            "panelId": "fictional-reference-8",
+            "panelId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "powerWc": 500,
-            "panel_id": "fictional-reference-8",
+            "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "power_wc": 500,
             "model_ref": "AIO-A500-MAH60Db",
             "projection": {
@@ -737,13 +737,13 @@
             },
             "panelWidthMm": 1134,
             "panelHeightMm": 1954,
-            "panelCatalogId": "fictional-reference-8",
+            "panelCatalogId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "localRotationDeg": 0,
             "panelOrientation": "PAYSAGE"
           },
           {
-            "id": "fictional-reference-28",
-            "name": "Fictional geometry fixture",
+            "id": "97e2dadc-09b0-4893-9590-9e8ed96ddbbf",
+            "name": "AIKO Neostar 2S+ 500W",
             "brand": "AIKO",
             "state": "valid",
             "center": {
@@ -751,9 +751,9 @@
               "y": 329.1198302895921
             },
             "enabled": true,
-            "panelId": "fictional-reference-8",
+            "panelId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "powerWc": 500,
-            "panel_id": "fictional-reference-8",
+            "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "power_wc": 500,
             "model_ref": "AIO-A500-MAH60Db",
             "projection": {
@@ -788,13 +788,13 @@
             },
             "panelWidthMm": 1134,
             "panelHeightMm": 1954,
-            "panelCatalogId": "fictional-reference-8",
+            "panelCatalogId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "localRotationDeg": 0,
             "panelOrientation": "PAYSAGE"
           },
           {
-            "id": "fictional-reference-29",
-            "name": "Fictional geometry fixture",
+            "id": "546766bb-2462-4fc6-b9b9-9a150f8e62ed",
+            "name": "AIKO Neostar 2S+ 500W",
             "brand": "AIKO",
             "state": "valid",
             "center": {
@@ -802,9 +802,9 @@
               "y": 322.2731100693016
             },
             "enabled": true,
-            "panelId": "fictional-reference-8",
+            "panelId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "powerWc": 500,
-            "panel_id": "fictional-reference-8",
+            "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "power_wc": 500,
             "model_ref": "AIO-A500-MAH60Db",
             "projection": {
@@ -839,13 +839,13 @@
             },
             "panelWidthMm": 1134,
             "panelHeightMm": 1954,
-            "panelCatalogId": "fictional-reference-8",
+            "panelCatalogId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "localRotationDeg": 0,
             "panelOrientation": "PAYSAGE"
           },
           {
-            "id": "fictional-reference-30",
-            "name": "Fictional geometry fixture",
+            "id": "14190b36-5880-493d-88f1-3961cfb135cb",
+            "name": "AIKO Neostar 2S+ 500W",
             "brand": "AIKO",
             "state": "valid",
             "center": {
@@ -853,9 +853,9 @@
               "y": 340.4838126192839
             },
             "enabled": true,
-            "panelId": "fictional-reference-8",
+            "panelId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "powerWc": 500,
-            "panel_id": "fictional-reference-8",
+            "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "power_wc": 500,
             "model_ref": "AIO-A500-MAH60Db",
             "projection": {
@@ -890,13 +890,13 @@
             },
             "panelWidthMm": 1134,
             "panelHeightMm": 1954,
-            "panelCatalogId": "fictional-reference-8",
+            "panelCatalogId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "localRotationDeg": 0,
             "panelOrientation": "PAYSAGE"
           },
           {
-            "id": "fictional-reference-31",
-            "name": "Fictional geometry fixture",
+            "id": "228496a6-dcba-4f5c-817a-1b829ccc0ce9",
+            "name": "AIKO Neostar 2S+ 500W",
             "brand": "AIKO",
             "state": "valid",
             "center": {
@@ -904,9 +904,9 @@
               "y": 333.63709239899345
             },
             "enabled": true,
-            "panelId": "fictional-reference-8",
+            "panelId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "powerWc": 500,
-            "panel_id": "fictional-reference-8",
+            "panel_id": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "power_wc": 500,
             "model_ref": "AIO-A500-MAH60Db",
             "projection": {
@@ -941,7 +941,7 @@
             },
             "panelWidthMm": 1134,
             "panelHeightMm": 1954,
-            "panelCatalogId": "fictional-reference-8",
+            "panelCatalogId": "32c9eb17-a1d0-4e92-a4cf-f852c840976e",
             "localRotationDeg": 0,
             "panelOrientation": "PAYSAGE"
           }
@@ -955,84 +955,84 @@
       {
         "x": 330.5306459698865,
         "y": 288.18116308022604,
-        "panId": "fictional-reference-1",
+        "panId": "pan-1",
         "widthPx": 20.01916410923094,
         "heightPx": 11.6160912301552
       },
       {
         "x": 349.5605006998115,
         "y": 295.0278833005165,
-        "panId": "fictional-reference-1",
+        "panId": "pan-1",
         "widthPx": 20.01916410923094,
         "heightPx": 11.6160912301552
       },
       {
         "x": 326.44201740682274,
         "y": 299.5451454099179,
-        "panId": "fictional-reference-1",
+        "panId": "pan-1",
         "widthPx": 20.01916410923094,
         "heightPx": 11.6160912301552
       },
       {
         "x": 345.4718721367477,
         "y": 306.3918656302084,
-        "panId": "fictional-reference-1",
+        "panId": "pan-1",
         "widthPx": 20.01916410923094,
         "heightPx": 11.6160912301552
       },
       {
         "x": 322.353388843759,
         "y": 310.90912773960974,
-        "panId": "fictional-reference-1",
+        "panId": "pan-1",
         "widthPx": 20.01916410923094,
         "heightPx": 11.6160912301552
       },
       {
         "x": 341.38324357368396,
         "y": 317.7558479599002,
-        "panId": "fictional-reference-1",
+        "panId": "pan-1",
         "widthPx": 20.01916410923094,
         "heightPx": 11.6160912301552
       },
       {
         "x": 337.2946150106202,
         "y": 329.1198302895921,
-        "panId": "fictional-reference-1",
+        "panId": "pan-1",
         "widthPx": 20.01916410923094,
         "heightPx": 11.6160912301552
       },
       {
         "x": 318.2647602806952,
         "y": 322.2731100693016,
-        "panId": "fictional-reference-1",
+        "panId": "pan-1",
         "widthPx": 20.01916410923094,
         "heightPx": 11.6160912301552
       },
       {
         "x": 333.2059864475564,
         "y": 340.4838126192839,
-        "panId": "fictional-reference-1",
+        "panId": "pan-1",
         "widthPx": 20.01916410923094,
         "heightPx": 11.6160912301552
       },
       {
         "x": 314.17613171763145,
         "y": 333.63709239899345,
-        "panId": "fictional-reference-1",
+        "panId": "pan-1",
         "widthPx": 20.01916410923094,
         "heightPx": 11.6160912301552
       }
     ],
-    "geometry_hash": "fictional-unverified-legacy-digest",
+    "geometry_hash": "c418e2e6ee9882c439629ea70013e737e18f481caf32101801c13fac57dc1e49",
     "schemaVersion": "v2",
-    "selectedPanId": "fictional-reference-1",
+    "selectedPanId": "pan-1",
     "shadowVolumes": [],
     "calpinage_meta": {
-      "savedAt": "2020-01-01T00:00:00.000Z",
+      "savedAt": "2026-09-15T07:14:26.947Z",
       "version": "CALPINAGE_V1",
-      "panelsHash": "fictional-unverified-legacy-digest",
-      "shadingHash": "fictional-unverified-legacy-digest",
-      "geometryHash": "fictional-unverified-legacy-digest",
+      "panelsHash": "14cb43a4",
+      "shadingHash": "8d4082bb",
+      "geometryHash": "8671ea3b",
       "shadingSource": "recomputed",
       "shadingComputedAt": 1789456465177
     },
@@ -1054,13 +1054,13 @@
     },
     "roofSurveyLocked": true,
     "smartRoofDrawing": null,
-    "pansStructuralSig": "fictional-unverified-legacy-digest",
+    "pansStructuralSig": "v2;Cc7d46b3d-2b69-4dd0-8ef2-17581d9e0a5d:320.872493,271.399349;251.875458,461.697622;357.040293,499.534706;407.675214,349.855655;464.987267,368.217769;478.341531,330.937113;R;T",
     "parametricDormers": [],
     "validatedRoofData": {
       "pans": [
         {
-          "id": "fictional-reference-1",
-          "name": "Fictional geometry fixture",
+          "id": "pan-1",
+          "name": "Pan 1",
           "tilt": 1.060669274118962,
           "azimuth": 110.22840430399117,
           "polygon": [
@@ -1096,7 +1096,7 @@
           "traitIds": [],
           "surfaceM2": 234.15877399103914,
           "panelCount": 10,
-          "geometryRef": "fictional-reference-1",
+          "geometryRef": "pan-1",
           "obstacleIds": [],
           "shadingFarPct": 0,
           "orientationDeg": 110.22840430399117,
@@ -1117,7 +1117,7 @@
     },
     "calpinageCheckpoint": {
       "phase": 3,
-      "savedAt": "2020-01-01T00:00:00.000Z",
+      "savedAt": "2026-09-15T07:14:26.947Z",
       "hasDrawing": true,
       "captureDone": true,
       "currentPhase": "PV_LAYOUT",
@@ -1130,7 +1130,7 @@
       "panVerdicts": [
         {
           "kind": "UNKNOWN",
-          "panId": "fictional-reference-1",
+          "panId": "pan-1",
           "status": "INVALID",
           "provenance": "UNRESOLVED",
           "blockingCodes": [

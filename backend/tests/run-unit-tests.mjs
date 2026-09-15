@@ -24,8 +24,8 @@ const backendRoot = path.resolve(__dirname, '..');
 // ─── Liste exhaustive des tests purs (pas de connexion DB) ───────────────────
 
 const UNIT_TEST_FILES = [
+  'tests/shadingAttestation.test.mjs',
   'tests/flatRoofCertification.test.mjs',
-  'tests/horizonFixtureSafety.test.mjs',
   'tests/shadingClientExport.test.mjs',
   'tests/shadingPdfAssessment.test.mjs',
   'tests/shadingAssessmentReference.test.mjs',
@@ -214,6 +214,7 @@ const UNIT_TEST_FILES = [
 // les tests standards.
 
 const MODULE_MOCK_TEST_FILES = [
+  'tests/studyDocumentList.test.mjs',
   'tests/controllers/studyCalculationConsistency.test.mjs',
   'tests/controllers/studyPdfFreshness.test.mjs',
   'tests/controllers/calc.controller.test.js',

@@ -97,6 +97,11 @@ type PortalPayload = {
   };
   pipeline: PortalPipeline;
   documents: Array<{
+  documentCurrent?: boolean;
+  documentArchived?: boolean;
+  documentVerification?: string;
+  documentWarning?: string | null;
+
     id: string;
     /** Libellé combiné côté API (souvent display_name || file_name). */
     name: string;
@@ -362,6 +367,9 @@ function parsePortalDocumentRow(raw: unknown): PortalPayload["documents"][number
     name,
     type: typeof r.type === "string" ? r.type : "",
     created_at: typeof r.created_at === "string" ? r.created_at : "",
+    documentCurrent: r.documentCurrent === true,
+    documentArchived: r.documentArchived === true,
+    documentWarning: normPortalStr(r.documentWarning),
     download_url: typeof r.download_url === "string" ? r.download_url : "",
     display_name: normPortalStr(r.display_name),
     file_name: normPortalStr(r.file_name),
@@ -826,6 +834,8 @@ export default function ClientPortalPage() {
                         return (
                           <div key={d.id} className="cp-doc-row">
                             <div className="cp-doc-meta">
+                              {d.documentWarning && <p role="note">{d.documentWarning}</p>}
+                              {d.documentCurrent && <span>Document actuel</span>}
                               <span className="cp-doc-title">{getDocumentPrimaryTitle(d)}</span>
                               <span className="cp-doc-secondary">
                                 <span className="cp-doc-category">{getDocumentCategoryLine(d)}</span>
@@ -833,12 +843,13 @@ export default function ClientPortalPage() {
                               </span>
                             </div>
                             <div className="cp-doc-actions">
-                              <a className="cp-btn-doc" href={href} target="_blank" rel="noopener noreferrer">
+                              <a className="cp-btn-doc" href={href} onClick={e => { if (d.documentArchived && d.documentWarning && !window.confirm(d.documentWarning)) e.preventDefault(); }} target="_blank" rel="noopener noreferrer">
                                 Ouvrir
                               </a>
                               <a
                                 className="cp-btn-doc cp-btn-doc--outline"
                                 href={downloadHref}
+                                onClick={e => { if (d.documentArchived && d.documentWarning && !window.confirm(d.documentWarning)) e.preventDefault(); }}
                                 download={getDocumentPrimaryTitle(d)}
                               >
                                 Télécharger

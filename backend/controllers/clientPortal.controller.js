@@ -115,7 +115,9 @@ export async function getClientPortalDocumentFile(req, res) {
       return res.status(403).json({ error: "Accès refusé", code: "PORTAL_DOCUMENT_FORBIDDEN" });
     }
 
-    await assertStudyPdfDocumentDeliverable(doc, row.organization_id);
+    const documentState = await assertStudyPdfDocumentDeliverable(doc, row.organization_id);
+    res.setHeader('X-Document-Current', String(documentState.documentCurrent ?? true));
+    res.setHeader('X-Document-Verification', documentState.documentVerification ?? 'not_applicable');
     const abs = getAbsolutePath(doc.storage_key);
     if (!fs.existsSync(abs)) {
       return res.status(404).json({ error: "Fichier introuvable", code: "FILE_NOT_FOUND" });

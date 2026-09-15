@@ -80,6 +80,8 @@ export function buildLegacyPayloadFromSolarNext(solarnextPayload) {
     vehicle_v2h_input: solarnextPayload?.vehicle_v2h_input ?? null,
     installation: installation && typeof installation === "object" ? installation : null,
     /** Ombrage mono-pan (null = inconnu / non transmis — ne pas traiter comme 0 % fiable). */
+    shadingApplied: installation.shadingApplied === true,
+    shadingExclusionReason: installation.shadingExclusionReason ?? null,
     shadingLossPct: (() => {
       const rawSL = installation.shading_loss_pct;
       if (rawSL == null || rawSL === "") return null;

@@ -1,3 +1,5 @@
+import { getNormalizedShadingFromGeometry } from './calpinage/calpinageShadingLegacyAdapter.js';
+import { getStudyShadingState } from '../../shared/shading/clientStudyExport.js';
 import { pool } from '../config/db.js';
 import { METER_FIELDS_FROM_LEAD } from './leadMeters.service.js';
 import { CALC_ENGINE_VERSION } from './calc/calc.constants.js';
@@ -65,7 +67,9 @@ export async function readStudyCalculationInputs({ studyId, versionId, organizat
     quote:selectQuoteCalculationValues(quote), geometry:selectGeometryCalculationValues(row.geometry), calpinage_snapshot:selectCalpinageSnapshot(row.calpinage_snapshot),
     settings,
     providers: selected?.provider ? {provider:selected.provider,activation_fee_ttc:await resolveVirtualBatteryActivationFeeTtcFromOrgDb(organizationId,selected.provider,selected.contractType,Number(effectiveMeter.meter_power_kva)||9,db)} : null,
-    model_options: { use_official_shading: process.env.USE_OFFICIAL_SHADING ?? null,
+    model_options: { shading_policy_version: 'optional-attested-shading-v1',
+      shading_state: getStudyShadingState({ shading: getNormalizedShadingFromGeometry(row.geometry?.geometry_json).shading }),
+      use_official_shading: process.env.USE_OFFICIAL_SHADING ?? null,
       reference_year: Number(new Intl.DateTimeFormat('en', {timeZone:'Europe/Paris',year:'numeric'}).format(new Date())) },
   };
   const ids = [...referencedIds({quote:inputs.quote,geometry:inputs.geometry,snapshot:inputs.calpinage_snapshot})].sort();

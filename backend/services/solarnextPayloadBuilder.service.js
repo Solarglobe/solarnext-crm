@@ -10,16 +10,14 @@ import { computeProjectEconomicTotalsFromConfig } from "./projectEconomicTotals.
 import { resolveConsumptionProvenance } from "./consumptionProvenance.service.js";
 import { resolveSimulationContract } from "./simulationContract.service.js";
 import { resolveVirtualBatteryActivationFeeTtcFromOrgDb } from "./virtualBatteryQuoteCalculator.service.js";
-import { computeCalpinageShading } from "./shading/calpinageShading.service.js";
+import { getNormalizedShadingFromGeometry } from './calpinage/calpinageShadingLegacyAdapter.js';
+import { getStudyShadingState } from '../../shared/shading/clientStudyExport.js';
 import { resolveMeterAnnualConsumptionKwh } from "./meterAnnualConsumption.service.js";
 import { buildCurrentMeterContractInputs } from "./solarnextAdapter.service.js";
 import {
-  buildStructuredShading,
   hasPanelsInGeometry,
 } from "./shading/shadingStructureBuilder.js";
-import { normalizeCalpinageShading } from "./calpinage/calpinageShadingNormalizer.js";
 import {
-  buildOfficialShadingFromComputeResult,
   computeShadingOfficialDiff,
   logShadingOfficialDriftIfNeeded,
   isUseOfficialShadingEnabled,
@@ -325,17 +323,13 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
   }
 
   const totalPanels = calpinage.total_panels ?? geometry.panels?.count ?? 0;
-  const storedNearLossPct = calpinage.total_loss_pct != null
-    ? Number(calpinage.total_loss_pct)
-    : (geometry.shading?.totalLossPct ?? 0);
-
-  const shadingResult = await computeCalpinageShading({
-    lat,
-    lon,
-    geometry,
-    storedNearLossPct,
-    options: { includePerPanelBreakdown: true, strictCommercialShading: true },
-  });
+  // Energy calculation consumes a current server assessment; it never launches a local shading survey.
+  let shading = getNormalizedShadingFromGeometry(geometry).shading;
+  const shadingState = getStudyShadingState({ shading });
+  const shadingResult = { assessment: shading.assessment, totalLossPct: shadingState.shadingLossPct,
+    perPanelBreakdown: shadingState.shadingIncluded ? shading.perPanel ?? [] : [],
+    geometryCommercialWarnings: [], farHorizonStatus: shading.far?.source,
+    farShadingUnavailable: shading.assessment?.farStatus === 'error' };
   const hasGps =
     lat != null &&
     lon != null &&
@@ -346,12 +340,6 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     lon >= -180 &&
     lon <= 180;
   const hasPanels = hasPanelsInGeometry(geometry);
-  const existingShading = geometry?.shading && typeof geometry.shading === "object" ? geometry.shading : {};
-  const rawShading = buildStructuredShading(shadingResult, hasGps, hasPanels, existingShading);
-  const meta = shadingResult.farMetadata
-    ? { step_deg: shadingResult.farMetadata.step_deg, resolution_m: shadingResult.farMetadata.resolution_m, algorithm: shadingResult.farMetadata.meta?.algorithm }
-    : {};
-  let shading = normalizeCalpinageShading(rawShading, meta);
 
   /**
    * Dès qu’il existe des pans avec au moins un module, la vérité production pour l’ombrage
@@ -375,8 +363,8 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
         ...(Array.isArray(p.shading_hourly) ? { shading_hourly: p.shading_hourly.slice() } : {}),
       }))
     : [];
-  const shadingComputed = shading.assessment?.status === 'computed';
-  const productionShadingFallbackPct = shadingComputed ? shadingResult.totalLossPct : null;
+  const shadingComputed = shadingState.shadingIncluded;
+  const productionShadingFallbackPct = shadingState.shadingLossPct;
   const roofPansForKpi = ensureRoofPansCarryProductionShading(
     rawRoofPansForProduction,
     productionShadingFallbackPct
@@ -385,7 +373,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
   let shadingLossPct = productionShadingFallbackPct ?? shadingResult.totalLossPct;
   // A module-count mean of persisted pan values cannot replace the current
   // energy-weighted assessment, or revive an unavailable result as zero.
-  shadingLossPct = shadingComputed ? shadingResult.totalLossPct : null;
+  shadingLossPct = shadingState.shadingLossPct;
 
   const shadingCommercialAudit = {
     blocking_warnings: [],
@@ -430,7 +418,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     shadingCommercialAudit.blocking_warnings.push("SHADING_PAN_MISMATCH_BLOCK_PDF");
   }
 
-  const officialShading = buildOfficialShadingFromComputeResult(shadingResult, hasGps, hasPanels);
+  const officialShading = shading;
   const legacyShadingSnapshot = {
     totalLossPct: shadingLossPct,
     near: shading.near,
@@ -444,10 +432,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
   // ── Enrichissement shading — champs mensuels et PVGIS (PDF ombrage) ──────
   shading = {
     ...shading,
-    monthlyFactors:  shadingResult.monthlyFactors  ?? null,
-    monthlyKwhStats: shadingResult.monthlyKwhStats ?? null,
-    annualLossKwh:   shadingResult.annualLossKwh   ?? null,
-    pvgisReference:  shadingResult.pvgisReference  ?? null,
+    ...shadingState,
   };
 
   const params = await loadOrgParams(orgId, db);
@@ -1108,6 +1093,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       puissance_kwc: Math.round(pvPowerKwc * 1000) / 1000,
       total_power_kwc: Math.round(pvPowerKwc * 1000) / 1000,
       reseau_type: (energyLead.grid_type || "mono").toLowerCase() === "tri" ? "tri" : "mono",
+      ...shadingState,
       shading_loss_pct: shadingLossPct,
       shading,
       roof_pans: roofPans,

@@ -88,12 +88,14 @@ export function deriveBackendCommercialGeometryVerdict(geometry) {
   if (geometry?.geometryContractVersion != null) {
     const validation = validateFlatRoofSurvey(geometry);
     const allowed = validation.certified;
+    const shadingOnlyCodes = new Set(['LOCAL_SURVEY_INCOMPLETE', 'OBSTACLE_LIST_INCOMPLETE', 'OBSTACLE_GEOMETRY_INVALID', 'VERTICAL_REFERENCE_INVALID']);
+    const placementAllowed = validation.blockingCodes.every(code => shadingOnlyCodes.has(code));
     return { contractVersion: FLAT_ROOF_SURVEY_VERSION, source: 'BACKEND_DERIVED_FROM_PERSISTED_GEOMETRY',
-      status: allowed ? 'CERTIFIED' : 'INVALID', officialPvPlacementAllowed: allowed, officialNearShadingAllowed: allowed,
+      status: allowed ? 'CERTIFIED' : placementAllowed ? 'UNCERTIFIED' : 'INVALID', officialPvPlacementAllowed: placementAllowed, officialNearShadingAllowed: allowed,
       modelVersion: SHADING_MODEL_VERSION, inputFingerprint: computeShadingInputFingerprint({geometry}),
       blockingCodes: validation.blockingCodes, reasonCodes: allowed ? ['COMMERCIAL_GEOMETRY_CERTIFIED'] : validation.blockingCodes,
       checks: validation.checks, surveySource: geometry.localObstacleSurvey?.source ?? null,
-      panVerdicts: (Array.isArray(geometry.pans) ? geometry.pans : []).map(p => ({panId:p?.id,kind:p?.roofKind,status:allowed?'CERTIFIED':'INVALID',officialPvPlacementAllowed:allowed,officialNearShadingAllowed:allowed,blockingCodes:validation.blockingCodes})) };
+      panVerdicts: (Array.isArray(geometry.pans) ? geometry.pans : []).map(p => ({panId:p?.id,kind:p?.roofKind,status:allowed?'CERTIFIED':placementAllowed?'UNCERTIFIED':'INVALID',officialPvPlacementAllowed:placementAllowed,officialNearShadingAllowed:allowed,blockingCodes:validation.blockingCodes})) };
   }
   const pans = collectPans(geometry);
   const panVerdicts = pans.map((pan) => {

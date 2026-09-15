@@ -1,4 +1,6 @@
-import { getClientStudyExportBlock, CLIENT_STUDY_EXPORT_MESSAGE } from '../../../../shared/shading/clientStudyExport.js';
+import { confirmStudyDocument } from "../../components/ui/confirmStudyDocument";
+import RecalculationComparison from './RecalculationComparison';
+import { getClientStudyExportBlock, CLIENT_STUDY_EXPORT_MESSAGE, getStudyShadingState, SHADING_EXPORT_WARNING } from '../../../../shared/shading/clientStudyExport.js';
 /**
  * Page principale étude : comparatif scénarios V2 (lecture seule moteur).
  * Route : /studies/:studyId/versions/:versionId/scenarios
@@ -112,6 +114,9 @@ export default function ScenariosPage() {
   const [inputFingerprint, setInputFingerprint] = useState<string | null>(null);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [recomputing, setRecomputing] = useState(false);
+  const [recomputeError, setRecomputeError] = useState<string | null>(null);
+  const [comparisonReady, setComparisonReady] = useState(false);
+  const recomputeBusyRef = useRef(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [titleSaving, setTitleSaving] = useState(false);
@@ -313,6 +318,11 @@ export default function ScenariosPage() {
       if (isReadOnly) return;
       if (!studyId || !versionId) return;
       const base = API_BASE.replace(/\/$/, "");
+      const withoutShading = !getStudyShadingState(scenarios.find(s => s.id === scenarioId)).shadingIncluded;
+      if ((withoutShading || historyCount > 0) && !(await confirmStudyDocument(
+        withoutShading ? SHADING_EXPORT_WARNING : 'Le PDF utilisera les résultats du dernier calcul.',
+        historyCount > 0 ? { title: `Confirmer le scénario : ${COLUMN_LABELS[scenarioId]}`, confirmLabel: 'Confirmer et générer le PDF' } : {}
+      ))) return;
       const addToDocuments = ctx?.addToDocuments ?? false;
       const setAsPortalOffer = ctx?.setAsPortalOffer ?? false;
       setPdfFlowBusy(true);
@@ -428,7 +438,7 @@ export default function ScenariosPage() {
         setSelectingId(null);
       }
     },
-    [isReadOnly, studyId, versionId, fetchScenariosOnly, refreshStudy, needsRecompute, historicalSelection, scenarios]
+    [isReadOnly, studyId, versionId, fetchScenariosOnly, refreshStudy, needsRecompute, historicalSelection, scenarios, historyCount]
   );
 
   const handleSetPortalOffer = useCallback(
@@ -494,6 +504,7 @@ export default function ScenariosPage() {
     if (isReadOnly) return;
     if (!studyId || !versionId) return;
     const base = API_BASE.replace(/\/$/, "");
+    if (!getStudyShadingState(scenarios.find(s => s.id === selectedScenarioId)).shadingIncluded && !(await confirmStudyDocument(SHADING_EXPORT_WARNING))) return;
     setRedownloading(true);
     setPdfFlowBusy(true);
     try {
@@ -533,29 +544,35 @@ export default function ScenariosPage() {
   }, [isReadOnly, studyId, versionId, needsRecompute, historicalSelection, scenarios, selectedScenarioId]);
 
   const handleRecompute = useCallback(async () => {
-    if (isReadOnly) return;
-    if (!studyId || !versionId) return;
+    if (isReadOnly || recomputeBusyRef.current || !studyId || !versionId || !versionNumber) return;
+    recomputeBusyRef.current = true;
+    const confirmed = await confirmStudyDocument(
+      'Cette étude utilise une ancienne version du moteur de calcul ou des données modifiées. Elle doit être recalculée avant de générer un nouveau PDF.' + (versionLocked ? ' Cette version est verrouillée : ouvrez une nouvelle version avec « Modifier l’étude », validez son calepinage puis recalculez.' : ''),
+      { title: 'Recalcul nécessaire', confirmLabel: versionLocked ? 'Compris' : 'Recalculer l’étude' });
+    if (!confirmed || versionLocked) { recomputeBusyRef.current = false; return; }
     const base = API_BASE.replace(/\/$/, "");
     setRecomputing(true);
+    setRecomputeError(null);
     try {
       const res = await apiFetch(
-        `${base}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/calc`,
+        `${base}/api/studies/${encodeURIComponent(studyId)}/versions/${versionNumber}/calc`,
         { method: "POST", skipErrorToast: true }
       );
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        showToast(body.error || "Échec du recalcul des scénarios", true);
+        setRecomputeError(`Le recalcul a échoué. Les résultats précédents sont conservés. ${body.error || 'Vérifiez les données de l’étude puis réessayez.'}`);
         return;
       }
       await fetchScenariosOnly();
       await refreshStudy();
       showToast("Scénarios recalculés avec le nouveau moteur", false);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Erreur lors du recalcul", true);
+      setRecomputeError('Le recalcul n’a pas pu être confirmé. Rechargez les résultats avant de réessayer ; les calculs précédents restent dans l’historique.');
     } finally {
       setRecomputing(false);
+      recomputeBusyRef.current = false;
     }
-  }, [isReadOnly, studyId, versionId, fetchScenariosOnly, refreshStudy]);
+  }, [isReadOnly, studyId, versionId, versionNumber, versionLocked, fetchScenariosOnly, refreshStudy]);
 
   const handleModifierEtude = useCallback(async () => {
     if (isReadOnly) return;
@@ -782,6 +799,7 @@ export default function ScenariosPage() {
       >
         {recomputing ? "Recalcul…" : "Recalculer les scénarios"}
       </button>
+      {recomputeError && <div role="alert"><p>{recomputeError}</p><button type="button" className="sg-btn sg-btn-secondary" onClick={navQuote}>Vérifier les données du devis</button><button type="button" className="sg-btn sg-btn-secondary" onClick={navCalpinage}>Vérifier le calepinage</button></div>}
     </div>
   ) : null;
 
@@ -922,6 +940,7 @@ export default function ScenariosPage() {
         </div>}
         {historicalSelection!==""&&<p role="status">Consultation historique — export client désactivé. Référence {calculationHistory.find(entry=>entry.id===historicalSelection)?.input_fingerprint??"sans empreinte"}.</p>}
         {recomputeBanner}
+        {!needsRecompute && historicalSelection === '' && <RecalculationComparison baseUrl={`${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}`} historyCount={historyCount} scenarios={scenarios} engine={currentEngineVersion} onReady={setComparisonReady} />}
         <div
           {...(needsRecompute ? { "data-testid": "scenarios-stale", "aria-disabled": true } : {})}
           style={{
@@ -936,7 +955,7 @@ export default function ScenariosPage() {
             versionId={versionId ?? undefined}
             onSelectScenario={handleSelectScenario}
             onSetPortalOffer={handleSetPortalOffer}
-            selectionDisabled={pdfFlowBusy || redownloading || isReadOnly || needsRecompute || historicalSelection!==""}
+            selectionDisabled={pdfFlowBusy || redownloading || isReadOnly || needsRecompute || historicalSelection!=="" || (historyCount > 0 && !comparisonReady)}
             selectingId={selectingId}
             portalOfferBusyId={portalOfferBusyId}
             versionLocked={versionLocked}

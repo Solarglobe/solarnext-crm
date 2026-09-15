@@ -262,7 +262,7 @@ describe("clientPortal.service", () => {
       },
     ];
     const out = dedupeByFileNameKeepNewest(docs);
-    assert.equal(out.length, 1);
+    assert.equal(out.length, 2);
     assert.equal(out[0].id, "new");
   });
 
@@ -307,7 +307,7 @@ describe("clientPortal.service", () => {
     assert.equal(merged.length, 3);
     assert.equal(merged[0].id, "q1");
   });
-  it("conserve les quatre propositions 6/8 kWc avec et sans batterie, mais retire une ancienne generation du meme scenario", () => {
+  it("conserve les propositions et les anciennes générations du même scénario comme archives", () => {
     const proposal = (id, version, scenario, date) => ({
       id,
       entity_type: "lead",
@@ -324,7 +324,7 @@ describe("clientPortal.service", () => {
       proposal("6-base-old", "version-6", "BASE", "2026-09-06T09:11:35Z"),
     ];
     assert.deepEqual(selectPortalDocumentsForResponse(rows).map((d) => d.id), [
-      "6-battery", "6-base", "8-battery", "8-base",
+      "6-battery", "6-base", "8-battery", "8-base", "6-base-old",
     ]);
   });
 

@@ -1,6 +1,6 @@
 import { interpolateHorizonElevation } from '../horizon/horizonMaskCore.js';
 import { isCompleteHorizonMask } from '../shading/shadingAssessment.service.js';
-import { getClientStudyExportBlock } from '../../../shared/shading/clientStudyExport.js';
+import { getClientStudyExportBlock, getStudyShadingState } from '../../../shared/shading/clientStudyExport.js';
 import {electricityBillDisplay} from "../../../shared/electricityBillDisplay.js";
 import { displayEuro, displayPercent, displayNumber } from "../../../shared/studyDisplay.js";
 /**
@@ -1856,6 +1856,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const _p4RevenuReventeEur = numOrZero(financeActive.revenu_surplus ?? finance.revenu_surplus);
 
   const viewModel = applyVerifiedEnergyPresentation({
+    ...getStudyShadingState(snapshot),
     documentPurpose: getClientStudyExportBlock(snapshot).blocked ? "internal_diagnostic" : "client_final",
     meta: {
       studyId: options.studyId ?? null,
@@ -1898,7 +1899,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       orientationDeg: num(site.orientation_deg),
       tiltDeg: num(site.tilt_deg),
       roofType: null,
-      shadingLossPct: num(resolveShadingTotalLossPct(shading, form)),
+      shadingLossPct: getStudyShadingState(snapshot).shadingLossPct,
     },
     technical: {
       panelsCount: numOrZero(installation.panneaux_nombre),

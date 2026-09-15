@@ -9,25 +9,25 @@ import {mapScenarioToV2} from '../services/scenarioV2Mapper.service.js';
 const audit={blocking_warnings:['SHADING_GEOMETRY_BLOCK_PDF'],non_blocking_warnings:['OBSTACLE_HEIGHT_MISSING','SHADING_PAN_MISMATCH'],flags:{geometryWarnings:['OBSTACLE_HEIGHT_MISSING'],shadingPanMismatch:true,shadingPanMismatchAbsDiff:6.5}};
 const context={meta:{shading_commercial_audit:audit},form:{installation:{shading:{}},economics:{}},settings:{economics:{}},pv:{source:'PVGIS'}};
 
-test('synthetic missing obstacle height remains a hard block through confidence and migration',()=>{
+test('missing obstacle height excludes shading without blocking regular PDF confidence',()=>{
   const confidence=buildCalculationConfidenceFromCalc(context,{});
-  assert.equal(confidence.level,'BLOCKED');
-  assert.deepEqual(confidence.blocking_warnings,['SHADING_GEOMETRY_INPUT_INCOMPLETE']);
+  assert.notEqual(confidence.level,'BLOCKED');
+  assert.deepEqual(confidence.blocking_warnings,[]);
   assert.equal(confidence.assumptions.shading_pan_mismatch_abs_diff,6.5);
-  assert.equal(isPdfBlockedByConfidence(confidence),true);
+  assert.equal(isPdfBlockedByConfidence(confidence),false);
   const migrated=migrateCalculationConfidence(confidence);
-  assert.equal(isPdfBlockedByConfidence(migrated),true);
-  assert.equal(migrated.level,'BLOCKED');
-  assert.deepEqual(migrated.blocking_warnings,['SHADING_GEOMETRY_INPUT_INCOMPLETE']);
+  assert.equal(isPdfBlockedByConfidence(migrated),false);
+  assert.notEqual(migrated.level,'BLOCKED');
+  assert.deepEqual(migrated.blocking_warnings,[]);
 });
 
-test('a previously downgraded legacy confidence is blocked from factual missing geometry',()=>{
+test('legacy missing shading geometry does not bypass the independent energy guard',()=>{
   const confidence={level:'LOW',blocking_warnings:[],non_blocking_warnings:['SHADING_GEOMETRY_BLOCK_PDF'],assumptions:{shading_geometry_strict_warnings:['OBSTACLE_HEIGHT_MISSING']}};
-  assert.equal(isPdfBlockedByConfidence(confidence),true);
+  assert.equal(isPdfBlockedByConfidence(confidence),false);
   const restored=migrateCalculationConfidence(confidence);
-  assert.equal(restored.level,'BLOCKED');
-  assert.ok(restored.blocking_warnings.includes('SHADING_GEOMETRY_INPUT_INCOMPLETE'));
-  assert.throws(()=>assertStudySnapshotExportable({calculation_confidence:confidence}),error=>error.code==='PDF_BLOCKED_CALCULATION_CONFIDENCE');
+  assert.notEqual(restored.level,'BLOCKED');
+  assert.equal(isPdfBlockedByConfidence(restored),false);
+  assert.throws(()=>assertStudySnapshotExportable({calculation_confidence:confidence}),error=>error.code==='STUDY_EXPORT_INCONSISTENT');
 });
 
 test('generic legacy warnings and unavailable horizon alone do not arbitrarily block old studies',()=>{
@@ -49,5 +49,6 @@ test('scenario mapping freezes the shading facts and independent export validati
   const scenario=mapScenarioToV2({name:'BASE',prod_kwh:1000,conso_kwh:2000,auto_kwh:500,capex_ttc:5000},context);
   assert.deepEqual(scenario.shading.commercial_audit,audit);
   const result=validateStudyScenarioForExport(scenario,'BASE');
-  assert.ok(result.errors.some(error=>error.startsWith('SHADING_GEOMETRY_INPUT_INCOMPLETE')));
+  assert.equal(result.errors.some(error=>error.startsWith('SHADING_GEOMETRY_INPUT_INCOMPLETE')),false);
+  assert.ok(result.errors.some(error=>error.startsWith('ENERGY_REFERENCE_MISSING')));
 });

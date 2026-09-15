@@ -117,7 +117,9 @@ function getLogoUrl(
 export default function PdfPageMethodologySolarGlobe({
   viewModel,
   organization,
+  shadingIncluded = false,
 }: {
+  shadingIncluded?: boolean;
   viewModel?: { fullReport?: Record<string, unknown>; meta?: { studyId?: string; versionId?: string } };
   organization?: { id?: string; logo_image_key?: string | null };
 }) {
@@ -195,7 +197,7 @@ export default function PdfPageMethodologySolarGlobe({
             <span className="p-msg-scope__label">Ce que notre étude prend en compte</span>
           </div>
           <ul className="p-msg-scope__list">
-            {SCOPE_ITEMS.map((label) => (
+            {SCOPE_ITEMS.filter(label => shadingIncluded || label !== 'Environnement proche et lointain').map((label) => (
               <li key={label} className="p-msg-scope__chip">
                 {label}
               </li>
@@ -217,7 +219,7 @@ export default function PdfPageMethodologySolarGlobe({
                 <div className="p-msg-workflow__col">
                   <h3 className="p-msg-workflow__col-title">{col.title}</h3>
                   <ul className="p-msg-workflow__ul">
-                    {col.items.map((it) => (
+                    {col.items.filter(it => shadingIncluded || !['Environnement & masques solaires', 'Ombrages & rendement'].includes(it)).map((it) => (
                       <li key={it}>{it}</li>
                     ))}
                   </ul>
@@ -228,7 +230,7 @@ export default function PdfPageMethodologySolarGlobe({
         </section>
 
         <div className="p-msg-grid" aria-label="Détail méthodologique">
-          {BLOCKS.map((b) => (
+          {BLOCKS.filter(b => shadingIncluded || b.title !== 'Environnement et ombrage').map((b) => (
             <article key={b.title} className="p-msg-card">
               <h2 className="p-msg-card__title">{b.title}</h2>
               <p className="p-msg-card__text">{b.body}</p>

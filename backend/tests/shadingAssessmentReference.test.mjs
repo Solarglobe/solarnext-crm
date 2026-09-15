@@ -116,7 +116,7 @@ test('SGS-2026-0198 regression: ten modules and persisted zero without local dat
 });
 
 test('solar position matches 36 independent NREL SPA/pvlib reference points within 0.01 degrees', () => {
-  const reference = JSON.parse(readFileSync(new URL('../../docs/audit-ombrage-solar-reference-2026-09-15.json', import.meta.url)));
+  const reference = JSON.parse(readFileSync(new URL('./fixtures/solar-position-reference.json', import.meta.url)));
   for (const row of reference.cases) {
     const actual = computeSunPosition(new Date(row.date), row.lat, row.lon);
     assert.ok(Math.abs(((actual.azimuthDeg - row.azimuthDeg + 540) % 360) - 180) < 0.01, row.date);

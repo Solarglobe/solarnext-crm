@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getClientStudyExportBlock, assertClientStudyExportable } from '../../shared/shading/clientStudyExport.js';
+import { getClientStudyExportBlock, assertClientStudyExportable, getStudyShadingState } from '../../shared/shading/clientStudyExport.js';
 import { putEphemeralSnapshot } from '../services/pdfEphemeralSnapshot.service.js';
 import { assertStudySnapshotExportable } from '../services/studyExportValidation.service.js';
 import { generatePdfFromRendererUrl } from '../services/pdfGeneration.service.js';
@@ -8,16 +8,22 @@ import { buildFinalStudyJson } from '../services/finalStudyJson.service.js';
 import { computeShadingInputFingerprint, markShadingStaleIfInputsChanged } from '../services/shading/shadingAssessment.service.js';
 import { getOrComputeHorizonMask, __testGetStats, __testClearCache } from '../services/horizon/horizonMaskCache.js';
 const good=()=>({shading:{assessment:{status:'computed',nearStatus:'computed',farStatus:'computed'},near:{totalLossPct:0},far:{totalLossPct:0},combined:{totalLossPct:0}}});
-for(const reason of ['stale','not_calculated','insufficient_data','error','needs_recompute','display_blocked'])test(reason+' blocks snapshot, final JSON, and low-level renderer before browser/network',async()=>{
- const snapshot=good();if(reason.endsWith('blocked')||reason==='needs_recompute')snapshot[reason]=true;else snapshot.shading.assessment.status=reason;
- for(const wrap of [s=>s,s=>({scenario_result:s}),s=>({selected_scenario_snapshot:s})]){
-  assert.equal(getClientStudyExportBlock(wrap(snapshot)).blocked,true);
-  for(const call of [()=>assertStudySnapshotExportable(wrap(snapshot)),()=>putEphemeralSnapshot(wrap(snapshot),'BASE')])assert.throws(call,e=>e.code==='PDF_BLOCKED_SHADING_ASSESSMENT'&&e.status===409);
-  await assert.rejects(generatePdfFromRendererUrl('http://127.0.0.1:1/must-not-load',{clientSnapshot:wrap(snapshot)}),e=>e.code==='PDF_BLOCKED_SHADING_ASSESSMENT');
- }
- assert.throws(()=>buildFinalStudyJson({geometryJson:{shading:snapshot.shading},calcResult:snapshot}),e=>e.code==='PDF_BLOCKED_SHADING_ASSESSMENT');
+for(const reason of ['stale','not_calculated','insufficient_data','error'])test(reason+' excludes shading while regular export remains available',()=>{
+ const snapshot=good();snapshot.shading.assessment.status=reason;
+ assert.equal(getClientStudyExportBlock(snapshot).blocked,false);
+ assert.equal(getStudyShadingState(snapshot).shadingApplied,false);
+ assert.equal(getStudyShadingState(snapshot).shadingLossPct,null);
+ assert.equal(putEphemeralSnapshot(snapshot,'BASE').length>0,true);
 });
-test('missing snapshot cannot bypass direct generation service',()=>assert.rejects(generatePdfFromRendererUrl('http://127.0.0.1:1/'),e=>e.code==='PDF_BLOCKED_SHADING_ASSESSMENT'));
+for(const reason of ['needs_recompute','display_blocked'])test(reason+' on the study still blocks generation',async()=>{
+ const snapshot=good();snapshot[reason]=true;
+ for(const wrap of [s=>s,s=>({scenario_result:s}),s=>({selected_scenario_snapshot:s})]) {
+  assert.equal(getClientStudyExportBlock(wrap(snapshot)).blocked,true);
+  assert.throws(()=>putEphemeralSnapshot(wrap(snapshot),'BASE'),e=>e.code==='PDF_BLOCKED_CURRENT_STUDY');
+  await assert.rejects(generatePdfFromRendererUrl('http://127.0.0.1:1/must-not-load',{clientSnapshot:wrap(snapshot)}),e=>e.code==='PDF_BLOCKED_CURRENT_STUDY');
+ }
+});
+test('missing snapshot cannot bypass direct generation service',()=>assert.rejects(generatePdfFromRendererUrl('http://127.0.0.1:1/'),e=>e.code==='PDF_BLOCKED_CURRENT_STUDY'));
 test('real zero and sub-0.1 positive assessed values are exportable; stale trace cannot override current status',()=>{for(const loss of [0,0.0004]){const v=good();v.shading.near.totalLossPct=v.shading.combined.totalLossPct=loss;assert.equal(assertClientStudyExportable(v).blocked,false);v.shading.historicalResult={assessment:{status:'stale'}};assert.equal(assertClientStudyExportable(v).blocked,false);}const v=good();v.documentPurpose='internal_diagnostic';assert.equal(getClientStudyExportBlock(v).blocked,true);});
 test('freshness fingerprint ignores images/view state but tracks physical input',()=>{const g={roofState:{gps:{lat:49,lon:2},scale:{metersPerPixel:0.1},roof:{north:{angleDeg:0}},image:'huge',selectedId:'one'},pans:[{tilt:10}]};const h=computeShadingInputFingerprint({geometry:g});g.roofState.image='another';g.roofState.selectedId='two';assert.equal(computeShadingInputFingerprint({geometry:g}),h);g.pans[0].tilt=20;assert.notEqual(computeShadingInputFingerprint({geometry:g}),h);});
 test('stale result retains one historical result across repeated reads',()=>{const value=good().shading;const stale=markShadingStaleIfInputsChanged(value,{});assert.equal(stale.combined.totalLossPct,null);assert.equal(stale.historicalResult.combined.totalLossPct,0);assert.deepEqual(markShadingStaleIfInputsChanged(stale,{}).historicalResult,stale.historicalResult);});
@@ -34,5 +40,5 @@ test('server geometric verdict cannot be bypassed by a matching client-computed 
  const geometry={pans:[{id:'flat',roofKind:'FLAT',tilt:0}],localObstacleSurvey:{status:'complete',source:'manual_survey'}};
  const shading=good().shading;Object.assign(shading.assessment,{modelVersion:SHADING_MODEL_VERSION,geometryFingerprint:computeShadingInputFingerprint({geometry})});
  const persisted=sanitizeCalpinageGeometryForPersistence({...geometry,shading});assert.equal(persisted.backendCommercialGeometry.officialNearShadingAllowed,false);
- const normalized=getNormalizedShadingFromGeometry(persisted).shading;assert.equal(normalized.assessment.status,'insufficient_data');assert.equal(normalized.totalLossPct,null);assert.equal(normalized.historicalResult.combined.totalLossPct,0);assert.equal(getClientStudyExportBlock({shading:normalized}).blocked,true);
+ const normalized=getNormalizedShadingFromGeometry(persisted).shading;assert.equal(normalized.assessment.status,'insufficient_data');assert.equal(normalized.totalLossPct,null);assert.equal(normalized.historicalResult.combined.totalLossPct,0);assert.equal(getClientStudyExportBlock({shading:normalized}).blocked,false);
 });

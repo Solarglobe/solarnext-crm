@@ -30,6 +30,10 @@ export function normalizeEntityDocument(raw: Record<string, unknown>): EntityDoc
   const displayName =
     (raw.displayName as string) ?? (raw.display_name as string) ?? null;
   return {
+    documentCurrent: raw.documentCurrent === true,
+    documentArchived: raw.documentArchived === true,
+    documentVerification: typeof raw.documentVerification === "string" ? raw.documentVerification : undefined,
+    documentWarning: typeof raw.documentWarning === "string" ? raw.documentWarning : null,
     id: String(raw.id ?? ""),
     file_name: String(raw.file_name ?? ""),
     file_size: Number(raw.file_size ?? 0) || 0,

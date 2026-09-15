@@ -1,3 +1,4 @@
+import { getStudyPdfDocumentStates } from './shading/clientStudyDocumentGuard.service.js';
 /**
  * Portail client SolarGlobe — assemblage JSON et règles métier (source CRM unique).
  */
@@ -385,11 +386,9 @@ export function portalDocumentDedupeKey(row) {
     return `invoice:${invoiceId || (et === "invoice" && entityId ? entityId : `doc:${docId}`)}`;
   }
   if (dt === "study_pdf" || dt === "study_proposal") {
-    const studyId = metaId("study_version_id", "studyVersionId", "study_id", "studyId");
-    const studyKey = studyId || ((et === "study" || et === "study_version") && entityId ? entityId : `doc:${docId}`);
-    // Une version d'étude peut proposer plusieurs scénarios distincts au client.
-    const scenarioKey = metaId("scenario_key", "scenarioKey");
-    return `study:${studyKey}${scenarioKey ? `:scenario:${scenarioKey}` : ""}`;
+    // Every emitted study PDF stays available as an archive. Only duplicate mirrors of the same source collapse.
+    const sourceDocumentId = metaId('source_study_version_document_id');
+    return `study-document:${sourceDocumentId || docId}`;
   }
   return `doc:${docId}`;
 }
@@ -877,12 +876,14 @@ export async function buildClientPortalPayload(db, ctx) {
   }
 
   const portalRows = selectPortalDocumentsForResponse(docRes.rows);
-  const documents = portalRows.map((d) => {
+  const documentStates = await getStudyPdfDocumentStates(portalRows, organizationId, db);
+  const documents = portalRows.map((d, index) => {
     const docType = d.document_type || "unknown";
     const label = resolvePortalDocumentLabelFromRow(d);
     const displayName = (d.name && String(d.name).trim()) || (d.file_name && String(d.file_name).trim()) || "Document";
     const rel = `/api/client-portal/documents/${d.id}/file?token=${enc}`;
     return {
+      ...documentStates[index],
       id: String(d.id),
       name: displayName,
       file_name: d.file_name ?? null,
@@ -975,7 +976,7 @@ export async function mintClientPortalToken(db, { leadId, organizationId, expire
  */
 export async function assertDocumentInPortalScope(db, { organizationId, leadId, documentId }) {
   const r = await db.query(
-    `SELECT ed.id, ed.storage_key, ed.file_name, ed.mime_type, ed.entity_type, ed.document_type, ed.entity_id, ed.metadata_json
+    `SELECT ed.id, ed.storage_key, ed.file_name, ed.mime_type, ed.entity_type, ed.document_type, ed.entity_id, ed.metadata_json, ed.created_at, ed.file_hash
      FROM entity_documents ed
      INNER JOIN leads l ON l.id = $3 AND l.organization_id = $2
      WHERE ed.id = $1

@@ -28,7 +28,7 @@ import { shadingExportBlockers, SHADING_EXPORT_BLOCKING_CODES } from './shading/
 // isPdfBlockedByConfidence ne se base PAS sur le champ level mais uniquement sur cette liste.
 const BLOCKING = new Set([
   "CALC_INVALID_8760_PROFILE",
-  ...SHADING_EXPORT_BLOCKING_CODES,
+  // Shading unavailability excludes the analysis, not the regular study PDF.
 ]);
 
 /**
@@ -44,8 +44,8 @@ export function finalizeCalculationConfidence({
   assumptions = {},
 }) {
   const geometryBlocks=shadingExportBlockers({assumptions}).map(item=>item.code);
-  const bw = Array.from(new Set([...(blocking_warnings || []).filter(Boolean),...geometryBlocks]));
-  const nbw = Array.from(new Set((non_blocking_warnings || []).filter(w=>w&&!bw.includes(w))));
+  const bw = Array.from(new Set((blocking_warnings || []).filter(w => w && !SHADING_EXPORT_BLOCKING_CODES.includes(w))));
+  const nbw = Array.from(new Set([...(non_blocking_warnings || []), ...geometryBlocks, ...(blocking_warnings || []).filter(w => SHADING_EXPORT_BLOCKING_CODES.includes(w))].filter(w=>w&&!bw.includes(w))));
 
   let level = "HIGH";
   if (bw.length > 0) {
@@ -93,7 +93,7 @@ export function finalizeCalculationConfidence({
 
 export function isPdfBlockedByConfidence(confidence) {
   if (!confidence || typeof confidence !== "object") return false;
-  if(shadingExportBlockers({assumptions:confidence.assumptions??{}}).length)return true;
+  // The independent shading guard determines inclusion; energy invalidity still blocks.
   // Ne pas court-circuiter sur confidence.level === "BLOCKED" : des études stockées avant
   // ce changement ont level="BLOCKED" à cause de PVGIS_FALLBACK_USED qui est maintenant
   // non-bloquant. On vérifie uniquement les codes présents dans BLOCKING.

@@ -16,6 +16,11 @@ export type DocumentSourceType = "SYSTEM_GENERATED" | "MANUAL_UPLOAD";
 export type DocumentSectionKey = DocumentCategory;
 
 export interface EntityDocument {
+  documentCurrent?: boolean;
+  documentArchived?: boolean;
+  documentVerification?: string;
+  documentWarning?: string | null;
+
   id: string;
   file_name: string;
   file_size: number;

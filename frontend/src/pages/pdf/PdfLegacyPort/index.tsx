@@ -1,3 +1,4 @@
+import { getStudyShadingState } from '../../../../../shared/shading/clientStudyExport.js';
 import PdfPageShading from './PdfPageShading';
 import PdfPageVerifiedAssumptions from './PdfPageVerifiedAssumptions';
 /**
@@ -90,7 +91,7 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
       <PdfPage1 organization={organization} viewModel={viewModel} />
       <PdfPage2 organization={organization} viewModel={viewModel} />
       <PdfPage3 organization={organization} viewModel={viewModel} />
-      <PdfPageShading organization={organization} viewModel={viewModel} />
+      {getStudyShadingState(viewModel).shadingIncluded && <PdfPageShading organization={organization} viewModel={viewModel} />}
       <PdfPage4 organization={organization} viewModel={viewModel} />
       <PdfPage5 organization={organization} viewModel={viewModel} />
       <PdfPage6 organization={organization} viewModel={viewModel} />
@@ -108,7 +109,7 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
       <PdfPage10 organization={organization} viewModel={viewModel} onReady={onP10Ready} />
       {hasFinancingPage ? <PdfPage11 organization={organization} viewModel={viewModel} /> : null}
       <PdfPageVerifiedAssumptions viewModel={viewModel} />
-      <PdfPageMethodologySolarGlobe viewModel={viewModel} organization={organization} />
+      <PdfPageMethodologySolarGlobe shadingIncluded={getStudyShadingState(viewModel).shadingIncluded} viewModel={viewModel} organization={organization} />
       <PdfPage12 organization={organization} viewModel={viewModel} />
       </div>
     </PdfOrgBrandingProvider>

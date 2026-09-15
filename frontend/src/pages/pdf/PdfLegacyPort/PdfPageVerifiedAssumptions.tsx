@@ -1,3 +1,4 @@
+import { getStudyShadingState, SHADING_EXCLUSION_METHODOLOGY } from '../../../../../shared/shading/clientStudyExport.js';
 import ProjectionAssumptions from "@/components/study/ProjectionAssumptions";
 import PdfPageLayout from '../PdfEngine/PdfPageLayout';
 import { usePdfOrgBranding } from './pdfOrgBrandingContext';
@@ -19,6 +20,7 @@ export default function PdfPageVerifiedAssumptions({viewModel:vm}:Props){
   <style>{`#p-verified-assumptions .card { padding: 2.6mm !important; } #p-verified-assumptions .card p { margin: 1.5mm 0; } #p-verified-assumptions .card h2 { font-size: 3.4mm !important; margin: 0 0 1.5mm; }`}</style>
   <h1 style={{fontSize:'7mm',color:brandHex,margin:'0 0 2mm'}}>Hypothèses et traçabilité des résultats</h1>
   <p style={{fontSize:'3.2mm',margin:0}}>{vm?.control_export_label??'Simulation prévisionnelle : les paramètres ci-dessous définissent le périmètre des résultats.'}</p>
+  {!getStudyShadingState(vm).shadingIncluded && <p data-testid="shading-exclusion" style={{fontSize:'2.8mm',margin:'2mm 0'}}>{SHADING_EXCLUSION_METHODOLOGY}</p>}
   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'2.5mm',fontSize:'2.8mm',lineHeight:1.32}}>
    <section className="card soft" style={{padding:'4mm'}}><h2 style={{fontSize:'4mm',color:brandHex}}>Énergie et définitions</h2>
     <p>Production disponible côté AC du site. Solaire utile = consommation directe + restitution solaire de la batterie. Couverture = solaire utile / consommation du site. Utilisation utile = solaire utile / production.</p>

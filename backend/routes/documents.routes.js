@@ -1,4 +1,4 @@
-import { assertStudyPdfDocumentDeliverable } from '../services/shading/clientStudyDocumentGuard.service.js';
+import { assertStudyPdfDocumentDeliverable, getStudyPdfDocumentStates } from '../services/shading/clientStudyDocumentGuard.service.js';
 /**
  * CP-032 — Routes Documents (Stockage Local VPS)
  * CP-032C — withTx, assertOrgEntity (archived → 404)
@@ -123,10 +123,13 @@ router.get("/", verifyJWT, requireAnyPermission(DOC_PERMS), async (req, res) => 
     const lim = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const off = Math.max(Number(offset) || 0, 0);
 
-    const documents = rows.map((row) => {
-      const base = addDocumentApiAliases(row);
+    const documentStates = await getStudyPdfDocumentStates(rows, org);
+    const documents = rows.map((row, index) => {
+      const { metadata_json, ...publicRow } = row;
+      const base = addDocumentApiAliases(publicRow);
       return {
         ...base,
+        ...documentStates[index],
         entity_type: row.entity_type,
         entity_id: row.entity_id,
         quote_id: row.quote_id ?? null,
@@ -168,7 +171,7 @@ router.get(
       const { id } = req.params;
 
       const doc = await pool.query(
-        `SELECT id, storage_key, file_name, organization_id, mime_type, file_hash, document_type, entity_type, entity_id, metadata_json FROM entity_documents WHERE id = $1 AND (archived_at IS NULL)`,
+        `SELECT id, storage_key, file_name, organization_id, mime_type, file_hash, document_type, entity_type, entity_id, metadata_json, created_at FROM entity_documents WHERE id = $1 AND (archived_at IS NULL)`,
         [id]
       );
 
@@ -179,7 +182,9 @@ router.get(
         return res.status(403).json({ error: "Document n'appartient pas à votre organisation" });
       }
 
-      await assertStudyPdfDocumentDeliverable(doc.rows[0], org);
+      const documentState = await assertStudyPdfDocumentDeliverable(doc.rows[0], org);
+      res.setHeader('X-Document-Current', String(documentState.documentCurrent ?? true));
+      res.setHeader('X-Document-Verification', documentState.documentVerification ?? 'not_applicable');
       const storageKey = doc.rows[0].storage_key;
       const displayName = path.basename(String(doc.rows[0].file_name || "document"));
       const mimeType = String(doc.rows[0].mime_type || "").trim() || "application/octet-stream";
@@ -459,7 +464,7 @@ router.get(
       await assertEntityInOrg(type, entityId, org);
 
       const r = await pool.query(
-        `SELECT id, file_name, file_size, mime_type, created_at, document_type,
+        `SELECT id, entity_type, entity_id, metadata_json, file_name, file_size, mime_type, created_at, document_type,
                 document_category, source_type, is_client_visible, display_name, description
          FROM entity_documents
          WHERE organization_id = $1 AND entity_type = $2 AND entity_id = $3 AND (archived_at IS NULL)
@@ -467,7 +472,11 @@ router.get(
         [org, type, entityId]
       );
 
-      res.json(r.rows.map((row) => addDocumentApiAliases(row)));
+      const documentStates = await getStudyPdfDocumentStates(r.rows, org);
+      res.json(r.rows.map((row, index) => {
+        const { metadata_json, ...publicRow } = row;
+        return { ...addDocumentApiAliases(publicRow), ...documentStates[index] };
+      }));
     } catch (e) {
       res.status(400).json({ error: e.message || "Erreur" });
     }

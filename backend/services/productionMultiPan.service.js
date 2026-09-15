@@ -4,7 +4,7 @@ import {calendarForLength,bindCalendar,monthlySums} from './energyCalendar.servi
 /**
  * Production par pan (multi-pente réel).
  * Réutilise pvgisService.computeProductionMonthlyForOrientation par pan.
- * Zéro recalcul shading : utilise pan.shadingCombinedPct uniquement.
+ * Ombrage appliqué une seule fois depuis la perte globale attestée ; absence = exclusion.
  */
 
 import * as pvgisService from "./pvgisService.js";
@@ -28,12 +28,10 @@ export async function computeProductionMultiPan(opts) {
   const { site, settings = {}, pans } = opts;
   const moduleWp = Number(opts.moduleWp);
   const pvInverter = opts.pv_inverter && typeof opts.pv_inverter === "object" ? opts.pv_inverter : null;
-  const globalShadingLossPct =
-    opts.globalShadingLossPct == null || opts.globalShadingLossPct === ""
-      ? null
-      : Math.max(0, Math.min(100, Number(opts.globalShadingLossPct)));
-  const hasGlobalShadingLoss =
-    globalShadingLossPct != null && Number.isFinite(globalShadingLossPct) && globalShadingLossPct > 0;
+  const globalShadingLossPct = typeof opts.globalShadingLossPct === 'number'
+    && Number.isFinite(opts.globalShadingLossPct) && opts.globalShadingLossPct >= 0 && opts.globalShadingLossPct <= 100
+    ? opts.globalShadingLossPct : null;
+  const hasGlobalShadingLoss = globalShadingLossPct !== null;
 
   if (!Array.isArray(pans) || pans.length === 0) {
     const empty12 = Array(12).fill(0);
@@ -68,8 +66,8 @@ export async function computeProductionMultiPan(opts) {
     const panelCount = Math.max(0, Math.floor(Number(pan.panelCount) || 0));
     const shadingPct = hasGlobalShadingLoss
       ? globalShadingLossPct
-      : Math.max(0, Math.min(100, Number(pan.shadingCombinedPct) || 0));
-    const multiplier = 1 - shadingPct / 100;
+      : null;
+    const multiplier = shadingPct == null ? 1 : 1 - shadingPct / 100;
 
     const panPowerKwc = Number(pan.powerKwc ?? pan.power_kwc);
     const kwpPan = Number.isFinite(panPowerKwc) && panPowerKwc > 0
@@ -80,7 +78,7 @@ export async function computeProductionMultiPan(opts) {
     const monthlyBeforeShading = (raw.monthly_kwh || []).map((v) => v * kwpPan);
     const annualBeforeShading = (raw.annual_kwh || 0) * kwpPan;
 
-    const hourlyShade=Array.isArray(pan.shading_hourly)?pan.shading_hourly:null;
+    const hourlyShade = null; // Current certified global loss is applied exactly once to each monthly reference.
     const expectedMonthly = hourlyShade ? monthlyBeforeShading : monthlyBeforeShading.map(v=>v*multiplier);
     const hourlyReference=await getPvgisHourlyReference({latitude:site.lat,longitude:site.lon,azimuth,tilt,reference_year:settings.pv?.pvgis_reference_year??2020},{offline:opts.offline===true});
     const hourly=buildPanHourly({monthly_kwh:expectedMonthly,latitude:site.lat,longitude:site.lon,azimuth,tilt,calendar,pvgis_hourly:hourlyReference.hourly,shading_hourly:hourlyShade});
@@ -89,7 +87,7 @@ export async function computeProductionMultiPan(opts) {
     hourly.forEach((v,i)=>hourlySum[i]+=v);
 
     byPan.push({
-      panId,
+      panId, shadingLossPct: shadingPct, shadingApplied: hasGlobalShadingLoss,
       monthly_source:raw.source??'PVGIS_MONTHLY_AC',monthly_reference:raw.reference??null,
       hourly_data_hash:hourlyReference.data_hash??null,
       hourly_source:hourlyReference.source,
@@ -117,7 +115,7 @@ export async function computeProductionMultiPan(opts) {
   }
 
   return {
-    byPan,
+    byPan, shadingLossPct: hasGlobalShadingLoss ? globalShadingLossPct : null, shadingApplied: hasGlobalShadingLoss,
     annualKwh,
     monthlyKwh,
     hourly:bindCalendar(hourlySum,calendar),

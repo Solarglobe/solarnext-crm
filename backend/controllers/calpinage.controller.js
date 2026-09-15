@@ -1,3 +1,4 @@
+import { computeShadingInputFingerprint } from '../services/shading/shadingAssessment.service.js';
 import { computeOfficialShading } from '../services/calpinage/officialShading.service.js';
 /**
  * CP-1 — API Calpinage Persist
@@ -302,10 +303,6 @@ export async function upsertCalpinage(req, res) {
       }
     }
 
-    if (toSave.backendCommercialGeometry.officialNearShadingAllowed) {
-      toSave.shading = await computeOfficialShading({geometry:toSave,lat:toSave.gps.lat,lon:toSave.gps.lon});
-      totalLossPct = getOfficialGlobalShadingLossPct(toSave.shading);
-    }
     const row = await withPgRetryOnce(() =>
       withTx(pool, async (client) => {
         await lockCalpinageVersion(client, org, studyVersionId);
@@ -316,6 +313,19 @@ export async function upsertCalpinage(req, res) {
           [studyVersionId, org]
         );
         const existingGeometry = existingRes.rows[0]?.geometry_json ?? null;
+    const previousAssessment = existingGeometry?.shading?.assessment;
+    const shadingInputsChanged = previousAssessment?.geometryFingerprint && previousAssessment.geometryFingerprint !== computeShadingInputFingerprint({geometry:toSave});
+    if (toSave.backendCommercialGeometry.officialNearShadingAllowed && !shadingInputsChanged) {
+      try { toSave.shading = await computeOfficialShading({geometry:toSave,lat:toSave.gps.lat,lon:toSave.gps.lon}); }
+      catch (error) {
+        if (error.code !== 'SHADING_ATTESTATION_CONFIG_UNAVAILABLE') throw error;
+        toSave.shading = { assessment: {status:'insufficient_data',nearStatus:'insufficient_data',farStatus:'insufficient_data',reasons:['attestation_unavailable']}, totalLossPct:null };
+      }
+    }
+    if (shadingInputsChanged) toSave.shading = existingGeometry.shading;
+    toSave.shading = getNormalizedShadingFromGeometry(toSave).shading;
+    totalLossPct = getOfficialGlobalShadingLossPct(toSave.shading);
+
 
         const newHash = computeCalpinageGeometryHash(toSave);
         const existingHash = existingGeometry?.geometry_hash;

@@ -63,12 +63,11 @@ function recomputeLevel(blockingWarnings, assumptions) {
 
 export function migrateCalculationConfidence(cc) {
   if(!cc||typeof cc!=='object')return cc;
-  const original=Array.isArray(cc.blocking_warnings)?cc.blocking_warnings:[];
-  const notices=Array.isArray(cc.non_blocking_warnings)?cc.non_blocking_warnings:[];
-  const blocking=Array.from(new Set([...original.filter(w=>!NOW_NON_BLOCKING.has(String(w))),...shadingExportBlockers({assumptions:cc.assumptions??{}}).map(item=>item.code)]));
-  const nonBlocking=Array.from(new Set([...notices,...original.filter(w=>NOW_NON_BLOCKING.has(String(w)))]))
-    .filter(w=>!blocking.includes(w));
-  return {...cc,level:recomputeLevel(blocking,cc.assumptions),blocking_warnings:blocking,non_blocking_warnings:nonBlocking};
+  const isShading = code => String(code).startsWith('SHADING_') || String(code).startsWith('FAR_SHADING_');
+  const original = cc.blocking_warnings ?? [];
+  const blocking = original.filter(code => !NOW_NON_BLOCKING.has(code) && !isShading(code));
+  const notices = [...(cc.non_blocking_warnings ?? []), ...original.filter(code => !blocking.includes(code)), ...shadingExportBlockers({assumptions:cc.assumptions}).map(x=>x.code)];
+  return {...cc, level:recomputeLevel(blocking,cc.assumptions), blocking_warnings:blocking, non_blocking_warnings:[...new Set(notices)]};
 }
 
 export async function runConfidenceMigration() {
