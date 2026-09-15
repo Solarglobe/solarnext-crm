@@ -1,0 +1,222 @@
+{
+  "columns": [
+    {
+      "name": "id",
+      "type": "uuid",
+      "not_null": true,
+      "default_value": "gen_random_uuid()",
+      "generated": "",
+      "identity": ""
+    },
+    {
+      "name": "organization_id",
+      "type": "uuid",
+      "not_null": true,
+      "default_value": null,
+      "generated": "",
+      "identity": ""
+    },
+    {
+      "name": "name",
+      "type": "character varying(150)",
+      "not_null": true,
+      "default_value": null,
+      "generated": "",
+      "identity": ""
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp without time zone",
+      "not_null": true,
+      "default_value": "CURRENT_TIMESTAMP",
+      "generated": "",
+      "identity": ""
+    },
+    {
+      "name": "slug",
+      "type": "character varying(64)",
+      "not_null": true,
+      "default_value": null,
+      "generated": "",
+      "identity": ""
+    },
+    {
+      "name": "sort_order",
+      "type": "integer",
+      "not_null": true,
+      "default_value": "99",
+      "generated": "",
+      "identity": ""
+    }
+  ],
+  "constraints": [
+    {
+      "relation": "lead_sources",
+      "name": "lead_sources_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE",
+      "validated": true,
+      "deferrable": false,
+      "deferred": false
+    },
+    {
+      "relation": "lead_sources",
+      "name": "lead_sources_pkey",
+      "definition": "PRIMARY KEY (id)",
+      "validated": true,
+      "deferrable": false,
+      "deferred": false
+    },
+    {
+      "relation": "leads",
+      "name": "leads_source_id_fkey",
+      "definition": "FOREIGN KEY (source_id) REFERENCES lead_sources(id) ON DELETE SET NULL",
+      "validated": true,
+      "deferrable": false,
+      "deferred": false
+    }
+  ],
+  "indexes": [
+    {
+      "name": "lead_sources_organization_id_slug_uidx",
+      "definition": "CREATE UNIQUE INDEX lead_sources_organization_id_slug_uidx ON public.lead_sources USING btree (organization_id, slug)",
+      "valid": true,
+      "ready": true,
+      "is_unique": true,
+      "immediate": true
+    },
+    {
+      "name": "lead_sources_pkey",
+      "definition": "CREATE UNIQUE INDEX lead_sources_pkey ON public.lead_sources USING btree (id)",
+      "valid": true,
+      "ready": true,
+      "is_unique": true,
+      "immediate": true
+    }
+  ],
+  "triggers": [
+    {
+      "relation": "lead_sources",
+      "name": "trg_fill_lead_source_defaults",
+      "definition": "CREATE TRIGGER trg_fill_lead_source_defaults BEFORE INSERT OR UPDATE OF name, slug, sort_order ON public.lead_sources FOR EACH ROW EXECUTE FUNCTION sg_fill_lead_source_defaults()",
+      "enabled": "O"
+    },
+    {
+      "relation": "leads",
+      "name": "trg_fill_lead_source_id",
+      "definition": "CREATE TRIGGER trg_fill_lead_source_id BEFORE INSERT ON public.leads FOR EACH ROW EXECUTE FUNCTION sg_fill_lead_source_id()",
+      "enabled": "O"
+    }
+  ],
+  "functions": [
+    {
+      "name": "sg_fill_lead_source_defaults",
+      "definition": "CREATE OR REPLACE FUNCTION public.sg_fill_lead_source_defaults()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\n    BEGIN\n      IF NEW.slug IS NULL OR btrim(NEW.slug) = '' THEN\n        NEW.slug := sg_slugify_lead_source_name(NEW.name);\n      END IF;\n      IF NEW.sort_order IS NULL THEN\n        NEW.sort_order := 99;\n      END IF;\n      RETURN NEW;\n    END;\n    $function$\n"
+    },
+    {
+      "name": "sg_fill_lead_source_id",
+      "definition": "CREATE OR REPLACE FUNCTION public.sg_fill_lead_source_id()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\n    DECLARE\n      v_source_id uuid;\n    BEGIN\n      IF NEW.source_id IS NOT NULL THEN\n        RETURN NEW;\n      END IF;\n\n      INSERT INTO lead_sources (organization_id, name, slug, sort_order)\n      VALUES (NEW.organization_id, 'Autre', 'autre', 99)\n      ON CONFLICT (organization_id, slug)\n      DO UPDATE SET name = COALESCE(lead_sources.name, EXCLUDED.name)\n      RETURNING id INTO v_source_id;\n\n      NEW.source_id := v_source_id;\n      RETURN NEW;\n    END;\n    $function$\n"
+    },
+    {
+      "name": "sg_slugify_lead_source_name",
+      "definition": "CREATE OR REPLACE FUNCTION public.sg_slugify_lead_source_name(p_name text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE\nAS $function$\n      SELECT COALESCE(\n        NULLIF(\n          trim(both '_' from regexp_replace(lower(trim(COALESCE(p_name, 'autre'))), '[^a-z0-9]+', '_', 'g')),\n          ''\n        ),\n        'autre'\n      );\n    $function$\n"
+    }
+  ],
+  "column_reference": [
+    {
+      "name": "organization_id",
+      "type": "uuid",
+      "not_null": true
+    },
+    {
+      "name": "source_id",
+      "type": "uuid",
+      "not_null": true
+    }
+  ],
+  "metadata_triggers": [],
+  "metadata_columns": [
+    {
+      "relname": "migration_checksums",
+      "attname": "migration_name",
+      "type": "text",
+      "attnotnull": true,
+      "default_value": null
+    },
+    {
+      "relname": "migration_checksums",
+      "attname": "checksum",
+      "type": "text",
+      "attnotnull": true,
+      "default_value": null
+    },
+    {
+      "relname": "migration_checksums",
+      "attname": "created_at",
+      "type": "timestamp with time zone",
+      "attnotnull": false,
+      "default_value": "now()"
+    },
+    {
+      "relname": "migration_checksums",
+      "attname": "checksum_normalized",
+      "type": "text",
+      "attnotnull": false,
+      "default_value": null
+    },
+    {
+      "relname": "pgmigrations",
+      "attname": "id",
+      "type": "integer",
+      "attnotnull": true,
+      "default_value": "nextval('pgmigrations_id_seq'::regclass)"
+    },
+    {
+      "relname": "pgmigrations",
+      "attname": "name",
+      "type": "character varying(255)",
+      "attnotnull": true,
+      "default_value": null
+    },
+    {
+      "relname": "pgmigrations",
+      "attname": "run_on",
+      "type": "timestamp without time zone",
+      "attnotnull": true,
+      "default_value": null
+    }
+  ],
+  "metadata_constraints": [
+    {
+      "relation": "migration_checksums",
+      "conname": "migration_checksums_pkey",
+      "definition": "PRIMARY KEY (migration_name)",
+      "convalidated": true,
+      "condeferrable": false,
+      "condeferred": false
+    },
+    {
+      "relation": "pgmigrations",
+      "conname": "pgmigrations_pkey",
+      "definition": "PRIMARY KEY (id)",
+      "convalidated": true,
+      "condeferrable": false,
+      "condeferred": false
+    }
+  ],
+  "metadata_indexes": [
+    {
+      "relation": "migration_checksums",
+      "definition": "CREATE UNIQUE INDEX migration_checksums_pkey ON public.migration_checksums USING btree (migration_name)",
+      "indisvalid": true,
+      "indisready": true,
+      "indisunique": true
+    },
+    {
+      "relation": "pgmigrations",
+      "definition": "CREATE UNIQUE INDEX pgmigrations_pkey ON public.pgmigrations USING btree (id)",
+      "indisvalid": true,
+      "indisready": true,
+      "indisunique": true
+    }
+  ]
+}

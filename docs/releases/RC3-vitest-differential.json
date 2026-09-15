@@ -1,0 +1,1020 @@
+{
+  "base": {
+    "files": 293,
+    "failed_files": 44,
+    "tests": 1871,
+    "failed_tests": 47,
+    "passed_tests": 1824
+  },
+  "rc2": {
+    "files": 310,
+    "failed_files": 46,
+    "tests": 1956,
+    "failed_tests": 47,
+    "passed_tests": 1909
+  },
+  "same_node_and_dependency_bytes": true,
+  "failedFiles": [
+    {
+      "file": "calpinage/shading/__tests__/computeObjectZ.test.js",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/computeObjectZ.test.js",
+      "rc2_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/computeObjectZ.test.js",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "calpinage/shading/__tests__/getSunPositionAt-browser-contract.test.js",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/getSunPositionAt-browser-contract.test.js",
+      "rc2_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/getSunPositionAt-browser-contract.test.js",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "calpinage/shading/__tests__/horizonMaskSamplerFormats.test.js",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/horizonMaskSamplerFormats.test.js",
+      "rc2_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/horizonMaskSamplerFormats.test.js",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "calpinage/shading/__tests__/integrationShadingVolume.test.js",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/integrationShadingVolume.test.js",
+      "rc2_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/integrationShadingVolume.test.js",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "calpinage/shading/__tests__/nearShadingDormerV1.test.js",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/nearShadingDormerV1.test.js",
+      "rc2_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/nearShadingDormerV1.test.js",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "calpinage/shading/__tests__/nearShadingPolygonPx.test.js",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/nearShadingPolygonPx.test.js",
+      "rc2_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/nearShadingPolygonPx.test.js",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "calpinage/shading/__tests__/zBaseConsistency.test.js",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/zBaseConsistency.test.js",
+      "rc2_message": "No test suite found in file <ROOT>/frontend/calpinage/shading/__tests__/zBaseConsistency.test.js",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "src/components/study/__tests__/StudyPdfActions.test.tsx",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/design-system/__tests__/crmCompact.source.test.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": false
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/__tests__/prompt8ProductPipelineTruth.test.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/core/__tests__/roofClustering.test.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/Dev3DPage.test.tsx",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureBattery.integration.test.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureFamilies.integration.test.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureParity.integration.test.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/roofExtensions/__tests__/roofExtensionP3HipsValidation.test.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/modules/calpinage/geometry/__tests__/geoEntity3D.test.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "No test suite found in file <ROOT>/frontend/src/modules/calpinage/geometry/__tests__/geoEntity3D.test.ts",
+      "rc2_message": "No test suite found in file <ROOT>/frontend/src/modules/calpinage/geometry/__tests__/geoEntity3D.test.ts",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "src/modules/calpinage/hooks/__tests__/phase3LegacyValidateUi.test.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/modules/calpinage/store/__tests__/setMetersPerPixel.test.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/modules/calpinage/ui/__tests__/ConfirmDialog.test.tsx",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/modules/calpinage/ui/__tests__/ToastProvider.test.tsx",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/pages/mail/__tests__/MailPhase5.source.test.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": false
+    },
+    {
+      "file": "src/pages/settings/__tests__/SettingsHubPage.test.tsx",
+      "base_status": "passed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": false
+    },
+    {
+      "file": "src/pages/studies/__tests__/ScenariosPage.test.tsx",
+      "base_status": "passed",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "src/pages/studies/__tests__/StudyQuoteBuilder.test.tsx",
+      "base_status": "failed",
+      "rc2_status": "passed",
+      "base_message": "",
+      "rc2_message": "",
+      "launch_category": null,
+      "scope_sensitive": true
+    },
+    {
+      "file": "tests/dsm-overlay.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/e2e/calpinage-redirect-quote-builder.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/e2e/dp1-persist-reload.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/e2e/mail-phase6c.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/e2e/mail-phase7b-complete.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/e2e/mobile.regression.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.use() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.use() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/e2e/mobile.smoke.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/e2e/navigation-onboarding.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/e2e/pdf-preview.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/e2e/pdf-render-v2.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/e2e/smart-roof-drawing-recipe.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/stability/export-json.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/stability/navigation.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/stability/pans-panel-physics-ui.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/stability/performance.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/stability/stability.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test() to be called here.",
+      "rc2_message": "Playwright Test did not expect test() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/stability/stress-openclose.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/stability/switch-provider.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/visual/calpinage-real-path-stress.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/visual/calpinage-visual-regression.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": true,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/visual/roof-extension-v1-runtime.spec.ts",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "base_message": "Playwright Test did not expect test.describe() to be called here.",
+      "rc2_message": "Playwright Test did not expect test.describe() to be called here.",
+      "launch_category": 3,
+      "scope_sensitive": false,
+      "examination": "Suite appartenant à Node/tsx/Playwright; utiliser son lanceur propre. Inventaire Playwright 94 tests/19 fichiers; pas exécutés intégralement comme navigateur."
+    },
+    {
+      "file": "tests/vitePdfAssets.test.mjs",
+      "base_status": "absent",
+      "rc2_status": "failed",
+      "base_message": "",
+      "rc2_message": "Invariant violation: \"new TextEncoder().encode(\"\") instanceof Uint8Array\" is incorrectly false",
+      "launch_category": 2,
+      "scope_sensitive": true
+    }
+  ],
+  "assertions": [
+    {
+      "file": "src/components/study/__tests__/StudyPdfActions.test.tsx",
+      "test": " StudyPdfActions TEST 2 — affiche Voir / Télécharger / Régénérer quand PDF existant",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Fixture JWT localStorage alors que getAuthToken lit la mémoire; RC3 utilise setAuthToken.",
+      "base_error_first_line": "Unable to find an element with the text: /Dernière génération/. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.",
+      "rc2_error_first_line": "Unable to find an element with the text: /Dernière génération/. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible."
+    },
+    {
+      "file": "src/components/study/__tests__/StudyPdfActions.test.tsx",
+      "test": " StudyPdfActions TEST 3 — Générer appelle POST generate-pdf et rafraîchit",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Fixture JWT localStorage alors que getAuthToken lit la mémoire; RC3 utilise setAuthToken.",
+      "base_error_first_line": "expected undefined not to be undefined",
+      "rc2_error_first_line": "expected undefined not to be undefined"
+    },
+    {
+      "file": "src/components/study/__tests__/StudyPdfActions.test.tsx",
+      "test": " StudyPdfActions TEST 4 — Régénérer désactivé quand version verrouillée",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Fixture JWT localStorage alors que getAuthToken lit la mémoire; RC3 utilise setAuthToken.",
+      "base_error_first_line": "Unable to find role=\"button\" and name `/Régénérer/i`",
+      "rc2_error_first_line": "Unable to find role=\"button\" and name `/Régénérer/i`"
+    },
+    {
+      "file": "src/components/study/__tests__/StudyPdfActions.test.tsx",
+      "test": " StudyPdfActions TEST 5 — fetch documents study_version",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Fixture JWT localStorage alors que getAuthToken lit la mémoire; RC3 utilise setAuthToken.",
+      "base_error_first_line": "expected \"spy\" to be called with arguments: [ StringContaining{…}, Any<Object> ]",
+      "rc2_error_first_line": "expected \"spy\" to be called with arguments: [ StringContaining{…}, Any<Object> ]"
+    },
+    {
+      "file": "src/design-system/__tests__/crmCompact.source.test.ts",
+      "test": " crm compact source audit active le compactage CRM depuis AppLayout en excluant Mail, DP/Documents et Calpinage",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/layout/AppLayout.tsx'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/layout/AppLayout.tsx'"
+    },
+    {
+      "file": "src/design-system/__tests__/crmCompact.source.test.ts",
+      "test": " crm compact source audit charge la couche compacte apres les styles CRM de base",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/main.tsx'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/main.tsx'"
+    },
+    {
+      "file": "src/design-system/__tests__/crmCompact.source.test.ts",
+      "test": " crm compact source audit reduit les dimensions principales autour de 20 pourcent sans transform visuel",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/design-system/crm-compact.css'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/design-system/crm-compact.css'"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/__tests__/prompt8ProductPipelineTruth.test.ts",
+      "test": " PROMPT 8 — vérités produit (pipeline runtime → SolarScene3D) CAS D — panneaux valides moteur → binding officiel sur patches courants",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected 0 to be greater than 0",
+      "rc2_error_first_line": "expected 0 to be greater than 0"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/core/__tests__/roofClustering.test.ts",
+      "test": " clusterRoofPlanes — seuil exact angle exactement égal à ε → même cluster (≤)",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Seuil angulaire exact: arrondi acos peut dépasser epsilon. Défaut ancien à qualifier; aucun changement de tolérance dans RC3.",
+      "base_error_first_line": "expected [ …(2) ] to have a length of 1 but got 2",
+      "rc2_error_first_line": "expected [ …(2) ] to have a length of 1 but got 2"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/Dev3DPage.test.tsx",
+      "test": " Dev3DPage monte en mode demo avec header et canvas (import.meta.env.DEV)",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Ancien libellé de page de développement attendu; source et test identiques base/RC2.",
+      "base_error_first_line": "Unable to find an element with the text: /dev//3d/i. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.",
+      "rc2_error_first_line": "Unable to find an element with the text: /dev//3d/i. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible."
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureBattery.integration.test.ts",
+      "test": " runtime3DFixtureBattery — intégration chaîne canonical CAS 1 mono-pan nominal : build OK, scène, cohérence, compteurs attendus",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected +0 to be 2 // Object.is equality",
+      "rc2_error_first_line": "expected +0 to be 2 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureBattery.integration.test.ts",
+      "test": " runtime3DFixtureBattery — intégration chaîne canonical CAS 2 double pan + ridge : 2 patches, ridge 3D, panneaux sur les deux pans",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected +0 to be 2 // Object.is equality",
+      "rc2_error_first_line": "expected +0 to be 2 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureBattery.integration.test.ts",
+      "test": " runtime3DFixtureBattery — intégration chaîne canonical CAS 3 multi-pans L : scène construite, diagnostics lisibles, pas de crash",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected +0 to be 5 // Object.is equality",
+      "rc2_error_first_line": "expected +0 to be 5 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureBattery.integration.test.ts",
+      "test": " runtime3DFixtureBattery — intégration chaîne canonical CAS 5 tendu : chaîne OK, nombreux panneaux, obstacle présent, warnings tolérés",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected +0 to be 8 // Object.is equality",
+      "rc2_error_first_line": "expected +0 to be 8 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureFamilies.integration.test.ts",
+      "test": " runtime3DFixtureBattery — familles officielles dense_loaded_case — scène chargée stable (comptages forts)",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected +0 to be 14 // Object.is equality",
+      "rc2_error_first_line": "expected +0 to be 14 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureFamilies.integration.test.ts",
+      "test": " runtime3DFixtureBattery — familles officielles gable_with_chimney — obstacle présent + shading + inspection obstacle",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected +0 to be 4 // Object.is equality",
+      "rc2_error_first_line": "expected +0 to be 4 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureFamilies.integration.test.ts",
+      "test": " runtime3DFixtureBattery — familles officielles multi_pan_complex — 3 pans / dense / pas de shading runtime (fallback neutre)",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected +0 to be 5 // Object.is equality",
+      "rc2_error_first_line": "expected +0 to be 5 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureFamilies.integration.test.ts",
+      "test": " runtime3DFixtureBattery — familles officielles partial_degraded_like — données imparfaites mais build OK, shading partiel",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected +0 to be 4 // Object.is equality",
+      "rc2_error_first_line": "expected +0 to be 4 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureParity.integration.test.ts",
+      "test": " runtime3DFixtureParity — intégration fixture officielle dense_loaded_case : rapport complet + canonical OK",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected 14 to be +0 // Object.is equality",
+      "rc2_error_first_line": "expected 14 to be +0 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureParity.integration.test.ts",
+      "test": " runtime3DFixtureParity — intégration fixture officielle gable_with_chimney : rapport complet + canonical OK",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected 4 to be +0 // Object.is equality",
+      "rc2_error_first_line": "expected 4 to be +0 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureParity.integration.test.ts",
+      "test": " runtime3DFixtureParity — intégration fixture officielle multi_pan_complex : rapport complet + canonical OK",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected 5 to be +0 // Object.is equality",
+      "rc2_error_first_line": "expected 5 to be +0 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/dev/__tests__/runtime3DFixtureParity.integration.test.ts",
+      "test": " runtime3DFixtureParity — intégration fixture officielle partial_degraded_like : rapport complet + canonical OK",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Pipeline 3D refuse les panneaux: PV_REJECT_COMMERCIAL_GEOMETRY_INVALID / COMMERCIAL_ROOF_KIND_UNRESOLVED dans les fixtures diagnostiquées. Reste à qualifier avant production; aucun abaissement de garde.",
+      "base_error_first_line": "expected 4 to be +0 // Object.is equality",
+      "rc2_error_first_line": "expected 4 to be +0 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/roofExtensions/__tests__/roofExtensionP3HipsValidation.test.ts",
+      "test": " P3 hips-aware — validation complète (cas réels) apex au milieu du faîtage (position explicite)",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Sept divergences anciennes de maillage, hauteur et validation de lucarne. Géométrie non modifiée; validité métier non démontrée pour ces cas.",
+      "base_error_first_line": "expected false to be true // Object.is equality",
+      "rc2_error_first_line": "expected false to be true // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/roofExtensions/__tests__/roofExtensionP3HipsValidation.test.ts",
+      "test": " P3 hips-aware — validation complète (cas réels) apex proche de l'extrémité bas du faîtage (> 15 px des bouts pour éviter fusion apex/faîtage)",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Sept divergences anciennes de maillage, hauteur et validation de lucarne. Géométrie non modifiée; validité métier non démontrée pour ces cas.",
+      "base_error_first_line": "expected false to be true // Object.is equality",
+      "rc2_error_first_line": "expected false to be true // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/roofExtensions/__tests__/roofExtensionP3HipsValidation.test.ts",
+      "test": " P3 hips-aware — validation complète (cas réels) hauteur apex 0 m — tout adhère au pan (pas de jeu selon normale)",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Sept divergences anciennes de maillage, hauteur et validation de lucarne. Géométrie non modifiée; validité métier non démontrée pour ces cas.",
+      "base_error_first_line": "expected true to be false // Object.is equality",
+      "rc2_error_first_line": "expected true to be false // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/roofExtensions/__tests__/roofExtensionP3HipsValidation.test.ts",
+      "test": " P3 hips-aware — validation complète (cas réels) hauteur apex 1 m — ridge et apex à distance 1 selon normale",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Sept divergences anciennes de maillage, hauteur et validation de lucarne. Géométrie non modifiée; validité métier non démontrée pour ces cas.",
+      "base_error_first_line": "expected false to be true // Object.is equality",
+      "rc2_error_first_line": "expected false to be true // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/roofExtensions/__tests__/roofExtensionP3HipsValidation.test.ts",
+      "test": " P3 hips-aware — validation complète (cas réels) pan support incliné 30° — hauteur mesurée selon la normale du pan",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Sept divergences anciennes de maillage, hauteur et validation de lucarne. Géométrie non modifiée; validité métier non démontrée pour ces cas.",
+      "base_error_first_line": "expected false to be true // Object.is equality",
+      "rc2_error_first_line": "expected false to be true // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/roofExtensions/__tests__/roofExtensionP3HipsValidation.test.ts",
+      "test": " P3 hips-aware — validation complète (cas réels) rectangle chien assis, apex vers le milieu du faîtage, pan horizontal, apex 1 m",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Sept divergences anciennes de maillage, hauteur et validation de lucarne. Géométrie non modifiée; validité métier non démontrée pour ces cas.",
+      "base_error_first_line": "expected false to be true // Object.is equality",
+      "rc2_error_first_line": "expected false to be true // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/canonical3d/roofExtensions/__tests__/roofExtensionP3HipsValidation.test.ts",
+      "test": " P3 hips-aware — validation complète (cas réels) trapèze, apex milieu faîtage, pan horizontal, apex 1 m",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 1,
+      "examination": "Sept divergences anciennes de maillage, hauteur et validation de lucarne. Géométrie non modifiée; validité métier non démontrée pour ces cas.",
+      "base_error_first_line": "expected false to be true // Object.is equality",
+      "rc2_error_first_line": "expected false to be true // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/hooks/__tests__/phase3LegacyValidateUi.test.ts",
+      "test": " phase3LegacyValidateUi computeLegacyPhase3CanValidate — ok si toutes les conditions legacy",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Fixture injecte window.pvPlacementEngine, mais le prédicat lit getCalpinageRuntime().getPlacementEngine(). Garde non contournée.",
+      "base_error_first_line": "expected false to be true // Object.is equality",
+      "rc2_error_first_line": "expected false to be true // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/store/__tests__/setMetersPerPixel.test.ts",
+      "test": " simulation resize debounce 300ms resize rapide puis silence : une seule mise à jour store (pas N)",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Test utilise subscribe(selector,listener) sans middleware subscribeWithSelector du store; le compteur espion ne reçoit pas les notifications attendues.",
+      "base_error_first_line": "expected +0 to be 1 // Object.is equality",
+      "rc2_error_first_line": "expected +0 to be 1 // Object.is equality"
+    },
+    {
+      "file": "src/modules/calpinage/ui/__tests__/ConfirmDialog.test.tsx",
+      "test": " ConfirmDialog affiche le dialog quand open=true",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Libellé attendu inclut ancien pictogramme; composant et test identiques base/RC2.",
+      "base_error_first_line": "Unable to find an element with the text: ⚠️ Action importante. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.",
+      "rc2_error_first_line": "Unable to find an element with the text: ⚠️ Action importante. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible."
+    },
+    {
+      "file": "src/modules/calpinage/ui/__tests__/ToastProvider.test.tsx",
+      "test": " ToastProvider swipe gauche > 80 px → dismiss le toast",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "PointerEvent/setPointerCapture absents de jsdom. Fixture réaliste corrigée; elle révèle aussi le swipe droite effaçant à tort la notification, corrigé.",
+      "base_error_first_line": "expect(element).not.toBeInTheDocument()",
+      "rc2_error_first_line": "expect(element).not.toBeInTheDocument()"
+    },
+    {
+      "file": "src/pages/mail/__tests__/MailPhase5.source.test.ts",
+      "test": " mail phase 5 source audit AppLayout centralise le badge global non lu sur l'entrée Mail",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/layout/AppLayout.tsx'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/layout/AppLayout.tsx'"
+    },
+    {
+      "file": "src/pages/mail/__tests__/MailPhase5.source.test.ts",
+      "test": " mail phase 5 source audit MailInboxPage conserve recherche, filtres, tri et conversation dans l'URL",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/MailInboxPage.tsx'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/MailInboxPage.tsx'"
+    },
+    {
+      "file": "src/pages/mail/__tests__/MailPhase5.source.test.ts",
+      "test": " mail phase 5 source audit Phase 5B expose filtres avances et raccourcis proteges",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/MailInboxPage.tsx'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/MailInboxPage.tsx'"
+    },
+    {
+      "file": "src/pages/mail/__tests__/MailPhase5.source.test.ts",
+      "test": " mail phase 5 source audit la lecture mail affiche le HTML sans mini iframe scrollable",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/MailThreadMessage.tsx'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/MailThreadMessage.tsx'"
+    },
+    {
+      "file": "src/pages/mail/__tests__/MailPhase5.source.test.ts",
+      "test": " mail phase 5 source audit la lecture mail affiche les images distantes des messages sortants sans bannière",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/MailThreadMessage.tsx'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/MailThreadMessage.tsx'"
+    },
+    {
+      "file": "src/pages/mail/__tests__/MailPhase5.source.test.ts",
+      "test": " mail phase 5 source audit le CSS définit les breakpoints desktop, tablette et mobile",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/mail-inbox.css'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/mail-inbox.css'"
+    },
+    {
+      "file": "src/pages/mail/__tests__/MailPhase5.source.test.ts",
+      "test": " mail phase 5 source audit le composer n'affiche pas une prévisualisation de signature séparée du message",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/MailComposer.tsx'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/MailComposer.tsx'"
+    },
+    {
+      "file": "src/pages/mail/__tests__/MailPhase5.source.test.ts",
+      "test": " mail phase 5 source audit le composer remplace l'ancienne signature SolarGlobe fragile avant injection",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/mailSignatureHtml.ts'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/mailSignatureHtml.ts'"
+    },
+    {
+      "file": "src/pages/mail/__tests__/MailPhase5.source.test.ts",
+      "test": " mail phase 5 source audit le modèle de signature pro reste compatible clients mail",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/mailHtmlEditorConstants.ts'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/mailHtmlEditorConstants.ts'"
+    },
+    {
+      "file": "src/pages/mail/__tests__/MailPhase5.source.test.ts",
+      "test": " mail phase 5 source audit les images distantes bloquées ne créent pas de grands rectangles vides",
+      "base_status": "failed",
+      "rc2_status": "failed",
+      "differential": 1,
+      "category": 3,
+      "examination": "Chemin process.cwd/frontend résolu en frontend/frontend; ancrage au fichier corrigé.",
+      "base_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/mail-inbox.css'",
+      "rc2_error_first_line": "ENOENT: no such file or directory, open '<ROOT>/frontend/frontend/src/pages/mail/mail-inbox.css'"
+    },
+    {
+      "file": "src/pages/settings/__tests__/SettingsHubPage.test.tsx",
+      "test": " SettingsHubPage security and audit discovery garde les liens de securite et audit fonctionnels",
+      "base_status": "passed",
+      "rc2_status": "failed",
+      "differential": 2,
+      "category": 3,
+      "examination": "Timeouts 5 s sous charge globale; les deux versions passent seules sans modification du test.",
+      "base_error_first_line": "",
+      "rc2_error_first_line": "Test timed out in 5000ms."
+    },
+    {
+      "file": "src/pages/settings/__tests__/SettingsHubPage.test.tsx",
+      "test": " SettingsHubPage security and audit discovery rend Journal d'audit visible pour un admin organisation",
+      "base_status": "passed",
+      "rc2_status": "failed",
+      "differential": 2,
+      "category": 3,
+      "examination": "Timeouts 5 s sous charge globale; les deux versions passent seules sans modification du test.",
+      "base_error_first_line": "",
+      "rc2_error_first_line": "Test timed out in 5000ms."
+    },
+    {
+      "file": "src/pages/settings/__tests__/SettingsHubPage.test.tsx",
+      "test": " SettingsHubPage security and audit discovery rend Securite visible pour un admin organisation",
+      "base_status": "passed",
+      "rc2_status": "failed",
+      "differential": 2,
+      "category": 3,
+      "examination": "Timeouts 5 s sous charge globale; les deux versions passent seules sans modification du test.",
+      "base_error_first_line": "",
+      "rc2_error_first_line": "Test timed out in 5000ms."
+    },
+    {
+      "file": "src/pages/studies/__tests__/ScenariosPage.test.tsx",
+      "test": " ScenariosPage snapshot périmé (V12 vs moteur V13) → bandeau needs_recompute + cartes non valides + recalcul",
+      "base_status": "passed",
+      "rc2_status": "failed",
+      "differential": 2,
+      "category": 3,
+      "examination": "Ancienne attente du bandeau et faux Response incomplet; assertions RC3 sur conservation historique, export bloqué puis recalcul.",
+      "base_error_first_line": "",
+      "rc2_error_first_line": "Unable to find an element with the text: Snapshot périmé — recalcul requis. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible."
+    }
+  ],
+  "fixed_from_base": [
+    {
+      "file": "src/pages/studies/__tests__/StudyQuoteBuilder.test.tsx",
+      "test": " StudyQuoteBuilder affiche Résumé technique et Matériel principal",
+      "base_status": "failed",
+      "rc2_status": "passed",
+      "reason": "Fixture authentication already corrected in RC1"
+    },
+    {
+      "file": "src/pages/studies/__tests__/StudyQuoteBuilder.test.tsx",
+      "test": " StudyQuoteBuilder affiche erreur si quote-prep 404 (aucun calpinage pour cette version)",
+      "base_status": "failed",
+      "rc2_status": "passed",
+      "reason": "Fixture authentication already corrected in RC1"
+    },
+    {
+      "file": "src/pages/studies/__tests__/StudyQuoteBuilder.test.tsx",
+      "test": " StudyQuoteBuilder affiche le titre Préparation du devis technique après chargement",
+      "base_status": "failed",
+      "rc2_status": "passed",
+      "reason": "Fixture authentication already corrected in RC1"
+    },
+    {
+      "file": "src/pages/studies/__tests__/StudyQuoteBuilder.test.tsx",
+      "test": " StudyQuoteBuilder affiche marque/modèle panneaux et onduleurs quand technical_snapshot_summary les fournit",
+      "base_status": "failed",
+      "rc2_status": "passed",
+      "reason": "Fixture authentication already corrected in RC1"
+    }
+  ]
+}

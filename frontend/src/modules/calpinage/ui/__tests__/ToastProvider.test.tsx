@@ -8,7 +8,7 @@
  *   - swipe-to-dismiss gauche (seuil 80 px via Pointer Events)
  *   - reset si swipe < 80 px
  */
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
 import { ToastProvider, useToast } from "../ToastProvider";
 
@@ -35,9 +35,22 @@ function fireSwipe(element: Element, startX: number, endX: number) {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("ToastProvider", () => {
+  const captureDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "setPointerCapture");
   beforeEach(() => {
+    // jsdom ne fournit ni PointerEvent ni la capture, contrairement au navigateur.
+    class FixturePointerEvent extends MouseEvent {
+      readonly pointerId: number;
+      constructor(type: string, init: PointerEventInit = {}) { super(type, init); this.pointerId = init.pointerId ?? 0; }
+    }
+    vi.stubGlobal("PointerEvent", FixturePointerEvent);
+    Object.defineProperty(HTMLElement.prototype, "setPointerCapture", { configurable: true, value: vi.fn() });
     delete (window as any).calpinageToast;
     delete (window as any).showToast;
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (captureDescriptor) Object.defineProperty(HTMLElement.prototype, "setPointerCapture", captureDescriptor);
+    else Reflect.deleteProperty(HTMLElement.prototype, "setPointerCapture");
   });
 
   // ── Exposition globale ────────────────────────────────────────────────────

@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import StudyPdfActions from "../StudyPdfActions";
+import { setAuthToken } from "../../../services/api";
 
 describe("StudyPdfActions", () => {
   const mockStudyId = "study-123";
@@ -17,6 +18,8 @@ describe("StudyPdfActions", () => {
       setItem: vi.fn(),
       removeItem: vi.fn(),
     });
+    // L'application conserve désormais la session en mémoire, jamais dans localStorage.
+    setAuthToken("fixture-study-pdf-token");
   });
 
   it("TEST 1 — affiche Générer le PDF quand aucun document", async () => {

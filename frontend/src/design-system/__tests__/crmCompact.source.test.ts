@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const root = path.resolve(process.cwd(), "frontend");
+const root = path.resolve(import.meta.dirname, "../../..");
 const read = (rel: string) => fs.readFileSync(path.join(root, rel), "utf8");
 
 describe("crm compact source audit", () => {

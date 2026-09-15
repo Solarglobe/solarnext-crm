@@ -398,6 +398,12 @@ export default defineConfig(({ mode }) => {
     include: ["clipper-lib"],
   },
   test: {
+    // Tests unitaires React/TS uniquement. Les suites node:test et Playwright
+    // conservent leurs lanceurs dédiés (package.json), sans perdre leurs assertions.
+    include: ["src/**/*.{test,spec}.{ts,tsx,js,jsx}", "calpinage/engine/**/*.{test,spec}.{ts,tsx,js,jsx}"],
+    exclude: ["src/modules/calpinage/geometry/__tests__/geoEntity3D.test.ts"],
+    maxWorkers: 4,
+    minWorkers: 1,
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],

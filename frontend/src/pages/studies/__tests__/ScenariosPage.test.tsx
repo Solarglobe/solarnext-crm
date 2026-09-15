@@ -52,11 +52,7 @@ describe("ScenariosPage", () => {
         return Promise.resolve(pdfFromScenarioRes as Response);
       }
       if (url.includes("/documents/") && url.includes("/download")) {
-        return Promise.resolve({
-          ok: true,
-          blob: async () => new Blob(["%PDF-1.4"], { type: "application/pdf" }),
-          text: async () => "",
-        } as Response);
+        return Promise.resolve(new Response("%PDF-1.4", { headers: { "Content-Type": "application/pdf" } }));
       }
       if (url.includes("/versions/") && url.includes("/scenarios") && !url.includes("generate-pdf-from-scenario")) {
         return Promise.resolve(scenariosRes as Response);
@@ -109,6 +105,7 @@ describe("ScenariosPage", () => {
       expect(genCall).toBeDefined();
       const downloadCall = calls.find((c) => typeof c[0] === "string" && (c[0] as string).includes("/documents/doc-1/download"));
       expect(downloadCall).toBeDefined();
+      expect(URL.createObjectURL).toHaveBeenCalled();
       expect(screen.getByText("Comparaison des solutions")).toBeInTheDocument();
     });
   });
@@ -169,7 +166,7 @@ describe("ScenariosPage", () => {
       { timeout: 4000 }
     );
   });
-  it("snapshot périmé (V12 vs moteur V13) → bandeau needs_recompute + cartes non valides + recalcul", async () => {
+  it("ancien calcul lisible, export interdit jusqu'au recalcul puis sélection possible", async () => {
     let recomputed = false;
     const staleBody = {
       ok: true,
@@ -203,10 +200,11 @@ describe("ScenariosPage", () => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.includes("/versions/") && url.includes("/calc")) {
         recomputed = true;
-        return Promise.resolve({ ok: true, json: async () => ({ ok: true }) } as Response);
+        expect(init?.method).toBe("POST");
+        return Promise.resolve(new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } }));
       }
       if (url.includes("/versions/") && url.includes("/scenarios")) {
-        return Promise.resolve({ ok: true, json: async () => (recomputed ? freshBody : staleBody) } as unknown as Response);
+        return Promise.resolve(new Response(JSON.stringify(recomputed ? freshBody : staleBody), { headers: { "Content-Type": "application/json" } }));
       }
       if (url.includes(`/api/studies/${mockStudyId}`) && !url.includes("/versions")) {
         return Promise.resolve(studyPayload as Response);
@@ -225,7 +223,7 @@ describe("ScenariosPage", () => {
     // 1) Bandeau de péremption affiché
     await waitFor(() => {
       expect(
-        screen.getByText("Snapshot périmé — recalcul requis")
+        screen.getByText("Données modifiées — recalcul nécessaire")
       ).toBeInTheDocument();
     });
     // 2) Bouton de recalcul présent
@@ -234,6 +232,12 @@ describe("ScenariosPage", () => {
     // 3) Anciennes cartes marquées non valides (conteneur périmé, désactivé)
     const staleWrap = screen.getByTestId("scenarios-stale");
     expect(staleWrap).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText(/Résultats historiques conservés/)).toBeVisible();
+    const choose = screen.getByRole("button", { name: "Choisir sans stockage" });
+    expect(choose).toBeDisabled();
+    fireEvent.click(choose);
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url]) => String(url).includes("generate-pdf"))).toBe(false);
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url]) => String(url).includes("/history"))).toBe(false);
 
     // 4) Recalcul → POST /calc puis rechargement → bandeau disparaît
     fireEvent.click(recomputeBtn);
@@ -242,10 +246,11 @@ describe("ScenariosPage", () => {
     });
     await waitFor(() => {
       expect(
-        screen.queryByText("Snapshot périmé — recalcul requis")
+        screen.queryByText("Données modifiées — recalcul nécessaire")
       ).not.toBeInTheDocument();
     });
     expect(screen.queryByTestId("scenarios-stale")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choisir sans stockage" })).toBeEnabled();
   });
 
 });

@@ -7,6 +7,17 @@ import {computeInstallerInstallationCost} from '@/services/installers.service';
 vi.mock('@/services/installers.service',()=>({listInstallers:vi.fn(async()=>[{id:'ohelec',name:'OHELEC'}]),computeInstallerInstallationCost:vi.fn(async(_id,payload)=>({installer:{id:'ohelec',name:'OHELEC'},tariff_version:{version_label:'Test'},requested_power_wc:9000,matched_power_wc:9000,installation_type:'ROOF_SUPERIMPOSED',electrical_type:payload.electrical_type,base_amount_ht_cents:260000,final_total_ht_cents:payload.electrical_type==='TRI'?285000:260000,final_total_vat_cents:payload.electrical_type==='TRI'?57000:52000,final_total_ttc_cents:payload.electrical_type==='TRI'?342000:312000,options:[],electrical_adjustments:payload.electrical_type==='TRI'?[{code:'TRI',label:'Supplément triphasé',amount_ht_cents:25000}]:[],calculated_at:new Date().toISOString()}))}));
 describe('phase détectée et choix technique',()=>{
   beforeEach(()=>{vi.mocked(computeInstallerInstallationCost).mockClear();});
+  it('restaure le choix enregistré sans coût installateur, puis invalide la confirmation si le compteur change',async()=>{
+    const decision=vi.fn();
+    const props={projectPowerWc:9000,locked:false,onPersisted:()=>{},onPhaseDecision:decision,autoCompute:false,saveToQuotePrep:false,phaseDecision:{detected_phase:'TRI' as const,retained_phase:'MONO' as const,difference_confirmed:true}};
+    const view=render(<InstallerPanel {...props} detectedPhase="TRI" value={null}/>);
+    expect(screen.getByRole('combobox',{name:'Électrique'})).toHaveValue('MONO');
+    expect(screen.getByRole('checkbox',{name:/Je confirme la phase/})).toBeChecked();
+    expect(decision).toHaveBeenLastCalledWith({detected_phase:'TRI',retained_phase:'MONO',difference_confirmed:true});
+    expect(computeInstallerInstallationCost).not.toHaveBeenCalled();
+    view.rerender(<InstallerPanel {...props} detectedPhase="MONO" value={null}/>);
+    await waitFor(()=>expect(decision).toHaveBeenLastCalledWith({detected_phase:'MONO',retained_phase:'MONO',difference_confirmed:false}));
+  });
   it('ne transforme pas la détection en choix et transmet TRI seulement après choix explicite',async()=>{
     const saved=vi.fn();render(<InstallerPanel detectedPhase="TRI" projectPowerWc={9000} locked={false} onPersisted={saved} autoCompute={false} saveToQuotePrep={false}/>);
     const select=screen.getByRole('combobox',{name:'Électrique'});expect(select).toHaveValue('');

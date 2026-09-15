@@ -91,7 +91,7 @@ function SwipeableToast({
     const deltaX = e.clientX - startXRef.current;
     startXRef.current = null;
 
-    if (Math.abs(deltaX) > 80) {
+    if (deltaX < -80) {
       // Seuil dépassé → dismiss
       onDismiss(item.id);
     } else {

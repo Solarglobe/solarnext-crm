@@ -161,8 +161,11 @@ export default function InstallerQuotePrepPanel({
   const [installers, setInstallers] = useState<InstallerListRow[]>([]);
   const [installerId, setInstallerId] = useState(value?.installer?.id ?? "");
   const [installationType, setInstallationType] = useState<InstallationType>(value?.installation_type ?? "ROOF_SUPERIMPOSED");
-  const [electricalType, setElectricalType] = useState<ElectricalType|"">(value?.electrical_type ?? "");
-  const [phaseConfirmed,setPhaseConfirmed]=useState(phaseDecision?.difference_confirmed===true && phaseDecision?.detected_phase===detectedPhase && phaseDecision?.retained_phase===value?.electrical_type);
+  // Une décision déjà enregistrée existe même sans chiffrage installateur.
+  // La détection seule ne constitue toujours pas une décision du technicien.
+  const retainedPhase = phaseDecision?.retained_phase ?? value?.electrical_type ?? "";
+  const [electricalType, setElectricalType] = useState<ElectricalType|"">(retainedPhase);
+  const [phaseConfirmed,setPhaseConfirmed]=useState(phaseDecision?.difference_confirmed===true && phaseDecision?.detected_phase===detectedPhase && phaseDecision?.retained_phase===retainedPhase);
   const phaseCallbackRef=useRef(onPhaseDecision);
   phaseCallbackRef.current=onPhaseDecision;
   useEffect(()=>{phaseCallbackRef.current?.({detected_phase:detectedPhase,retained_phase:electricalType||null,difference_confirmed:phaseConfirmed});},[detectedPhase,electricalType,phaseConfirmed]);
@@ -210,7 +213,7 @@ export default function InstallerQuotePrepPanel({
       setResult(value);
       setInstallerId(value.installer?.id ?? "");
       setInstallationType(value.installation_type);
-      setElectricalType(value.electrical_type);
+      setElectricalType(phaseDecision?.retained_phase ?? value.electrical_type);
       setSelectedOptions(value.options?.map((o) => o.code) ?? []);
     }
   }, [value?.calculated_at]);
