@@ -451,6 +451,10 @@ export function mapScenarioToV2(scenario, ctx) {
 
   const shadingSrc = ctx?.shading ?? ctx?.form?.installation?.shading ?? {};
   const shading = {
+    combinedAnalysis: shadingSrc.combinedAnalysis === true,
+    resultHash: shadingSrc.resultHash ?? null,
+    energyReference: shadingSrc.energyReference ?? null,
+    perPanel: shadingSrc.perPanel ?? [],
     shadingIncluded: shadingSrc.shadingIncluded === true,
     shadingApplied: shadingSrc.shadingApplied === true,
     shadingLossPct: shadingSrc.shadingLossPct ?? null,

@@ -1,3 +1,4 @@
+import {ensureSavedShading,shadingResumeKey,shadingKey} from '../services/shadingWorkflow';
 /**
  * CP-014 — Overlay Calpinage intégré au CRM (React)
  * Affiche le composant natif CalpinageApp (plus d'iframe) avec :
@@ -374,14 +375,14 @@ export default function CalpinageOverlay({
           console.log("data keys", data && typeof data === "object" ? Object.keys(data as object) : []);
           console.groupEnd();
         }
-        const d = data as { geometry_json?: unknown; calpinage_data?: unknown };
+        const d = data as { geometry_json?: unknown; calpinage_data?: unknown; skipShading?: boolean };
         let geom = d?.geometry_json ?? d?.calpinage_data;
         if (!geom || typeof geom !== "object") {
           if (debugValidate) console.groupCollapsed("[VALIDATE] catch"); console.error("[VALIDATE] invalid data", typeof geom); if (debugValidate) console.groupEnd();
           showToast("Données calpinage invalides", false);
           return;
         }
-        /* RÈGLE PRODUIT : pas de recalcul shading. On réutilise geom.shading ou CALPINAGE_STATE.shading.normalized ; sinon shading: null et on valide quand même. */
+        /* Preserve legacy geometry fields; the server-owned global analysis is resolved after saving. */
         const geomShading = (geom as Record<string, unknown>).shading;
         const stateNormalized =
           typeof window !== "undefined" && (window as unknown as { CALPINAGE_STATE?: { shading?: { normalized?: unknown } } }).CALPINAGE_STATE?.shading?.normalized;
@@ -406,6 +407,9 @@ export default function CalpinageOverlay({
           return;
         }
         if (debugValidate) console.log("[VALIDATE] saveToBackend end (status 200/201)");
+
+        sessionStorage.setItem(shadingResumeKey(studyId,versionId),'pending');
+        if (!d.skipShading) await ensureSavedShading(studyId,versionId);
 
         /* 2. Capture canvas de dessin calpinage (pas la carte — requis pour le PDF) */
         // VALIDATE-3D-FIX : garantir la vue plan (canvas 2D visible) avant la capture snapshot.
@@ -483,6 +487,7 @@ export default function CalpinageOverlay({
           console.log("[CALPINAGE] validated → redirect devis", { target });
         }
         if (debugValidate) console.log("[VALIDATE] redirect target", target);
+        sessionStorage.removeItem(shadingResumeKey(studyId,versionId));
         navigate(target);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Erreur validation snapshot";
@@ -509,6 +514,24 @@ export default function CalpinageOverlay({
     },
     [saveToBackend, studyId, versionId, studyVersionId, navigate]
   );
+
+  useEffect(() => {
+    const resume=(skipShading=false)=>{
+      if(isValidatingRef.current)return false;
+      const saved=(window as Window & {getCalpinageGeometryForPersist?:()=>{geometry_json?:unknown}|null}).getCalpinageGeometryForPersist?.();
+      if(!saved?.geometry_json)return false;
+      const g=saved.geometry_json as {frozenBlocks?:{panels?:unknown[]}[]};
+      if(!g.frozenBlocks?.some(b=>b.panels?.length))return false;
+      void handleValidate({geometry_json:saved.geometry_json,skipShading});return true;
+    };
+    const continueWithout=(event:Event)=>{if((event as CustomEvent).detail?.key===shadingKey(studyId,versionId))resume(true);};
+    const completed=(event:Event)=>{if((event as CustomEvent).detail?.key===shadingKey(studyId,versionId)&&sessionStorage.getItem(shadingResumeKey(studyId,versionId)))resume();};
+    window.addEventListener('shading:complete',completed);
+    window.addEventListener('shading:continue',continueWithout);
+    let timer:ReturnType<typeof setInterval>|undefined;
+    if(sessionStorage.getItem(shadingResumeKey(studyId,versionId)))timer=setInterval(()=>{if(resume())clearInterval(timer);},500);
+    return()=>{clearInterval(timer);window.removeEventListener('shading:continue',continueWithout);window.removeEventListener('shading:complete',completed);};
+  },[studyId,versionId,handleValidate]);
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isValidatingRef.current) return;

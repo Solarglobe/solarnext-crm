@@ -32,6 +32,7 @@ export async function computeProductionMultiPan(opts) {
     && Number.isFinite(opts.globalShadingLossPct) && opts.globalShadingLossPct >= 0 && opts.globalShadingLossPct <= 100
     ? opts.globalShadingLossPct : null;
   const hasGlobalShadingLoss = globalShadingLossPct !== null;
+  const monthlyShade=hasGlobalShadingLoss&&Array.isArray(opts.shadingMonthlyFactors)&&opts.shadingMonthlyFactors.length===12&&opts.shadingMonthlyFactors.every(v=>Number.isFinite(v)&&v>=0&&v<=1)?opts.shadingMonthlyFactors:null;
 
   if (!Array.isArray(pans) || pans.length === 0) {
     const empty12 = Array(12).fill(0);
@@ -79,7 +80,7 @@ export async function computeProductionMultiPan(opts) {
     const annualBeforeShading = (raw.annual_kwh || 0) * kwpPan;
 
     const hourlyShade = null; // Current certified global loss is applied exactly once to each monthly reference.
-    const expectedMonthly = hourlyShade ? monthlyBeforeShading : monthlyBeforeShading.map(v=>v*multiplier);
+    const expectedMonthly = hourlyShade ? monthlyBeforeShading : monthlyBeforeShading.map((v,i)=>v*(monthlyShade?monthlyShade[i]:multiplier));
     const hourlyReference=await getPvgisHourlyReference({latitude:site.lat,longitude:site.lon,azimuth,tilt,reference_year:settings.pv?.pvgis_reference_year??2020},{offline:opts.offline===true});
     const hourly=buildPanHourly({monthly_kwh:expectedMonthly,latitude:site.lat,longitude:site.lon,azimuth,tilt,calendar,pvgis_hourly:hourlyReference.hourly,shading_hourly:hourlyShade});
     const monthlyKwh=monthlySums(hourly,calendar);

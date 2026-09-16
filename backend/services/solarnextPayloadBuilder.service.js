@@ -1,3 +1,4 @@
+import {savedStudyShading} from './shading/trees/studyResult.js';
 /**
  * CP-3 — SolarNext Payload Builder
  * Construit solarnext_payload depuis DB (Study, Lead, Calpinage, Org params)
@@ -324,7 +325,8 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
 
   const totalPanels = calpinage.total_panels ?? geometry.panels?.count ?? 0;
   // Energy calculation consumes a current server assessment; it never launches a local shading survey.
-  let shading = getNormalizedShadingFromGeometry(geometry).shading;
+  const savedAnalysis=await savedStudyShading(orgId,version.id,geometry);
+  let shading = savedAnalysis.managed?savedAnalysis.shading:getNormalizedShadingFromGeometry(geometry).shading;
   const shadingState = getStudyShadingState({ shading });
   const shadingResult = { assessment: shading.assessment, totalLossPct: shadingState.shadingLossPct,
     perPanelBreakdown: shadingState.shadingIncluded ? shading.perPanel ?? [] : [],
@@ -1095,6 +1097,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       reseau_type: (energyLead.grid_type || "mono").toLowerCase() === "tri" ? "tri" : "mono",
       ...shadingState,
       shading_loss_pct: shadingLossPct,
+      shading_monthly_factors: savedAnalysis.result?.energyReference?.additionalMonthlyFactors ?? null,
       shading,
       roof_pans: roofPans,
     },

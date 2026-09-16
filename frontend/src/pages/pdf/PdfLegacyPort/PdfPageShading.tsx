@@ -101,6 +101,7 @@ export default function PdfPageShading({
 
   const shading = { assessment: ps.assessment, near: { totalLossPct: ps.nearLossPct }, far: { totalLossPct: ps.farLossPct }, combined: { totalLossPct: ps.combinedLossPct } };
   const assessment = getShadingAssessment(shading);
+  if (assessment.geometryContractVersion === 'combined-shading-v1') return null; // The same saved global report is appended server-side once.
   const complete = assessment.status === "computed";
   const meta               = ps.meta ?? {};
   const prodNoShading      = ps.prodNoShadingKwh   ?? null;

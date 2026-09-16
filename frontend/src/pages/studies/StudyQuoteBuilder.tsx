@@ -1572,7 +1572,7 @@ export default function StudyQuoteBuilder() {
         <section className="sqb-section sqb-section--technical-summary">
           <h2 className="sqb-h2 sqb-h2--technical-summary">Résumé technique</h2>
           <QuoteTechnicalSummary payload={activeSnapshotPayload} />
-          {treeResult && <p><strong>Ombrage des arbres : {(treeResult.uncertainty?.central ?? treeResult.lossPercent).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} %</strong> de perte annuelle liée aux arbres.</p>}
+          {treeResult && <p><strong>Analyse d’ombrage : {(treeResult.uncertainty?.central ?? treeResult.lossPercent).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} %</strong> de perte annuelle globale.</p>}
           {/* LOT D — matériel de pose toit plat (informatif, snapshot Lot A) */}
           <QuoteFlatRoofMounting mounting={activeSnapshotPayload?.flat_roof_mounting} />
         </section>

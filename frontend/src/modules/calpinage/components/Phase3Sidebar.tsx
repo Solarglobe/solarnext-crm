@@ -17,12 +17,6 @@ import {
   type Phase3ValidateBlockingReason,
 } from "../hooks/phase3LegacyValidateUi";
 import { Phase3ChecklistPanel } from "../Phase3ChecklistPanel";
-import { createDsmOverlayManager } from "../dsmOverlay";
-import "../dsmOverlay/dsmOverlay.css";
-import { apiFetch } from "../../../services/api";
-import { getCrmApiBase } from "../../../config/crmApiBase";
-import { getCurrentUser } from "../../../services/auth.service";
-import { useToast } from "../ui/useToast";
 // LOT A — matériel de pose toiture plate (catalogue pur, partagé avec flatRoofConfig.js)
 import {
   FLAT_ROOF_MOUNTING_SYSTEMS,
@@ -426,119 +420,6 @@ function Phase3StateSummary({
 }
 
 
-function ShadingPdfExportButton() {
-  const [loading, setLoading] = useState(false);
-  const toast = useToast();
-
-  const handleClick = async () => {
-    const cw = getCalpinageWindow();
-    const studyId = cw.CALPINAGE_STUDY_ID;
-    const version = cw.CALPINAGE_VERSION_ID ?? "1";
-    if (!studyId) { toast.error("Impossible : studyId manquant"); return; }
-    setLoading(true);
-    try {
-      const user = await getCurrentUser();
-      const orgId = user?.organizationId;
-      if (!orgId) { toast.error("Impossible : orgId manquant"); setLoading(false); return; }
-      /* PDF-BASE-FIX : URL absolue vers l'API — en prod le chemin relatif partait sur le host
-       * frontend (SPA) qui renvoyait du HTML 200 → « Réponse invalide (attendu PDF) ».
-       * En dev getCrmApiBase() est vide → chemin relatif inchangé (proxy Vite). */
-      const url = `${getCrmApiBase()}/internal/pdf/dsm-analysis/${studyId}?orgId=${encodeURIComponent(orgId)}&version=${encodeURIComponent(String(version))}`;
-      const response = await apiFetch(url, { method: "GET", credentials: "include" });
-      if (!response.ok) {
-        let errMsg = "Erreur lors de la génération du PDF";
-        try { const body = await response.json(); if (body?.error) errMsg = body.error; } catch (_) {}
-        throw new Error(errMsg);
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      const header = new TextDecoder("ascii").decode(bytes.slice(0, 5));
-      if (header !== "%PDF-") throw new Error("Réponse invalide (attendu PDF)");
-      const blob = new Blob([arrayBuffer], { type: "application/pdf" });
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = `analyse-ombrage-${studyId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-      toast.success("PDF téléchargé");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Impossible de télécharger le PDF");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      className={styles.toolGhostBtn}
-      onClick={handleClick}
-      disabled={loading}
-      title="Exporter le rapport d'analyse d'ombrage (PDF)"
-    >
-      <span className={styles.toolGhostIcon} aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-        </svg>
-      </span>
-      {loading ? "PDF…" : "Rapport ombrage"}
-    </button>
-  );
-}
-
-function DsmOverlayButton({
-  containerRef,
-  onActiveChange,
-}: {
-  containerRef: React.RefObject<HTMLDivElement | null>;
-  onActiveChange?: (active: boolean) => void;
-}) {
-  const [active, setActive] = useState(false);
-
-  useEffect(() => {
-    const container = containerRef?.current;
-    if (!container) return;
-    const manager = createDsmOverlayManager(container);
-    const enabled = manager.isEnabled();
-    setActive(enabled);
-    onActiveChange?.(enabled);
-  }, [containerRef, onActiveChange]);
-
-  const handleClick = () => {
-    const container = containerRef?.current;
-    if (!container) return;
-    const manager = createDsmOverlayManager(container);
-    manager.toggle();
-    const nowEnabled = manager.isEnabled();
-    setActive(nowEnabled);
-    onActiveChange?.(nowEnabled);
-  };
-
-  return (
-    <button
-      type="button"
-      className={`${styles.toolGhostBtn} ${active ? styles.toolGhostBtnOn : ""}`}
-      onClick={handleClick}
-      title="Visualisation estimations d’ombrage (DSM)"
-      aria-pressed={active}
-    >
-      <span className={styles.toolGhostIcon} aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-        </svg>
-      </span>
-      Analyse d’ombrage
-    </button>
-  );
-}
-
 function Phase3AutofillSection() {
   const { hasActiveBlockWithPanels, autofillActive, autofillText, autofillValidCount } = usePhase3Data();
 
@@ -748,7 +629,7 @@ function Phase3Actions({
 import {Phase3Trees} from './Phase3Trees';
 
 export function Phase3Sidebar({
-  containerRef, studyId, versionId, onPrepareTrees,
+  studyId, versionId, onPrepareTrees,
 }: {
   studyId?: string; versionId?: string; onPrepareTrees?: () => Promise<boolean>;
   containerRef?: React.RefObject<HTMLDivElement | null>;
@@ -837,15 +718,6 @@ export function Phase3Sidebar({
         />
       </section>
 
-      {/* ZONE 5 — Outils secondaires */}
-      <section className={styles.zoneTools} aria-label="Outils">
-        {containerRef && (
-          <>
-            <DsmOverlayButton containerRef={containerRef} />
-            <ShadingPdfExportButton />
-          </>
-        )}
-      </section>
     </aside>
   );
 }

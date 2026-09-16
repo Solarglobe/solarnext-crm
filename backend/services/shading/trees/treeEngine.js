@@ -1,3 +1,4 @@
+import {rayHitsPrism} from './prism.js';
 import { createHash } from 'node:crypto';
 import solar from '../../../../shared/shading/solarPosition.cjs';
 import { crownBoxes,rayHitsBox } from '../../../../shared/shading/treeGeometry.mjs';
@@ -16,6 +17,7 @@ export function validateScene(scene) {
   if(scene.sampleGrid!==undefined && (!Number.isInteger(scene.sampleGrid)||scene.sampleGrid<2||scene.sampleGrid>16))throw Error('Échantillonnage panneau invalide');
   if (!Array.isArray(scene.trees) || scene.trees.length>2000) throw Error('Scène de végétation invalide');
   for (const t of scene.trees) {
+    if(t.prism&&(!Array.isArray(t.prism.polygon)||t.prism.polygon.length<3||!t.prism.polygon.every(p=>p.length===2&&p.every(Number.isFinite))||t.prism.plane?.length!==3||!t.prism.plane.every(Number.isFinite)||!(t.prism.height>0)))throw Error('Prisme obstacle invalide');
     if (![t.x,t.y,t.groundZ,t.height,t.diameter,t.crownBottom].every(Number.isFinite) || t.height<=0 || t.height>80 || t.diameter<=0 || t.diameter>60 || t.crownBottom<0 || t.crownBottom>=t.height) throw Error('Hauteur ou couronne invalide : '+t.id);
     if(t.columns && (!Array.isArray(t.columns) || t.columns.length>2500 || ![t.measuredHeight,t.measuredDiameter,t.measuredCrownBottom,t.cellSize].every(Number.isFinite) || t.measuredHeight<=t.measuredCrownBottom || t.measuredDiameter<=0 || t.cellSize<=0 || !t.columns.every(c=>c.length===4&&c.every(Number.isFinite)&&c[3]>c[2])))throw Error('Colonnes LiDAR invalides');
   }
@@ -54,6 +56,7 @@ function panelSamples(p,n=4) {
 function prepareTrees(scene){return scene.trees.filter(t=>t.enabled!==false).map(t=>{
   const boxes=crownBoxes(t);let center=[t.x,t.y,t.groundZ+(t.height+t.crownBottom)/2],radius=Math.max(t.diameter/2,(t.height-t.crownBottom)/2);
   if(boxes?.length){const min=[0,1,2].map(i=>Math.min(...boxes.map(b=>b[i]))),max=[3,4,5].map(i=>Math.max(...boxes.map(b=>b[i])));center=min.map((x,i)=>(x+max[i])/2);radius=norm(sub(max,min))/2;}
+  if(t.prism){const pts=t.prism.polygon.flatMap(([x,y])=>{const z=t.prism.plane[0]*x+t.prism.plane[1]*y+t.prism.plane[2];return [[x,y,z],[x,y,z+t.prism.height]];});const min=[0,1,2].map(i=>Math.min(...pts.map(p=>p[i]))),max=[0,1,2].map(i=>Math.max(...pts.map(p=>p[i])));center=min.map((x,i)=>(x+max[i])/2);radius=norm(sub(max,min))/2;}
   return {...t,boxes,boundCenter:center,boundRadius:radius};
 });}
 
@@ -66,7 +69,7 @@ function blockedFraction(panel,d,trees,audit) {
     return along>-r && dot(v,v)-Math.max(0,along)**2<r*r;
   });
   if(!candidates.length)return 0;
-  const hits=(p,t)=>t.boxes?t.boxes.some(b=>rayHitsBox(p,d,b)):rayHitsCrown(p,d,t);
+  const hits=(p,t)=>t.prism?rayHitsPrism(p,d,t.prism):t.boxes?t.boxes.some(b=>rayHitsBox(p,d,b)):rayHitsCrown(p,d,t);
   if(!audit)return panel.points.filter(p=>candidates.some(t=>hits(p,t))).length/panel.points.length;
   let blocked=0;
   for(const p of panel.points){let sole=null,multiple=false;for(const t of candidates){if(!hits(p,t))continue;if(sole){multiple=true;break;}sole=t.id;}if(sole){blocked++;if(!multiple)audit.totals[sole]=(audit.totals[sole]||0)+audit.weight/panel.points.length;}}

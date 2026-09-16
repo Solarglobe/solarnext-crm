@@ -63,6 +63,7 @@ def main(arg):
                 kinds.append(np.asarray(p.classification))
         pts=np.concatenate(chunks);classes=np.concatenate(kinds)
         np.savez_compressed(points_file,pts=pts,classes=classes)
+    print('STAGE:DETECTION',file=sys.stderr,flush=True)
     if len(pts)<100:raise ValueError('IGN_POINT_COVERAGE_INSUFFICIENT')
     ground=pts[classes==2]
     if len(ground)<20:raise ValueError('IGN_GROUND_DATUM_INSUFFICIENT')

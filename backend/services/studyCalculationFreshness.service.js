@@ -1,3 +1,4 @@
+import {savedStudyShading} from './shading/trees/studyResult.js';
 import { getNormalizedShadingFromGeometry } from './calpinage/calpinageShadingLegacyAdapter.js';
 import { getStudyShadingState } from '../../shared/shading/clientStudyExport.js';
 import { pool } from '../config/db.js';
@@ -55,6 +56,7 @@ export async function readStudyCalculationInputs({ studyId, versionId, organizat
     // are dependencies. The calculator still records the actual date in its trace.
     if(!selected.tariffReferenceDate)delete settings.virtual_supply.tariff_reference_date;
   }
+  const savedAnalysis=await savedStudyShading(organizationId,versionId,row.geometry?.geometry_json);
   const inputs = {
     schema_version: 2, engine_version: CALC_ENGINE_VERSION,
     financial_engine_version: FINANCIAL_ENGINE_VERSION, energy_reference_version: ENERGY_REFERENCE_VERSION,
@@ -68,7 +70,8 @@ export async function readStudyCalculationInputs({ studyId, versionId, organizat
     settings,
     providers: selected?.provider ? {provider:selected.provider,activation_fee_ttc:await resolveVirtualBatteryActivationFeeTtcFromOrgDb(organizationId,selected.provider,selected.contractType,Number(effectiveMeter.meter_power_kva)||9,db)} : null,
     model_options: { shading_policy_version: 'optional-attested-shading-v1',
-      shading_state: getStudyShadingState({ shading: getNormalizedShadingFromGeometry(row.geometry?.geometry_json).shading }),
+      shading_state: getStudyShadingState({ shading: savedAnalysis.managed?savedAnalysis.shading:getNormalizedShadingFromGeometry(row.geometry?.geometry_json).shading }),
+      ...(savedAnalysis.managed?{analysis_fingerprint:savedAnalysis.fingerprint}:{}),
       use_official_shading: process.env.USE_OFFICIAL_SHADING ?? null,
       reference_year: Number(new Intl.DateTimeFormat('en', {timeZone:'Europe/Paris',year:'numeric'}).format(new Date())) },
   };

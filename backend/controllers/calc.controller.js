@@ -532,6 +532,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
         moduleWp: resolvedModuleWp,
         pv_inverter: form.pv_inverter,
         globalShadingLossPct: form.shadingLossPct,
+        shadingMonthlyFactors: form.shadingMonthlyFactors,
         calendar:ctx.conso.calendar,
         offline:req.body.local_offline_calculation===true,
       });
@@ -582,11 +583,12 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
         shadingLossPctNum > 0
       ) {
         const multiplier = 1 - Math.max(0, Math.min(100, shadingLossPctNum)) / 100;
+        const monthlyShade=Array.isArray(form.shadingMonthlyFactors)&&form.shadingMonthlyFactors.length===12&&form.shadingMonthlyFactors.every(v=>Number.isFinite(v)&&v>=0&&v<=1)?form.shadingMonthlyFactors:null;
         if (pvMonthly.monthly_kwh && Array.isArray(pvMonthly.monthly_kwh)) {
-          pvMonthly.monthly_kwh = pvMonthly.monthly_kwh.map(v => v * multiplier);
+          pvMonthly.monthly_kwh = pvMonthly.monthly_kwh.map((v,i) => v * (monthlyShade?monthlyShade[i]:multiplier));
         }
         if (typeof pvMonthly.annual_kwh === "number") {
-          pvMonthly.annual_kwh = pvMonthly.annual_kwh * multiplier;
+          pvMonthly.annual_kwh = monthlyShade&&Array.isArray(pvMonthly.monthly_kwh)?pvMonthly.monthly_kwh.reduce((a,b)=>a+b,0):pvMonthly.annual_kwh * multiplier;
         }
       }
 

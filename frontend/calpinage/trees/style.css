@@ -6,3 +6,5 @@
 body.embedded header,body.embedded .heading h1,body.embedded .heading .eyebrow,body.embedded #pdf{display:none}
 body.embedded main{max-width:none;padding:12px}
 body.embedded .metrics .metric:not(:first-child){display:none}
+
+body.embedded #acquire,body.embedded #calculate{display:none}

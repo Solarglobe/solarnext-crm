@@ -1,3 +1,4 @@
+import {hasValidServerShadingReceipt} from '../shadingServerReceipt.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
@@ -10,6 +11,7 @@ export function geometryHash(g) {
   return hash({map:{centerLatLng:s.map?.centerLatLng,bearing:s.map?.bearing??0},scale:s.scale?.metersPerPixel,
     image:{width:s.image?.width,height:s.image?.height},
     pans:g.pans?.map(p=>({id:p.id,polygonPx:p.polygonPx,tiltDeg:p.tiltDeg,azimuthDeg:p.azimuthDeg})),
+    obstacles:s.obstacles??g.obstacles??[],shadowVolumes:g.shadowVolumes??[],roofExtensions:g.roofExtensions??[],horizon:g.horizonMask??s.horizonMask??null,
     blocks:g.frozenBlocks?.map(b=>({panId:b.panId,panels:b.panels?.map(p=>p.projection?.points)}))});
 }
 export const treeDataDir=()=>path.resolve(process.env.TREE_SHADING_DATA_DIR || fileURLToPath(new URL('../../../storage/tree-shading',import.meta.url)));
@@ -18,7 +20,8 @@ export function stateIsCurrent(state,g) { return !!state && (state.geometryFinge
 export async function readTreeState(root,org,version,g) {
   const directory=stateDirectory(root,org,version);
   try { const state=JSON.parse(await fs.readFile(path.join(directory,'crm-state.json'),'utf8'));
-    return stateIsCurrent(state,g)&&state.result?.status==='computed'?{...state,directory}:null;
+    const valid=state.pipelineVersion!=='unified-v1'||(state.result?.scope==='combined-shading-v1'&&hasValidServerShadingReceipt(state.result?.shading));
+    return valid&&stateIsCurrent(state,g)&&state.result?.status==='computed'?{...state,directory}:null;
   } catch(e) { if(e.code==='ENOENT')return null;throw e; }
 }
 export function automaticZeroAttestation(scene) {

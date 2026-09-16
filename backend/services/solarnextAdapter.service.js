@@ -81,6 +81,7 @@ export function buildLegacyPayloadFromSolarNext(solarnextPayload) {
     installation: installation && typeof installation === "object" ? installation : null,
     /** Ombrage mono-pan (null = inconnu / non transmis — ne pas traiter comme 0 % fiable). */
     shadingApplied: installation.shadingApplied === true,
+    shadingMonthlyFactors: installation.shading_monthly_factors ?? null,
     shadingExclusionReason: installation.shadingExclusionReason ?? null,
     shadingLossPct: (() => {
       const rawSL = installation.shading_loss_pct;

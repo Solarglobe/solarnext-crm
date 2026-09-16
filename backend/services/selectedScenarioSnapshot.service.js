@@ -301,6 +301,10 @@ export async function buildSelectedScenarioSnapshot({
   };
 
   const shading = {
+    combinedAnalysis: scenario.shading?.combinedAnalysis ?? false,
+    perPanel: scenario.shading?.perPanel ?? [],
+    resultHash: scenario.shading?.resultHash ?? null,
+    energyReference: scenario.shading?.energyReference ?? null,
     assessment: scenario.shading?.assessment ?? null,
     distribution: scenario.shading?.distribution ?? null,
     near: scenario.shading?.near ?? null,

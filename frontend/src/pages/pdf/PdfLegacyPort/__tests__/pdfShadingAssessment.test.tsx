@@ -13,3 +13,7 @@ it('PDF distinguishes an actually computed zero from a small positive loss',()=>
   expect(html).toContain(loss===0?'0,0 %':'&lt; 0,1 %');
  }
 });
+it('unified saved report is appended once by the backend, without a duplicate legacy page',()=>{
+ const html=renderToStaticMarkup(<Page viewModel={{fullReport:{p_shading:{assessment:{status:'computed',nearStatus:'computed',farStatus:'computed',geometryContractVersion:'combined-shading-v1'},nearLossPct:32.99,farLossPct:0,combinedLossPct:32.99}}}}/>);
+ expect(html).toBe('');
+});
