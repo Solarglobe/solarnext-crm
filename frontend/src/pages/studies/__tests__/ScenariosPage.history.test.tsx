@@ -9,7 +9,7 @@ vi.mock('../../../services/api',async original=>({...await original<typeof impor
 const scenario=(gain:number)=>({id:'BASE',consumption_source:'IMPORTED_DAILY_RECONSTRUCTED',energy:{production_kwh:5000},finance:{economie_total:gain,economie_year_1:1000}});
 const mount=()=>render(<MemoryRouter initialEntries={['/studies/study/versions/version/scenarios']}><Routes><Route path="/studies/:studyId/versions/:versionId/scenarios" element={<Page/>}/></Routes></MemoryRouter>);
 afterEach(()=>{cleanup();vi.restoreAllMocks();});
-it('compare le dernier historique après confirmation et bloque les exports des anciens calculs',async()=>{
+it('charge l’historique uniquement sur demande et bloque les exports des anciens calculs',async()=>{
  let recomputed=false;
  const fetchMock=vi.fn(async(url:string,opts?:RequestInit)=>{
   if(opts?.method==='POST'){recomputed=true;return new Response('{}',{status:200});}
@@ -27,13 +27,14 @@ it('compare le dernier historique après confirmation et bloque les exports des 
  fireEvent.click(await screen.findByRole('button',{name:'Recalculer l’étude'}));
  await waitFor(()=>expect(screen.queryByText('Données modifiées — recalcul nécessaire')).not.toBeInTheDocument());
  await waitFor(()=>expect(screen.getByRole('button',{name:'Choisir sans stockage'})).toBeEnabled());
- await waitFor(()=>expect(fetchMock.mock.calls.filter(([url])=>url.endsWith('/history/0'))).toHaveLength(1));
+ expect(fetchMock.mock.calls.filter(([url])=>url.includes('/history'))).toHaveLength(0);
  fireEvent.click(screen.getByRole('button',{name:'Consulter l’historique (1)'}));
  const select=await screen.findByRole('combobox',{name:'Résultats à consulter'});
  await screen.findByRole('option',{name:/Historique 2026/});
- expect(fetchMock.mock.calls.filter(([url])=>url.endsWith('/history/0'))).toHaveLength(1);
+ expect(fetchMock.mock.calls.filter(([url])=>url.endsWith('/history/0'))).toHaveLength(0);
  fireEvent.change(select,{target:{value:'0'}});
  await screen.findAllByText(/^2\s000\s€/);
+ expect(fetchMock.mock.calls.filter(([url])=>url.endsWith('/history/0'))).toHaveLength(1);
  expect(screen.getByRole('status')).toHaveTextContent('old-hash');
  expect(screen.getByRole('button',{name:'Choisir sans stockage'})).toBeDisabled();
  fireEvent.change(select,{target:{value:''}});
@@ -44,7 +45,6 @@ it('pagine l’index sans télécharger les tableaux de résultats',async()=>{
  vi.stubGlobal('fetch',vi.fn(async(url:string)=>{
   calls.push(url);let body;
   if(url.endsWith('/scenarios'))body={ok:true,scenarios:[scenario(6000)],history_count:21};
-  else if(url.endsWith('/history/20'))body={scenarios:[scenario(2000)]};
   else if(url.includes('offset=0'))body={items:Array.from({length:20},(_,i)=>({id:String(i),computed_at:`calcul-${i}`})),total:21,next_offset:20};
   else if(url.includes('offset=20'))body={items:[{id:'20',computed_at:'dernier historique'}],total:21,next_offset:null};
   else body={study:{id:'study'},versions:[{id:'version',version_number:1}]};
@@ -54,5 +54,5 @@ it('pagine l’index sans télécharger les tableaux de résultats',async()=>{
  fireEvent.click(await screen.findByRole('button',{name:'Charger les calculs précédents'}));
  await screen.findByRole('option',{name:/dernier historique/});
  expect(screen.getAllByRole('option')).toHaveLength(22);
- expect(calls.filter(url=>url.includes('/history?'))).toEqual([expect.stringContaining('offset=0&limit=20'),expect.stringContaining('offset=20&limit=20')]);
+ expect(calls.filter(url=>url.includes('/history'))).toEqual([expect.stringContaining('offset=0&limit=20'),expect.stringContaining('offset=20&limit=20')]);
 });

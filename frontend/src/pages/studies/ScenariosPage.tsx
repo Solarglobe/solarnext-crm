@@ -1,5 +1,4 @@
 import { confirmStudyDocument } from "../../components/ui/confirmStudyDocument";
-import RecalculationComparison from './RecalculationComparison';
 import { getClientStudyExportBlock, CLIENT_STUDY_EXPORT_MESSAGE, getStudyShadingState, SHADING_EXPORT_WARNING } from '../../../../shared/shading/clientStudyExport.js';
 /**
  * Page principale étude : comparatif scénarios V2 (lecture seule moteur).
@@ -115,7 +114,6 @@ export default function ScenariosPage() {
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [recomputing, setRecomputing] = useState(false);
   const [recomputeError, setRecomputeError] = useState<string | null>(null);
-  const [comparisonReady, setComparisonReady] = useState(false);
   const recomputeBusyRef = useRef(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -940,7 +938,6 @@ export default function ScenariosPage() {
         </div>}
         {historicalSelection!==""&&<p role="status">Consultation historique — export client désactivé. Référence {calculationHistory.find(entry=>entry.id===historicalSelection)?.input_fingerprint??"sans empreinte"}.</p>}
         {recomputeBanner}
-        {!needsRecompute && historicalSelection === '' && <RecalculationComparison baseUrl={`${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}`} historyCount={historyCount} scenarios={scenarios} engine={currentEngineVersion} onReady={setComparisonReady} />}
         <div
           {...(needsRecompute ? { "data-testid": "scenarios-stale", "aria-disabled": true } : {})}
           style={{
@@ -955,7 +952,7 @@ export default function ScenariosPage() {
             versionId={versionId ?? undefined}
             onSelectScenario={handleSelectScenario}
             onSetPortalOffer={handleSetPortalOffer}
-            selectionDisabled={pdfFlowBusy || redownloading || isReadOnly || needsRecompute || historicalSelection!=="" || (historyCount > 0 && !comparisonReady)}
+            selectionDisabled={pdfFlowBusy || redownloading || isReadOnly || needsRecompute || historicalSelection!==""}
             selectingId={selectingId}
             portalOfferBusyId={portalOfferBusyId}
             versionLocked={versionLocked}
