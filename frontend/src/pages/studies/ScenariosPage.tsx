@@ -736,7 +736,6 @@ export default function ScenariosPage() {
         <button type="button" className="sg-btn sg-btn-secondary sn-btn-sm" onClick={navQuote}>
           Devis technique
         </button>
-        <button type="button" className="sn-btn sn-btn-secondary" disabled={!versionNumber} onClick={()=>navigate(`/studies/${studyId}/versions/${versionNumber}/tree-shading`)}>Analyser l’ombrage des arbres · IGN LiDAR</button>
       </div>
     </div>
   );

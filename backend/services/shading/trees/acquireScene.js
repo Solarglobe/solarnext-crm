@@ -31,6 +31,8 @@ export async function acquireScene(geometryFile,directory) {
   catch(e){raw={status:'unavailable',reason:e.message,trees:[],buildingPoints:[]};}
   await fs.writeFile(path.join(directory,'scene-raw.json'),JSON.stringify(raw));
   const scene=JSON.parse(await python('prepare_scene.py',[path.join(directory,'scene-raw.json'),geometryFile]));
+  scene.acquisition={complete:raw.status==='available'&&raw.coverageComplete===true,source:'IGN_LIDAR_HD',retrievedAt:raw.retrievedAt??null};
+  scene.emptySceneAttested=scene.acquisition.complete&&!scene.roofSurveyRequired;
   const [a,b]=scene.roofs[0].plane;
   // PVGIS azimuth is relative to South, positive towards West.
   const tilt=Math.atan(Math.hypot(a,b))*180/Math.PI,az=Math.atan2(-a,-b)*180/Math.PI;

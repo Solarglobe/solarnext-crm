@@ -3,7 +3,12 @@ import fs from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {instantaneous} from './treeEngine.js';
 const root=new URL('../../../../',import.meta.url);
-export async function renderTreePdf(scene,result,directory,view={}){
+let rendering=false;
+export async function renderTreePdf(...args){
+  if(rendering)throw Object.assign(Error('Un PDF arbres est déjà en cours, réessayez dans un instant'),{status:429});
+  rendering=true;try{return await render(...args);}finally{rendering=false;}
+}
+async function render(scene,result,directory,view={}){
   const date=/^\d{4}-\d{2}-\d{2}$/.test(view.date||'')?view.date:'2023-06-21',hour=Number(view.hour??12);
   if(!Number.isFinite(Date.parse(date))||hour<4||hour>20)throw Error('Date ou heure de rendu invalide');
   const stamp=date+'T'+String(Math.floor(hour)).padStart(2,'0')+':'+String(Math.round(hour%1*60)).padStart(2,'0')+':00Z';

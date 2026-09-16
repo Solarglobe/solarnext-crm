@@ -354,6 +354,12 @@ export default function CalpinageOverlay({
     };
   }, []);
 
+  const prepareTrees = useCallback(async () => {
+    const saved = (window as Window & { getCalpinageGeometryForPersist?: () => { geometry_json?: unknown } | null }).getCalpinageGeometryForPersist?.();
+    if (!saved?.geometry_json) return false;
+    return saveToBackend(saved.geometry_json, { silent: true });
+  }, [saveToBackend]);
+
   const handleValidate = useCallback(
     async (data: unknown) => {
       if (isValidatingRef.current) return;
@@ -565,6 +571,7 @@ export default function CalpinageOverlay({
         <CalpinageApp
           studyId={studyId}
           versionId={versionId}
+          onPrepareTrees={prepareTrees}
           onValidate={handleValidate}
         />
       </div>

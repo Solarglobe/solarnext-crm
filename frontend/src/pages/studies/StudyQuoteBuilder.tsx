@@ -47,7 +47,8 @@ interface FlatRoofMountingInfo {
   quote_notes: string[];
 }
 
-interface TechnicalSummary {
+interface TechnicalSummary {
+  tree_shading?: {lossPercent:number;uncertainty?:{central:number;low:number;high:number}};
   nb_panels: number;
   power_kwc: number;
   total_panels?: number;
@@ -983,6 +984,7 @@ export default function StudyQuoteBuilder() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [treeResult,setTreeResult] = useState<TechnicalSummary["tree_shading"]>();
   const [activeSnapshotPayload, setActiveSnapshotPayload] = useState<CalpinageSnapshotPayload | null>(null);
   const [economic, setEconomic] = useState<EconomicData>(DEFAULT_ECONOMIC_DATA);
   const [status, setStatus] = useState<"DRAFT" | "READY_FOR_STUDY">("DRAFT");
@@ -1046,7 +1048,8 @@ export default function StudyQuoteBuilder() {
         setLoading(false);
         return;
       }
-      const prep = await prepRes.json() as QuotePrepResponse;
+      const prep = await prepRes.json() as QuotePrepResponse;
+      setTreeResult(prep.technical_snapshot_summary.tree_shading);
       setActiveSnapshotPayload(
         technicalSummaryToPayload(prep.technical_snapshot_summary)
       );
@@ -1568,7 +1571,8 @@ export default function StudyQuoteBuilder() {
 
         <section className="sqb-section sqb-section--technical-summary">
           <h2 className="sqb-h2 sqb-h2--technical-summary">Résumé technique</h2>
-          <QuoteTechnicalSummary payload={activeSnapshotPayload} />
+          <QuoteTechnicalSummary payload={activeSnapshotPayload} />
+          {treeResult && <p><strong>Ombrage des arbres : {(treeResult.uncertainty?.central ?? treeResult.lossPercent).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} %</strong> de perte annuelle liée aux arbres.</p>}
           {/* LOT D — matériel de pose toit plat (informatif, snapshot Lot A) */}
           <QuoteFlatRoofMounting mounting={activeSnapshotPayload?.flat_roof_mounting} />
         </section>

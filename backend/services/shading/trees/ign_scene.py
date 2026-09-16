@@ -26,6 +26,18 @@ def main(arg):
         meta_file.write_text(json.dumps(metadata),encoding='utf-8')
     sources=[f['properties'] for f in metadata.get('features',[]) if f['properties'].get('url_npl')]
     if not sources:return {'status':'unavailable','reason':'IGN_CLASSIFIED_LIDAR_ABSENT','trees':[],'buildings':[]}
+    rectangles=[]
+    for feature in metadata.get('features',[]):
+        if not feature.get('properties',{}).get('url_npl'):continue
+        def pairs(value):
+            if isinstance(value,list) and len(value)>=2 and all(isinstance(v,(int,float)) for v in value[:2]):yield value[:2]
+            elif isinstance(value,list):
+                for child in value:yield from pairs(child)
+        coords=list(pairs(feature.get('geometry',{}).get('coordinates',[])))
+        if coords:rectangles.append([min(p[0] for p in coords),min(p[1] for p in coords),max(p[0] for p in coords),max(p[1] for p in coords)])
+    xs=sorted(set([box[0],box[2]]+[max(box[0],min(box[2],r[i])) for r in rectangles for i in (0,2)]))
+    ys=sorted(set([box[1],box[3]]+[max(box[1],min(box[3],r[i])) for r in rectangles for i in (1,3)]))
+    complete=bool(rectangles) and len(metadata.get('features',[]))<20 and all(any(r[0]<=x<=r[2] and r[1]<=y<=r[3] for r in rectangles) for x in [(a+b)/2 for a,b in zip(xs,xs[1:])] for y in [(a+b)/2 for a,b in zip(ys,ys[1:])])
     stats={'bytes':0,'rangeRequests':0,'cacheHit':points_file.exists()}
     if points_file.exists():
         data=np.load(points_file);pts=data['pts'];classes=data['classes']
@@ -107,7 +119,7 @@ def main(arg):
     support=pts[np.isin(classes,[2,6])]
     north=np.array(transform.transform(lon,lat+.001))-np.array([cx,cy]);north/=np.linalg.norm(north)
     source_info=[{k:s.get(k) for k in ['coordonnees_nw','date_debut_acquisition','date_fin_acquisition','date_edition','procede_classement','systeme_altimetrique','url_npl']} for s in sources]
-    return {'status':'available','origin':{'lat':lat,'lon':lon,'x':cx,'y':cy,'north':north.tolist()},'radius':radius,'bbox':box,'trees':trees,'buildingPoints':np.round(thin-np.array([cx,cy,0]),3).tolist(),'supportPoints':np.round(support-np.array([cx,cy,0]),3).tolist(),'sources':source_info,'classCounts':{str(c):int(np.sum(classes==c)) for c in np.unique(classes)},'samplingResolution':.5,'download':stats,'retrievedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cacheKey':key,'modelNote':'Detected vegetation volumes, not a botanical tree inventory; opaque crowns. Winter acquisition can miss foliage.'}
+    return {'status':'available','coverageComplete':complete,'origin':{'lat':lat,'lon':lon,'x':cx,'y':cy,'north':north.tolist()},'radius':radius,'bbox':box,'trees':trees,'buildingPoints':np.round(thin-np.array([cx,cy,0]),3).tolist(),'supportPoints':np.round(support-np.array([cx,cy,0]),3).tolist(),'sources':source_info,'classCounts':{str(c):int(np.sum(classes==c)) for c in np.unique(classes)},'samplingResolution':.5,'download':stats,'retrievedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cacheKey':key,'modelNote':'Detected vegetation volumes, not a botanical tree inventory; opaque crowns. Winter acquisition can miss foliage.'}
 
 if __name__=='__main__':
     try:print(json.dumps(main(json.load(sys.stdin)),allow_nan=False))

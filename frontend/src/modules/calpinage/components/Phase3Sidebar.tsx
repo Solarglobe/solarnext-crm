@@ -30,15 +30,6 @@ import {
   resolveSlopeStatusForSystem,
 } from "../legacy/flatRoofMountingSystems.js";
 
-function formatFallbackReason(reason?: string): string {
-  switch (reason) {
-    case "NO_ROOF_STATE": return "Toiture non définie";
-    case "PERF_BUDGET_EXCEEDED": return "Trop complexe — calcul simplifié";
-    case "RUNTIME_NOT_MOUNTED": return "Moteur non initialisé";
-    default: return "Calcul indisponible";
-  }
-}
-
 function globalStatusLabel(
   canValidate: boolean,
   blockingReason: Phase3ValidateBlockingReason,
@@ -359,15 +350,9 @@ function Phase3OrientationToggle() {
 function Phase3StateSummary({
   canValidate,
   blockingReason,
-  nearShadingPct,
-  fallbackTriggered,
-  fallbackReason,
 }: {
   canValidate: boolean;
   blockingReason: Phase3ValidateBlockingReason;
-  nearShadingPct?: number | null;
-  fallbackTriggered?: boolean;
-  fallbackReason?: string;
 }) {
   const {
     modulesCount,
@@ -434,23 +419,7 @@ function Phase3StateSummary({
             <dd>{acTotal.toFixed(2)} kW</dd>
           </div>
         ) : null}
-        {!fallbackTriggered && nearShadingPct !== null && nearShadingPct !== undefined ? (
-          <div className={styles.stateDlRow}>
-            <dt>Ombrage proche</dt>
-            <dd>{nearShadingPct.toFixed(1)} %</dd>
-          </div>
-        ) : null}
-        {fallbackTriggered ? (
-          <div className={styles.stateDlRow}>
-            <dt>Ombrage proche</dt>
-            <dd
-              className={styles.metricWarn}
-              title={fallbackReason}
-            >
-              ⚠️ N/A — {formatFallbackReason(fallbackReason)}
-            </dd>
-          </div>
-        ) : null}
+
       </dl>
     </div>
   );
@@ -776,9 +745,12 @@ function Phase3Actions({
   );
 }
 
+import {Phase3Trees} from './Phase3Trees';
+
 export function Phase3Sidebar({
-  containerRef,
+  containerRef, studyId, versionId, onPrepareTrees,
 }: {
+  studyId?: string; versionId?: string; onPrepareTrees?: () => Promise<boolean>;
   containerRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const validateHintId = useId();
@@ -786,9 +758,6 @@ export function Phase3Sidebar({
   const {
     data: checklistData,
     catalogModuleSelected,
-    nearShadingPct,
-    fallbackTriggered,
-    fallbackReason,
   } = usePhase3ChecklistData();
   const canValidate = computeLegacyPhase3CanValidate();
   const blockingReason = getPhase3ValidateBlockingReason();
@@ -827,11 +796,10 @@ export function Phase3Sidebar({
         <Phase3StateSummary
           canValidate={canValidate}
           blockingReason={blockingReason}
-          nearShadingPct={nearShadingPct}
-          fallbackTriggered={fallbackTriggered}
-          fallbackReason={fallbackReason}
         />
       </section>
+
+      {studyId && versionId && <Phase3Trees studyId={studyId} versionId={versionId} prepare={onPrepareTrees} panelCount={checklistData?.panelCount ?? 0} />}
 
       {/* ZONE 3b — Bifacial (conditionnel feature flag) */}
       <Phase3BifacialSection />

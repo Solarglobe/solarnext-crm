@@ -1,3 +1,5 @@
+import {pool} from '../config/db.js';
+import {appendTreeAnalysis} from '../services/shading/trees/pdfAppend.js';
 import { assertClientStudyExportable, getClientStudyExportBlock } from '../../shared/shading/clientStudyExport.js';
 /**
  * PDF V2 — POST /api/studies/:studyId/versions/:versionId/generate-pdf
@@ -147,6 +149,12 @@ export async function generatePdfForVersion(params, options = {}) {
   let pdfBuffer = await generatePdfFromRendererUrl(rendererUrl, { clientSnapshot: ephemeralSnapshot ?? version.selected_scenario_snapshot });
   console.log("STEP 6 OK: PDF buffer generated", {
     byteLength: pdfBuffer?.length,
+  });
+  pdfBuffer = await (options.appendTreeAnalysis ?? appendTreeAnalysis)(pdfBuffer, {
+    organizationId, versionId, loadGeometry: async () => {
+      const {rows}=await pool.query('SELECT geometry_json FROM calpinage_data WHERE study_version_id=$1 AND organization_id=$2',[versionId,organizationId]);
+      return rows[0]?.geometry_json;
+    }
   });
   if (documentPdfKind === FINANCIAL_DOCUMENT_PDF_KIND.QUOTE) {
     pdfBuffer = await mergeOrganizationCgvPdfAppend(pdfBuffer, organizationId);

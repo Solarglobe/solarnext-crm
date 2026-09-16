@@ -1,3 +1,4 @@
+import {readTreeState,treeDataDir} from '../shading/trees/crmState.js';
 /**
  * quote-prep — Préparation du devis technique.
  * Version-scope : agrège calpinage (snapshot ou calpinage_data) + economic_snapshot pour study_version_id.
@@ -414,6 +415,8 @@ export async function getQuotePrep({ studyId, versionId, organizationId }) {
   }
 
   const technical_snapshot_summary = await buildTechnicalSummary(calpinageRow, calpinageDataRow);
+  const trees = await readTreeState(treeDataDir(),organizationId,versionId,calpinageDataRow?.geometry_json);
+  if (trees) technical_snapshot_summary.tree_shading = {lossPercent:trees.result.lossPercent,uncertainty:trees.result.uncertainty};
 
   const economicRes = await pool.query(
     `SELECT id, study_version_id, version_number, status, config_json FROM economic_snapshots

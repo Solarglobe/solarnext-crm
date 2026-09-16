@@ -2,6 +2,8 @@ import { crownBoxes,convexHull } from '/treeGeometry.js';
 const $=id=>document.getElementById(id),NS='http://www.w3.org/2000/svg';
 const view=new URLSearchParams(location.search);if(/^\d{4}-\d{2}-\d{2}$/.test(view.get('date')||''))$('date').value=view.get('date');if(view.has('hour'))$('time').value=view.get('hour');if(['30','50','100','150'].includes(view.get('zoom')))$('zoom').value=view.get('zoom');
 let scene,result,selected=null,sun=null,drag=null,instantRequest=0,revision=0,locked=false;
+const embedded=window.__TREE_EMBEDDED__===true;
+if(embedded){document.body.classList.add('embedded');$('calculate').textContent='Recalculer';$('acquire').textContent='Recharger les données IGN';}
 const crm=window.__TREE_CRM__===true,pending=new Map();const bridgeOrigin=crm?window.parent.location.origin:window.location.origin;let requestId=0;
 if(crm){document.querySelector('header b span').textContent='ANALYSE';document.querySelector('header small').textContent='Étude CRM · scène versionnée';document.querySelector('.heading .eyebrow').textContent='VÉGÉTATION · IGN LIDAR HD';document.querySelector('.timeline').title='Heures UTC';new ResizeObserver(()=>window.parent.postMessage({kind:'tree-height',height:document.documentElement.scrollHeight},bridgeOrigin)).observe(document.body);}
 window.addEventListener('message',e=>{if(!crm||e.source!==window.parent||e.origin!==bridgeOrigin||e.data?.kind!=='tree-response')return;const p=pending.get(e.data.id);if(!p)return;clearTimeout(p.timer);pending.delete(e.data.id);p.resolve(new Response(e.data.body,{status:e.data.status,headers:{'Content-Type':e.data.type||'application/json'}}));});
@@ -23,6 +25,7 @@ const el=(tag,attrs,parent=$('map'))=>{const n=document.createElementNS(NS,tag);
 async function api(url,body){const r=await fetchResource(url,body);const j=await r.json();if(!r.ok)throw Error(j.error||r.status);return j;}
 function notify(text){$('message').textContent=text;}
 function displayResult(){
+  if(embedded)window.parent.postMessage({kind:'tree-changed'},bridgeOrigin);
   const out=$('result');out.replaceChildren();$('pdf').disabled=!result;out.dataset.result=result?'computed':'pending';
   if(!result){out.textContent='Non évalué : calcul nécessaire après chaque modification de la scène.';return;}
   const metrics=document.createElement('div');metrics.className='metrics';
@@ -32,10 +35,11 @@ function displayResult(){
   const bars=document.createElement('div');bars.className='bars';const names=['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
   result.months.forEach((m,i)=>{const bar=document.createElement('div');bar.className='bar';bar.style.height=(m.lossPercent||0)+'%';const label=document.createElement('small');label.textContent=names[i];const value=document.createElement('b');value.textContent=(m.lossPercent||0).toFixed(1)+' %';bar.append(label,value);bars.append(bar);});out.append(bars);
   const list=document.createElement('div');list.className='panels';for(const p of result.panels){const div=document.createElement('div');div.className='panel';const b=document.createElement('b');b.textContent=p.id;div.append(b,document.createTextNode(pct(p.lossPercent)));div.title=`${p.shadedHours} heures de soleil avec ombre directe`;list.append(div);}out.append(list);
-  const hours=result.hours.filter(h=>h.baseline>0&&h.lost>0).map(h=>h.hourUTC);const detail=document.createElement('p');detail.textContent=`Impact observé entre ${Math.min(...hours)} h et ${Math.max(...hours)+1} h UTC selon les saisons. Référence sans arbres : ${result.baselineKwhM2.toFixed(1)} kWh/m²/an. ${result.treeCount} volumes actifs.`;out.append(detail);
+  const hours=result.hours.filter(h=>h.baseline>0&&h.lost>0).map(h=>h.hourUTC);const detail=document.createElement('p');detail.textContent=hours.length?`Impact observé entre ${Math.min(...hours)} h et ${Math.max(...hours)+1} h UTC selon les saisons. Référence sans arbres : ${result.baselineKwhM2.toFixed(1)} kWh/m²/an. ${result.treeCount} volumes actifs.`:'Aucune perte liée aux arbres sur cette scène calculée.';out.append(detail);
   const trace=document.createElement('p');trace.className='trace';trace.textContent=`${result.model} · ${result.sampleGrid} × ${result.sampleGrid} points/panneau · ${result.calculatedAt} · empreinte ${result.hash}`;out.append(trace);
 }
 function displaySources(){
+  if(embedded){document.querySelector('.attest').hidden=scene.acquisition?.complete===true;document.querySelector('.attest + small').hidden=scene.acquisition?.complete===true;}
   $('source').textContent=`${scene.trees.length} volumes de végétation · ${scene.panels.length} panneaux · acquisition LiDAR ${scene.sources?.[0]?.date_debut_acquisition?.slice(0,10)||'non disponible'}`;
   const p=$('provenance');p.replaceChildren();
   const facts=[scene.roofSurveyRequired?'Altitude du toit manquante : calcul bloqué jusqu’au relevé manuel.':scene.roofs[0].datum==='IGN69_MANUAL'?'Altitude du toit renseignée manuellement en IGN69.':`Toit calé sur ${scene.roofs[0].lidarPoints} points de bâtiment (classe 6). Datum IGN69 ; écart au plan ${(scene.roofs[0].rms*100).toFixed(1)} cm.`,`Téléchargement de cette session : ${(scene.download.bytes/1e6).toFixed(1)} Mo, ${scene.download.rangeRequests} requêtes partielles COPC. Cache local ${scene.download.cacheHit?'réutilisé':'constitué'}.`,...scene.assumptions];
