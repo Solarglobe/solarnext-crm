@@ -1,4 +1,5 @@
 import { assertStudyPdfDocumentDeliverable } from '../services/shading/clientStudyDocumentGuard.service.js';
+import { getClientPortalHistory } from '../services/clientPortalHistory.service.js';
 /**
  * Portail client SolarGlobe — routes publiques + création de jeton (staff).
  */
@@ -21,6 +22,20 @@ import { assertLeadApiAccess } from "../services/leadRequestAccess.service.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user.userId ?? req.user.id;
+
+export async function getClientPortalResultHistory(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  const offset=Number(req.query.offset ?? 0);
+  if(!Number.isSafeInteger(offset)||offset<0)return res.status(400).json({error:'INVALID_HISTORY_PAGE'});
+  try {
+    const token=String(req.params.token ?? '');
+    const row=token.length>=16?await findValidPortalTokenRow(token):null;
+    if(!row)return res.status(401).json({error:'Token invalide ou expiré',code:'PORTAL_TOKEN_INVALID'});
+    return res.json(await getClientPortalHistory(pool,{organizationId:row.organization_id,leadId:row.lead_id,offset}));
+  } catch {
+    return res.status(500).json({error:'Historique indisponible',code:'PORTAL_HISTORY_ERROR'});
+  }
+}
 
 /**
  * GET /api/client-portal/:token

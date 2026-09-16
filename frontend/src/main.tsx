@@ -86,6 +86,7 @@ import StudyDetail from "./pages/StudyDetail";
 import StudyQuoteBuilder from "./pages/studies/StudyQuoteBuilder";
 import StudyCalpinagePage from "./pages/studies/StudyCalpinagePage";
 import ScenariosPage from "./pages/studies/ScenariosPage";
+import TreeShadingPage from './pages/studies/TreeShadingPage';
 import DashboardPage from "./pages/DashboardPage";
 import TasksPage from "./pages/TasksPage";
 import Onboarding from "./pages/Onboarding";
@@ -228,6 +229,7 @@ const router = createBrowserRouter(
         { path: "studies/:studyId/versions/:versionId/calpinage", element: <StudyCalpinagePage /> },
         { path: "studies/:studyId/versions/:versionId/quote-builder", element: <StudyQuoteBuilder /> },
         { path: "studies/:studyId/versions/:versionId/scenarios", element: <ScenariosPage /> },
+        { path: "studies/:studyId/versions/:versionId/tree-shading", element: <TreeShadingPage /> },
         { path: "studies/:studyId/versions/:versionId", element: <StudyDetail /> },
         { path: "studies/:id", element: <StudyDetail /> },
         { path: "finance", element: <AdminRoute anyOf={["quote.manage", "invoice.manage"]}><FinancialHubPage /></AdminRoute> },

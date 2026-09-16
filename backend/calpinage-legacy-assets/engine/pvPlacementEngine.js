@@ -189,7 +189,8 @@
     var ax = a2.x - a1.x, ay = a2.y - a1.y;
     var bx = b2.x - b1.x, by = b2.y - b1.y;
     var denom = ax * by - ay * bx;
-    if (Math.abs(denom) < 1e-12) return null;
+    var parallelTolerance = 1e-12 * Math.hypot(ax, ay) * Math.hypot(bx, by);
+    if (Math.abs(denom) <= parallelTolerance) return null;
     var cx = b1.x - a1.x, cy = b1.y - a1.y;
     var t = (cx * by - cy * bx) / denom;
     var s = (cx * ay - cy * ax) / denom;

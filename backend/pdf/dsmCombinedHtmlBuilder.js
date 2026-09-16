@@ -17,7 +17,16 @@ const SHARED_CSS = `
   .page-header .subtitle { font-size: 12px; color: var(--muted); }
   .page-intro { font-size: 11px; color: var(--muted); line-height: 1.45; margin: 0 0 10px; }
   .diagram-block { width: 100%; margin: 12px 0; background: #f8f9fa; border-radius: 8px; overflow: hidden; }
-  .polar-diagram { width: 100%; height: auto; max-height: 260px; display: block; }
+  .polar-diagram, .horizon-cartesian-chart, .horizon-premium-chart { width: 100%; height: auto; max-height: 260px; display: block; }
+  .directional-section { margin-top: 12px; padding-top: 8px; border-top: 1px solid #e5e7eb; }
+  .directional-title { margin: 0 0 8px; font-size: 12px; }
+  .diagram-block-radar { display: flex; justify-content: center; align-items: center; }
+  .horizon-directional-radar { width: 160px; height: 160px; }
+  .legend-block { margin-top: 10px; font-size: 10px; color: var(--muted); }
+  .legend-title { font-weight: 700; margin-bottom: 4px; }
+  .pedagogical-block { margin-top: 12px; padding: 10px; background: #f1f5f9; border-left: 4px solid var(--brand); font-size: 10px; }
+  .pedagogical-title { font-weight: 700; margin-bottom: 6px; }
+  .pedagogical-text { margin: 0 0 4px; line-height: 1.4; }
   .diagram-placeholder { padding: 40px; text-align: center; color: var(--muted); }
   .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 16px; margin: 12px 0; font-size: 11px; }
   .info-item { display: flex; flex-direction: column; gap: 2px; }

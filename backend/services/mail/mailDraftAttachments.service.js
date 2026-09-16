@@ -130,14 +130,18 @@ export async function loadDraftAttachmentBuffers({ organizationId, draftId, expe
       JOIN mail_drafts d ON d.id = a.draft_id AND d.organization_id = a.organization_id
      WHERE a.organization_id = $1 AND a.draft_id = $2 ${userClause}
        AND a.cleanup_status <> 'deleted'
-       AND a.upload_status = 'uploaded'
-       AND a.scan_status = 'CLEAN'
      ORDER BY a.created_at ASC`,
     params
   );
   const out = [];
   let totalBytes = 0;
   for (const row of r.rows) {
+    if (row.upload_status !== "uploaded" || row.scan_status !== MAIL_ATTACHMENT_SCAN_STATUSES.CLEAN || !row.storage_path) {
+      const err = new Error(`Envoi impossible : pièce jointe indisponible ou non validée par l'antivirus (${row.file_name}). Réessayez après son contrôle.`);
+      err.code = "MAIL_ATTACHMENT_NOT_READY";
+      err.statusCode = 423;
+      throw err;
+    }
     const abs = getAbsolutePath(row.storage_path);
     let buf;
     try {

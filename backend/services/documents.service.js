@@ -574,14 +574,15 @@ export async function saveStudyPdfDocument(pdfBuffer, organizationId, studyId, v
 }
 
 /**
- * Dédup : une entrée « proposition commerciale » par (lead, étude, version, scénario).
+ * Dédup : une copie par document source ; un recalcul conserve les anciennes copies.
  */
 export async function findExistingLeadCommercialProposalForStudyScenario(
   organizationId,
   leadId,
   studyId,
   studyVersionId,
-  scenarioKey
+  scenarioKey,
+  sourceStudyVersionDocumentId = null
 ) {
   const r = await pool.query(
     `SELECT *
@@ -594,9 +595,10 @@ export async function findExistingLeadCommercialProposalForStudyScenario(
        AND COALESCE(metadata_json->>'study_id', '') = $3
        AND COALESCE(metadata_json->>'study_version_id', '') = $4
        AND COALESCE(metadata_json->>'scenario_key', '') = $5
+       AND ($6::text IS NULL OR metadata_json->>'source_study_version_document_id' = $6)
      ORDER BY created_at DESC
      LIMIT 1`,
-    [organizationId, leadId, String(studyId), String(studyVersionId), String(scenarioKey)]
+    [organizationId, leadId, String(studyId), String(studyVersionId), String(scenarioKey), sourceStudyVersionDocumentId]
   );
   return r.rows[0] || null;
 }
@@ -730,7 +732,8 @@ export async function ensureLeadCommercialProposalFromScenarioPdf(params) {
     leadId,
     studyId,
     studyVersionId,
-    scenarioKey
+    scenarioKey,
+    sourceStudyVersionDocumentId
   );
   // Deduplicate only the same emitted document. A new generation must not reuse an older PDF.
   const sameSource = sourceStudyVersionDocumentId && existing?.metadata_json?.source_study_version_document_id === String(sourceStudyVersionDocumentId);

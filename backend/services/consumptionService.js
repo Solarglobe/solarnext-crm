@@ -1,5 +1,6 @@
 import {isEnergyYear,getCalendar,bindCalendar,copyEnergy,monthlySums,calendarParts,alignCivilShape,HOUR_MS,calendarFromInstants,parisMidnightMs} from './energyCalendar.service.js';
 import { powerIntervalsToHourly } from "./intervalEnergy.service.js";
+import { estimateFutureEquipment } from "../../shared/equipmentEnergy.js";
 // ======================================================================
 // SMARTPITCH — CONSUMPTION SERVICE V7 (Solarglobe 2025)
 // ======================================================================
@@ -1279,6 +1280,28 @@ function _hourlyShapeActuelItem(item) {
  */
 function _hourlyShapeAvenirItem(item) {
   if (!item || typeof item !== "object") return null;
+  const estimate = estimateFutureEquipment(item);
+  if (estimate) {
+    if (!estimate.complete) throw new Error(`Équipement à venir incomplet : ${estimate.warnings.join(" ; ")}`);
+    let hourly;
+    if (item.kind === "ve") {
+      hourly = _buildFlat8760(item.mode_charge === "jour" ? _EQ_VE_JOUR_24H : _EQ_VE_NUIT_24H, estimate.added_kwh);
+    } else {
+      hourly = _buildPac8760WithRole(estimate.heating_kwh, item);
+      const rawCooling = [];
+      const start = Number(item.cooling_start_month ?? 6) - 1;
+      const count = Number(item.cooling_months ?? 0);
+      for (let m = 0; m < 12; m++) {
+        const used = ((m - start + 12) % 12) < count;
+        for (let d = 0; d < _DAYS_IN_MONTH[m]; d++) {
+          for (let h = 0; h < 24; h++) rawCooling.push(used ? _PAC_AIR_AIR_COOL_24H[h] : 0);
+        }
+      }
+      const cooling = estimate.cooling_kwh > 0 ? scaleProfile(rawCooling, estimate.cooling_kwh) : new Array(8760).fill(0);
+      hourly = hourly.map((v, i) => v + cooling[i]);
+    }
+    return { kwh: estimate.added_kwh, hourly, removed_kwh: estimate.removed_kwh };
+  }
   const kind = String(item.kind || "").toLowerCase();
   if (kind === "ve") {
     const kwh = _calcVeKwh(item);
@@ -1493,22 +1516,36 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {
   if (avenir.items.length > 0) {
     let avenirH = new Array(hourly.length).fill(0);
     let avenirKwh = 0;
+    let removedKwh = 0;
+    const impacts = [];
 
     for (const item of avenir.items) {
       const sh = _hourlyShapeAvenirItem(item);
       if (!sh || !sh.hourly) continue;
       avenirKwh += sh.kwh;
+      removedKwh += sh.removed_kwh || 0;
+      impacts.push({ id: item.id, added_kwh: sh.kwh, removed_kwh: sh.removed_kwh || 0 });
       const aligned=alignCivilShape(sh.hourly,calendar);
       for (let i = 0; i < hourly.length; i++) {
         avenirH[i] += aligned[i] || 0;
       }
     }
 
+    if (removedKwh > annual_kwh + 1e-6) throw new Error("La consommation électrique remplacée dépasse la consommation actuelle du compteur.");
+    const currentAnnual = annual_kwh;
+    if (removedKwh > 0) {
+      // L'ancien usage n'est pas sous-compté : retrait proportionnel, jamais de kWh négatifs.
+      const ratio = currentAnnual > 0 ? Math.max(0, (currentAnnual - removedKwh) / currentAnnual) : 0;
+      hourly = hourly.map(v => v * ratio);
+      annual_kwh -= removedKwh;
+    }
     if (avenirKwh > 0) {
       hourly     = hourly.map((v, i) => v + (avenirH[i] || 0));
       annual_kwh = annual_kwh + avenirKwh;
     }
-
+    result = { ...result, equipment_impact: { current_kwh: currentAnnual, removed_kwh: removedKwh,
+      added_kwh: avenirKwh, future_kwh: annual_kwh, items: impacts,
+      replacement_profile_method: removedKwh > 0 ? "proportional_estimate" : null } };
   }
 
   return ensureConsumptionConsistent(attachReference(

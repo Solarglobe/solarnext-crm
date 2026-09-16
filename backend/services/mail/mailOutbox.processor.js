@@ -86,18 +86,22 @@ async function loadParticipants(messageId) {
  * @param {string} messageId
  * @param {string} organizationId
  */
-async function loadAttachmentBuffers(messageId, organizationId) {
+export async function loadAttachmentBuffers(messageId, organizationId) {
   const r = await pool.query(
     `SELECT file_name, mime_type, storage_path, size_bytes, scan_status
      FROM mail_attachments
-     WHERE mail_message_id = $1 AND organization_id = $2 AND storage_path IS NOT NULL
-       AND scan_status = 'CLEAN'`,
+     WHERE mail_message_id = $1 AND organization_id = $2`,
     [messageId, organizationId]
   );
   /** @type {import('nodemailer').SendMailOptions['attachments']} */
   const out = [];
   let total = 0;
   for (const a of r.rows) {
+    if (a.scan_status !== 'CLEAN' || !a.storage_path) {
+      const err = new Error(`Envoi suspendu : pièce jointe indisponible ou non validée par l'antivirus (${a.file_name}).`);
+      err.code = "MAIL_ATTACHMENT_NOT_READY";
+      throw err;
+    }
     try {
       const abs = getAbsolutePath(a.storage_path);
       const st = await fs.stat(abs);

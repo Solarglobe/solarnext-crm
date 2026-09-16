@@ -51,6 +51,9 @@ function smtpHttpStatus(code) {
 }
 
 function handleSmtpRouteError(res, err) {
+  if (["MAIL_ATTACHMENT_NOT_READY", "MAIL_ATTACHMENT_PERSIST_FAILED"].includes(err?.code)) {
+    return res.status(err.statusCode || 422).json({ success: false, code: err.code, message: err.message });
+  }
   if (err?.code && Object.values(SmtpErrorCodes).includes(err.code)) {
     return res.status(smtpHttpStatus(err.code)).json({
       success: false,

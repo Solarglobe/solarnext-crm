@@ -25,6 +25,7 @@ const backendRoot = path.resolve(__dirname, '..');
 
 const UNIT_TEST_FILES = [
   'tests/shadingAttestation.test.mjs',
+  'tests/clientPortalHistory.test.mjs',
   'tests/flatRoofCertification.test.mjs',
   'tests/shadingClientExport.test.mjs',
   'tests/shadingPdfAssessment.test.mjs',

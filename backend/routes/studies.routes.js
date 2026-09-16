@@ -5,6 +5,9 @@
  */
 
 import express from "express";
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {createTreeShadingRouter} from '../services/shading/trees/crmRouter.js';
 import { verifyJWT } from "../middleware/auth.middleware.js";
 import { requireEmailVerified } from "../middleware/emailVerification.middleware.js";
 import { requirePermission } from "../rbac/rbac.middleware.js";
@@ -24,6 +27,17 @@ import { AuditActions } from "../services/audit/auditActions.js";
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user?.id ?? req.user?.userId ?? null;
+
+router.use('/:studyId/versions/:versionId/tree-shading',verifyJWT,requirePermission('study.manage'),requireEmailVerified,createTreeShadingRouter({
+  dataDir:path.resolve(process.env.TREE_SHADING_DATA_DIR||fileURLToPath(new URL('../storage/tree-shading',import.meta.url))),
+  loadStudy:async(organizationId,studyId,version)=>{
+    const {rows}=await pool.query(`SELECT sv.id, sv.is_locked, s.title, c.geometry_json
+      FROM study_versions sv JOIN studies s ON s.id=sv.study_id AND s.organization_id=sv.organization_id
+      LEFT JOIN calpinage_data c ON c.study_version_id=sv.id AND c.organization_id=sv.organization_id
+      WHERE s.id=$1 AND sv.organization_id=$2 AND sv.version_number=$3 AND s.deleted_at IS NULL`,[studyId,organizationId,version]);
+    return rows[0]?{id:rows[0].id,locked:rows[0].is_locked===true,title:rows[0].title,geometry:rows[0].geometry_json}:null;
+  },
+}));
 
 router.post(
   "/:id/geometry/calculate",

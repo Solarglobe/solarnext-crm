@@ -6,6 +6,7 @@
 import express from "express";
 import {
   getClientPortal,
+  getClientPortalResultHistory,
   getClientPortalDocumentFile,
   getClientPortalOrgLogo,
 } from "../controllers/clientPortal.controller.js";
@@ -15,5 +16,6 @@ const router = express.Router();
 router.get("/client-portal/organization/logo", getClientPortalOrgLogo);
 router.get("/client-portal/documents/:documentId/file", getClientPortalDocumentFile);
 router.get("/client-portal/:token", getClientPortal);
+router.get("/client-portal/:token/results-history", getClientPortalResultHistory);
 
 export default router;
