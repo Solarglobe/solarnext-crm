@@ -50,9 +50,18 @@ export function applyVerifiedEnergyPresentation(vm, ref, scenario = {}) {
     storage_legend_label: "Restitution solaire", storage_legend_sublabel: "batterie physique",
     credit_virtuel_utilise_kwh: credit ? q(credit.used_kwh) : null,
   });
+  const scenarioMonthlyForP6 = Array.isArray(scenario?.energy?.monthly) ? scenario.energy.monthly.slice(0, 12) : [];
+  const virtualMonthlyFallback = scenarioMonthlyForP6.length === 12
+    ? scenarioMonthlyForP6.map(r => Number(r.virtual_battery_discharge_kwh ?? r.used_credit_kwh ?? r.used_credit) || 0)
+    : Array(12).fill(0);
+  const hasVirtualMonthlyFallback = virtualMonthlyFallback.some(v => v > 0);
+  const physicalMonthlyBase = m("battery_discharge_solar_kwh").map(v => Number(v) || 0);
   Object.assign(fr.p6.p6, {
-    dir:m("direct_kwh"),bat:m("battery_discharge_solar_kwh"),grid:m("grid_to_load_kwh"),tot:m("consumption_kwh"),
-    is_virtual_credit_scenario:false,
+    dir:m("direct_kwh"),
+    bat:physicalMonthlyBase.map((v,i) => v + (hasVirtualMonthlyFallback ? virtualMonthlyFallback[i] : 0)),
+    grid:m("grid_to_load_kwh").map((v,i) => Math.max(0, (Number(v) || 0) - (hasVirtualMonthlyFallback ? virtualMonthlyFallback[i] : 0))),
+    tot:m("consumption_kwh"),
+    is_virtual_credit_scenario:hasVirtualMonthlyFallback,
     totals:{solar_coverage_pct:ref.ratios.solar_coverage==null?null:ref.ratios.solar_coverage*100,useful_pv_pct:ref.ratios.useful_pv_utilization==null?null:ref.ratios.useful_pv_utilization*100,conso_kwh:a.consumption_kwh,solar_used_kwh:useful,grid_import_kwh:a.grid_to_load_kwh,production_kwh:a.production_kwh,overflow_export_kwh:a.physical_export_kwh},
   });
   const consumptionPct = reconcilePercentParts([a.direct_kwh,a.battery_discharge_solar_kwh,a.grid_to_load_kwh]);
@@ -78,9 +87,12 @@ export function applyVerifiedEnergyPresentation(vm, ref, scenario = {}) {
       const used = months.map(r => r.used_credit);
       const total = used.reduce((s, v) => s + v, 0);
       if (Math.abs(total - credit.used_kwh) > 0.01 || used.some((v,i) => v > ref.monthly[i].grid_to_load_kwh + 0.01)) throw new Error("PDF_VIRTUAL_CREDIT_MONTHLY_MISMATCH");
+      const physicalMonthly = ref.monthly.map(r => Number(r.battery_discharge_solar_kwh) || 0);
+      const storageMonthly = used.map((v, i) => physicalMonthly[i] + v);
       Object.assign(fr.p6.p6, {
-        dir: ref.monthly.map(r => r.direct_kwh + r.battery_discharge_solar_kwh),
-        bat: used, grid: ref.monthly.map((r,i) => Math.max(0, r.grid_to_load_kwh-used[i])),
+        dir: ref.monthly.map(r => Number(r.direct_kwh) || 0),
+        bat: storageMonthly,
+        grid: ref.monthly.map((r,i) => Math.max(0, (Number(r.grid_to_load_kwh) || 0) - used[i])),
         is_virtual_credit_scenario: true,
         totals: { ...fr.p6.p6.totals, is_virtual_credit_scenario: true,
           solar_used_kwh: useful + credit.used_kwh, grid_import_kwh: Math.max(0,a.grid_to_load_kwh-credit.used_kwh),
