@@ -1,4 +1,4 @@
-import {ensureSavedShading,shadingResumeKey,shadingKey} from '../services/shadingWorkflow';
+import {ensureSavedShading,shadingRequest,shadingResumeKey,shadingKey} from '../services/shadingWorkflow';
 /**
  * CP-014 — Overlay Calpinage intégré au CRM (React)
  * Affiche le composant natif CalpinageApp (plus d'iframe) avec :
@@ -241,6 +241,8 @@ export default function CalpinageOverlay({
 }: CalpinageOverlayProps) {
   const navigate = useNavigate();
   const isValidatingRef = useRef(false);
+  const validationTaskRef = useRef<Promise<void> | null>(null);
+  const validationSucceededRef = useRef(false);
   const [hasActiveStudy, setHasActiveStudy] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -361,10 +363,11 @@ export default function CalpinageOverlay({
     return saveToBackend(saved.geometry_json, { silent: true });
   }, [saveToBackend]);
 
-  const handleValidate = useCallback(
+  const performValidate = useCallback(
     async (data: unknown) => {
       if (isValidatingRef.current) return;
       isValidatingRef.current = true;
+      validationSucceededRef.current = false;
       const btn = document.getElementById("btn-validate-calpinage");
       if (btn && "disabled" in btn) (btn as HTMLButtonElement).disabled = true;
       const debugValidate = typeof window !== "undefined" && !!(window as unknown as { CALPINAGE_VALIDATE_DEBUG?: boolean }).CALPINAGE_VALIDATE_DEBUG;
@@ -409,7 +412,13 @@ export default function CalpinageOverlay({
         if (debugValidate) console.log("[VALIDATE] saveToBackend end (status 200/201)");
 
         sessionStorage.setItem(shadingResumeKey(studyId,versionId),'pending');
-        if (!d.skipShading) await ensureSavedShading(studyId,versionId);
+        if (d.skipShading) {
+          // Bind the explicit exclusion to the layout just saved, never an older draft.
+          const state = await shadingRequest(studyId, versionId, '/skip', {});
+          if (state.excluded !== true) throw new Error('La poursuite sans analyse n’a pas été enregistrée. Réessayez.');
+        } else {
+          await ensureSavedShading(studyId,versionId);
+        }
 
         /* 2. Capture canvas de dessin calpinage (pas la carte — requis pour le PDF) */
         // VALIDATE-3D-FIX : garantir la vue plan (canvas 2D visible) avant la capture snapshot.
@@ -488,6 +497,7 @@ export default function CalpinageOverlay({
         }
         if (debugValidate) console.log("[VALIDATE] redirect target", target);
         sessionStorage.removeItem(shadingResumeKey(studyId,versionId));
+        validationSucceededRef.current = true;
         navigate(target);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Erreur validation snapshot";
@@ -515,22 +525,51 @@ export default function CalpinageOverlay({
     [saveToBackend, studyId, versionId, studyVersionId, navigate]
   );
 
+  const handleValidate = useCallback((data: unknown) => {
+    if (validationTaskRef.current) return validationTaskRef.current;
+    const task = performValidate(data);
+    validationTaskRef.current = task;
+    void task.finally(() => {
+      if (validationTaskRef.current === task) validationTaskRef.current = null;
+    });
+    return task;
+  }, [performValidate]);
+
+  const continueWithoutShading = useCallback(async () => {
+    // The failed job can reach the sidebar before the validation poll settles.
+    // Wait for that attempt rather than dropping the user's continuation click.
+    await validationTaskRef.current;
+    if (validationSucceededRef.current) return;
+    const win = window as Window & {
+      getCalpinageGeometryForPersist?: () => { geometry_json?: unknown } | null;
+      getPhase3ChecklistOk?: () => boolean;
+    };
+    if (win.getPhase3ChecklistOk?.() === false) {
+      showToast('Complétez le choix des panneaux et de l’onduleur avant de valider.', false);
+      return;
+    }
+    const saved = win.getCalpinageGeometryForPersist?.();
+    if (!saved?.geometry_json) {
+      showToast('Le calepinage n’est pas encore prêt à être enregistré.', false);
+      return;
+    }
+    await handleValidate({ geometry_json: saved.geometry_json, skipShading: true });
+  }, [handleValidate]);
+
   useEffect(() => {
-    const resume=(skipShading=false)=>{
+    const resume=()=>{
       if(isValidatingRef.current)return false;
       const saved=(window as Window & {getCalpinageGeometryForPersist?:()=>{geometry_json?:unknown}|null}).getCalpinageGeometryForPersist?.();
       if(!saved?.geometry_json)return false;
       const g=saved.geometry_json as {frozenBlocks?:{panels?:unknown[]}[]};
       if(!g.frozenBlocks?.some(b=>b.panels?.length))return false;
-      void handleValidate({geometry_json:saved.geometry_json,skipShading});return true;
+      void handleValidate({geometry_json:saved.geometry_json});return true;
     };
-    const continueWithout=(event:Event)=>{if((event as CustomEvent).detail?.key===shadingKey(studyId,versionId))resume(true);};
     const completed=(event:Event)=>{if((event as CustomEvent).detail?.key===shadingKey(studyId,versionId)&&sessionStorage.getItem(shadingResumeKey(studyId,versionId)))resume();};
     window.addEventListener('shading:complete',completed);
-    window.addEventListener('shading:continue',continueWithout);
     let timer:ReturnType<typeof setInterval>|undefined;
     if(sessionStorage.getItem(shadingResumeKey(studyId,versionId)))timer=setInterval(()=>{if(resume())clearInterval(timer);},500);
-    return()=>{clearInterval(timer);window.removeEventListener('shading:continue',continueWithout);window.removeEventListener('shading:complete',completed);};
+    return()=>{clearInterval(timer);window.removeEventListener('shading:complete',completed);};
   },[studyId,versionId,handleValidate]);
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -595,6 +634,7 @@ export default function CalpinageOverlay({
           studyId={studyId}
           versionId={versionId}
           onPrepareTrees={prepareTrees}
+          onContinueWithoutShading={continueWithoutShading}
           onValidate={handleValidate}
         />
       </div>

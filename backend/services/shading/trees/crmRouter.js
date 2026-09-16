@@ -9,6 +9,7 @@ import {instantaneous,validateScene} from './treeEngine.js';
 import {renderTreePdf} from './renderTreePdf.js';
 import {jobManager,atomicJson} from './jobs.js';
 const error=(status,message)=>Object.assign(Error(message),{status});
+const roofSurveyMessage='Analyse non disponible : la hauteur de la toiture n’a pas pu être déterminée à partir des données IGN. Un relevé de hauteur est nécessaire pour calculer l’ombrage.';
 export function createTreeShadingRouter({loadStudy,dataDir,acquire=acquireScene,calculate=runCombinedCalculation,renderPdf=renderTreePdf}){
  const router=express.Router({mergeParams:true}),jobs=jobManager(dataDir);
  async function readState(directory){try{return JSON.parse(await fs.readFile(path.join(directory,'crm-state.json'),'utf8'));}catch(e){if(e.code==='ENOENT')return null;throw e;}}
@@ -20,10 +21,13 @@ export function createTreeShadingRouter({loadStudy,dataDir,acquire=acquireScene,
   req.tree={study,studyId:req.params.studyId,directory,state,geometryHash:fingerprint(study.geometry),org,version,stale:!!state&&!stateIsCurrent(state,study.geometry)};next();
  }catch(e){next(e);}});
  const persist=(ctx,state)=>atomicJson(path.join(ctx.directory,'crm-state.json'),state);
- function current(ctx){if(!ctx.state)throw error(409,'Analyse non disponible');if(ctx.stale)throw error(409,'Calepinage modifié : recalcul nécessaire');return ctx.state;}
+ function current(ctx){if(!ctx.state)throw error(409,'Analyse non disponible');if(ctx.stale||ctx.state.sceneStale)throw error(409,'Calepinage modifié : recalcul nécessaire');return ctx.state;}
  async function recheckContext(ctx){const fresh=await loadStudy(ctx.org,ctx.studyId,ctx.version);if(!fresh||fresh.locked||fingerprint(fresh.geometry)!==ctx.geometryHash)throw error(409,'Calepinage modifié pendant le traitement');}
  const recheck=req=>recheckContext(req.tree);
  const publicJob=j=>j?Object.fromEntries(['id','status','step','createdAt','startedAt','finishedAt','heartbeatAt','error','code','resultHash'].map(k=>[k,j[k]??null])):null;
+ // Explain existing failed jobs without rewriting their stored diagnostic.
+ const explainedJob=(job,state)=>publicJob(job?.status==='failed'&&job.error==='Analyse non disponible : données IGN indisponibles ou récupération incomplète.'&&state?.scene?.acquisition?.complete&&state.scene.roofSurveyRequired
+  ?{...job,code:'ROOF_SURVEY_REQUIRED',error:roofSurveyMessage}:job);
  const brief=r=>r?Object.fromEntries(['scope','hash','status','lossPercent','uncertainty','components','calculatedAt'].map(k=>[k,r[k]])):null;
  const panelCount=g=>(g?.frozenBlocks||[]).reduce((n,b)=>n+(b.panels?.length||0),0);
  async function start(ctx){
@@ -32,7 +36,7 @@ export function createTreeShadingRouter({loadStudy,dataDir,acquire=acquireScene,
   if(!ctx.stale&&ctx.state?.result?.scope==='combined-shading-v1')return {id:ctx.state.jobId,status:'completed',step:'completed',resultHash:ctx.state.result.hash};
   return jobs.start(ctx.directory,hash([ctx.geometryHash,ctx.state?.revision??0]),async({id,stage,signal})=>{
    let state=await readState(ctx.directory);
-   if(!state||state.pipelineVersion!=='unified-v1'||!stateIsCurrent(state,ctx.study.geometry)||!state.scene?.acquisition?.complete){
+   if(!state||state.pipelineVersion!=='unified-v1'||state.sceneStale||!stateIsCurrent(state,ctx.study.geometry)||!state.scene?.acquisition?.complete){
     await stage('ign');const clone=path.join(ctx.directory,'geometry.json');await fs.writeFile(clone,JSON.stringify({geometry:ctx.study.geometry}),{mode:0o600});
     const scene=await acquire(clone,ctx.directory,{signal,onStage:stage});signal.throwIfAborted();scene.title=ctx.study.title||'Analyse d’ombrage';scene.context='crm';scene.id=ctx.study.id;
     const overrides=state?.treeOverrides||{};
@@ -44,7 +48,8 @@ export function createTreeShadingRouter({loadStudy,dataDir,acquire=acquireScene,
     scene.emptySceneAttested=automaticZeroAttestation(scene);
     state={pipelineVersion:'unified-v1',treeOverrides:rebasedOverrides,scene,result:null,geometryHash:hash(ctx.study.geometry),geometryFingerprint:ctx.geometryHash,revision:(state?.revision??0)+1,jobId:id};await recheckContext(ctx);await persist(ctx,state);
    }
-   if(!state.scene.acquisition?.complete||state.scene.roofSurveyRequired)throw error(422,'Analyse non disponible : données IGN indisponibles ou récupération incomplète.');
+   if(!state.scene.acquisition?.complete)throw error(422,'Analyse non disponible : données IGN indisponibles ou récupération incomplète.');
+   if(state.scene.roofSurveyRequired)throw Object.assign(error(422,roofSurveyMessage),{code:'ROOF_SURVEY_REQUIRED'});
    await stage('annual');const irradiation=JSON.parse(await fs.readFile(path.join(ctx.directory,'irradiation.json'),'utf8'));
    const reference=JSON.parse(await fs.readFile(path.join(ctx.directory,'irradiation-no-horizon.json'),'utf8'));
    const result=await calculate(state.scene,irradiation,{reference,signal});signal.throwIfAborted();result.shading=toStudyShading(result);await stage('save');await recheckContext(ctx);
@@ -53,10 +58,10 @@ export function createTreeShadingRouter({loadStudy,dataDir,acquire=acquireScene,
   });
  }
  function mutation(fn){return async(req,res,next)=>{try{await jobs.exclusive(req.tree.directory,async()=>{if(req.tree.study.locked)throw error(409,'Version verrouillée');if(jobs.isActive(await jobs.status(req.tree.directory)))throw error(409,'Analyse en cours : les corrections seront disponibles après le calcul.');req.tree.state=await readState(req.tree.directory);await fn(req,res);});}catch(e){next(e);}};}
- router.get('/scene',async(req,res,next)=>{try{const {state,stale,study}=req.tree;res.json({scene:state?.scene??null,result:stale?null:state?.result??null,revision:state?.revision??0,stale,excluded:stateIsCurrent(state,req.tree.study.geometry)&&state?.excluded===true,locked:study.locked,title:study.title||'Analyse d’ombrage',job:publicJob(await jobs.status(req.tree.directory))});}catch(e){next(e);}});
- router.get('/jobs',async(req,res,next)=>{try{const job=await jobs.status(req.tree.directory),state=await readState(req.tree.directory);res.json({job:publicJob(job),result:stateIsCurrent(state,req.tree.study.geometry)?brief(state?.result):null,sceneAvailable:!!state?.scene,stale:!!state&&!stateIsCurrent(state,req.tree.study.geometry),locked:req.tree.study.locked,excluded:stateIsCurrent(state,req.tree.study.geometry)&&state?.excluded===true});}catch(e){next(e);}});
+ router.get('/scene',async(req,res,next)=>{try{const {state,stale,study}=req.tree;res.json({scene:state?.scene??null,result:stale?null:state?.result??null,revision:state?.revision??0,stale:stale||state?.sceneStale===true,excluded:stateIsCurrent(state,req.tree.study.geometry)&&state?.excluded===true,locked:study.locked,title:study.title||'Analyse d’ombrage',job:explainedJob(await jobs.status(req.tree.directory),stale?null:state)});}catch(e){next(e);}});
+ router.get('/jobs',async(req,res,next)=>{try{const job=await jobs.status(req.tree.directory),state=await readState(req.tree.directory);res.json({job:explainedJob(job,stateIsCurrent(state,req.tree.study.geometry)?state:null),result:stateIsCurrent(state,req.tree.study.geometry)?brief(state?.result):null,sceneAvailable:!!state?.scene,stale:!!state&&!stateIsCurrent(state,req.tree.study.geometry),locked:req.tree.study.locked,excluded:stateIsCurrent(state,req.tree.study.geometry)&&state?.excluded===true});}catch(e){next(e);}});
  for(const endpoint of ['/jobs','/acquire','/calculate'])router.post(endpoint,async(req,res,next)=>{try{const job=await start(req.tree);res.status(job.status==='completed'?200:202).json({job:publicJob(job)});}catch(e){next(e);}});
- router.post('/skip',mutation(async(req,res)=>{const ctx=req.tree;await persist(ctx,{...ctx.state,pipelineVersion:'unified-v1',result:null,excluded:true,geometryHash:hash(ctx.study.geometry),geometryFingerprint:ctx.geometryHash,revision:(ctx.state?.revision??0)+1});res.json({excluded:true});}));
+ router.post('/skip',mutation(async(req,res)=>{const ctx=req.tree;await recheck(req);await persist(ctx,{...ctx.state,pipelineVersion:'unified-v1',result:null,excluded:true,sceneStale:ctx.state?.sceneStale===true||!stateIsCurrent(ctx.state,ctx.study.geometry),geometryHash:hash(ctx.study.geometry),geometryFingerprint:ctx.geometryHash,revision:(ctx.state?.revision??0)+1});res.json({excluded:true});}));
   router.post('/scene',mutation(async(req,res)=>{
     const ctx=req.tree,state=current(ctx);if(req.body.revision!==state.revision)throw error(409,'Scène modifiée dans une autre fenêtre : recharger');
     const trees=req.body.trees;if(!Array.isArray(trees))throw error(422,'Arbres invalides');

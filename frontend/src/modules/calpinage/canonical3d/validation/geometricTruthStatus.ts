@@ -359,6 +359,7 @@ export function triangulateRoofPatchForMesh(patch: RoofPlanePatch3D): RoofPatchT
 
   indices = orientIndicesToPatchNormal(indices, patch.cornersWorld, patch.normal);
   let meshAreaM2 = 0;
+  let projectedMeshAreaM2 = 0;
   let invertedTriangleCount = 0;
   let degenerateTriangleCount = 0;
   let triangleCentroidsOutsideCount = 0;
@@ -372,6 +373,7 @@ export function triangulateRoofPatchForMesh(patch: RoofPlanePatch3D): RoofPatchT
     const c = patch.cornersWorld[ic]!;
     const area = triangleArea3D(a, b, c);
     meshAreaM2 += area;
+    projectedMeshAreaM2 += Math.abs(dot3(cross3(sub3(b, a), sub3(c, a)), frameValidation.frame.zAxis)) * 0.5;
     if (area <= TRIANGLE_AREA_EPS_M2) degenerateTriangleCount++;
     if (dot3(cross3(sub3(b, a), sub3(c, a)), patch.normal) < -EPS) invertedTriangleCount++;
     const centroid = {
@@ -386,15 +388,24 @@ export function triangulateRoofPatchForMesh(patch: RoofPlanePatch3D): RoofPatchT
     SURFACE_AREA_EPS_M2,
     polygonValidation.areaAbsM2 * SURFACE_AREA_RELATIVE_EPS,
   );
-  if (areaDeltaM2 > allowedSurfaceAreaDeltaM2) {
+  // Compare areas in the same plane. A non-planar surveyed roof has a larger
+  // 3D area than its projection without missing or overlapping any triangles.
+  // Project the actual world vertices, so stale/inconsistent cached UVs still fail.
+  const projectedAreaDeltaM2 = Math.abs(projectedMeshAreaM2 - polygonValidation.areaAbsM2);
+  if (projectedAreaDeltaM2 > allowedSurfaceAreaDeltaM2) {
     diagnostics.push(
       diag("TRIANGULATION_SURFACE_MISMATCH", "error", `Pan ${patch.id} : surface triangles incohérente`, {
         polygonAreaM2: polygonValidation.areaAbsM2,
         meshAreaM2,
         areaDeltaM2,
         allowedSurfaceAreaDeltaM2,
+        projectedAreaDeltaM2,
       }),
     );
+  }
+  if (areaDeltaM2 > allowedSurfaceAreaDeltaM2 && projectedAreaDeltaM2 <= allowedSurfaceAreaDeltaM2) {
+    diagnostics.push(diag("TRIANGULATION_NON_PLANAR_SURFACE", "warning",
+      `Pan ${patch.id} : sommets non coplanaires, surface triangulée conservée`, { areaDeltaM2 }));
   }
   if (degenerateTriangleCount > 0) {
     diagnostics.push(diag("TRIANGULATION_DEGENERATE_TRIANGLES", "error", `Pan ${patch.id} : triangles dégénérés`, { degenerateTriangleCount }));

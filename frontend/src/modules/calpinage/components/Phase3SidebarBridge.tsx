@@ -9,9 +9,9 @@ import { Phase3Sidebar } from "./Phase3Sidebar";
 const MOUNT_ID = "p3-sidebar-react-mount";
 
 export function Phase3SidebarBridge({
-  containerRef, studyId, versionId, onPrepareTrees,
+  containerRef, studyId, versionId, onPrepareTrees, onContinueWithoutShading,
 }: {
-  studyId?: string; versionId?: string; onPrepareTrees?: () => Promise<boolean>;
+  studyId?: string; versionId?: string; onPrepareTrees?: () => Promise<boolean>; onContinueWithoutShading?: () => Promise<void>;
   containerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const rootRef = useRef<ReturnType<typeof createRoot> | null>(null);
@@ -25,12 +25,12 @@ export function Phase3SidebarBridge({
     if (!rootRef.current) {
       rootRef.current = createRoot(mount);
     }
-    rootRef.current.render(<Phase3Sidebar containerRef={containerRef} studyId={studyId} versionId={versionId} onPrepareTrees={onPrepareTrees} />);
+    rootRef.current.render(<Phase3Sidebar containerRef={containerRef} studyId={studyId} versionId={versionId} onPrepareTrees={onPrepareTrees} onContinueWithoutShading={onContinueWithoutShading} />);
 
     return () => {
       rootRef.current?.render(null);
     };
-  }, [containerRef, studyId, versionId, onPrepareTrees]);
+  }, [containerRef, studyId, versionId, onPrepareTrees, onContinueWithoutShading]);
 
   return null;
 }

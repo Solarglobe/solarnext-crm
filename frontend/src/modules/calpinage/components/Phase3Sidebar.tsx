@@ -629,9 +629,9 @@ function Phase3Actions({
 import {Phase3Trees} from './Phase3Trees';
 
 export function Phase3Sidebar({
-  studyId, versionId, onPrepareTrees,
+  studyId, versionId, onPrepareTrees, onContinueWithoutShading,
 }: {
-  studyId?: string; versionId?: string; onPrepareTrees?: () => Promise<boolean>;
+  studyId?: string; versionId?: string; onPrepareTrees?: () => Promise<boolean>; onContinueWithoutShading?: () => Promise<void>;
   containerRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const validateHintId = useId();
@@ -680,7 +680,7 @@ export function Phase3Sidebar({
         />
       </section>
 
-      {studyId && versionId && <Phase3Trees studyId={studyId} versionId={versionId} prepare={onPrepareTrees} panelCount={checklistData?.panelCount ?? 0} />}
+      {studyId && versionId && <Phase3Trees studyId={studyId} versionId={versionId} prepare={onPrepareTrees} onContinueWithoutShading={onContinueWithoutShading} panelCount={checklistData?.panelCount ?? 0} />}
 
       {/* ZONE 3b — Bifacial (conditionnel feature flag) */}
       <Phase3BifacialSection />

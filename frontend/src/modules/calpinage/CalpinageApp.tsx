@@ -33,13 +33,13 @@ type Props = {
   studyId: string;
   versionId: string;
   onValidate?: (data: unknown) => void;
-  onPrepareTrees?: () => Promise<boolean>;
+  onPrepareTrees?: () => Promise<boolean>; onContinueWithoutShading?: () => Promise<void>;
 };
 
 export default function CalpinageApp({
   studyId,
   versionId,
-  onValidate, onPrepareTrees
+  onValidate, onPrepareTrees, onContinueWithoutShading
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cancelledRef = useRef(false);
@@ -264,7 +264,7 @@ export default function CalpinageApp({
           {/* P4.0 — couche Konva progressive (flag VITE_CALPINAGE_KONVA / window.__CALPINAGE_KONVA__) */}
           {isKonvaOverlayEnabled() && <KonvaOverlay containerRef={containerRef} />}
           <Phase2SidebarBridge containerRef={containerRef} />
-          <Phase3SidebarBridge containerRef={containerRef} studyId={studyId} versionId={versionId} onPrepareTrees={onPrepareTrees} />
+          <Phase3SidebarBridge containerRef={containerRef} studyId={studyId} versionId={versionId} onPrepareTrees={onPrepareTrees} onContinueWithoutShading={onContinueWithoutShading} />
           {/* Suspense : fallback null = aucun flash si chunk déjà en cache */}
           <Suspense fallback={null}>
             <Inline3DViewerBridge
