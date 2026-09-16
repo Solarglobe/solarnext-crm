@@ -781,13 +781,11 @@ interface CalpinageSnapshotPayload {
 
 function fmtShadingPctFr(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(Number(v))) return "—";
-  const rounded = Math.round(Number(v) * 10) / 10;
-  const s = Number.isInteger(rounded) ? String(rounded) : String(rounded).replace(".", ",");
-  return `${s} %`;
+  return `${Number(v).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} %`;
 }
 
 /** Résumé technique minimal — source unique : snapshot calpinage actif (payload). */
-function QuoteTechnicalSummary({ payload }: { payload: CalpinageSnapshotPayload | null | undefined }) {
+export function QuoteTechnicalSummary({ payload }: { payload: CalpinageSnapshotPayload | null | undefined }) {
   if (payload == null || typeof payload !== "object") {
     return (
       <div className="sqb-text sqb-muted study-quote-kpi-empty">
@@ -838,8 +836,8 @@ function QuoteTechnicalSummary({ payload }: { payload: CalpinageSnapshotPayload 
   const shadingPct = payload.study_metrics?.shading_loss_pct ?? null;
   const shadingHelpTitle =
     shadingPct == null
-      ? "Non renseigné sur ce snapshot — terminer le calpinage, vérifier la localisation du toit ou regénérer l’étude."
-      : "Même synthèse que l’« Impact global estimé » du PDF « Analyse d’ombrage » (obstacles proches + horizon). Estimation annuelle par modèle : ordre de grandeur comparable entre projets, pas une mesure sur site ni une production garantie.";
+      ? "Analyse facultative non calculée. Aucune perte d’ombrage appliquée."
+      : "Résultat global sauvegardé dans le calepinage et repris dans le PDF : arbres, obstacles proches, relief et horizon.";
 
   return (
     <div className="study-quote-kpis">
@@ -941,7 +939,7 @@ function QuoteFlatRoofMounting({ mounting }: { mounting: FlatRoofMountingInfo[] 
 }
 
 /** Dérive un payload minimal pour QuoteTechnicalSummary à partir du résumé technique API */
-function technicalSummaryToPayload(summary: QuotePrepResponse["technical_snapshot_summary"] | null | undefined): CalpinageSnapshotPayload | null {
+export function technicalSummaryToPayload(summary: QuotePrepResponse["technical_snapshot_summary"] | null | undefined): CalpinageSnapshotPayload | null {
   if (!summary || typeof summary !== "object") return null;
   const s = summary as {
     nb_panels?: number;
@@ -984,7 +982,6 @@ export default function StudyQuoteBuilder() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [treeResult,setTreeResult] = useState<TechnicalSummary["tree_shading"]>();
   const [activeSnapshotPayload, setActiveSnapshotPayload] = useState<CalpinageSnapshotPayload | null>(null);
   const [economic, setEconomic] = useState<EconomicData>(DEFAULT_ECONOMIC_DATA);
   const [status, setStatus] = useState<"DRAFT" | "READY_FOR_STUDY">("DRAFT");
@@ -1049,7 +1046,6 @@ export default function StudyQuoteBuilder() {
         return;
       }
       const prep = await prepRes.json() as QuotePrepResponse;
-      setTreeResult(prep.technical_snapshot_summary.tree_shading);
       setActiveSnapshotPayload(
         technicalSummaryToPayload(prep.technical_snapshot_summary)
       );
@@ -1572,7 +1568,6 @@ export default function StudyQuoteBuilder() {
         <section className="sqb-section sqb-section--technical-summary">
           <h2 className="sqb-h2 sqb-h2--technical-summary">Résumé technique</h2>
           <QuoteTechnicalSummary payload={activeSnapshotPayload} />
-          {treeResult && <p><strong>Analyse d’ombrage : {(treeResult.uncertainty?.central ?? treeResult.lossPercent).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} %</strong> de perte annuelle globale.</p>}
           {/* LOT D — matériel de pose toit plat (informatif, snapshot Lot A) */}
           <QuoteFlatRoofMounting mounting={activeSnapshotPayload?.flat_roof_mounting} />
         </section>
