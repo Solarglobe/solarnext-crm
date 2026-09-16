@@ -341,25 +341,6 @@ function formatPortalDateFr(iso: string | null): string | null {
   return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(d);
 }
 
-/** Libellé catégorie client (ne jamais afficher le code `type` brut). */
-function getDocumentLabel(type: string | null | undefined): string {
-  const t = (type ?? "").toLowerCase().trim();
-  const map: Record<string, string> = {
-    quote_pdf: "Devis",
-    quote_pdf_signed: "Devis signé",
-    study_pdf: "Étude",
-    study_attachment: "Étude",
-    lead_attachment: "Document projet",
-    invoice_pdf: "Facture",
-    credit_note_pdf: "Avoir fiscal",
-    quote_signature_client: "Signature client",
-    quote_signature_company: "Signature entreprise",
-    organization_pdf_cover: "Document entreprise",
-    consumption_csv: "Données de consommation",
-  };
-  return map[t] ?? "Autre document";
-}
-
 function parsePortalDocumentRow(raw: unknown): PortalPayload["documents"][number] {
   const r = raw as Record<string, unknown>;
   const name = normPortalStr(r.name) ?? "Document";
@@ -380,12 +361,6 @@ function parsePortalDocumentRow(raw: unknown): PortalPayload["documents"][number
 
 function getDocumentPrimaryTitle(d: PortalPayload["documents"][number]): string {
   return normPortalStr(d.display_name) ?? normPortalStr(d.file_name) ?? d.name ?? "Document";
-}
-
-function getDocumentCategoryLine(d: PortalPayload["documents"][number]): string {
-  const fromApi = normPortalStr(d.document_type_label);
-  if (fromApi) return fromApi;
-  return getDocumentLabel(d.type);
 }
 
 function parsePortalPayload(raw: unknown): PortalPayload {
@@ -848,27 +823,19 @@ export default function ClientPortalPage() {
                       {list.map((d) => {
                         const href = docHref(d);
                         const downloadHref = docDownloadHref(d);
-                        const dateStr = formatPortalDateFr(d.created_at);
                         return (
                           <div key={d.id} className="cp-doc-row">
                             <div className="cp-doc-meta">
-                              {d.documentWarning && <p role="note">{d.documentWarning}</p>}
-                              {d.documentCurrent && <span>Document actuel</span>}
                               <span className="cp-doc-title">{getDocumentPrimaryTitle(d)}</span>
-                              <span className="cp-doc-secondary">
-                                <span className="cp-doc-category">{getDocumentCategoryLine(d)}</span>
-                                {dateStr ? <span className="cp-doc-date"> · {dateStr}</span> : null}
-                              </span>
                             </div>
                             <div className="cp-doc-actions">
-                              <a className="cp-btn-doc" href={href} onClick={e => { if (d.documentArchived && d.documentWarning && !window.confirm(d.documentWarning)) e.preventDefault(); }} target="_blank" rel="noopener noreferrer">
+                              <a className="cp-btn-doc" href={href} target="_blank" rel="noopener noreferrer">
                                 Ouvrir
                               </a>
                               {d.documentArchived ? (
                               <a
                                 className="cp-btn-doc cp-btn-doc--outline"
                                 href={downloadHref}
-                                onClick={e => { if (d.documentArchived && d.documentWarning && !window.confirm(d.documentWarning)) e.preventDefault(); }}
                                 download={getDocumentPrimaryTitle(d)}
                               >
                                 Télécharger

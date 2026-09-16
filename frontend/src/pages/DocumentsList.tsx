@@ -329,7 +329,6 @@ export default function DocumentsList() {
 
   const handleDownload = useCallback(async (doc: OrganizationDocumentListItem) => {
     if (!getAuthToken()) return;
-    if (doc.documentArchived && doc.documentWarning && !window.confirm(doc.documentWarning)) return;
     setDownloadingId(doc.id);
     setError(null);
     try {
@@ -509,8 +508,6 @@ export default function DocumentsList() {
                   {doc.file_name && doc.file_name !== displayName && (
                     <div className="dp-doc-filename">{doc.file_name}</div>
                   )}
-                  {doc.documentWarning && <p role="note">{doc.documentWarning}</p>}
-                  {doc.documentCurrent && <span>Document actuel</span>}
                   <div className="dp-doc-source">{resolveSourceLabel(doc)}</div>
                 </div>
               </div>
