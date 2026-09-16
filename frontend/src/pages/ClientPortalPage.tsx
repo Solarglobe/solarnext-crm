@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getCrmApiBase } from "../config/crmApiBase";
 import { PortalDocumentDownload } from './PortalDocumentDownload';
@@ -482,23 +482,6 @@ export default function ClientPortalPage() {
   const [data, setData] = useState<PortalPayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [history, setHistory] = useState<Array<{id:string;computed_at:string|null;scenario_label:string;horizon_years:number|null;annual_savings_eur:number|null}>>([]);
-  const [historyOffset, setHistoryOffset] = useState<number|null>(0);
-  const [historyOpened, setHistoryOpened] = useState(false);
-  const [historyBusy, setHistoryBusy] = useState(false);
-  const [historyError, setHistoryError] = useState(false);
-  const historyRequest = useRef<AbortController|null>(null);
-  useEffect(()=>{setHistory([]);setHistoryOffset(0);setHistoryOpened(false);setHistoryError(false);setHistoryBusy(false);return ()=>historyRequest.current?.abort();},[token]);
-  const loadHistory = async () => {
-    if(historyBusy || historyOffset===null)return;
-    setHistoryBusy(true);setHistoryError(false);
-    const controller=new AbortController();historyRequest.current=controller;
-    try {
-      const response=await fetch(`${API_BASE}/api/client-portal/${encodeURIComponent(token ?? '')}/results-history?offset=${historyOffset}`,{signal:controller.signal});
-      if(!response.ok)throw new Error('HISTORY_UNAVAILABLE');
-      const result=await response.json();if(controller.signal.aborted)return;setHistory(previous=>[...previous,...result.items]);setHistoryOffset(result.next_offset);setHistoryOpened(true);
-    } catch {if(!controller.signal.aborted)setHistoryError(true);} finally {if(!controller.signal.aborted)setHistoryBusy(false);}
-  };
   /** Si l’URL logo CRM échoue (404, réseau), repli sur l’asset local. */
   const [heroLogoFallback, setHeroLogoFallback] = useState(false);
 
@@ -854,14 +837,6 @@ export default function ClientPortalPage() {
             )}
           </div>
 
-          <section className="cp-docs-section" aria-label="Résultats précédents">
-            <h3>Résultats précédents</h3>
-            {(!historyOpened || historyOffset!==null) && <button type="button" className="cp-btn-doc" disabled={historyBusy} onClick={loadHistory}>{historyBusy?'Chargement…':historyOpened?'Afficher la suite':'Consulter les résultats précédents'}</button>}
-            {historyError && <p role="alert">L’historique est momentanément indisponible.</p>}
-            {historyOpened && <p>Consultation historique — ces résultats ne permettent pas de générer un nouveau document.</p>}
-            {historyOpened && history.length===0 && <p>Aucun résultat précédent disponible.</p>}
-            {history.map(item=><article key={item.id} className="cp-doc-row"><div><h4>{item.scenario_label}</h4><p>{item.computed_at?formatPortalDateFr(item.computed_at):'Date non renseignée'}{item.horizon_years?` · Projection sur ${item.horizon_years} ans`:''}</p>{item.annual_savings_eur!==null && <p>Économie annuelle estimée : {item.annual_savings_eur.toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</p>}</div></article>)}
-          </section>
           <div className="cp-advisor">
             <div className="cp-advisor-head">
               <h3>Votre interlocuteur</h3>
