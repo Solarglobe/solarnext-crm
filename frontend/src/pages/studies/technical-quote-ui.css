@@ -1,0 +1,109 @@
+/* Scoped presentation only. Economic and technical formulas live elsewhere. */
+.study-quote-page,.study-quote-page *{box-sizing:border-box}
+.study-quote-page .sn-btn{box-shadow:none!important}
+.study-quote-page .sn-btn-primary{background:#6d28d9!important;color:#fff!important;border-color:#6d28d9!important}
+.study-quote-page .sn-btn-ghost:not(.sn-btn-primary){background:transparent!important;color:#6d28d9!important}
+.study-quote-page .sqb-vb-total{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.study-quote-page .sqb-vb-estimate-head{text-transform:none;font-size:13px;font-weight:600;margin-bottom:10px}
+.study-quote-page input:not([type=checkbox]),.study-quote-page select,.study-quote-page textarea{min-height:44px!important;max-height:none!important;height:auto!important}
+.study-quote-page .sn-table-finance .col-designation .sn-input{width:100%;max-width:none;resize:vertical}
+.study-quote-page .sqb-battery-label{white-space:normal;overflow:visible;text-overflow:clip}
+.study-quote-page .sqb-financing{display:block}
+.study-quote-page .installer-quote-panel{border:1px solid #e2e7ef;border-radius:16px;padding:24px;box-shadow:none}
+.study-quote-page .installer-quote-panel input:not([type=checkbox]),.study-quote-page .installer-quote-panel select{min-height:44px;height:auto;border-radius:9px;padding:10px 12px}
+.study-quote-page .installer-quote-form{grid-template-columns:repeat(3,minmax(0,1fr))}
+.study-quote-page .study-quote-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+.study-quote-page{--sqb-ink:#18263d;--sqb-muted:#64748b;--sqb-line:#e2e7ef;--sqb-wash:#f7f9fc;--sqb-accent:#6d28d9;padding:28px 28px 116px;color:var(--text-primary,var(--sqb-ink));font-family:var(--font-sans,Inter,ui-sans-serif,system-ui,sans-serif);font-size:14px;line-height:1.5;background:var(--bg-app,#f5f7fb)}
+.study-quote-page-header,.sqb-workbench{max-width:1240px;margin-inline:auto}
+.study-quote-page-header{margin-bottom:24px;align-items:center}
+.study-quote-page .sqb-h1{font-size:26px;font-weight:650;letter-spacing:-.6px;line-height:1.25}
+.study-quote-page .sqb-workbench{padding:0;border:0;box-shadow:none;background:transparent;display:flex;flex-direction:column;gap:20px}
+.study-quote-page .sqb-workbench>.sqb-section,.study-quote-page .sqb-workbench>.installer-quote-prep-panel{padding:24px;border:1px solid var(--sqb-line);border-radius:16px;background:var(--surface,#fff);box-shadow:0 2px 8px #18263d03;min-width:0}
+.study-quote-page .sqb-workbench>.sqb-divider,.study-quote-page .sqb-calculation-inputs>.sqb-divider{display:none}
+.study-quote-page .sqb-h2,.study-quote-page .sqb-h3,.study-quote-page h3,.study-quote-page .sqb-subzone-title,.study-quote-page .sqb-project-total-label{font-size:17px;font-weight:650;line-height:1.4;letter-spacing:-.2px;text-transform:none;color:var(--text-primary,var(--sqb-ink));margin:0 0 12px}
+.study-quote-page .sqb-h2::after{display:none}
+.study-quote-page h3,.study-quote-page .sqb-h3{font-size:15px;margin-top:0}
+.study-quote-page .sqb-help{font-size:12px;line-height:1.55;color:var(--text-muted,var(--sqb-muted));margin:6px 0 12px;max-width:90ch}
+.study-quote-page .sqb-helper{font-size:12px;line-height:1.5}
+.study-quote-page .sqb-eyebrow{display:block;font-size:11px;font-weight:650;color:var(--sqb-accent);letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px}
+.study-quote-page .sqb-section-heading,.study-quote-page .sqb-section-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px}
+.study-quote-page .sqb-section-heading .sqb-h2{margin-bottom:4px}
+.study-quote-page .sqb-section-heading .sqb-help{margin-bottom:0}
+.study-quote-page .sqb-form-grid,.study-quote-page .sqb-reference-grid,.study-quote-page .sqb-financing-inline,.study-quote-page .sqb-vb-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start;width:100%;min-width:0}
+.study-quote-page .sqb-form-grid>label,.study-quote-page .sqb-financing-inline>label,.study-quote-page .sqb-vb-grid>label,.study-quote-page .sqb-schedule-row>label{display:flex;flex-direction:column;align-items:stretch;gap:8px;font-size:13px;font-weight:500;min-width:0;width:auto;flex:none}
+.study-quote-page .sn-input{height:auto;min-height:44px;width:100%;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:9px;box-shadow:none;font-size:14px;line-height:1.4;color:var(--text-primary,var(--sqb-ink));background:var(--surface,#fff)}
+.study-quote-page select.sn-input{padding-right:30px;white-space:normal;text-overflow:clip}
+.study-quote-page .sn-input:focus-visible,.study-quote-page button:focus-visible,.study-quote-page a:focus-visible,.study-quote-page summary:focus-visible{outline:3px solid #c4b5fd;outline-offset:2px}
+.study-quote-page input[type=checkbox]{width:18px;height:18px;flex-shrink:0;accent-color:var(--sqb-accent)}
+.study-quote-page .sn-btn{min-height:44px;height:auto;padding:10px 15px!important;font-size:13px;line-height:1.4;white-space:normal;text-overflow:clip;border-radius:9px;box-shadow:none;transition:background-color 140ms ease,transform 140ms ease}
+.study-quote-page .sn-btn:active{transform:scale(.98)}
+.study-quote-page .sn-btn-ghost{color:var(--sqb-accent);background:transparent}
+.study-quote-page .sn-btn-secondary{background:#f4f0ff;border:1px solid #e4dafb;color:#5b21b6}
+.study-quote-page .sn-btn-primary{background:#6d28d9;color:#fff;border:1px solid #6d28d9}
+.study-quote-page .sqb-source{display:inline-flex;align-items:center;align-self:flex-start;font-size:10px;line-height:1.4;font-weight:550;letter-spacing:0;text-transform:none;padding:4px 7px;border-radius:5px;white-space:normal;max-width:100%;color:#536278;background:#eef2f7}
+.study-quote-page .sqb-source--custom{color:#6d28d9;background:#f2ebff}
+.study-quote-page .sqb-source--computed{color:#18795e;background:#ebf6f1}
+.study-quote-page .sqb-source-value{background:var(--sqb-wash);border:1px solid #edf0f5;border-radius:11px;padding:16px;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.study-quote-page .sqb-value-heading{display:flex;flex-direction:column;gap:8px;font-size:13px;min-height:56px}
+.study-quote-page .sqb-read-value{display:block;font-size:18px;font-weight:650;line-height:1.5}
+.study-quote-page .sqb-inline-number{display:flex;align-items:center;gap:8px;font-size:12px}
+.study-quote-page .sqb-inline-number input{width:100px}
+.study-quote-page .sqb-text-link{color:var(--sqb-accent);text-decoration:none;font-size:12px;font-weight:550;min-height:44px;display:inline-flex;align-items:center}
+.study-quote-page .sqb-text-link:hover{text-decoration:underline}
+.study-quote-page .sqb-reference-heading{margin-top:24px;margin-bottom:12px;align-items:center}
+.study-quote-page .sqb-reference-heading h3{margin:0}
+.study-quote-page .sqb-disclosure>summary{cursor:pointer;min-height:44px;align-content:center;font-weight:650;font-size:17px;list-style-position:inside}
+.study-quote-page .sqb-disclosure>summary>span{font-size:12px;font-weight:400;color:var(--sqb-muted);margin-left:12px}
+.study-quote-page .sqb-reference-details{border-top:1px solid var(--sqb-line);padding-top:16px;margin-top:20px}
+.study-quote-page .sqb-reference-details>summary{font-size:14px}
+.study-quote-page .sqb-special-cases>.sqb-section{padding:22px 0 0}
+.study-quote-page .sqb-special-cases>.sqb-section+.sqb-section{border-top:1px solid var(--sqb-line);margin-top:24px}
+.study-quote-page .sqb-study-meter{border:0;padding:0;margin:0;background:transparent}
+.study-quote-page .sqb-study-meter__head{margin:0 0 12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.study-quote-page .sqb-study-meter__title{font-size:15px;text-transform:none;margin:0 0 4px}
+.study-quote-page .sqb-study-meter__subtitle{font-size:12px;color:var(--sqb-muted)}
+.study-quote-page .sqb-study-meter__card{border:0;background:transparent;padding:0}
+.study-quote-page .sqb-study-meter__dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.study-quote-page .sqb-study-meter__dl>div{padding:14px 16px;border:1px solid var(--sqb-line);border-radius:10px;background:var(--surface,#fff)}
+.study-quote-page .sqb-study-meter__dl dt{display:flex;flex-direction:column;align-items:flex-start;gap:7px;text-transform:none;letter-spacing:0;font-size:12px;color:var(--sqb-muted)}
+.study-quote-page .sqb-study-meter__dl dd{font-size:16px;font-weight:600;margin:8px 0 0;overflow-wrap:anywhere}
+.study-quote-page .sqb-switch-row{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:16px 18px;border:1px solid var(--sqb-line);border-radius:11px;background:var(--sqb-wash);margin:12px 0 22px}
+.study-quote-page .sqb-switch-label{font-size:14px;font-weight:600}
+.study-quote-page .sqb-switch-row .sqb-help{margin:4px 0 0}
+.study-quote-page .sqb-switch{position:relative;flex:0 0 52px;height:44px;border:0;padding:0;background:transparent;cursor:pointer}
+.study-quote-page .sqb-switch:before{content:"";position:absolute;inset:8px 0;background:#cbd5e1;border-radius:20px}
+.study-quote-page .sqb-switch span{position:absolute;left:4px;top:12px;width:20px;height:20px;background:white;border-radius:50%;box-shadow:0 1px 3px #18263d30;transition:transform 140ms ease}
+.study-quote-page .sqb-switch[aria-checked=true]:before{background:var(--sqb-accent)}
+.study-quote-page .sqb-switch[aria-checked=true] span{transform:translateX(24px)}
+.study-quote-page .sqb-switch:disabled{opacity:.5;cursor:not-allowed}
+.study-quote-page .sqb-schedule{padding:20px;margin-top:24px;background:var(--sqb-wash);border:1px solid var(--sqb-line);border-radius:12px;min-width:0}
+.study-quote-page .sqb-replacement-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.study-quote-page .sqb-empty{font-size:13px;color:var(--sqb-muted);padding:8px 0}
+.study-quote-page .sqb-schedule-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:16px 0;border-top:1px solid var(--sqb-line)}
+.study-quote-page .sqb-span-all{grid-column:1/-1}
+.study-quote-page .sqb-table-scroll{max-width:100%;overflow-x:auto;margin:12px 0}
+.study-quote-page .sqb-schedule-table,.study-quote-page .sqb-internal-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.study-quote-page .sqb-schedule-table th,.study-quote-page .sqb-schedule-table td,.study-quote-page .sqb-internal-table th,.study-quote-page .sqb-internal-table td{padding:12px;text-align:left;border-bottom:1px solid var(--sqb-line);vertical-align:middle;white-space:normal}
+.study-quote-page .sqb-schedule-table th,.study-quote-page .sqb-internal-table th{font-weight:550;color:var(--sqb-muted)}
+.study-quote-page .sqb-internal-table td:not(:first-child),.study-quote-page .sqb-internal-table th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.study-quote-page .sqb-workbench>.sqb-internal-analysis{background:#f0f4f9;border-color:#d9e1ec}
+.study-quote-page .sqb-info{position:relative;display:inline-block;margin-bottom:12px;max-width:100%}
+.study-quote-page .sqb-info-trigger{border:0;background:transparent;color:var(--sqb-muted);font:inherit;font-size:12px;cursor:pointer;min-height:44px;padding:6px 0;text-align:left}
+.study-quote-page .sqb-info-content{display:none;position:absolute;left:0;bottom:100%;width:min(460px,75vw);padding:16px;background:#18263d;color:#fff;font-size:12px;font-weight:400;line-height:1.6;border-radius:10px;z-index:10;box-shadow:0 8px 28px #18263d30}
+.study-quote-page .sqb-info:hover .sqb-info-content,.study-quote-page .sqb-info:focus-within .sqb-info-content,.study-quote-page .sqb-info.is-open .sqb-info-content{display:block}
+.study-quote-page .sqb-inline-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.study-quote-page .sqb-workbench-footer{position:fixed;bottom:0;left:var(--sidebar-width,0px);right:0;z-index:50;border-top:1px solid var(--sqb-line);padding:16px 28px;background:var(--surface,#fff);box-shadow:0 -4px 20px #18263d08;display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0}
+.study-quote-page .sqb-workbench-footer__actions{display:flex;align-items:center;gap:20px}
+.study-quote-page .sqb-save-state{font-size:12px;color:#18795e;max-width:280px}
+.study-quote-page .sqb-save-state--error{color:#b91c1c}
+.study-quote-page .sqb-save-state--saving{color:var(--sqb-muted)}
+.study-quote-page .sqb-pricing-panel,.study-quote-page .sqb-financing-panel{border:0;background:transparent;padding:0;box-shadow:none}
+.study-quote-page .sqb-grid-2--dense{gap:12px}
+.study-quote-page .sqb-financing-inline>div:has(.v2h-grid-wrap){grid-column:1/-1;min-width:0;overflow-x:auto}
+.study-quote-page .sn-table-wrapper{min-width:0;max-width:100%;overflow-x:auto}
+.study-quote-page .sn-table-finance input{min-width:70px}
+.study-quote-page .sqb-project-totals{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1000px){.study-quote-page .sqb-form-grid,.study-quote-page .sqb-reference-grid,.study-quote-page .sqb-financing-inline,.study-quote-page .sqb-study-meter__dl{grid-template-columns:repeat(2,minmax(0,1fr))}.study-quote-page .sqb-workbench-footer{left:0}.study-quote-page .sqb-replacement-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.study-quote-page{padding:20px 12px 160px}.study-quote-page .sqb-h1{font-size:22px}.study-quote-page .sqb-workbench>.sqb-section,.study-quote-page .sqb-workbench>.installer-quote-prep-panel{padding:18px 16px;border-radius:12px}.study-quote-page .sqb-form-grid,.study-quote-page .sqb-reference-grid,.study-quote-page .sqb-financing-inline,.study-quote-page .sqb-study-meter__dl,.study-quote-page .sqb-vb-grid,.study-quote-page .sqb-project-totals,.study-quote-page .installers-form-grid,.study-quote-page .installers-summary-grid{grid-template-columns:1fr}.study-quote-page .sqb-disclosure>summary>span{display:block;margin:8px 0 0}.study-quote-page .sqb-workbench-footer{padding:12px;gap:8px;flex-wrap:wrap}.study-quote-page .sqb-workbench-footer__actions{display:contents}.study-quote-page .sqb-save-state{font-size:11px;order:2;max-width:100%;width:100%;text-align:center}.study-quote-page .sqb-workbench-footer .sn-btn{flex:1;min-width:135px;font-size:12px}.study-quote-page .sqb-schedule{padding:14px}.study-quote-page .sqb-schedule-table th,.study-quote-page .sqb-schedule-table td,.study-quote-page .sqb-internal-table td,.study-quote-page .sqb-internal-table th{padding:10px 4px;font-size:12px}.study-quote-page .sqb-internal-table th:first-child{width:36%}.study-quote-page .sqb-schedule-table .sn-btn{padding:8px 4px!important}.study-quote-page .sn-table-finance thead{display:none}.study-quote-page .sn-table-finance tbody tr{display:grid;grid-template-columns:1fr;gap:12px;padding:16px 0;border-bottom:1px solid var(--sqb-line)}.study-quote-page .sn-table-finance td{display:block;width:100%!important;max-width:none;padding:0;border:0}.study-quote-page .sn-table-finance td[data-label]::before{content:attr(data-label);display:block;font-size:12px;color:var(--sqb-muted);margin:0 0 7px}.study-quote-page .sn-table-finance{min-width:0!important}.study-quote-page .sqb-value-heading{min-height:0}.study-quote-page .sqb-grid-2{grid-template-columns:1fr}.study-quote-page .sqb-input-narrow{width:100%}}
+@media(prefers-reduced-motion:reduce){.study-quote-page .sn-btn,.study-quote-page .sqb-switch span{transition:none}}
+@media(max-width:600px){.study-quote-page .installer-quote-form,.study-quote-page .installer-quote-options,.study-quote-page .study-quote-kpis{grid-template-columns:1fr!important}.study-quote-page .installer-quote-panel{padding:18px 16px}}

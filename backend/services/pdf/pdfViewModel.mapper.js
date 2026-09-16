@@ -64,6 +64,7 @@ function frozenEconomicConfigForP11(snapshotEconomic) {
   return {
     totals: { ttc: e.capex_ttc ?? null },
     financing: {
+      enabled: f.enabled,
       amount: f.amount_eur ?? null,
       duration_months: f.duration_months ?? null,
       interest_rate_annual: f.interest_rate_annual_pct ?? null,
@@ -483,7 +484,7 @@ function normalizeQuoteFinancing(configJson, capexTtc) {
   const duration = Math.max(0, numOrZero(raw.duration_months));
   const rateRaw = num(raw.interest_rate_annual);
   const rate = rateRaw != null && Number.isFinite(rateRaw) ? rateRaw : 0;
-  const enabled = duration > 0 && rate >= 0;
+  const enabled = raw.enabled !== false && duration > 0 && rateRaw != null && rate >= 0;
   let amount = num(raw.amount);
   if (amount == null || !Number.isFinite(amount) || amount < 0) amount = 0;
   if (enabled && amount <= 0 && ttc > 0) amount = ttc;

@@ -84,7 +84,7 @@ function normalizeFinancingSnapshot(configJson, capexTtc) {
   const rate = Number(raw.interest_rate_annual);
   const fallbackAmount = Number.isFinite(totalsTtc) && totalsTtc > 0 ? totalsTtc : Number(capexTtc);
   const rateKnown = raw.interest_rate_annual != null && raw.interest_rate_annual !== '' && Number.isFinite(rate) && rate >= 0;
-  const enabled = Number.isFinite(duration) && duration > 0 && rateKnown;
+  const enabled = raw.enabled !== false && Number.isFinite(duration) && duration > 0 && rateKnown;
   const amount =
     Number.isFinite(amountRaw) && amountRaw > 0
       ? amountRaw

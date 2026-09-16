@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {SourceBadge} from '../../../components/study/QuoteStudyUi';
 import { apiFetch } from "../../../services/api";
 import { getCrmApiBase } from "@/config/crmApiBase";
 import { postStudyVersionDataMerge, type StudyWithVersions } from "../../../services/studies.service";
@@ -281,13 +282,14 @@ export default function StudyMeterSelector({
       <section className="sqb-study-meter" aria-labelledby="sqb-study-meter-title">
         <div className="sqb-study-meter__head">
           <div>
-            <h2 id="sqb-study-meter-title" className="sqb-study-meter__title">
+            <h3 id="sqb-study-meter-title" className="sqb-study-meter__title">
               Compteur de référence de cette étude
-            </h2>
+            </h3>
             <p className="sqb-study-meter__subtitle">
               Les calculs et projections sont basés sur ce compteur
             </p>
           </div>
+          <div className="sqb-inline-actions"><a className="sqb-text-link" href={`/leads/${encodeURIComponent(leadId)}`}>Modifier le compteur</a>
           {!locked && meters && meters.length > 0 && (
             <button
               type="button"
@@ -295,9 +297,9 @@ export default function StudyMeterSelector({
               disabled={saving || detailLoading}
               onClick={() => setModalOpen(true)}
             >
-              Changer
+              Choisir un autre compteur
             </button>
-          )}
+          )}</div>
         </div>
 
         {metersError && (
@@ -332,27 +334,27 @@ export default function StudyMeterSelector({
         <div className={`sqb-study-meter__card${detailLoading ? " sqb-study-meter__card--loading" : ""}`}>
           <dl className="sqb-study-meter__dl">
             <div>
-              <dt>Nom</dt>
+              <dt>Nom <SourceBadge source="Compteur client"/></dt>
               <dd>{detailLoading ? "…" : name}</dd>
             </div>
             <div>
-              <dt>PDL</dt>
+              <dt>PDL <SourceBadge source="Compteur client"/></dt>
               <dd>{detailLoading ? "…" : pdl || "—"}</dd>
             </div>
             <div>
-              <dt>Puissance compteur</dt>
+              <dt>Puissance compteur <SourceBadge source="Compteur client"/></dt>
               <dd>{detailLoading ? "…" : kva != null && Number.isFinite(Number(kva)) ? `${kva} kVA` : "—"}</dd>
             </div>
             <div>
-              <dt>Réseau</dt>
+              <dt>Réseau <SourceBadge source="Compteur client"/></dt>
               <dd>{detailLoading ? "…" : grid}</dd>
             </div>
             <div>
-              <dt>Consommation annuelle</dt>
+              <dt>Consommation annuelle <SourceBadge source="Compteur client"/></dt>
               <dd>{detailLoading ? "…" : conso}</dd>
             </div>
             <div>
-              <dt>Heures pleines / creuses</dt>
+              <dt>Heures pleines / creuses <SourceBadge source="Compteur client"/></dt>
               <dd>
                 {detailLoading
                   ? "…"
@@ -365,6 +367,20 @@ export default function StudyMeterSelector({
             </div>
           </dl>
         </div>
+        <details className="sqb-disclosure sqb-reference-details">
+          <summary>Tarifs renseignés sur le compteur <span>Valeurs client, sans estimation ajoutée</span></summary>
+          <dl className="sqb-study-meter__dl">
+            {([
+              ['supplier_name','Fournisseur',''],
+              ['elec_price_base_eur_kwh','Prix Base','€/kWh TTC'],
+              ['elec_price_hp_eur_kwh','Prix heures pleines','€/kWh TTC'],
+              ['elec_price_hc_eur_kwh','Prix heures creuses','€/kWh TTC'],
+              ['electricity_annual_bill_ttc','Facture annuelle','€ TTC/an'],
+              ['electricity_subscription_ttc_month','Abonnement','€ TTC/mois'],
+            ] as const).map(([key,label,unit])=><div key={key}><dt>{label} <SourceBadge source="Compteur client"/></dt><dd>{detailLoading?'…':d?.[key]==null||d[key]===''?'Non renseigné':typeof d[key]==='number'?`${Number(d[key]).toLocaleString('fr-FR',{maximumFractionDigits:4})} ${unit}`:`${String(d[key])} ${unit}`}</dd></div>)}
+          </dl>
+          <p className="sqb-help">Les éventuelles estimations et leur provenance restent établies par le calcul de l’étude.</p>
+        </details>
       </section>
 
       {modalOpen && meters && meters.length > 0 && (

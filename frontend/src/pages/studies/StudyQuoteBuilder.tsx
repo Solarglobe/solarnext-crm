@@ -1,3 +1,7 @@
+import QuoteCalculationInputs from "../../components/study/QuoteCalculationInputs";
+import QuoteFinancingSettings, {DEFAULT_FINANCING, mergeFinancing, financingInputError, type FinancingConfig} from "../../components/study/QuoteFinancingSettings";
+import {SourceBadge, StudySwitch, StudyHelp} from "../../components/study/QuoteStudyUi";
+import {Button} from "../../components/ui/Button";
 import VirtualStorageContractSettings, {type VirtualStorageContract} from "../../components/study/VirtualStorageContractSettings";
 import FinanceProjectionSettings, {type FinanceProjection} from "../../components/study/FinanceProjectionSettings";
 /**
@@ -24,6 +28,7 @@ import LocaleNumberInput from "../../modules/quotes/LocaleNumberInput";
 import InstallerQuotePrepPanel from "../../modules/installers/InstallerQuotePrepPanel";
 import type { InstallerCostResult } from "../../modules/installers/installers.types";
 import "./study-quote-builder.css";
+import "./technical-quote-ui.css";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 import { computeMaterialMarginFromLines, round2 } from "../../modules/quotes/quoteCalc";
 import { computeProjectEconomicTotals } from "../../modules/quotes/projectEconomicTotals";
@@ -225,9 +230,9 @@ function V2hPresenceGrid({
                   );
                 })}
                 <td style={{ padding: "0 4px", whiteSpace: "nowrap" }}>
-                  <button type="button" disabled={disabled} onClick={() => setRow(dd, true)} style={{ fontSize: 9, marginRight: 2 }}>tout</button>
-                  <button type="button" disabled={disabled} onClick={() => setRow(dd, false)} style={{ fontSize: 9, marginRight: 2 }}>rien</button>
-                  <button type="button" disabled={disabled} onClick={() => copyDayToWeek(dd)} style={{ fontSize: 9 }} title="Copier ce jour sur toute la semaine">→ 7j</button>
+                  <Button variant="ghost" type="button" disabled={disabled} onClick={() => setRow(dd, true)} style={{ fontSize: 9, marginRight: 2 }}>tout</Button>
+                  <Button variant="ghost" type="button" disabled={disabled} onClick={() => setRow(dd, false)} style={{ fontSize: 9, marginRight: 2 }}>rien</Button>
+                  <Button variant="ghost" type="button" disabled={disabled} onClick={() => copyDayToWeek(dd)} style={{ fontSize: 9 }} title="Copier ce jour sur toute la semaine">→ 7j</Button>
                 </td>
               </tr>
             ))}
@@ -252,18 +257,6 @@ interface CatalogItemApi {
   sale_price_ht_cents: number;
   purchase_price_ht_cents?: number;
   default_vat_rate_bps: number;
-}
-
-/** Données de financement (configuration uniquement, économique_snapshots.config_json.financing) */
-interface FinancingConfig {
-  enabled: boolean;
-  amount: number;
-  duration_months: number;
-  interest_rate_annual: number;
-  taeg_pct?:number|null;
-  insurance_eur?:number|null;
-  application_fee_eur?:number|null;
-  other_costs_eur?:number|null;
 }
 
 interface EconomicData {
@@ -306,13 +299,6 @@ interface QuotePrepResponse {
   organization_pv_virtual_battery?: PvVirtualBatterySettings | null;
 }
 
-const DEFAULT_FINANCING: FinancingConfig = {
-  enabled: false,
-  amount: 0,
-  duration_months: 0,
-  interest_rate_annual: 0,
-};
-
 const DEFAULT_ECONOMIC_DATA: EconomicData = {
   items: [],
   batteries: {
@@ -324,18 +310,6 @@ const DEFAULT_ECONOMIC_DATA: EconomicData = {
   vehicleV2h: null,
   financing: { ...DEFAULT_FINANCING },
 };
-
-function mergeFinancing(raw: Partial<FinancingConfig> | null | undefined, totalsTtc: number): FinancingConfig {
-  const f = { ...DEFAULT_FINANCING, ...raw };
-  const duration = Math.max(0, Number(f.duration_months) || 0);
-  const rate = Number(f.interest_rate_annual);
-  const rateOk = Number.isFinite(rate) ? rate : 0;
-  const enabled = duration > 0 && Number.isFinite(rate) && rateOk >= 0;
-  let amount = Number(f.amount);
-  if (!Number.isFinite(amount) || amount < 0) amount = 0;
-  if (enabled && amount <= 0 && totalsTtc > 0) amount = totalsTtc;
-  return { ...f, enabled, amount, duration_months: duration, interest_rate_annual: rateOk };
-}
 
 const DEFAULT_VAT_RATE = 20;
 
@@ -610,7 +584,7 @@ function ModalPvBatterySelector({
             <ul className="sqb-modal-list">
               {filtered.map((b) => (
                 <li key={b.id} className="sqb-modal-list-item">
-                  <button
+                  <Button variant="ghost"
                     type="button"
                     className="sn-btn sn-btn-ghost sqb-modal-battery-btn"
                     onClick={() => onSelect(b)}
@@ -619,7 +593,7 @@ function ModalPvBatterySelector({
                     {b.default_price_ht != null && (
                       <span className="sqb-helper sqb-modal-battery-price">{Number(b.default_price_ht).toLocaleString("fr-FR")} € HT</span>
                     )}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -743,20 +717,20 @@ function ModalCatalogSelector({
                       € HT · {CATEGORY_LABELS[item.category] ?? item.category}
                     </span>
                   </div>
-                  <button
+                  <Button variant="ghost"
                     type="button"
                     className="sn-btn sn-btn-primary"
                     onClick={() => { onSelect(item); onClose(); }}
                   >
                     Sélectionner
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
           )}
         </div>
         <div className="sqb-modal-footer">
-          <button type="button" className="sn-btn sn-btn-ghost" onClick={onClose}>Fermer</button>
+          <Button variant="ghost" type="button" className="sn-btn sn-btn-ghost" onClick={onClose}>Fermer</Button>
         </div>
       </div>
     </div>
@@ -1002,6 +976,16 @@ export default function StudyQuoteBuilder() {
   const [leadCustomerType, setLeadCustomerType] = useState<"PERSON" | "PRO">("PERSON");
   const [orgPvVirtualBattery, setOrgPvVirtualBattery] = useState<PvVirtualBatterySettings | null>(null);
 
+  const [generalEconomics, setGeneralEconomics] = useState<Record<string,number>|null>(null);
+  useEffect(()=>{
+    let current=true;
+    void apiFetch(`${API_BASE}/api/admin/org/settings`, {skipErrorToast:true}).then(async res=>{
+      if(!res.ok)return;
+      const data=await res.json();
+      if(current)setGeneralEconomics(data.economics??null);
+    }).catch(()=>{});
+    return ()=>{current=false;};
+  },[]);
   const locked = status === "READY_FOR_STUDY";
   const catalogModalOpen = catalogModalMode !== null;
   const [negativeMarginConfirmOpen, setNegativeMarginConfirmOpen] = useState(false);
@@ -1239,14 +1223,14 @@ export default function StudyQuoteBuilder() {
   useEffect(() => {
     if (locked) return;
     const f = economic.financing ?? DEFAULT_FINANCING;
-    const active = (f.duration_months ?? 0) > 0 && (f.interest_rate_annual ?? 0) >= 0;
+    const active = f.enabled && (f.duration_months ?? 0) > 0 && f.interest_rate_annual != null && f.interest_rate_annual >= 0;
     if (!active || totalsForSync.ttc <= 0) return;
-    if ((f.amount ?? 0) > 0) return;
+    if (f.amount !== 0) return;
     setEconomic((d) => ({
       ...d,
       financing: { ...DEFAULT_FINANCING, ...d.financing, amount: totalsForSync.ttc },
     }));
-  }, [locked, economic.financing?.duration_months, economic.financing?.interest_rate_annual, economic.financing?.amount, totalsForSync.ttc]);
+  }, [locked, economic.financing?.duration_months, economic.financing?.interest_rate_annual, economic.financing?.amount, economic.financing?.enabled, totalsForSync.ttc]);
 
   /**
    * Valide le devis technique — avec gate marge négative si applicable.
@@ -1264,6 +1248,8 @@ export default function StudyQuoteBuilder() {
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
+      const financingError=financingInputError(economic.financing);
+      if(financingError)throw new Error(financingError);
       const phase=economic.electrical_phase_decision;
       if(detectedPhase && (!phase?.retained_phase || (phase.retained_phase!==detectedPhase && !phase.difference_confirmed))) throw new Error("Confirmez la phase technique retenue et toute différence avec la phase détectée.");
       const savedFingerprint=await persistDraft(economic);
@@ -1515,13 +1501,13 @@ export default function StudyQuoteBuilder() {
     return (
       <div className="study-quote-page study-quote-page--narrow">
         <p className="sqb-text sqb-margin-bottom">{error}</p>
-        <button
+        <Button variant="ghost"
           type="button"
           className="sn-btn sn-btn-outline-gold"
           onClick={() => navigate(studyId && versionId ? `/studies/${studyId}/versions/${versionId}` : "/leads")}
         >
           Retour à l'étude
-        </button>
+        </Button>
       </div>
     );
   }
@@ -1543,7 +1529,8 @@ export default function StudyQuoteBuilder() {
       </header>
 
       {saveError && <p role="alert" className="sn-badge sn-badge-danger">{saveError} Vos modifications restent dans le formulaire.</p>}
-      <div className="sqb-workbench sn-card">
+      <div className="sqb-workbench">
+        <QuoteCalculationInputs value={economic.finance_projection} onChange={value=>updateEconomic(prev=>({...prev,finance_projection:value}))} disabled={locked} defaults={generalEconomics} total={totals.ttc}>
         {studyId && versionId && (
           <>
             <StudyMeterSelector
@@ -1558,6 +1545,8 @@ export default function StudyQuoteBuilder() {
           </>
         )}
 
+        </QuoteCalculationInputs>
+
         {studyRecalcRecommended && (
           <div className="sqb-study-recalc-banner" role="status">
             <strong>Recalcul recommandé.</strong> Le compteur de référence de cette étude a changé : lancez un
@@ -1566,7 +1555,7 @@ export default function StudyQuoteBuilder() {
         )}
 
         <section className="sqb-section sqb-section--technical-summary">
-          <h2 className="sqb-h2 sqb-h2--technical-summary">Résumé technique</h2>
+          <div className="sqb-section-heading"><h2 className="sqb-h2 sqb-h2--technical-summary">Résumé technique</h2><SourceBadge source="Calculé automatiquement"/></div><p className="sqb-help">Copie du calepinage validé, conservée avec cette étude.</p>
           <QuoteTechnicalSummary payload={activeSnapshotPayload} />
           {/* LOT D — matériel de pose toit plat (informatif, snapshot Lot A) */}
           <QuoteFlatRoofMounting mounting={activeSnapshotPayload?.flat_roof_mounting} />
@@ -1591,23 +1580,23 @@ export default function StudyQuoteBuilder() {
           </>
         ) : null}
 
-        <section className="sqb-section sqb-section--material">
+        <section id="sqb-material" className="sqb-section sqb-section--material">
           <div className="sqb-section-head">
-            <h2 className="sqb-h2 sqb-h2--inline">Matériel principal</h2>
+            <h2 className="sqb-h2 sqb-h2--inline">Matériel principal</h2><SourceBadge source="Personnalisé pour cette étude"/>
             {leadCustomerType === "PRO" ? (
               <span className="sn-badge sn-badge-info" title="Clients professionnels : TVA 20% appliquée sur toutes les lignes">
                 TVA 20% — régime professionnel
               </span>
             ) : (
               !locked && economic.items.length > 0 && (
-                <button
+                <Button variant="ghost"
                   type="button"
                   className="sn-btn sn-btn-ghost sn-btn-sm sqb-btn-compact"
                   onClick={applyVat20ToAllLines}
                   disabled={allLinesAt20Vat}
                 >
                   20% toutes lignes
-                </button>
+                </Button>
               )
             )}
           </div>
@@ -1626,9 +1615,10 @@ export default function StudyQuoteBuilder() {
               <tbody>
                 {economic.items.map((item, i) => (
                   <tr key={i}>
-                    <td className="col-designation">
-                      <input
-                        type="text"
+                    <td className="col-designation" data-label="Désignation">
+                      <textarea
+                        rows={2}
+                        aria-label={`Désignation de la ligne ${i + 1}`}
                         className="sn-input"
                         value={item.label}
                         onChange={(e) => updateItem(i, "label", e.target.value)}
@@ -1636,7 +1626,7 @@ export default function StudyQuoteBuilder() {
                         disabled={locked}
                       />
                     </td>
-                    <td className="col-qty">
+                    <td className="col-qty" data-label="Quantité">
                       <LocaleNumberInput
                         className="sn-input"
                         min={0}
@@ -1648,7 +1638,7 @@ export default function StudyQuoteBuilder() {
                         aria-label="Quantité"
                       />
                     </td>
-                    <td className="col-price">
+                    <td className="col-price" data-label="Prix unitaire">
                       <LocaleNumberInput
                         className="sn-input"
                         min={0}
@@ -1661,7 +1651,7 @@ export default function StudyQuoteBuilder() {
                         aria-label="Prix unitaire"
                       />
                     </td>
-                    <td className="col-vat">
+                    <td className="col-vat" data-label="TVA (%)">
                       <LocaleNumberInput
                         className="sn-input"
                         min={0}
@@ -1674,10 +1664,10 @@ export default function StudyQuoteBuilder() {
                         title={leadCustomerType === "PRO" ? "TVA 20% fixe pour les clients professionnels" : undefined}
                       />
                     </td>
-                    <td className="col-total">{fmtAmount2(calculateLineTTC(item))}</td>
+                    <td className="col-total" data-label="Total TTC">{fmtAmount2(calculateLineTTC(item))}</td>
                     {!locked && (
                       <td className="col-actions">
-                        <button type="button" className="sn-btn sn-btn-ghost sn-table-finance-action" onClick={() => removeItem(i)} aria-label="Supprimer">✕</button>
+                        <Button variant="ghost" type="button" className="sn-btn sn-btn-ghost sn-table-finance-action" onClick={() => removeItem(i)} aria-label="Supprimer">✕</Button>
                       </td>
                     )}
                   </tr>
@@ -1687,9 +1677,9 @@ export default function StudyQuoteBuilder() {
           </div>
           {!locked && (
             <div className="sqb-toolbar">
-              <button type="button" className="sn-btn sn-btn-outline-gold sn-btn-sm" onClick={() => setCatalogModalMode("material")}>
+              <Button variant="ghost" type="button" className="sn-btn sn-btn-outline-gold sn-btn-sm" onClick={() => setCatalogModalMode("material")}>
                 Ajouter depuis le catalogue
-              </button>
+              </Button>
             </div>
           )}
         </section>
@@ -1786,7 +1776,7 @@ export default function StudyQuoteBuilder() {
               </thead>
               <tbody>
                 <tr>
-                  <td className="col-actif">
+                  <td className="col-actif" data-label="Option">
                     <label className="sqb-checkbox-label">
                       <input
                         type="checkbox"
@@ -1800,11 +1790,11 @@ export default function StudyQuoteBuilder() {
                       <span className="sqb-label sqb-label--inline sqb-label--compact">Physique</span>
                     </label>
                   </td>
-                  <td className="col-designation">
+                  <td className="col-designation" data-label="Désignation">
                     {!locked && (
-                      <button type="button" className="sn-btn sn-btn-ghost sn-btn-sm" onClick={() => setCatalogModalMode("battery_physical")}>
+                      <Button variant="ghost" type="button" className="sn-btn sn-btn-ghost sn-btn-sm" onClick={() => setCatalogModalMode("battery_physical")}>
                         Catalogue
-                      </button>
+                      </Button>
                     )}
                     {economic.batteries.physical.label && (
                       <span className={`sqb-text sqb-battery-label ${economic.batteries.physical.enabled && !locked ? "sqb-battery-label--spaced" : ""}`}>
@@ -1812,7 +1802,7 @@ export default function StudyQuoteBuilder() {
                       </span>
                     )}
                   </td>
-                  <td className="col-price">
+                  <td className="col-price" data-label="Prix unitaire">
                     {economic.batteries.physical.enabled && (
                       <LocaleNumberInput
                         className="sn-input"
@@ -1842,7 +1832,7 @@ export default function StudyQuoteBuilder() {
                       />
                     )}
                   </td>
-                  <td className="col-qty">
+                  <td className="col-qty" data-label="Quantité">
                     {economic.batteries.physical.enabled && (
                       <LocaleNumberInput
                         className="sn-input"
@@ -1865,7 +1855,7 @@ export default function StudyQuoteBuilder() {
                       />
                     )}
                   </td>
-                  <td className="col-total">
+                  <td className="col-total" data-label="Total TTC">
                     {economic.batteries.physical.enabled &&
                       (physicalLineTtc != null ? fmtEur2(physicalLineTtc) : "—")}
                   </td>
@@ -1962,17 +1952,17 @@ export default function StudyQuoteBuilder() {
             />
           </div>
 
+        </section>
+        <FinanceProjectionSettings value={economic.finance_projection} defaultHorizon={generalEconomics?.horizon_years??null} disabled={locked} onChange={value=>updateEconomic(prev=>({...prev,finance_projection:value}))}/>
+        <details className="sqb-section sqb-disclosure sqb-special-cases">
+          <summary>Cas particuliers <span>{economic.vehicleV2h?.enabled?'V2H actif · ':''}{economic.virtualBattery?.provider?'V2H et transition OA / batterie virtuelle':'Simulation V2H'}</span></summary>
           {/* Phase 3C — Véhicule électrique V2H (simulation, aucun matériel au devis) */}
           <section className="sqb-section sqb-vehicle-v2h">
             <h2 className="sqb-h2">Véhicule électrique V2H — simulation</h2>
-            <label className="sqb-label sqb-field-inline" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <input
-                type="checkbox"
-                checked={!!economic.vehicleV2h?.enabled}
-                disabled={locked}
-                onChange={(e) => updateEconomic((d) => ({
+            <StudySwitch label="Activer la simulation V2H" description="La batterie du véhicule alimente la maison lorsqu’il est branché." checked={!!economic.vehicleV2h?.enabled} disabled={locked}
+              onChange={(checked) => updateEconomic((d) => ({
                   ...d,
-                  vehicleV2h: e.target.checked
+                  vehicleV2h: checked
                     ? {
                         enabled: true,
                         capacity_kwh: d.vehicleV2h?.capacity_kwh ?? null,
@@ -1987,10 +1977,7 @@ export default function StudyQuoteBuilder() {
                         presence_grid: d.vehicleV2h?.presence_grid ?? makeDefaultPresenceGrid(),
                       }
                     : { ...(d.vehicleV2h ?? { enabled: false }), enabled: false },
-                }))}
-              />
-              Activer la simulation V2H (la batterie du véhicule alimente la maison quand il est branché)
-            </label>
+                }))} />
             {economic.vehicleV2h?.enabled && (
               <div className="sqb-financing-inline" style={{ flexWrap: "wrap", gap: 12, marginTop: 12 }}>
                 <label className="sqb-label sqb-field-inline">
@@ -2067,86 +2054,9 @@ export default function StudyQuoteBuilder() {
             </p>
           </section>
 
-          <FinanceProjectionSettings value={economic.finance_projection} disabled={locked} onChange={value=>setEconomic(prev=>({...prev,finance_projection:value}))}/>
-          <VirtualStorageContractSettings value={economic.simulation_contract} disabled={locked} onChange={value=>setEconomic(prev=>({...prev,simulation_contract:value}))}/>
-          <section className="sqb-section sqb-section--financing sqb-financing">
-          <h2 className="sqb-h2">Financement</h2>
-          <p>ROI et TRI principaux mesurent le projet avant crédit. Financement indicatif tant que les frais et l’assurance ne sont pas renseignés ; saisir 0 lorsqu’ils sont confirmés nuls.</p>
-          <div className="sqb-financing-inline">{([["taeg_pct","TAEG communiqué (%)"],["insurance_eur","Assurance totale sur la durée (€)"],["application_fee_eur","Frais de dossier (€)"],["other_costs_eur","Autres coûts du crédit (€)"]] as const).map(([key,label])=><label key={key}>{label}<input className="sn-input" type="number" step="0.01" min="0" disabled={locked} value={economic.financing?.[key]??""} placeholder="Non renseigné" onChange={e=>setEconomic(prev=>({...prev,financing:{...DEFAULT_FINANCING,...prev.financing,[key]:e.target.value===""?null:Number(e.target.value)}}))}/></label>)}</div>
-          <div className="sqb-financing-panel">
-          <div className="sqb-financing-inline">
-            <label className="sqb-label sqb-field-inline">
-              Montant (€)
-              <LocaleNumberInput
-                className="sn-input"
-                min={0}
-                disabled={locked}
-                displayEmptyWhenZero
-                value={finRaw.amount}
-                placeholder={totals.ttc > 0 ? fmtAmount2(totals.ttc) : "—"}
-                onChange={(n) =>
-                  updateEconomic((d) => ({
-                    ...d,
-                    financing: { ...DEFAULT_FINANCING, ...d.financing, amount: Math.max(0, n) },
-                  }))
-                }
-                minimumFractionDigits={2}
-                maximumFractionDigits={2}
-                aria-label="Montant financement"
-              />
-            </label>
-            <label className="sqb-label sqb-field-inline">
-              Durée (mois)
-              <LocaleNumberInput
-                className="sn-input"
-                min={0}
-                disabled={locked}
-                integer
-                displayEmptyWhenZero
-                value={finRaw.duration_months}
-                placeholder="180"
-                onChange={(n) =>
-                  updateEconomic((d) => {
-                    const months = Math.max(0, Math.floor(n));
-                    const next = { ...DEFAULT_FINANCING, ...d.financing, duration_months: months };
-                    const ttc = computeTotals(d).ttc;
-                    const active = months > 0 && (next.interest_rate_annual ?? 0) >= 0;
-                    if (active && (next.amount ?? 0) <= 0 && ttc > 0) next.amount = ttc;
-                    return { ...d, financing: next };
-                  })
-                }
-                aria-label="Durée financement en mois"
-              />
-            </label>
-            <label className="sqb-label sqb-field-inline">
-              Taux (%)
-              <LocaleNumberInput
-                className="sn-input"
-                min={0}
-                disabled={locked}
-                displayEmptyWhenZero
-                value={finRaw.interest_rate_annual}
-                maximumFractionDigits={4}
-                placeholder="4"
-                onChange={(n) =>
-                  updateEconomic((d) => {
-                    const next = {
-                      ...DEFAULT_FINANCING,
-                      ...d.financing,
-                      interest_rate_annual: Math.max(0, n),
-                    };
-                    const ttc = computeTotals(d).ttc;
-                    const active = (next.duration_months ?? 0) > 0 && (next.interest_rate_annual ?? 0) >= 0;
-                    if (active && (next.amount ?? 0) <= 0 && ttc > 0) next.amount = ttc;
-                    return { ...d, financing: next };
-                  })
-                }
-                aria-label="Taux d'intérêt annuel %"
-              />
-            </label>
-            </div>
-          </div>
-          </section>
+          {economic.virtualBattery?.provider && <VirtualStorageContractSettings value={economic.simulation_contract} disabled={locked} onChange={value=>updateEconomic(prev=>({...prev,simulation_contract:value}))}/>}
+        </details>
+        <QuoteFinancingSettings value={finRaw} disabled={locked} total={totals.ttc} onChange={financing=>updateEconomic(prev=>({...prev,financing}))}/>
 
           {/* ⚠️ Bandeau marge négative — visible dès que la marge passe sous 0 */}
           {materialMarginNegative && !locked && (
@@ -2163,86 +2073,41 @@ export default function StudyQuoteBuilder() {
             </div>
           )}
 
-          <section className="sqb-section sqb-section--internal-analysis sqb-internal-analysis" aria-label="Analyse interne">
-            <h2 className="sqb-h2 sqb-h2--internal-analysis">Analyse interne</h2>
-            <p className="sqb-helper sqb-internal-analysis-hint">
-              Marge matériel HT : uniquement les lignes avec prix d&apos;achat &gt; 0 ; % = marge HT / prix de vente matériel HT.
-              « Avec batterie » : + vente / coût batterie physique si coût d&apos;achat catalogue &gt; 0.
-            </p>
-            <div className="sqb-internal-compare">
-              <div className="sqb-internal-compare__grid sqb-internal-compare__grid--head">
-                <div />
-                <div className="sqb-internal-compare__col-title">Sans batterie</div>
-                <div className="sqb-internal-compare__col-title">Avec batterie</div>
-              </div>
-              <div className="sqb-internal-compare__grid">
-                <span className="sqb-text sqb-muted sqb-text--small">Coût achat HT</span>
-                <span className="sqb-text sqb-internal-compare__val">{fmtEur2(materialSansBattery.achatMaterialHt)}</span>
-                <span className="sqb-text sqb-internal-compare__val">
-                  {internalWithBatteryReady ? fmtEur2(materialAvecBattery.achatMaterialHt) : "—"}
-                </span>
-              </div>
-              <div className="sqb-internal-compare__grid">
-                <span className="sqb-text sqb-muted sqb-text--small">Marge HT</span>
-                <span className="sqb-text sqb-internal-compare__val">{fmtEur2(materialSansBattery.margeHt)}</span>
-                <span className="sqb-text sqb-internal-compare__val">
-                  {internalWithBatteryReady ? fmtEur2(materialAvecBattery.margeHt) : "—"}
-                </span>
-              </div>
-              <div className="sqb-internal-compare__grid">
-                <span className="sqb-text sqb-muted sqb-text--small">% marge</span>
-                <span
-                  className={`sqb-text sqb-internal-compare__val ${
-                    materialSansBattery.margeHt < 0 ? "sqb-text--danger" : ""
-                  }`}
-                >
-                  {materialSansBattery.tauxMargeSurAchatPct != null
-                    ? `${fmtPctFr(materialSansBattery.tauxMargeSurAchatPct, 2, 2)} %`
-                    : "—"}
-                </span>
-                <span
-                  className={`sqb-text sqb-internal-compare__val ${
-                    internalWithBatteryReady && materialAvecBattery.margeHt < 0 ? "sqb-text--danger" : ""
-                  }`}
-                >
-                  {internalWithBatteryReady
-                    ? materialAvecBattery.tauxMargeSurAchatPct != null
-                      ? `${fmtPctFr(materialAvecBattery.tauxMargeSurAchatPct, 2, 2)} %`
-                      : "—"
-                    : "—"}
-                </span>
-              </div>
-            </div>
+          <section className="sqb-section sqb-section--internal-analysis sqb-internal-analysis" aria-label="Analyse interne — non visible par le client">
+            <div className="sqb-section-heading"><h2 className="sqb-h2 sqb-h2--internal-analysis">Analyse interne — non visible par le client</h2><SourceBadge source="Calculé automatiquement"/></div>
+            <StudyHelp label="Comment est calculée la marge ?">Seules les lignes avec un prix d’achat positif sont prises en compte. La remise hors pose réduit la marge. Sans batterie : marge HT / vente matériel HT. Avec batterie : marge HT / achat matériel HT, si son coût d’achat est connu. Les formules existantes sont conservées.</StudyHelp>
+            <table className="sqb-internal-table"><thead><tr><th scope="col">Indicateur</th><th scope="col">Sans batterie</th><th scope="col">Avec batterie</th></tr></thead><tbody>
+              <tr><th scope="row">Coût d’achat HT</th><td>{fmtEur2(materialSansBattery.achatMaterialHt)}</td><td>{internalWithBatteryReady?fmtEur2(materialAvecBattery.achatMaterialHt):"—"}</td></tr>
+              <tr><th scope="row">Marge HT</th><td>{fmtEur2(materialSansBattery.margeHt)}</td><td>{internalWithBatteryReady?fmtEur2(materialAvecBattery.margeHt):"—"}</td></tr>
+              <tr><th scope="row">Taux de marge</th><td className={materialSansBattery.margeHt<0?"sqb-text--danger":""}>{materialSansBattery.tauxMargeSurAchatPct!=null?`${fmtPctFr(materialSansBattery.tauxMargeSurAchatPct,2,2)} %`:"—"}</td><td className={internalWithBatteryReady&&materialAvecBattery.margeHt<0?"sqb-text--danger":""}>{internalWithBatteryReady&&materialAvecBattery.tauxMargeSurAchatPct!=null?`${fmtPctFr(materialAvecBattery.tauxMargeSurAchatPct,2,2)} %`:"—"}</td></tr>
+            </tbody></table>
           </section>
-        </section>
 
-        <div className="sqb-divider" role="presentation" />
-
-        <section className="sqb-section" aria-label="Devis commercial">
-          <h2 className="sqb-h2">Devis commercial (optionnel)</h2>
+        <section className="sqb-section sqb-commercial-action" aria-label="Devis commercial">
+          <h2 className="sqb-h2">Créer un devis commercial à partir de cette étude</h2>
           <p className="sqb-helper" style={{ marginBottom: 12 }}>
-            Raccourci : créer un devis commercial pré-rempli avec les lignes du chiffrage technique actuel. Le devis reste
-            autonome et modifiable ; aucune synchronisation automatique avec l&apos;étude.
+            Les lignes sont recopiées. Le devis commercial devient autonome, sans synchronisation avec l’étude.
           </p>
-          <button
+          <Button variant="ghost"
             type="button"
             className="sn-btn sn-btn-outline-gold sn-btn-sm"
             onClick={() => void handleCreateCommercialQuoteFromStudy()}
             disabled={commercialQuoteBusy || !studyId || !versionId}
           >
             {commercialQuoteBusy ? "Création…" : "Créer un devis depuis cette étude"}
-          </button>
+          </Button>
         </section>
 
         <div className="sqb-workbench-footer">
-          <button
+          <Button variant="ghost"
             type="button"
             className="sn-btn sn-btn-ghost sn-btn-sm"
             onClick={() => navigate(studyId && versionId ? `/studies/${studyId}/versions/${versionId}` : "/leads")}
           >
             Retour à l&apos;étude
-          </button>
+          </Button>
           <div className="sqb-workbench-footer__actions">
+            <span className={`sqb-save-state sqb-save-state--${saveStatus}`} role="status">{locked?"Version validée":saveStatus==="saving"?"Enregistrement…":saveStatus==="error"?"Échec de sauvegarde":saveStatus==="saved"?"Toutes les modifications sont enregistrées":"Prêt"}</span>
             {validatingDevis && (
               <div className="sqb-validation-wait" role="status" aria-live="polite">
                 <span className="sqb-validation-wait__spinner" aria-hidden="true" />
@@ -2252,18 +2117,18 @@ export default function StudyQuoteBuilder() {
               </div>
             )}
             {locked ? (
-              <button type="button" className="sn-btn sn-btn-outline-gold sn-btn-sm" onClick={handleFork} disabled={saving || validatingDevis}>
+              <Button variant="ghost" type="button" className="sn-btn sn-btn-outline-gold sn-btn-sm" onClick={handleFork} disabled={saving || validatingDevis}>
                 Nouvelle version (v+1)
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button variant="ghost"
                 type="button"
                 className="sn-btn sn-btn-primary sn-btn-sm"
                 onClick={handleValidateDevisTechnique}
                 disabled={saving || validatingDevis}
               >
                 {validatingDevis ? "Validation en cours…" : saving ? "Calcul…" : "Valider le devis technique"}
-              </button>
+              </Button>
             )}
           </div>
         </div>
