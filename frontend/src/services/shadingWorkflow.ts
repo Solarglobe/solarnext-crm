@@ -4,6 +4,12 @@ export const shadingKey=(study:string,version:string)=>`${study}:${version}`;
 export const shadingResumeKey=(study:string,version:string)=>`calpinage:validate-shading:${shadingKey(study,version)}`;
 export async function shadingRequest(study:string,version:string,suffix:string,body?:object){const r=await apiFetch(buildApiUrl(`/api/studies/${study}/versions/${version}/tree-shading${suffix}`),{...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),timeoutMs:15000,skipErrorToast:true});const data=await r.json();if(!r.ok)throw Error(data.error||'Analyse non disponible');return data;}
 const pending=new Map<string,Promise<unknown>>();
+/** Start or reuse the durable server job; saving a layout does not wait for IGN/PVGIS. */
+export async function startSavedShading(study:string,version:string){
+ const state=await shadingRequest(study,version,'/jobs');
+ if(state.result?.scope==='combined-shading-v1'||state.excluded||['queued','running'].includes(state.job?.status)||(!state.stale&&state.job?.status==='failed'))return state;
+ return shadingRequest(study,version,'/jobs',{});
+}
 export function ensureSavedShading(study:string,version:string,{retry=false}={}){
  const key=shadingKey(study,version);if(pending.has(key))return pending.get(key)!;
  const run=(async()=>{let state=await shadingRequest(study,version,'/jobs');

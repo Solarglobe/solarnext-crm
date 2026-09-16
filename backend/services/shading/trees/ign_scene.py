@@ -10,6 +10,7 @@ from pyproj import Transformer
 from scipy import ndimage
 from laspy import CopcReader
 from laspy.copc import Bounds
+from public_http import resilient_session
 
 def main(arg):
     cache=pathlib.Path(arg['cache']);cache.mkdir(parents=True,exist_ok=True)
@@ -22,7 +23,8 @@ def main(arg):
     if meta_file.exists():metadata=json.loads(meta_file.read_text())
     else:
         p={'SERVICE':'WFS','VERSION':'2.0.0','REQUEST':'GetFeature','TYPENAMES':'IGNF_LIDAR-HD_METADONNEE:metadata','OUTPUTFORMAT':'application/json','SRSNAME':'EPSG:2154','COUNT':20,'BBOX':','.join(map(str,box))+',EPSG:2154'}
-        r=requests.get('https://data.geopf.fr/wfs/ows',params=p,timeout=40);r.raise_for_status();metadata=r.json()
+        with resilient_session(requests.Session()) as session:
+            r=session.get('https://data.geopf.fr/wfs/ows',params=p,timeout=(5,20));r.raise_for_status();metadata=r.json()
         meta_file.write_text(json.dumps(metadata),encoding='utf-8')
     sources=[f['properties'] for f in metadata.get('features',[]) if f['properties'].get('url_npl')]
     if not sources:return {'status':'unavailable','reason':'IGN_CLASSIFIED_LIDAR_ABSENT','trees':[],'buildings':[]}
@@ -44,7 +46,8 @@ def main(arg):
     else:
         original=requests.Session.send
         def measured(session,request,**kwargs):
-            kwargs.setdefault('timeout',45)
+            resilient_session(session)
+            if kwargs.get('timeout') is None:kwargs['timeout']=(5,20)
             response=original(session,request,**kwargs)
             if request.headers.get('Range'):
                 if response.status_code!=206:response.close();raise ValueError('IGN_RANGE_NOT_SUPPORTED')

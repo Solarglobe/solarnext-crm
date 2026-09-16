@@ -1,4 +1,4 @@
-import {ensureSavedShading,shadingRequest,shadingResumeKey,shadingKey} from '../services/shadingWorkflow';
+import {startSavedShading,shadingRequest,shadingResumeKey,shadingKey} from '../services/shadingWorkflow';
 /**
  * CP-014 — Overlay Calpinage intégré au CRM (React)
  * Affiche le composant natif CalpinageApp (plus d'iframe) avec :
@@ -417,7 +417,14 @@ export default function CalpinageOverlay({
           const state = await shadingRequest(studyId, versionId, '/skip', {});
           if (state.excluded !== true) throw new Error('La poursuite sans analyse n’a pas été enregistrée. Réessayez.');
         } else {
-          await ensureSavedShading(studyId,versionId);
+          // A valid layout and its snapshot are independent of an external-source
+          // analysis. The durable job and any failure remain visible in its card.
+          // Do not turn missing analysis into an exclusion or a zero-loss result.
+          void startSavedShading(studyId,versionId).catch(() => {
+            window.dispatchEvent(new CustomEvent('shading:progress', {
+              detail: { key: shadingKey(studyId,versionId) },
+            }));
+          });
         }
 
         /* 2. Capture canvas de dessin calpinage (pas la carte — requis pour le PDF) */
