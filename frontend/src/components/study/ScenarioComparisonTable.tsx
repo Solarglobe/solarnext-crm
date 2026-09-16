@@ -1086,7 +1086,9 @@ export default function ScenarioComparisonTable({
                     {billing && <p className="scenario-block-muted">{electricityBillingNote(billing)}</p>}
                   </section>
 
-                  <ProjectionAssumptions value={finance.finance_meta?.projection_assumptions as FinanceProjection|undefined}/>
+                  <div className="scenario-row-assumptions">
+                    <ProjectionAssumptions value={finance.finance_meta?.projection_assumptions as FinanceProjection|undefined}/>
+                  </div>
                   <div className="scenario-row-delta">
                     {id !== "BASE" ? (
                       badge.kind === "available" &&
@@ -1825,6 +1827,8 @@ export default function ScenarioComparisonTable({
         .scenario-header-middle {
           min-height: 20px;
           display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
           align-items: flex-start;
         }
         .scenario-header-middle .scenario-col-sub {
@@ -2159,17 +2163,16 @@ export default function ScenarioComparisonTable({
           border-top: 1px solid rgba(255,255,255,0.07);
         }
         .scenario-block-impact {
-          padding-top: 0.35rem;
-          margin-top: 0.2rem;
-          border-top: 1px solid rgba(255,255,255,0.07);
-          min-height: 116px;
+          padding: 0.85rem 0;
+          margin-top: 0;
+          border-top: 1px solid var(--sn-border-soft);
+          min-width: 0;
         }
         .scenario-impact-scene {
           margin: 0 0 0.55rem;
-          font-size: 0.68rem;
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
+          font-size: 0.8rem;
+          font-weight: 600;
+          line-height: 1.4;
           color: var(--sn-text-primary);
         }
         .scenario-impact-list {
@@ -2182,7 +2185,7 @@ export default function ScenarioComparisonTable({
           align-items: flex-start;
           gap: 0.4rem;
           font-size: 0.74rem;
-          line-height: 1.2;
+          line-height: 1.5;
           color: var(--sn-text-secondary, #9FA8C7);
           padding: 0.26rem 0;
           border-bottom: 1px solid rgba(255,255,255, 0.05);
@@ -2357,17 +2360,21 @@ export default function ScenarioComparisonTable({
         .scenario-offer-options {
           display: flex;
           flex-direction: column;
-          gap: 0.45rem;
+          gap: 0.25rem;
           width: 100%;
+          padding: 0.35rem 0.6rem;
+          border: 1px solid var(--sn-border-soft);
+          border-radius: 0.65rem;
+          background: var(--surface-app);
         }
         .scenario-add-docs {
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          min-height: 28px;
+          min-height: 44px;
           margin: 0;
           font-size: 0.78rem;
-          line-height: 1.15;
+          line-height: 1.4;
           color: var(--sn-text-secondary, rgba(255, 255, 255, 0.72));
           cursor: pointer;
           user-select: none;
@@ -2378,6 +2385,11 @@ export default function ScenarioComparisonTable({
           margin: 0;
           flex-shrink: 0;
           accent-color: var(--gold, var(--brand-gold));
+        }
+        .scenario-add-docs:focus-within {
+          outline: 2px solid var(--primary);
+          outline-offset: 2px;
+          border-radius: 0.25rem;
         }
         .scenario-add-docs span {
           min-width: 0;
@@ -2392,10 +2404,10 @@ export default function ScenarioComparisonTable({
           flex-direction: column;
           justify-content: flex-end;
           gap: 0.7rem;
-          min-height: 94px;
+          min-height: 0;
           margin-top: 0;
           padding-top: 1rem;
-          border-top: 1px solid rgba(255,255,255,0.06);
+          border-top: 1px solid var(--sn-border-soft);
         }
         .scenario-row-footer--inert {
           min-height: 0;
@@ -2403,20 +2415,39 @@ export default function ScenarioComparisonTable({
         }
         .scenario-col-cta {
           width: 100%;
-          min-height: 42px;
+          min-height: 44px;
+          padding: 0.7rem 0.85rem;
           white-space: normal;
-          line-height: 1.15;
+          line-height: 1.4;
           text-align: center;
+        }
+        .scenario-row-assumptions {
+          min-width: 0;
+          font-size: 0.75rem;
+          line-height: 1.5;
+          color: var(--sn-text-secondary);
+        }
+        .scenario-row-assumptions summary {
+          cursor: pointer;
+          padding: 0.4rem 0;
+        }
+        .scenario-row-assumptions details[open] {
+          padding-bottom: 0.5rem;
+        }
+        .scenario-row-assumptions p {
+          margin: 0.5rem 0;
         }
         /* ── Subgrid cross-card row alignment (4-col only) ── */
         @media (min-width: 1201px) {
           .scenario-comparison-grid {
-            grid-template-rows: repeat(10, auto);
+            /* Eleven stable sections, including the optional assumptions slot.
+               Overflowing a subgrid clamps extra children onto its last row. */
+            grid-template-rows: repeat(11, auto);
             row-gap: 0.35rem;
           }
           .scenario-col-card {
             display: grid;
-            grid-row: span 10;
+            grid-row: span 11;
             grid-template-rows: subgrid;
             gap: 0;
             min-height: unset;
@@ -2425,7 +2456,7 @@ export default function ScenarioComparisonTable({
             gap: 0;
           }
           .scenario-col-card--empty .scenario-col-body.scenario-col-empty {
-            grid-row: 2 / 11;
+            grid-row: 2 / 12;
             flex: unset;
           }
           .scenario-col-card:not(.scenario-col-card--empty) > footer.scenario-col-footer,
