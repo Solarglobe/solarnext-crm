@@ -59,6 +59,7 @@ function buildInstallerComputeSignature(payload: InstallerComputePayload): strin
     requested_power_wc: payload.requested_power_wc,
     installation_type: payload.installation_type,
     electrical_type: payload.electrical_type,
+    vat_rate_percent: payload.vat_rate_percent ?? null,
     options: [...(payload.options ?? [])]
       .map((option) => ({
         code: option.code,
