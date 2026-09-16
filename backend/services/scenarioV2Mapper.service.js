@@ -300,7 +300,40 @@ export function mapScenarioToV2(scenario, ctx) {
   const ref = energy.reference;
   if(ref?.validation?.status === "verified") {
     const a=ref.annual, useful=a.direct_kwh+a.battery_discharge_solar_kwh;
-    energy.monthly=ref.monthly.map(m=>({...m,prod:m.production_kwh,conso:m.consumption_kwh,auto:m.direct_kwh+m.battery_discharge_solar_kwh,import:m.grid_to_load_kwh,surplus:m.physical_export_kwh,direct_self_consumption_kwh:m.direct_kwh,battery_discharge_kwh:m.battery_discharge_solar_kwh,battery_losses_kwh:m.storage_losses_kwh}));
+    const previousMonthly = Array.isArray(energy.monthly) ? energy.monthly : [];
+    const virtualMonthly = Array.isArray(ref.virtual_credit?.monthly) ? ref.virtual_credit.monthly : [];
+    energy.monthly = ref.monthly.map((m, i) => {
+      const previous = previousMonthly[i] && typeof previousMonthly[i] === "object" ? previousMonthly[i] : {};
+      const physicalDischarge = firstFiniteNum(m.battery_discharge_solar_kwh) ?? 0;
+      const virtualDischarge = isVirtualLike
+        ? firstFiniteNum(
+            virtualMonthly[i]?.used_credit_kwh,
+            previous.virtual_battery_discharge_kwh,
+            previous.used_credit_kwh
+          ) ?? 0
+        : 0;
+      const totalStorageDischarge = firstFiniteNum(
+        previous.batt_kwh,
+        previous.batt,
+        physicalDischarge + virtualDischarge
+      ) ?? 0;
+      return {
+        ...previous,
+        ...m,
+        prod: m.production_kwh,
+        conso: m.consumption_kwh,
+        auto: m.direct_kwh + totalStorageDischarge,
+        import: m.grid_to_load_kwh,
+        surplus: m.physical_export_kwh,
+        direct_self_consumption_kwh: m.direct_kwh,
+        battery_discharge_kwh: physicalDischarge,
+        physical_battery_discharge_kwh: physicalDischarge,
+        ...(isVirtualLike ? { virtual_battery_discharge_kwh: virtualDischarge } : {}),
+        batt_kwh: totalStorageDischarge,
+        batt: totalStorageDischarge,
+        battery_losses_kwh: m.storage_losses_kwh,
+      };
+    });
     Object.assign(energy,{production_kwh:a.production_kwh,consumption_kwh:a.consumption_kwh,autoconsumption_kwh:useful,total_pv_used_on_site_kwh:useful,energy_solar_used_kwh:useful,direct_self_consumption_kwh:a.direct_kwh,battery_discharge_kwh:a.battery_discharge_solar_kwh,grid_import_kwh:a.grid_to_load_kwh,energy_grid_import_kwh:a.grid_to_load_kwh,import_kwh:a.grid_to_load_kwh,exported_kwh:a.physical_export_kwh,surplus_kwh:a.physical_export_kwh,pv_self_consumption_pct:ref.ratios.useful_pv_utilization==null?null:ref.ratios.useful_pv_utilization*100,solar_coverage_pct:ref.ratios.solar_coverage==null?null:ref.ratios.solar_coverage*100,site_autonomy_pct:ref.ratios.solar_coverage==null?null:ref.ratios.solar_coverage*100,site_solar_or_credit_used_kwh:useful+(ref.virtual_credit?.used_kwh??0)});
   }
   const financeBase = {
