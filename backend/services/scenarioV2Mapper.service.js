@@ -308,6 +308,7 @@ export function mapScenarioToV2(scenario, ctx) {
       const virtualDischarge = isVirtualLike
         ? firstFiniteNum(
             virtualMonthly[i]?.used_credit_kwh,
+            virtualMonthly[i]?.used_credit,
             previous.virtual_battery_discharge_kwh,
             previous.used_credit_kwh
           ) ?? 0

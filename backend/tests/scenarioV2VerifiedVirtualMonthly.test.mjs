@@ -57,7 +57,7 @@ test("verified BATTERY_VIRTUALpreserves monthly virtual discharge for PDF charts
         })),
         virtual_credit: {
           used_kwh: totalVirtualUsed,
-          monthly: virtualUsed.map((used_credit_kwh, month) => ({ month, used_credit_kwh })),
+          monthly: virtualUsed.map((used_credit, month) => ({ month, used_credit })),
         },
       },
     },
