@@ -165,6 +165,7 @@ export interface InstallerComputePayload {
   requested_power_wc: number;
   installation_type: InstallationType;
   electrical_type: ElectricalType;
+  vat_rate_percent?: 20 | 5.5;
   options?: InstallerCostOptionInput[];
   manual_override_ht_cents?: number;
   manual_override_reason?: string;

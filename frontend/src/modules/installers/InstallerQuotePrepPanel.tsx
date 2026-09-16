@@ -171,6 +171,7 @@ export default function InstallerQuotePrepPanel({
   useEffect(()=>{phaseCallbackRef.current?.({detected_phase:detectedPhase,retained_phase:electricalType||null,difference_confirmed:phaseConfirmed});},[detectedPhase,electricalType,phaseConfirmed]);
   useEffect(()=>{setPhaseConfirmed(phaseDecision?.difference_confirmed===true && phaseDecision.detected_phase===detectedPhase && phaseDecision.retained_phase===electricalType);},[detectedPhase,electricalType,phaseDecision?.difference_confirmed,phaseDecision?.detected_phase,phaseDecision?.retained_phase]);
   const [selectedOptions, setSelectedOptions] = useState<string[]>(value?.options?.map((o) => o.code) ?? []);
+  const [reducedVatEnabled, setReducedVatEnabled] = useState(Number(value?.vat_rate_percent) === 5.5);
   const [cableOverrideEnabled, setCableOverrideEnabled] = useState(Boolean(value?.option_overrides?.some((o) => o.code === "CABLE_AND_CONNECTION")));
   const [cableOverride, setCableOverride] = useState(
     value?.option_overrides?.find((o) => o.code === "CABLE_AND_CONNECTION")?.override_amount_ht_cents != null
@@ -215,6 +216,7 @@ export default function InstallerQuotePrepPanel({
       setInstallationType(value.installation_type);
       setElectricalType(phaseDecision?.retained_phase ?? value.electrical_type);
       setSelectedOptions(value.options?.map((o) => o.code) ?? []);
+      setReducedVatEnabled(Number(value.vat_rate_percent) === 5.5);
     }
   }, [value?.calculated_at]);
 
@@ -246,6 +248,7 @@ export default function InstallerQuotePrepPanel({
       requested_power_wc: Math.round(effectiveProjectPowerWc),
       installation_type: installationType,
       electrical_type: electricalType,
+      vat_rate_percent: reducedVatEnabled ? 5.5 : 20,
       options: optionInputs,
       ...(studyId ? { study_id: studyId } : {}),
       ...(versionId ? { study_version_id: versionId } : {}),
@@ -295,6 +298,7 @@ export default function InstallerQuotePrepPanel({
     detectedPhase,
     phaseConfirmed,
     optionInputs,
+    reducedVatEnabled,
     manualOverrideEnabled,
     manualOverride,
     manualReason,
@@ -390,6 +394,23 @@ export default function InstallerQuotePrepPanel({
           <span className="installers-summary-value">{formatDateFr(installers.find((i) => i.id === installerId)?.active_tariff_effective_from)}</span>
         </div>
       </div>
+
+      <label className="installer-quote-option">
+        <input
+          type="checkbox"
+          checked={reducedVatEnabled}
+          disabled={locked}
+          onChange={(e) => setReducedVatEnabled(e.target.checked)}
+        />
+        <span>
+          <strong>TVA installateur à 5,5 %</strong>
+          <span className="installers-muted" style={{ display: "block", marginTop: 4 }}>
+            {reducedVatEnabled
+              ? "TVA 5,5 % appliquée au devis installateur"
+              : "TVA 20 % appliquée au devis installateur"}
+          </span>
+        </span>
+      </label>
 
       <div className="installer-quote-options">
         {OPTION_ORDER.map((code) => {
