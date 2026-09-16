@@ -1,6 +1,7 @@
 import {calculateAnnual} from './treeEngine.js';
 import {applyOpacity,withUncertainty} from './uncertainty.js';
 import {createHash} from 'node:crypto';
+import {combineRoofs} from './combineRoofs.js';
 const zero=(r)=>({...r,lossPercent:0,lostKwhM2:0,months:r.months.map(m=>({...m,lost:0,lossPercent:0})),hours:r.hours.map(h=>({...h,lost:0,lossPercent:0})),hourly:r.hourly.map(h=>({...h,lost:0,directLost:0,diffuseLost:0})),panels:r.panels.map(p=>({...p,lost:0,directLost:0,diffuseLost:0,diffuseBlocked:0,monthly:p.monthly.map(m=>({...m,directLost:0,diffuseLost:0}))}))});
 const diff=(a,b)=>Math.max(0,a-b);
 function canopyOnly(union,opaque){return {...union,hash:union.hash+opaque.hash,
@@ -12,6 +13,7 @@ function stamp(row){const [d,t]=row.time.split(':');return `${d.slice(0,4)}-${d.
  * Solid masks win; seasonal opacity applies only to rays not already blocked by
  * a solid obstacle. Terrain is applied in PVGIS before these near-field rays. */
 export function calculateCombined(scene,irradiation,reference,{grid=8,skyBins=[20,96]}={}){
+ if(irradiation?.byRoof)return combineRoofs(scene,irradiation,reference,calculateCombined,{grid,skyBins});
  if(!reference?.outputs?.hourly||reference.outputs.hourly.length!==irradiation.outputs.hourly.length)throw Error('Référence horaire sans horizon indisponible');
  const loc=reference.inputs?.location;if(!loc||Math.abs(loc.latitude-scene.origin.lat)>.001||Math.abs(loc.longitude-scene.origin.lon)>.001)throw Error('Référence horaire hors site');
  const solids=(scene.opaqueObstacles||[]).map(p=>({id:p.id,x:p.polygon[0][0],y:p.polygon[0][1],groundZ:0,height:1,diameter:1,crownBottom:0,prism:p}));

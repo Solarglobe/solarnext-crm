@@ -8,7 +8,7 @@ process.env.SHADING_ATTESTATION_SECRET='fictional-local-unified-test-key-only-00
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const geometry={roofState:{map:{centerLatLng:{lat:49,lng:2}},scale:{metersPerPixel:.1},image:{width:100,height:100}},pans:[],frozenBlocks:[{panId:'roof',panels:[{projection:{points:[{x:5,y:5}]}}]}]};
 const tree={id:'ign-tree',x:0,y:-3,groundZ:0,height:8,diameter:5,crownBottom:1};
-const baseScene={status:'available',origin:{lat:49,lon:2,north:[0,1]},acquisition:{complete:true},emptySceneAttested:true,roofSurveyRequired:false,trees:[],panels:[{id:'P1',polygon:[[-.5,-.5,1],[.5,-.5,1],[.5,.5,1],[-.5,.5,1]]}],roofs:[{polygon:[[-2,-2,1],[2,-2,1],[2,2,1],[-2,2,1]],plane:[0,0,1]}]};
+const baseScene={preparationVersion:'measured-roofs-v2',status:'available',origin:{lat:49,lon:2,north:[0,1]},acquisition:{complete:true},emptySceneAttested:true,roofSurveyRequired:false,trees:[],panels:[{id:'P1',polygon:[[-.5,-.5,1],[.5,-.5,1],[.5,.5,1],[-.5,.5,1]]}],roofs:[{polygon:[[-2,-2,1],[2,-2,1],[2,2,1],[-2,2,1]],plane:[0,0,1]}]};
 const hourly=Array.from({length:8760},(_,i)=>{const s=new Date(Date.UTC(2023,0,1,i)).toISOString();return {time:s.slice(0,10).replaceAll('-','')+':'+s.slice(11,16).replace(':',''),'Gb(i)':s.slice(11,13)==='12'?100:0,'Gd(i)':s.slice(11,13)==='12'?20:0,'Gr(i)':0};});
 const irradiation={inputs:{location:{latitude:49,longitude:2}},outputs:{hourly}},options={grid:2,skyBins:[2,8]};
 const calc=s=>calculateCombined(s,irradiation,irradiation,options);
@@ -45,4 +45,39 @@ test('skipping after editing never makes an old IGN scene current for a later re
  h.geometry={...geometry,pans:[{id:'new-roof'}]};assert.equal((await h.req('/skip',{})).status,200);assert.equal((await h.status()).excluded,true);
  assert.equal((await h.req('/scene',{revision:2,trees:[]})).status,409);
  await h.req('/jobs',{});assert.equal((await h.done()).job.status,'completed');assert.equal(h.acquisitions,2);assert.equal((await h.status()).excluded,false);
+});
+
+test('retry reacquires an incomplete roof scene even when IGN coverage was complete',async t=>{
+ const h=await harness(t);h.roofSurveyRequired=true;await h.req('/jobs',{});assert.equal((await h.done()).job.status,'failed');
+ h.roofSurveyRequired=false;await h.req('/jobs',{});assert.equal((await h.done()).job.status,'completed');assert.equal(h.acquisitions,2);
+});
+
+test('populated roofs use distinct irradiation; aggregate is weighted by area and energy',()=>{
+ const scene={...baseScene,panels:[{...baseScene.panels[0],roofId:'south'},
+  {id:'P2',roofId:'east',polygon:[[2,0,1],[4,0,2],[4,1,2],[2,1,1]]}],trees:[tree]};
+ const east={...irradiation,outputs:{hourly:hourly.map(h=>({...h,'Gb(i)':h['Gb(i)']*2,'Gd(i)':h['Gd(i)']*2}))}};
+ const result=calculateCombined(scene,{byRoof:{south:irradiation,east}},{byRoof:{south:irradiation,east}},options);
+ const southResult=calc({...scene,panels:[scene.panels[0]]});
+ const eastResult=calculateCombined({...scene,panels:[scene.panels[1]]},east,east,options);
+ const area=Math.sqrt(5),weighted=(a,b)=>(a+area*b)/(1+area);
+ assert.equal(result.panels.length,2);assert.equal(result.hourly.length,8760);
+ assert(Math.abs(result.baselineKwhM2-weighted(southResult.baselineKwhM2,eastResult.baselineKwhM2))<1e-10);
+ assert(Math.abs(result.lostKwhM2-weighted(southResult.lostKwhM2,eastResult.lostKwhM2))<1e-10);
+ assert(Math.abs(result.lossPercent-100*result.lostKwhM2/result.baselineKwhM2)<1e-9);
+ assert(Math.abs(Object.values(result.components).reduce((n,v)=>n+v.lossPercent,0)-result.lossPercent)<1e-9);
+ assert(result.uncertainty.low<=result.lossPercent&&result.uncertainty.high>=result.lossPercent);
+ assert(result.hourly.every(h=>Number.isFinite(h.lost)&&h.lost<=h.irradiance));
+ assert.throws(()=>calculateCombined(scene,{byRoof:{south:irradiation}},{byRoof:{south:irradiation}},options),/manquante/);
+});
+
+test('stored Python tracebacks remain private and yield a useful retry instruction',async t=>{
+ const h=await harness(t);await h.req('/jobs');await atomicJson(path.join(h.dir,'analysis-job.json'),{id:'old',status:'failed',error:'Traceback (most recent call last):\nFile /private/server/path\nValueError: altitude'});
+ const before=await fs.readFile(path.join(h.dir,'analysis-job.json'),'utf8');const status=await h.status();assert.match(status.job.error,/Réessayer/);assert(!status.job.error.includes('/private/'));assert.equal(await fs.readFile(path.join(h.dir,'analysis-job.json'),'utf8'),before);
+});
+
+test('retry rebuilds legacy prepared scenes with old irradiation, without changing completed history',async t=>{
+ const h=await harness(t);await h.req('/jobs',{});const completed=await h.done();assert.equal(completed.job.status,'completed');
+ const file=path.join(h.dir,'crm-state.json'),state=JSON.parse(await fs.readFile(file,'utf8'));delete state.scene.preparationVersion;await atomicJson(file,state);
+ await h.req('/jobs',{});assert.equal(h.acquisitions,1);
+ await atomicJson(file,{...state,result:null,revision:state.revision+1});await h.req('/jobs',{});assert.equal((await h.done()).job.status,'completed');assert.equal(h.acquisitions,2);
 });

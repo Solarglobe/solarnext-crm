@@ -120,10 +120,9 @@ def main(arg):
     buildings=pts[classes==6]
     thin=buildings[::max(1,len(buildings)//12000)]
     # Ground and roof support points permit a LiDAR datum instead of assumed eaves heights.
-    support=pts[np.isin(classes,[2,6])]
     north=np.array(transform.transform(lon,lat+.001))-np.array([cx,cy]);north/=np.linalg.norm(north)
     source_info=[{k:s.get(k) for k in ['coordonnees_nw','date_debut_acquisition','date_fin_acquisition','date_edition','procede_classement','systeme_altimetrique','url_npl']} for s in sources]
-    return {'status':'available','coverageComplete':complete,'origin':{'lat':lat,'lon':lon,'x':cx,'y':cy,'north':north.tolist()},'radius':radius,'bbox':box,'trees':trees,'buildingPoints':np.round(thin-np.array([cx,cy,0]),3).tolist(),'supportPoints':np.round(support-np.array([cx,cy,0]),3).tolist(),'sources':source_info,'classCounts':{str(c):int(np.sum(classes==c)) for c in np.unique(classes)},'samplingResolution':.5,'download':stats,'retrievedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cacheKey':key,'modelNote':'Detected vegetation volumes, not a botanical tree inventory; opaque crowns. Winter acquisition can miss foliage.'}
+    return {'status':'available','coverageComplete':complete,'origin':{'lat':lat,'lon':lon,'x':cx,'y':cy,'north':north.tolist()},'radius':radius,'bbox':box,'trees':trees,'buildingPoints':np.round(thin-np.array([cx,cy,0]),3).tolist(),'buildingSupportPoints':np.round(buildings-np.array([cx,cy,0]),3).tolist(),'groundPoints':np.round(ground[::max(1,len(ground)//90000)]-np.array([cx,cy,0]),3).tolist(),'sources':source_info,'classCounts':{str(c):int(np.sum(classes==c)) for c in np.unique(classes)},'samplingResolution':.5,'download':stats,'retrievedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cacheKey':key,'modelNote':'Detected vegetation volumes, not a botanical tree inventory; opaque crowns. Winter acquisition can miss foliage.'}
 
 if __name__=='__main__':
     try:print(json.dumps(main(json.load(sys.stdin)),allow_nan=False))
