@@ -66,9 +66,9 @@ test("a genuinely fresh database runs all historical migrations and registers on
   const client = await connect(freshUrl, "rc2_fresh");
   try {
     const report = await inspectMigrationHistory(client, directory);
-    assert.equal(report.applied.length, 216); assert.equal(report.pending.length, 0);
+    assert.equal(report.applied.length, 217); assert.equal(report.pending.length, 0);
     assert.equal(report.comparison.every(row => ["raw_match", "normalized_match"].includes(row.status)), true);
-    assert.equal((await client.query("SELECT count(*)::int AS n FROM migration_checksums")).rows[0].n, 216);
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM migration_checksums")).rows[0].n, 217);
     assert.equal((await client.query("SELECT count(*)::int AS n FROM pg_constraint WHERE conname='lcm_v21_meter_ownership_fk' AND convalidated")).rows[0].n, 1);
   } finally { await client.end(); }
 });

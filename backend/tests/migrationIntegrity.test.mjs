@@ -26,7 +26,7 @@ test("the exact production history retains only the unresolved fourth mismatch",
   const db = snapshotDb(), report = await inspectMigrationHistory(db, directory);
   assert.equal(report.applied.length, 215);
   assert.deepEqual(report.comparison.filter(x => x.status === "substantive_mismatch").map(x => x.name), ["1776600000000_lead_sources_acquisition_canonical"]);
-  assert.deepEqual(report.pending, ["1790400200000_monthly_consumption_meter_scope"]);
+  assert.deepEqual(report.pending, ["1790400200000_monthly_consumption_meter_scope", "1790400300000_lead_sources_return_flyer_catalog"]);
   assert.equal(db.statements.every(sql => sql.startsWith("SELECT")), true);
 });
 test("three restored versions match historical normalized references without rewriting raw checksums", () => {
@@ -59,6 +59,6 @@ test("unknown and missing references are reported, never registered by inspectio
 test("fresh databases alone receive the metadata table before historical migrations", async () => {
   const statements = [], db = { async query(sql) { statements.push(sql); return { rows: sql.startsWith("SELECT") ? [{ applied: null, checksums: null }] : [] }; } };
   const report = await prepareMigrationRun(db, directory);
-  assert.equal(report.applied.length, 0); assert.equal(report.pending.length, 216);
+  assert.equal(report.applied.length, 0); assert.equal(report.pending.length, 217);
   assert.equal(statements.filter(sql => sql.startsWith("CREATE TABLE")).length, 1);
 });

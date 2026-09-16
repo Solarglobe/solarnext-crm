@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { LEAD_SOURCES_EXCEPTION, verifyLeadSourcesMigrationEffects } from './leadSourcesMigrationException.js';
 
 export const normalizeMigrationContent = content => String(content).replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter(line => line.trim() && !/^\/\//.test(line.trim())).map(line => line.replace(/\s+$/g, "")).join("\n").trim();
 export const hashMigration = content => crypto.createHash("sha256").update(content).digest("hex");
@@ -13,15 +14,25 @@ export async function inspectMigrationHistory(db, directory) {
   const stored = state.checksums ? (await db.query("SELECT migration_name, checksum, checksum_normalized FROM public.migration_checksums")).rows : [];
   const files = fs.readdirSync(directory).filter(file => file.endsWith(".js")).map(file => file.slice(0, -3)).sort();
   const checksums = new Map(stored.map(row => [row.migration_name, row]));
-  const comparison = applied.map(name => {
+  const comparison = await Promise.all(applied.map(async name => {
     if (!/^[0-9]+_[A-Za-z0-9_-]+$/.test(name)) throw error("MIGRATION_NAME_INVALID");
     if (!files.includes(name)) return { name, status: "applied_file_missing" };
     const content = fs.readFileSync(path.join(directory, name + ".js"), "utf8"), reference = checksums.get(name);
     if (!reference) return { name, status: "checksum_unregistered" };
     if (reference.checksum === hashMigration(content)) return { name, status: "raw_match" };
     if (!reference.checksum_normalized) return { name, status: "legacy_reference_unverifiable" };
+    const exception = LEAD_SOURCES_EXCEPTION;
+    if (name === exception.migration && reference.checksum === exception.historicalRaw &&
+        reference.checksum_normalized === exception.historicalNormalized &&
+        hashMigration(content.replace(/\r\n/g, '\n')) === exception.canonicalRaw) {
+      // Missing tables, failed queries or different effects never authorize the exception.
+      try {
+        const effects = await verifyLeadSourcesMigrationEffects(db);
+        if (effects.verified) return { name, status: 'verified_historical_exception', exception: exception.id, effects: effects.checks };
+      } catch { /* Preserve the ordinary fail-closed mismatch below. */ }
+    }
     return { name, status: reference.checksum_normalized === hashMigration(normalizeMigrationContent(content)) ? "normalized_match" : "substantive_mismatch" };
-  });
+  }));
   return { applied, pending: files.filter(name => !applied.includes(name)), comparison, checksumTableExists: Boolean(state.checksums) };
 }
 

@@ -32,6 +32,7 @@ const UNIT_TEST_FILES = [
   'tests/shadingAssessmentReference.test.mjs',
   'tests/mailEncryptionRotation.test.mjs',
   'tests/migrationIntegrity.test.mjs',
+  'tests/leadSourcesMigrationException.test.mjs',
   'tests/currentElectricityContract.test.mjs',
   'tests/currentElectricitySubscription.test.mjs',
   'tests/economicSnapshotPdfTraceability.test.mjs',
