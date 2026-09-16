@@ -181,7 +181,7 @@ export default function PdfPage5({
         }}
       >
         {isVirtualCreditScenario
-          ? "Le véhicule étant principalement rechargé la nuit, une part limitée de la production solaire est utilisée directement pendant la journée. Le surplus est injecté et enregistré sous forme de crédit virtuel afin de réduire le coût des consommations réalisées plus tard."
+          ? "Une partie de la consommation du site intervient en dehors des périodes de production solaire. Le surplus produit en journée est injecté et enregistré sous forme de crédit virtuel afin de compenser une partie des consommations réalisées plus tard."
           : "La courbe montre les moments où la production solaire couvre directement les besoins du site et les périodes où le réseau reste sollicité."}
       </p>
 
