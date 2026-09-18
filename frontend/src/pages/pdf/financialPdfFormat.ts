@@ -22,8 +22,11 @@ export function formatTvaRowLabelFromTotals(totalHt: unknown, totalVat: unknown)
   const ht = Number(totalHt);
   const vat = Number(totalVat);
   if (!Number.isFinite(ht) || ht <= 0 || !Number.isFinite(vat) || vat < 0) return "TVA";
-  const pct = Math.round((vat / ht) * 100);
-  if (pct >= 0 && pct <= 100) return `TVA ${pct}\u00a0%`;
+  const pct = Math.round((vat / ht) * 1000) / 10;
+  if (pct >= 0 && pct <= 100) {
+    const display = pct.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+    return `TVA ${display}\u00a0%`;
+  }
   return "TVA";
 }
 
@@ -77,8 +80,9 @@ export function formatVatRateDisplay(v: unknown): string {
   if (v == null) return "—";
   const n = Number(v);
   if (!Number.isFinite(n)) return "—";
-  if (n >= 0 && n <= 1) return `${Math.round(n * 100)} %`;
-  return `${n} %`;
+  const pct = n >= 0 && n <= 1 ? n * 100 : n;
+  const rounded = Math.round(pct * 10) / 10;
+  return `${rounded.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 }
 
 export function buildRecipientTitle(rec: Record<string, unknown> | undefined): string {
