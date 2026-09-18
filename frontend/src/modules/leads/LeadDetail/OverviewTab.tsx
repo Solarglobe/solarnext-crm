@@ -444,6 +444,8 @@ type AddressFallbackHint =
 export interface EnergyEngineResult {
   annual_kwh: number;
   hourly: number[];
+  /** Répartition mensuelle civile de référence janvier → décembre. */
+  monthly_kwh_ref?: number[] | null;
   /** Traçabilité moteur (ex. CSV_HOURLY_FULL_YEAR, CSV_HOURLY_PARTIAL_REBUILT) */
   engine_consumption_source?: string | null;
   /** Import Solteo : source de l'annuel (ex. « R65 quotidien — 365 jours ») */
@@ -460,6 +462,22 @@ export function engineProfileLabel(src?: string | null): string {
   if (src === "CSV_HOURLY_PARTIAL_REBUILT") return "Profil chargé (CSV partiel reconstruit)";
   if (src === "CSV_HOURLY_FULL_YEAR") return "Profil chargé (CSV année complète)";
   return "Profil chargé (moteur)";
+}
+
+function monthlyRefFromEnergyProfile(ep: unknown): number[] | null {
+  if (!ep || typeof ep !== "object") return null;
+  const o = ep as {
+    monthly_kwh_ref?: unknown;
+    engine?: { monthly_kwh_ref?: unknown };
+  };
+  const candidate = Array.isArray(o.monthly_kwh_ref)
+    ? o.monthly_kwh_ref
+    : Array.isArray(o.engine?.monthly_kwh_ref)
+      ? o.engine.monthly_kwh_ref
+      : null;
+  if (!candidate || candidate.length !== 12) return null;
+  const values = candidate.map((v) => Number(v));
+  return values.every(Number.isFinite) ? values : null;
 }
 
 interface OverviewTabProps {
@@ -648,6 +666,7 @@ export default function OverviewTab({
           onEnergyEngineChange?.({
             annual_kwh: payload.annual_kwh,
             hourly: payload.hourly,
+            monthly_kwh_ref: monthlyRefFromEnergyProfile(payload.energy_profile),
             engine_consumption_source: payload.engine_consumption_source,
             annual_source_label: payload.annual_kwh_source_label,
             contract_summary: contractSummaryLabel(payload.contract),
@@ -1823,7 +1842,10 @@ export default function OverviewTab({
                   {energyImportInfo && (
                     <div className="crm-lead-energy-status">{energyImportInfo}</div>
                   )}
-                  <MonthlyConsumptionChart hourly={energyEngine.hourly} />
+                  <MonthlyConsumptionChart
+                    hourly={energyEngine.hourly}
+                    monthlyKwh={energyEngine.monthly_kwh_ref}
+                  />
                 </>
               ) : (
                 <div className="crm-lead-energy-status crm-lead-energy-status-empty">

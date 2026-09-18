@@ -291,6 +291,7 @@ export function parseEnergyEngineFromProfile(ep: unknown): EnergyEngineResult | 
     engine?: EnergyEngineResult;
     summary?: { annual_kwh?: number };
     hourly?: number[];
+    monthly_kwh_ref?: number[];
   };
   const e = o.engine;
   if (
@@ -303,6 +304,12 @@ export function parseEnergyEngineFromProfile(ep: unknown): EnergyEngineResult | 
     return {
       annual_kwh: e.annual_kwh,
       hourly: e.hourly.slice(0, 8760),
+      monthly_kwh_ref:
+        Array.isArray(e.monthly_kwh_ref) && e.monthly_kwh_ref.length === 12
+          ? e.monthly_kwh_ref.slice(0, 12)
+          : Array.isArray(o.monthly_kwh_ref) && o.monthly_kwh_ref.length === 12
+            ? o.monthly_kwh_ref.slice(0, 12)
+            : null,
       engine_consumption_source: e.engine_consumption_source,
       annual_source_label: e.annual_source_label,
       contract_summary: e.contract_summary,
@@ -316,7 +323,14 @@ export function parseEnergyEngineFromProfile(ep: unknown): EnergyEngineResult | 
     Array.isArray(o.hourly) &&
     o.hourly.length >= 8760
   ) {
-    return { annual_kwh: o.summary.annual_kwh, hourly: o.hourly.slice(0, 8760) };
+    return {
+      annual_kwh: o.summary.annual_kwh,
+      hourly: o.hourly.slice(0, 8760),
+      monthly_kwh_ref:
+        Array.isArray(o.monthly_kwh_ref) && o.monthly_kwh_ref.length === 12
+          ? o.monthly_kwh_ref.slice(0, 12)
+          : null,
+    };
   }
   return null;
 }

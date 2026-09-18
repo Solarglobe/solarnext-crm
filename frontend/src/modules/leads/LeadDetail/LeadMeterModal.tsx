@@ -51,6 +51,8 @@ const EQUIPMENT_ADD_CHOICES: {
 export interface EnergyEngineResult {
   annual_kwh: number;
   hourly: number[];
+  /** Répartition mensuelle civile de référence janvier → décembre. */
+  monthly_kwh_ref?: number[] | null;
   /** Traçabilité moteur (ex. CSV_HOURLY_FULL_YEAR, CSV_HOURLY_PARTIAL_REBUILT) */
   engine_consumption_source?: string | null;
   /** Import Solteo : source de l'annuel (ex. « R65 quotidien — 365 jours ») */
@@ -75,6 +77,7 @@ function parseEnergyEngineFromProfile(ep: unknown): EnergyEngineResult | null {
     engine?: EnergyEngineResult;
     summary?: { annual_kwh?: number };
     hourly?: number[];
+    monthly_kwh_ref?: number[];
   };
   const e = o.engine;
   if (
@@ -87,6 +90,12 @@ function parseEnergyEngineFromProfile(ep: unknown): EnergyEngineResult | null {
     return {
       annual_kwh: e.annual_kwh,
       hourly: e.hourly.slice(0, 8760),
+      monthly_kwh_ref:
+        Array.isArray(e.monthly_kwh_ref) && e.monthly_kwh_ref.length === 12
+          ? e.monthly_kwh_ref.slice(0, 12)
+          : Array.isArray(o.monthly_kwh_ref) && o.monthly_kwh_ref.length === 12
+            ? o.monthly_kwh_ref.slice(0, 12)
+            : null,
       engine_consumption_source: e.engine_consumption_source,
       annual_source_label: e.annual_source_label,
       contract_summary: e.contract_summary,
@@ -103,6 +112,10 @@ function parseEnergyEngineFromProfile(ep: unknown): EnergyEngineResult | null {
     return {
       annual_kwh: o.summary.annual_kwh,
       hourly: o.hourly.slice(0, 8760),
+      monthly_kwh_ref:
+        Array.isArray(o.monthly_kwh_ref) && o.monthly_kwh_ref.length === 12
+          ? o.monthly_kwh_ref.slice(0, 12)
+          : null,
     };
   }
   return null;
@@ -328,14 +341,15 @@ export default function LeadMeterModal({
         }
         const payload = (await res.json()) as SolteoImportResponse;
         if (payload.hourly && payload.annual_kwh != null) {
-          const next: EnergyEngineResult = {
-            annual_kwh: payload.annual_kwh,
-            hourly: payload.hourly,
-            engine_consumption_source: payload.engine_consumption_source,
-            annual_source_label: payload.annual_kwh_source_label,
-            contract_summary: contractSummaryLabel(payload.contract),
-            phase_detection: payload.contract?.phase_detection ?? null,
-          };
+          const next: EnergyEngineResult =
+            parseEnergyEngineFromProfile(payload.energy_profile) ?? {
+              annual_kwh: payload.annual_kwh,
+              hourly: payload.hourly,
+              engine_consumption_source: payload.engine_consumption_source,
+              annual_source_label: payload.annual_kwh_source_label,
+              contract_summary: contractSummaryLabel(payload.contract),
+              phase_detection: payload.contract?.phase_detection ?? null,
+            };
           setEnergyEngine(next);
           setDraft((current) => ({
             ...current,
@@ -775,7 +789,10 @@ export default function LeadMeterModal({
                     {energyImportInfo && (
                       <div className="crm-lead-energy-status">{energyImportInfo}</div>
                     )}
-                    <MonthlyConsumptionChart hourly={energyEngine.hourly} />
+                    <MonthlyConsumptionChart
+                      hourly={energyEngine.hourly}
+                      monthlyKwh={energyEngine.monthly_kwh_ref}
+                    />
                   </>
                 ) : (
                   <div className="crm-lead-energy-status crm-lead-energy-status-empty">
