@@ -46,10 +46,9 @@ export default function MonthlyConsumptionChart({
 }: MonthlyConsumptionChartProps) {
   const fromHourly = monthlySumsFromHourly8760(hourly);
   const values =
-    fromHourly ??
-    (Array.isArray(monthlyKwh) && monthlyKwh.length === 12
+    Array.isArray(monthlyKwh) && monthlyKwh.length === 12
       ? monthlyKwh.map((v) => Math.round(Number(v) || 0))
-      : null);
+      : fromHourly;
 
   if (!values || !values.some((v) => v > 0)) return null;
 
