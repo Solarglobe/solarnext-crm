@@ -24,7 +24,7 @@ jobs:
   rollback-vercel:
     name: Rollback Frontend on Vercel
     runs-on: ubuntu-latest
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' && inputs.rollback_vercel_deployment != '' && inputs.rollback_vercel_deployment != 'diagnose') }}
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' && inputs.rollback_vercel_deployment != '' && inputs.rollback_vercel_deployment != 'diagnose' && inputs.rollback_vercel_deployment != 'diagnose-vps') }}
     steps:
       - name: Rollback requested deployment
         env:
@@ -72,6 +72,27 @@ jobs:
             }
           }
           NODE
+
+  inspect-vps:
+    name: Inspect VPS tracked changes
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.rollback_vercel_deployment == 'diagnose-vps' }}
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_DEPLOY_SSH_KEY: ${{ secrets.VPS_DEPLOY_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$VPS_DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+      - name: Read tracked file status only
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh "$VPS_USER@$VPS_HOST" 'git -C /home/ubuntu/solarnext-crm rev-parse HEAD && git -C /home/ubuntu/solarnext-crm status --short --untracked-files=no && git -C /home/ubuntu/solarnext-crm diff --stat && git -C /home/ubuntu/solarnext-crm diff --cached --stat'
 
   vercel-preview:
     name: Build Preview on Vercel
