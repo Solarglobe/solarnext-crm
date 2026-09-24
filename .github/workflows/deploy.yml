@@ -123,10 +123,11 @@ jobs:
           printf '%s' "$AUDIT_PUBLIC_CERT" | base64 -d > audit-cert.pem
           ssh "$VPS_USER@$VPS_HOST" 'cd /home/ubuntu/solarnext-crm && git diff --binary HEAD' > vps.diff
           ssh "$VPS_USER@$VPS_HOST" 'cd /home/ubuntu/solarnext-crm && git diff --name-only -z HEAD | tar --null -T - -czf -' > vps-files.tar.gz
+          ssh "$VPS_USER@$VPS_HOST" 'cd /home/ubuntu/solarnext-crm && git ls-files --others --exclude-standard -z -- backend shared | tr "\0" "\n" | grep -E "\.(js|mjs|cjs|ts|tsx|sql)$" | tar -T - -czf -' > vps-untracked-code.tar.gz
           ssh "$VPS_USER@$VPS_HOST" 'cd /home/ubuntu/solarnext-crm && git log -5 --format="%H %ad %s" --date=iso-strict' > vps-history.txt
-          tar -czf vps-audit.tar.gz vps.diff vps-files.tar.gz vps-history.txt
+          tar -czf vps-audit.tar.gz vps.diff vps-files.tar.gz vps-untracked-code.tar.gz vps-history.txt
           openssl cms -encrypt -aes256 -binary -in vps-audit.tar.gz -out vps-audit.cms -outform DER audit-cert.pem
-          rm -f vps.diff vps-files.tar.gz vps-history.txt vps-audit.tar.gz audit-cert.pem
+          rm -f vps.diff vps-files.tar.gz vps-untracked-code.tar.gz vps-history.txt vps-audit.tar.gz audit-cert.pem
           echo "Encrypted VPS audit artifact ready."
       - name: Upload encrypted audit
         uses: actions/upload-artifact@v4
