@@ -141,7 +141,7 @@ test("BALANCE sans base figée ni prepared_total -> erreur", async () => {
   }
 });
 
-test("updateInvoice : refuse si total des factures liées > préparation + tolérance", async () => {
+test("updateInvoice : une modification du montant préparé exige une nouvelle préparation", async () => {
   const q = await quoteService.createQuote(orgId, {
     client_id: clientId,
     items: [{ label: "Cap", description: "", quantity: 1, unit_price_ht: 200, tva_rate: 0 }],
@@ -169,7 +169,7 @@ test("updateInvoice : refuse si total des factures liées > préparation + tolé
     }));
     await assert.rejects(
       () => invoiceService.updateInvoice(invId, orgId, { lines: linesPayload }),
-      /Montant total des factures|dépasser|tolérance/i
+      (error) => error.code === "INVOICE_PREPARATION_CHANGED" && /préparation validée/i.test(error.message)
     );
   } finally {
     if (invId) {
