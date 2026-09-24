@@ -92,7 +92,7 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ssh "$VPS_USER@$VPS_HOST" 'git -C /home/ubuntu/solarnext-crm rev-parse HEAD && git -C /home/ubuntu/solarnext-crm status --short --untracked-files=no && git -C /home/ubuntu/solarnext-crm diff --stat && git -C /home/ubuntu/solarnext-crm diff --cached --stat'
+          ssh "$VPS_USER@$VPS_HOST" 'git -C /home/ubuntu/solarnext-crm rev-parse HEAD && git -C /home/ubuntu/solarnext-crm status --short --untracked-files=no && git -C /home/ubuntu/solarnext-crm diff --ignore-space-at-eol --shortstat && git -C /home/ubuntu/solarnext-crm diff --ignore-space-at-eol --name-only && git -C /home/ubuntu/solarnext-crm diff --cached --stat'
 
   vercel-preview:
     name: Build Preview on Vercel
