@@ -24,7 +24,7 @@ jobs:
   rollback-vercel:
     name: Rollback Frontend on Vercel
     runs-on: ubuntu-latest
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' && inputs.rollback_vercel_deployment != '') }}
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' && inputs.rollback_vercel_deployment != '' && inputs.rollback_vercel_deployment != 'diagnose') }}
     steps:
       - name: Rollback requested deployment
         env:
@@ -41,6 +41,40 @@ jobs:
           else
             npx vercel rollback "$ROLLBACK_DEPLOYMENT" --yes --token="$VERCEL_TOKEN"
           fi
+
+  inspect-vercel:
+    name: Inspect Vercel deployment history
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.rollback_vercel_deployment == 'diagnose' }}
+    steps:
+      - name: Read production deployment history and active alias
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          node <<'NODE'
+          const auth = { Authorization: `Bearer ${process.env.VERCEL_TOKEN}` };
+          const teamId = encodeURIComponent(process.env.VERCEL_ORG_ID);
+          const projectId = encodeURIComponent(process.env.VERCEL_PROJECT_ID);
+          for (const [label, url] of [
+            ['deployments', `https://api.vercel.com/v6/deployments?projectId=${projectId}&teamId=${teamId}&limit=30`],
+            ['production-alias', `https://api.vercel.com/v4/aliases/solarnext-crm.fr?teamId=${teamId}`],
+          ]) {
+            const response = await fetch(url, { headers: auth });
+            const data = await response.json();
+            if (!response.ok) { console.log(label, response.status, data.error?.code); continue; }
+            if (label === 'deployments') {
+              console.log(label, data.deployments.map(d => ({
+                uid: d.uid, url: d.url, createdAt: d.createdAt, target: d.target,
+                readyState: d.readyState, readySubstate: d.readySubstate,
+                aliasAssigned: d.aliasAssigned, alias: d.alias,
+              })));
+            } else {
+              console.log(label, { alias: data.alias, deploymentId: data.deploymentId, uid: data.uid, created: data.created });
+            }
+          }
+          NODE
 
   vercel-preview:
     name: Build Preview on Vercel
