@@ -45,6 +45,7 @@ wait_health() {
 ensure_clean_worktree() {
   if ! git -C "$APP_DIR" diff --quiet || ! git -C "$APP_DIR" diff --cached --quiet; then
     log "Refusing deploy: VPS worktree has local tracked changes."
+    git -C "$APP_DIR" status --short --untracked-files=no
     log "Rollback safety requires a clean tracked worktree. No reset was attempted."
     exit 1
   fi
