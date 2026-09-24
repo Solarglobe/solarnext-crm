@@ -30,14 +30,11 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           ROLLBACK_DEPLOYMENT: ${{ inputs.rollback_vercel_deployment }}
         run: |
           test -n "$ROLLBACK_DEPLOYMENT"
-          if [ "$ROLLBACK_DEPLOYMENT" = "previous" ]; then
-            mkdir -p .vercel
-            printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
-            npx vercel rollback --yes --token="$VERCEL_TOKEN"
+          if [[ "$ROLLBACK_DEPLOYMENT" == restore:* ]]; then
+            npx vercel promote "${ROLLBACK_DEPLOYMENT#restore:}" --yes --token="$VERCEL_TOKEN"
           else
             npx vercel rollback "$ROLLBACK_DEPLOYMENT" --yes --token="$VERCEL_TOKEN"
           fi
