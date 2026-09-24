@@ -92,6 +92,9 @@ for (const file of INTEGRATION_TEST_FILES) {
   const code = await runOne(file);
   if (code !== 0) {
     console.error(`\n✗  test:integration failed in ${file}`);
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      console.error(`::error file=backend/${file},title=Integration test failed::Exit code ${code}`);
+    }
     process.exit(code);
   }
 }
