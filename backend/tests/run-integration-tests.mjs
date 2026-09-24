@@ -79,21 +79,32 @@ console.log(`▶  test:integration — ${INTEGRATION_TEST_FILES.length} fichiers
 function runOne(file) {
   return new Promise((resolve) => {
     console.log(`\n▶  ${file}`);
+    let output = '';
     const proc = spawn(
       process.execPath,
       ['--test', file],
-      { cwd: backendRoot, stdio: 'inherit' },
+      { cwd: backendRoot, stdio: ['inherit', 'pipe', 'pipe'] },
     );
-    proc.on('exit', (code) => resolve(code ?? 1));
+    for (const [stream, destination] of [[proc.stdout, process.stdout], [proc.stderr, process.stderr]]) {
+      stream.on('data', (chunk) => {
+        const text = chunk.toString();
+        destination.write(text);
+        output = (output + text).slice(-65536);
+      });
+    }
+    proc.on('close', (code) => resolve({ code: code ?? 1, output }));
   });
 }
 
 for (const file of INTEGRATION_TEST_FILES) {
-  const code = await runOne(file);
+  const { code, output } = await runOne(file);
   if (code !== 0) {
     console.error(`\n✗  test:integration failed in ${file}`);
     if (process.env.GITHUB_ACTIONS === 'true') {
-      console.error(`::error file=backend/${file},title=Integration test failed::Exit code ${code}`);
+      const diagnosis = output.split(/\r?\n/)
+        .filter((line) => /^\s*(?:✖|not ok|error:|code:|expected:|actual:|failureType:|location:|AssertionError)/.test(line))
+        .slice(-16).join(' | ').replace(/::/g, ':').slice(0, 2000);
+      console.error(`::error file=backend/${file},title=Integration test failed::Exit code ${code}. ${diagnosis}`);
     }
     process.exit(code);
   }
