@@ -83,7 +83,7 @@ export async function refreshInvoiceFinancialBalance(client, { invoiceId, organi
   const status = suggestInvoiceStatusFromAmounts(invoice);
   const result = await client.query(
     `UPDATE invoices SET total_paid = $3, total_credited = $4, amount_due = $5,
-       status = $6, paid_at = CASE WHEN $6 = 'PAID' THEN COALESCE(paid_at, now()) ELSE NULL END,
+       status = $6::varchar, paid_at = CASE WHEN $6::varchar = 'PAID' THEN COALESCE(paid_at, now()) ELSE NULL END,
        updated_at = now()
      WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL RETURNING *`,
     [invoiceId, organizationId, invoice.total_paid, invoice.total_credited, invoice.amount_due, status]

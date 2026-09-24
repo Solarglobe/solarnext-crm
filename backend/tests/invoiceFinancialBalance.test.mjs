@@ -7,7 +7,7 @@ const scope={invoiceId:"invoice-a",organizationId:"org-a"};
 async function fixture(t) {
   const db=new PGlite();
   await db.exec(`
-    CREATE TABLE invoices(id text PRIMARY KEY, organization_id text, status text,
+    CREATE TABLE invoices(id text PRIMARY KEY, organization_id text, status varchar(50),
       total_ttc numeric, total_paid numeric DEFAULT 999, total_credited numeric DEFAULT 999,
       amount_due numeric DEFAULT 999, archived_at timestamptz, paid_at timestamptz, updated_at timestamptz);
     CREATE TABLE payments(id text PRIMARY KEY,organization_id text,invoice_id text,amount numeric,status text);
