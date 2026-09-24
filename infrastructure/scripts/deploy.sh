@@ -157,6 +157,11 @@ if [ "${1:-}" = "--simulate-rollback" ] || [ "${SIMULATE_ROLLBACK:-0}" = "1" ]; 
   exit 0
 fi
 
+SKIP_DB_OPERATIONS=0
+if [ "${1:-}" = "--skip-db" ]; then
+  SKIP_DB_OPERATIONS=1
+fi
+
 log "Backend deployment started"
 mkdir -p /home/ubuntu/solarnext-crm/storage
 chmod 755 /home/ubuntu/solarnext-crm/storage
@@ -164,26 +169,37 @@ chmod 755 /home/ubuntu/solarnext-crm/storage
 ensure_clean_worktree
 prepare_previous_release
 
+previous_commit="$(git -C "$APP_DIR" rev-parse HEAD)"
 log "Fetching $DEPLOY_REF"
 git -C "$APP_DIR" fetch origin main
+if [ "$SKIP_DB_OPERATIONS" = "1" ] && ! git -C "$APP_DIR" diff --quiet "$previous_commit" "$DEPLOY_REF" -- \
+  backend/migrations backend/scripts/run-pg-migrate.cjs backend/scripts/import-official-pv-catalog.mjs \
+  backend/config/database.cjs backend/config/db.js; then
+  log "Database-related files changed since the previous VPS release; refusing --skip-db deployment."
+  exit 1
+fi
 git -C "$APP_DIR" merge --ff-only "$DEPLOY_REF"
 
 log "Installing current backend dependencies"
 install_backend_dependencies "$BACKEND_DIR"
 
-log "Running non-destructive DB migrations"
-if NODE_ENV=production npm --prefix "$BACKEND_DIR" run migrate:up; then
-  log "Migrations applied"
+if [ "$SKIP_DB_OPERATIONS" = "1" ]; then
+  log "Production DB operations skipped for this release (no migration or PV catalog import)."
 else
-  status=$?
-  log "Migration failed; reverting one migration step then restoring previous application release"
-  NODE_ENV=production npm --prefix "$BACKEND_DIR" run migrate:down || true
-  rollback_previous_release || true
-  exit "$status"
-fi
+  log "Running non-destructive DB migrations"
+  if NODE_ENV=production npm --prefix "$BACKEND_DIR" run migrate:up; then
+    log "Migrations applied"
+  else
+    status=$?
+    log "Migration failed; reverting one migration step then restoring previous application release"
+    NODE_ENV=production npm --prefix "$BACKEND_DIR" run migrate:down || true
+    rollback_previous_release || true
+    exit "$status"
+  fi
 
-log "Importing official PV catalog"
-NODE_ENV=production npm --prefix "$BACKEND_DIR" run import:official-pv-catalog || log "PV catalog already up to date or import skipped"
+  log "Importing official PV catalog"
+  NODE_ENV=production npm --prefix "$BACKEND_DIR" run import:official-pv-catalog || log "PV catalog already up to date or import skipped"
+fi
 
 if restart_service_from_backend "$BACKEND_DIR" && wait_health; then
   current_commit="$(git -C "$APP_DIR" rev-parse --short=12 HEAD)"

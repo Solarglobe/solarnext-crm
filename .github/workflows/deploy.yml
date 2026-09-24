@@ -157,9 +157,10 @@ jobs:
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_DEPLOY_COMMAND: ${{ secrets.VPS_DEPLOY_COMMAND }}
         run: |
-          ssh "$VPS_USER@$VPS_HOST" "$VPS_DEPLOY_COMMAND"
+          # Stream the checked-in script from this exact commit. The server's older
+          # checkout cannot enforce this release's no-DB guard before its git pull.
+          ssh "$VPS_USER@$VPS_HOST" "DEPLOY_REF=$GITHUB_SHA bash -s -- --skip-db" < infrastructure/scripts/deploy.sh
 
   smoke-tests:
     name: Post-backend Smoke Tests
