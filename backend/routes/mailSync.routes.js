@@ -35,14 +35,18 @@ router.post("/sync/run", verifyJWT, requireMailAccountsManageStrict(), async (re
         forceFull: !!forceFull,
         folderId: typeof folderId === "string" && folderId.trim() ? folderId.trim() : null,
       });
-      return res.json({ success: true, ...r });
+      return res.json({ ...r, success: r.ok === true });
     }
 
     const r = await syncAllMailAccounts({
       organizationId,
       forceFull: !!forceFull,
     });
-    return res.json({ success: true, summary: r });
+    const success = r.total > 0 && r.ok === r.total && r.failed === 0;
+    return res.json({ success, summary: r, ...(success ? {} : {
+      code: r.failed > 0 ? "SYNC_PARTIAL" : "SYNC_NOT_COMPLETE",
+      message: r.total === 0 ? "Aucun compte à synchroniser." : `Synchronisation incomplète : ${r.ok}/${r.total} comptes synchronisés.`,
+    }) });
   } catch (err) {
     console.error("POST /mail/sync/run", err);
     const code = err?.code && typeof err.code === "string" ? err.code : "SYNC_FAILED";
@@ -50,6 +54,7 @@ router.post("/sync/run", verifyJWT, requireMailAccountsManageStrict(), async (re
       success: false,
       code,
       message: err instanceof Error ? err.message : String(err),
+      ...(err?.summary ? { summary: err.summary } : {}),
     });
   }
 });
@@ -101,7 +106,8 @@ router.get("/sync/status", verifyJWT, requireMailUseStrict(), async (req, res) =
                 is_default_send_account, provider, auth_method, reconnect_required,
                 last_imap_sync_at, sync_status,
                 last_imap_error_at, last_imap_error_code, last_imap_error_message,
-                last_successful_sync_at, next_sync_attempt_at, imap_status, smtp_status
+                last_successful_sync_at, last_sync_attempt_at, next_sync_attempt_at, imap_status, smtp_status,
+                last_error_code, last_error_message
          FROM mail_accounts ma
          WHERE organization_id = $1 AND ${activeSqlPredicate("ma", "canDisplay")}
          ORDER BY email ASC`,
@@ -118,7 +124,8 @@ router.get("/sync/status", verifyJWT, requireMailUseStrict(), async (req, res) =
                 is_default_send_account, provider, auth_method, reconnect_required,
                 last_imap_sync_at, sync_status,
                 last_imap_error_at, last_imap_error_code, last_imap_error_message,
-                last_successful_sync_at, next_sync_attempt_at, imap_status, smtp_status
+                last_successful_sync_at, last_sync_attempt_at, next_sync_attempt_at, imap_status, smtp_status,
+                last_error_code, last_error_message
          FROM mail_accounts ma
          WHERE organization_id = $1 AND ${activeSqlPredicate("ma", "canDisplay")}
            AND id = ANY($2::uuid[])

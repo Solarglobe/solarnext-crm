@@ -55,6 +55,17 @@ export function sanitizeMailHtmlDisplay(html: string, options: { allowRemoteImag
  * Corps éditeur mail (composer) — liste blanche stricte + data-signature pour le bloc signature.
  */
 export function sanitizeMailHtmlComposer(html: string): string {
+  ensureLinkHooks();
+  const previousAllowRemoteImages = _allowRemoteImages;
+  _allowRemoteImages = true;
+  try {
+    return sanitizeComposerContent(html);
+  } finally {
+    _allowRemoteImages = previousAllowRemoteImages;
+  }
+}
+
+function sanitizeComposerContent(html: string): string {
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [
       "p",
@@ -102,9 +113,11 @@ export function sanitizeMailHtmlComposer(html: string): string {
       "border",
       "cellpadding",
       "cellspacing",
+      "bgcolor",
+      "role",
     ],
     ALLOW_DATA_ATTR: false,
-    ADD_ATTR: ["data-signature"],
+    ADD_ATTR: ["data-signature", "data-mail-signature", "data-signature-id", "data-mail-signature-quoted"],
   });
 }
 

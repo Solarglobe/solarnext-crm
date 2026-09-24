@@ -1,5 +1,16 @@
 import { initCalpinage } from "../../legacy/calpinage.module";
 import {
+  captureRoofModelingGeometrySnapshot,
+  pushRoofModelingPastSnapshot,
+  resetRoofModelingHistoryForTests,
+  undoRoofModeling,
+} from "../../runtime/roofModelingHistory";
+// Le prototype reste testable explicitement, mais il est désactivé en production.
+vi.mock("../drawingFeatureFlag", () => ({
+  isSmartRoofDrawingEnabled: () => window.localStorage.getItem("calpinage_smart_roof_drawing") === "true",
+  smartRoofDrawingLocalStorageKey: () => "calpinage_smart_roof_drawing",
+}));
+import {
   addSketchNode,
   addSketchSegment,
   buildSmartRoofPersistedDrawing,
@@ -58,6 +69,7 @@ afterEach(async () => {
   delete (window as any).__calpinageApplyCurrentHeightSelectionForTests;
   window.history.replaceState(null, "", "/");
   vi.unstubAllGlobals();
+  resetRoofModelingHistoryForTests();
 });
 
 function prepareWindowStubs(): void {
@@ -167,6 +179,42 @@ function persistedSmartRectangleDrawing() {
 }
 
 describe("smartRoofDrawing Phase 2 UI integration", () => {
+
+  it("exports the restored roof sources after 3D modeling Undo", async () => {
+    window.localStorage.setItem("calpinage_smart_roof_drawing", "true");
+    mountCalpinage();
+    await flushCalpinageAsyncLoad();
+    const source = rectangleState();
+    source.roof = { ...(window.CALPINAGE_STATE!.roof as Record<string, unknown>), roofPans: [] };
+    source.ridges = [{ id: "ridge-1", a: { x: 0, y: 0, h: 5 }, b: { x: 100, y: 0, h: 5 } }];
+    source.traits = [{ id: "trait-1", a: { x: 0, y: 100, h: 5 }, b: { x: 100, y: 100, h: 5 } }];
+    Object.assign(window.CALPINAGE_STATE!, source);
+    const baseline = structuredClone(window.__calpinageSmartRoofDrawing!.buildExport());
+    expect(baseline).not.toBeNull();
+    const runtime = window.CALPINAGE_STATE!;
+    const before = captureRoofModelingGeometrySnapshot(runtime);
+    (runtime.contours as any[])[0].points[0].h = 8;
+    (runtime.ridges as any[])[0].a.h = 8;
+    (runtime.traits as any[])[0].b.h = 8;
+    (runtime.pans as any[])[0].points[0].h = 8;
+    pushRoofModelingPastSnapshot(before);
+    expect(undoRoofModeling(runtime)).toBe(true);
+    expect(typeof (window as any).__calpinageRefreshLegacyUiAfterPanVertexHeightEdit).toBe("function");
+    (window as any).__calpinageRefreshLegacyUiAfterPanVertexHeightEdit();
+    const exported = window.__calpinageSmartRoofDrawing!.buildExport();
+    expect(exported).not.toBeNull();
+    expect(exported.roofState.contoursBati).toEqual(baseline.roofState.contoursBati);
+    expect(exported.roofState.ridges).toEqual(baseline.roofState.ridges);
+    expect(exported.roofState.traits).toEqual(baseline.roofState.traits);
+    const panGeometry = (pans: any[]) => pans.map((pan) => ({
+      id: pan.id,
+      points: pan.points.map((point: any) => ({ id: point.id, x: point.x, y: point.y, h: point.h })),
+      polygon: pan.polygon,
+      polygonPx: pan.polygonPx,
+      ridgeIds: pan.ridgeIds,
+    }));
+    expect(panGeometry(exported.pans)).toEqual(panGeometry(baseline.pans));
+  });
   it("keeps the normal roof drawing menu by default", async () => {
     const container = mountCalpinage();
     await flushCalpinageAsyncLoad();

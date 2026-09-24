@@ -97,6 +97,15 @@ export function buildPanelVisualShadingMapFromRuntime(
   return resolvePanelVisualShadingForPanels(panelIds, lossBy);
 }
 
+/** Exact visual inputs consumed by the panel color mapping, sorted by stable
+ * panel identity. Source row order and computedAt are not color inputs. */
+export function fingerprintPanelVisualShading(map: Readonly<Record<string, PanelVisualShading>> | undefined): string {
+  return JSON.stringify(Object.keys(map ?? {}).sort().map(id => {
+    const row = map![id]!;
+    return [id, row.state, row.lossPct, row.qualityScore01, row.provenance ?? null];
+  }));
+}
+
 function finitePctOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
 }

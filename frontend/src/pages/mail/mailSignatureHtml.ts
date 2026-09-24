@@ -1,4 +1,5 @@
 import type { ComposerMode } from "./mailComposerLogic";
+import { MAIL_QUOTED_SELECTOR, sanitizeMailSignatureContent } from './mailSignatureNode';
 
 export const SOLARGLOBE_ROBUST_SIGNATURE_HTML = `
 <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#1f2933;font-size:12px;line-height:1.4;max-width:640px;">
@@ -41,50 +42,61 @@ export function hardenMailSignatureHtml(innerHtml: string): string {
 }
 
 /** Bloc signature dans le composer (évite mélange avec le corps). */
-export function wrapMailSignatureHtml(innerHtml: string): string {
-  const inner = hardenMailSignatureHtml(innerHtml).trim();
+export function wrapMailSignatureHtml(innerHtml: string, signatureId?: string | null): string {
+  const inner = sanitizeMailSignatureContent(hardenMailSignatureHtml(innerHtml)).trim();
   if (!inner) return "";
-  return `<div data-signature="1">${inner}</div>`;
+  const wrapper = document.createElement('div');
+  wrapper.setAttribute('data-signature', '1');
+  wrapper.setAttribute('data-mail-signature', '1');
+  if (signatureId) wrapper.setAttribute('data-signature-id', signatureId.slice(0, 200));
+  wrapper.innerHTML = inner;
+  return wrapper.outerHTML;
 }
 
 export function stripMailSignatureFromHtml(html: string): string {
-  if (typeof document === "undefined") {
-    return html.replace(/<div\b[^>]*\bdata-signature=(?:["'][^"']*["']|[^\s>]+)[^>]*>[\s\S]*?<\/div>/gi, "");
-  }
+  if (typeof document === "undefined") return html;
   const d = document.createElement("div");
   d.innerHTML = html;
-  const sig = d.querySelector("div[data-signature]");
-  if (sig) sig.remove();
+  const managed = currentSignatures(d);
+  if (!managed.length) return html;
+  managed.forEach(signature => signature.remove());
   return d.innerHTML;
 }
 
+const SIGNATURE_SELECTOR = 'div[data-mail-signature="1"],div[data-signature="1"]';
+function currentSignatures(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(SIGNATURE_SELECTOR)).filter(element =>
+    !element.closest(MAIL_QUOTED_SELECTOR) && !element.parentElement?.closest(SIGNATURE_SELECTOR));
+}
+
+export function getCurrentMailSignature(html: string): { present: boolean; id: string | null; html: string } {
+  if (typeof document === 'undefined') return { present: false, id: null, html: '' };
+  const root = document.createElement('div');root.innerHTML = html;
+  const signature = currentSignatures(root)[0];
+  return { present: Boolean(signature), id: signature?.getAttribute('data-signature-id') || null, html: signature?.innerHTML || '' };
+}
+
 /**
- * @param baseHtml Corps sans bloc signature
+ * Replace the current managed region in place, preserving adjacent text and quotes.
  */
-export function injectMailSignatureHtml(baseHtml: string, innerSignature: string, mode: ComposerMode): string {
-  const wrapped = wrapMailSignatureHtml(innerSignature);
+export function injectMailSignatureHtml(baseHtml: string, innerSignature: string, mode: ComposerMode, signatureId?: string | null): string {
+  if (typeof document === 'undefined') return baseHtml;
+  const root = document.createElement('div');root.innerHTML = baseHtml;
+  const existing = currentSignatures(root);
+  const wrapped = wrapMailSignatureHtml(innerSignature, signatureId);
   if (!wrapped) return stripMailSignatureFromHtml(baseHtml);
-  const cleaned = stripMailSignatureFromHtml(baseHtml);
-
-  if (mode === "forward") {
-    const re = /<hr\b[^>]*>/i;
-    const m = cleaned.match(re);
-    if (m && m.index != null) {
-      return cleaned.slice(0, m.index) + wrapped + cleaned.slice(m.index);
-    }
-    return wrapped + cleaned;
+  const fragment = document.createElement('div');fragment.innerHTML = wrapped;
+  const replacement = fragment.firstElementChild!;
+  if (existing.length) {
+    existing[0].replaceWith(replacement);
+    existing.slice(1).forEach(signature => signature.remove());
+  } else {
+    const quotedStart = mode === 'forward' ? root.querySelector('hr,blockquote')
+      : mode === 'reply' || mode === 'replyAll' ? root.querySelector('blockquote,hr') : null;
+    if (quotedStart) quotedStart.before(replacement);
+    else root.append(replacement);
   }
-
-  if (mode === "reply" || mode === "replyAll") {
-    const re = /<(blockquote|hr)\b/i;
-    const m = cleaned.match(re);
-    if (m && m.index != null) {
-      return cleaned.slice(0, m.index) + wrapped + cleaned.slice(m.index);
-    }
-    return cleaned + wrapped;
-  }
-
-  return cleaned + wrapped;
+  return root.innerHTML;
 }
 
 /** Conserve le bloc « message transféré » (à partir du premier &lt;hr&gt;) lors de l’application d’un template. */

@@ -12,7 +12,7 @@ import {
   buildInvoiceIssuerRecipientSnapshots,
   buildSourceInvoiceSnapshot,
 } from "./documentSnapshot.service.js";
-import { recalculateInvoiceStatusFromAmounts } from "./invoices.service.js";
+import { readInvoiceFinancialBalance, refreshInvoiceFinancialBalance } from "./finance/invoiceBalance.js";
 import { persistCreditNoteOfficialDocumentSnapshot } from "./financialDocumentSnapshot.service.js";
 import { buildCreditNotePdfPayloadFromSnapshot } from "./financialDocumentPdfPayload.service.js";
 import { createFinancialCreditNoteRenderToken } from "./pdfRenderToken.service.js";
@@ -122,17 +122,6 @@ async function recalcCreditNoteTotalsFromDb(client, organizationId, creditNoteId
 export async function createDraftCreditNote(organizationId, invoiceId, body) {
   const { lines = [], reason_code, reason_text } = body || {};
 
-  const invoiceRes = await pool.query(
-    `SELECT * FROM invoices WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
-    [invoiceId, organizationId]
-  );
-  if (invoiceRes.rows.length === 0) throw httpError("Facture non trouvée", 404);
-  const invoice = invoiceRes.rows[0];
-  if (String(invoice.status).toUpperCase() === "CANCELLED") {
-    throw httpError("Avoir impossible sur une facture annulée");
-  }
-  if (!invoice.client_id) throw httpError("client_id manquant sur la facture");
-
   if (!Array.isArray(lines) || lines.length < 1) {
     throw httpError("Au moins une ligne est requise");
   }
@@ -146,15 +135,24 @@ export async function createDraftCreditNote(organizationId, invoiceId, body) {
   const totals = sumLineAmounts(lineInputs);
   if (totals.total_ttc < 0) throw httpError("Le total TTC de l’avoir ne peut pas être négatif");
 
-  const creditableAmount = computeInvoiceCreditableAmount(invoice);
-  if (totals.total_ttc > creditableAmount + MONEY_EPSILON) {
-    throw httpError("Le montant de l’avoir dépasse le total encore créditable de la facture");
-  }
-
   const draftNum = `DRAFT-AVR-${Date.now()}`;
-  const currency = invoice.currency || "EUR";
 
   const cnId = await withTx(pool, async (client) => {
+    const invoiceRes = await client.query(
+      `SELECT id FROM invoices WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL FOR UPDATE`,
+      [invoiceId, organizationId]
+    );
+    if (!invoiceRes.rows[0]) throw httpError("Facture non trouvée", 404);
+    const invoice = await readInvoiceFinancialBalance(client, { invoiceId, organizationId });
+    if (String(invoice.status).toUpperCase() === "CANCELLED") {
+      throw httpError("Avoir impossible sur une facture annulée");
+    }
+    if (!invoice.client_id) throw httpError("client_id manquant sur la facture");
+    const creditableAmount = computeInvoiceCreditableAmount(invoice);
+    if (totals.total_ttc > creditableAmount + MONEY_EPSILON) {
+      throw httpError("Le montant de l’avoir dépasse le total encore créditable de la facture");
+    }
+    const currency = invoice.currency || "EUR";
     const ins = await client.query(
       `INSERT INTO credit_notes (
         organization_id, client_id, invoice_id, credit_note_number, status, currency,
@@ -193,22 +191,30 @@ export async function createDraftCreditNote(organizationId, invoiceId, body) {
  */
 export async function issueCreditNote(organizationId, creditNoteId) {
   await withTx(pool, async (client) => {
+    // Resolve the parent without locking a child first; all financial mutations
+    // serialize on invoice -> payment/credit note in this same order.
+    const initial = await client.query(
+      `SELECT invoice_id FROM credit_notes WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL`,
+      [creditNoteId, organizationId]
+    );
+    const invoiceId = initial.rows[0]?.invoice_id;
+    if (!invoiceId) throw httpError("Avoir non trouvé", 404);
+    const invRes = await client.query(
+      `SELECT id FROM invoices WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL FOR UPDATE`,
+      [invoiceId, organizationId]
+    );
+    if (!invRes.rows[0]) throw httpError("Facture source introuvable", 404);
     const cnRes = await client.query(
       `SELECT * FROM credit_notes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL) FOR UPDATE`,
       [creditNoteId, organizationId]
     );
-    if (cnRes.rows.length === 0) throw httpError("Avoir non trouvé", 404);
+    if (cnRes.rows.length === 0 || cnRes.rows[0].invoice_id !== invoiceId) throw httpError("Avoir non trouvé", 404);
     const cn = cnRes.rows[0];
     if (String(cn.status).toUpperCase() !== "DRAFT") {
       throw httpError("Seul un avoir en brouillon peut être émis");
     }
 
-    const invRes = await client.query(
-      `SELECT * FROM invoices WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL) FOR UPDATE`,
-      [cn.invoice_id, organizationId]
-    );
-    if (invRes.rows.length === 0) throw httpError("Facture source introuvable", 404);
-    const invoice = invRes.rows[0];
+    const invoice = await readInvoiceFinancialBalance(client, { invoiceId, organizationId });
     if (String(invoice.status).toUpperCase() === "CANCELLED") {
       throw httpError("Émission impossible : facture annulée");
     }
@@ -251,16 +257,13 @@ export async function issueCreditNote(organizationId, creditNoteId) {
       ]
     );
 
+    await refreshInvoiceFinancialBalance(client, { invoiceId, organizationId });
+
     await persistCreditNoteOfficialDocumentSnapshot(client, creditNoteId, organizationId, {
       frozenBy: null,
       generatedFrom: "POST_CREDIT_NOTE_ISSUE",
     });
   });
-
-  const cnRow = (await pool.query(`SELECT invoice_id FROM credit_notes WHERE id = $1`, [creditNoteId])).rows[0];
-  if (cnRow?.invoice_id) {
-    await recalculateInvoiceStatusFromAmounts(cnRow.invoice_id, organizationId);
-  }
 
   const r = await pool.query(`SELECT * FROM credit_notes WHERE id = $1`, [creditNoteId]);
   return r.rows[0];

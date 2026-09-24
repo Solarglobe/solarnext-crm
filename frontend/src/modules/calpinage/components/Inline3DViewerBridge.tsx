@@ -41,6 +41,7 @@ import { validateCalpinageRuntimeAfterRoofEdit } from "../runtime/validateCalpin
 import {
   canRedoRoofModeling,
   canUndoRoofModeling,
+  captureRoofModelingGeometrySnapshot,
   pushRoofModelingPastSnapshot,
   redoRoofModeling,
   undoRoofModeling,
@@ -987,6 +988,7 @@ function Inline3DViewer({
         return;
       }
       const pansBefore = Array.isArray(root.pans) ? JSON.parse(JSON.stringify(root.pans)) : null;
+      const historyBefore = enableModelingHistory ? captureRoofModelingGeometrySnapshot(root) : null;
 
       if (import.meta.env.DEV) {
         console.log("[3D DRAG] commit runtime vertex h (before any path)", {
@@ -1013,7 +1015,7 @@ function Inline3DViewer({
             hRead: readCalpinagePanVertexHeightM(root, edit.panId, edit.vertexIndex),
           });
         }
-        if (enableModelingHistory && pansBefore != null) pushRoofModelingPastSnapshot(pansBefore);
+        if (historyBefore) pushRoofModelingPastSnapshot(historyBefore);
         console.log("[3D EDIT] Height applied", {
           panId: edit.panId,
           vertexIndex: edit.vertexIndex,
@@ -1207,6 +1209,7 @@ function Inline3DViewer({
       if (!root) return;
       if (!assertRoofVertexEditTarget(root, edit.panId, edit.vertexIndex)) return;
       const pansBefore = Array.isArray(root.pans) ? JSON.parse(JSON.stringify(root.pans)) : null;
+      const historyBefore = enableModelingHistory ? captureRoofModelingGeometrySnapshot(root) : null;
       const r = applyRoofVertexXYEdit(root, edit);
       if (!r.ok) {
         const toast = (window as unknown as { calpinageToast?: { warning?: (m: string) => void } }).calpinageToast;
@@ -1225,7 +1228,7 @@ function Inline3DViewer({
         if (import.meta.env.DEV) console.warn("[CALPINAGE][roof-edit-validate]", post);
         return;
       }
-      if (enableModelingHistory && pansBefore != null) pushRoofModelingPastSnapshot(pansBefore);
+      if (historyBefore) pushRoofModelingPastSnapshot(historyBefore);
       notifyParentState(root);
       // FIX-1 : verrou pour que onStructuralChange ignore cet event (emit synchrone).
       isBridgeInternalEditRef.current = true;
@@ -1249,7 +1252,7 @@ function Inline3DViewer({
       const root = resolveCalpinageRuntime(calpinageStateProp);
       if (!root) return;
       const stateBefore = JSON.parse(JSON.stringify(root)) as Record<string, unknown>;
-      const pansBefore = Array.isArray(root.pans) ? JSON.parse(JSON.stringify(root.pans)) : null;
+      const historyBefore = enableModelingHistory ? captureRoofModelingGeometrySnapshot(root) : null;
       const r = applyStructuralHeightEdit(root, edit);
       if (!r.ok) {
         showCalpinageRoofEditErrorToast(r.message);
@@ -1268,7 +1271,7 @@ function Inline3DViewer({
         showCalpinageRoofEditErrorToast(post.userMessage);
         return;
       }
-      if (enableModelingHistory && pansBefore != null) pushRoofModelingPastSnapshot(pansBefore);
+      if (historyBefore) pushRoofModelingPastSnapshot(historyBefore);
       refreshLegacyCalpinage2DAfterPanVertexHeightEdit();
       notifyParentState(root);
       // FIX-1 : verrou pour que onStructuralChange ignore cet event (emit synchrone).
@@ -1293,7 +1296,7 @@ function Inline3DViewer({
       const root = resolveCalpinageRuntime(calpinageStateProp);
       if (!root) return;
       const stateBefore = JSON.parse(JSON.stringify(root)) as Record<string, unknown>;
-      const pansBefore = Array.isArray(root.pans) ? JSON.parse(JSON.stringify(root.pans)) : null;
+      const historyBefore = enableModelingHistory ? captureRoofModelingGeometrySnapshot(root) : null;
       const r = applyRoofHeightAssistant(root, command);
       if (!r.ok) {
         restoreCalpinageRuntimeFromSnapshot(root, stateBefore);
@@ -1314,7 +1317,7 @@ function Inline3DViewer({
         showCalpinageRoofEditErrorToast(post.userMessage);
         return;
       }
-      if (enableModelingHistory && pansBefore != null) pushRoofModelingPastSnapshot(pansBefore);
+      if (historyBefore) pushRoofModelingPastSnapshot(historyBefore);
       refreshLegacyCalpinage2DAfterPanVertexHeightEdit();
       notifyParentState(root);
       // FIX-1 : verrou pour que onStructuralChange ignore cet event (emit synchrone).
@@ -1358,6 +1361,7 @@ function Inline3DViewer({
         const st = resolveCalpinageRuntime(calpinageStateProp);
         if (!st) return;
         if (undoRoofModeling(st)) {
+          refreshLegacyCalpinage2DAfterPanVertexHeightEdit();
           notifyParentState(st);
           bumpRoofHist();
           // C3-FIX — Force rebuild même si la signature structurelle retrouvée après undo
@@ -1376,6 +1380,7 @@ function Inline3DViewer({
         const st = resolveCalpinageRuntime(calpinageStateProp);
         if (!st) return;
         if (redoRoofModeling(st)) {
+          refreshLegacyCalpinage2DAfterPanVertexHeightEdit();
           notifyParentState(st);
           bumpRoofHist();
           // C3-FIX — Idem undo : forcer rebuild pour éviter cache stale sur même signature.

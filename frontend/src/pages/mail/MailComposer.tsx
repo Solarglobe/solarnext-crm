@@ -44,6 +44,8 @@ import {
   injectMailSignatureHtml,
   shortSignaturePreview,
   stripMailSignatureFromHtml,
+  getCurrentMailSignature,
+  wrapMailSignatureHtml,
 } from "./mailSignatureHtml";
 import { apiFetch } from "../../services/api";
 import { getCrmApiBase } from "../../config/crmApiBase";
@@ -634,6 +636,10 @@ export const MailComposer = React.memo(function MailComposer({
   const [selectedSigId, setSelectedSigId] = useState<string | null>(null);
   const [sigLoading, setSigLoading] = useState(false);
   const [sigError, setSigError] = useState<string | null>(null);
+  const preserveSignatureOnHydrateRef = useRef(false);
+  const signatureDocumentRef = useRef<string | null>(null);
+  const [signatureRecoveryNotice, setSignatureRecoveryNotice] = useState(false);
+  const [editorReadyKey, setEditorReadyKey] = useState<string | null>(null);
 
   const [tmplPanelOpen, setTmplPanelOpen] = useState(false);
   const [tmplList, setTmplList] = useState<MailTemplateRow[]>([]);
@@ -656,6 +662,9 @@ export const MailComposer = React.memo(function MailComposer({
       return;
     }
     lastHydratedIdRef.current = stableHydrateId;
+    preserveSignatureOnHydrateRef.current = false;
+    signatureDocumentRef.current = null;
+    setSignatureRecoveryNotice(false);
 
     if (isServerDraftMode) {
       /*
@@ -683,6 +692,8 @@ export const MailComposer = React.memo(function MailComposer({
           resolveAccountFromDraft(initialDraft.mail_account_id ?? "", accounts, preferredAccountId)
         );
         const html = initialDraft.body_html || "<p></p>";
+        preserveSignatureOnHydrateRef.current = true;
+        setSignatureRecoveryNotice(!getCurrentMailSignature(html).present);
         setComposerInitialHtml(html);
         latestHtmlRef.current = html;
         void (async () => {
@@ -721,6 +732,8 @@ export const MailComposer = React.memo(function MailComposer({
       }
 
       if (draft) {
+        preserveSignatureOnHydrateRef.current = true;
+        setSignatureRecoveryNotice(!getCurrentMailSignature(draft.bodyHtml).present);
         setTo(draft.to);
         setCc(draft.cc);
         setBcc(draft.bcc);
@@ -745,6 +758,10 @@ export const MailComposer = React.memo(function MailComposer({
     setShowBcc(snapshot.showBcc);
     const htmlFromPrefill = initialPrefill?.bodyHtml?.trim();
     const defaultHtml = htmlFromPrefill ? htmlFromPrefill : snapshot.html || "<p></p>";
+    if (htmlFromPrefill) {
+      preserveSignatureOnHydrateRef.current = true;
+      setSignatureRecoveryNotice(!getCurrentMailSignature(defaultHtml).present);
+    }
     setComposerInitialHtml(defaultHtml);
     latestHtmlRef.current = defaultHtml;
     setComposerBodyKey(`${stableHydrateId}-${Date.now()}`);
@@ -841,7 +858,10 @@ export const MailComposer = React.memo(function MailComposer({
         if (cancelled) return;
         setSigList(r.signatures ?? []);
         const def = r.defaultSignature?.id ?? r.signatures?.[0]?.id ?? null;
-        setSelectedSigId(def);
+        const stored = getCurrentMailSignature(mailBodyRef.current?.getHTML() || latestHtmlRef.current);
+        setSelectedSigId(preserveSignatureOnHydrateRef.current
+          ? stored.present ? (r.signatures?.some(s => s.id === stored.id) ? stored.id : '__preserved__') : null
+          : def);
       } catch (e) {
         if (!cancelled) setSigError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -864,19 +884,27 @@ export const MailComposer = React.memo(function MailComposer({
   }, [stableHydrateId]);
 
   useEffect(() => {
-    if (sigLoading) return;
+    if (sigLoading || editorReadyKey !== composerBodyKey) return;
     const ed = mailBodyRef.current;
     if (!ed) return;
+    if (signatureDocumentRef.current !== composerBodyKey) {
+      signatureDocumentRef.current = composerBodyKey;
+      if (preserveSignatureOnHydrateRef.current) {
+        const stored = getCurrentMailSignature(ed.getHTML());
+        setSelectedSigId(stored.present ? (sigList.some(s => s.id === stored.id) ? stored.id : '__preserved__') : null);
+        return;
+      }
+    }
+    if (preserveSignatureOnHydrateRef.current || selectedSigId === '__preserved__') return;
     const row = selectedSigId ? sigList.find((s) => s.id === selectedSigId) : null;
     const inner = row?.signature_html?.trim() ? row.signature_html : "";
-    const injectKey = `${fromAccountId}|${selectedSigId ?? ""}|${mode}`;
+    const injectKey = `${composerBodyKey}|${fromAccountId}|${selectedSigId ?? ""}|${mode}`;
     if (lastSigInjectKeyRef.current === injectKey) return;
     lastSigInjectKeyRef.current = injectKey;
-    const base = stripMailSignatureFromHtml(ed.getHTML());
-    ed.setHTML(injectMailSignatureHtml(base, inner, mode), { silent: true });
+    ed.setHTML(injectMailSignatureHtml(ed.getHTML(), inner, mode, selectedSigId), { silent: true });
     latestHtmlRef.current = ed.getHTML();
     setEditorTick((x) => x + 1);
-  }, [selectedSigId, sigList, mode, sigLoading, fromAccountId]);
+  }, [selectedSigId, sigList, mode, sigLoading, fromAccountId, composerBodyKey, editorReadyKey]);
 
   useEffect(() => {
     if (!tmplPanelOpen) return;
@@ -974,17 +1002,17 @@ export const MailComposer = React.memo(function MailComposer({
           trimmed === "<p><br></p>" ||
           isBodyEmpty(sanitizeComposerHtml(currentHtml));
 
-        const innerSig = hardenMailSignatureHtml(
+        const storedSignature = getCurrentMailSignature(currentHtml);
+        const templateSignatureId = selectedSigId === '__preserved__' ? storedSignature.id : selectedSigId;
+        const innerSig = selectedSigId === '__preserved__' ? storedSignature.html : hardenMailSignatureHtml(
           selectedSigId ? sigList.find((s) => s.id === selectedSigId)?.signature_html ?? "" : ""
         ).trim();
         const ctx = await buildMailComposerRenderContext({
           clientId: crmClientId,
           leadId: crmLeadId,
         });
-        const ctxWithSig = { ...ctx, signature: innerSig };
+        const ctxWithSig = { ...ctx, signature: wrapMailSignatureHtml(innerSig, templateSignatureId) };
         const { rendered } = await renderMailTemplate(t.id, ctxWithSig);
-
-        const tplUsesSigVar = (t.body_html_template ?? "").includes("{{signature}}");
 
         const applyReplace = () => {
           const stripped = stripMailSignatureFromHtml(ed.getHTML());
@@ -993,14 +1021,12 @@ export const MailComposer = React.memo(function MailComposer({
             const tail = extractForwardQuotedAppendix(stripped);
             if (tail) bodyMerge = rendered.bodyHtml + tail;
           }
-          ed.setHTML(tplUsesSigVar ? bodyMerge : injectMailSignatureHtml(bodyMerge, innerSig, mode));
+          ed.setHTML(injectMailSignatureHtml(bodyMerge, innerSig, mode, templateSignatureId));
           setSubject(rendered.subject.trim());
         };
 
         const applyAppend = () => {
-          let newBlock = rendered.bodyHtml;
-          newBlock = tplUsesSigVar ? newBlock : injectMailSignatureHtml(newBlock, innerSig, mode);
-          ed.setHTML(currentHtml + "<br/><br/>" + newBlock);
+          ed.setHTML(injectMailSignatureHtml(currentHtml + "<br/><br/>" + rendered.bodyHtml, innerSig, mode, templateSignatureId));
         };
 
         if (isEmpty) {
@@ -1350,13 +1376,16 @@ export const MailComposer = React.memo(function MailComposer({
             className="mail-composer-field__select mail-composer-field__select--sig"
             value={selectedSigId ?? ""}
             onChange={(e) => {
+              preserveSignatureOnHydrateRef.current = false;
+              lastSigInjectKeyRef.current = null;
               markDirty();
               setSelectedSigId(e.target.value || null);
             }}
             disabled={sending || sigLoading}
             aria-busy={sigLoading}
           >
-            <option value="">— Aucune —</option>
+            <option value="">Sans signature</option>
+            {selectedSigId === '__preserved__' && <option value="__preserved__">Signature du brouillon conservée</option>}
             {sigList.map((s) => (
               <option key={s.id} value={s.id} title={shortSignaturePreview(hardenMailSignatureHtml(s.signature_html), 200)}>
                 {s.name}
@@ -1371,11 +1400,17 @@ export const MailComposer = React.memo(function MailComposer({
         {sigError && <span className="mail-composer__sig-err">{sigError}</span>}
       </div>
 
+      {signatureRecoveryNotice && <p className="mail-composer__sig-err" role="status">
+        Le contenu repris est conservé. Une ancienne signature sans repère doit être retirée manuellement ;
+        « Sans signature » retire uniquement la signature gérée par l’éditeur.
+      </p>}
+
       <p className="mail-composer-field__label mail-composer__body-label">Message</p>
       <MailHtmlEditor
         ref={mailBodyRef}
         variant="composer"
         docKey={composerBodyKey}
+        onReady={() => setEditorReadyKey(composerBodyKey)}
         initialHtml={composerInitialHtml}
         placeholder="Rédigez votre message..."
         editable={!sending}

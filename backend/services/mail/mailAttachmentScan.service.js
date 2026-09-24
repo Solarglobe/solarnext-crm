@@ -3,6 +3,9 @@ import { createReadStream } from "fs";
 import { stat } from "fs/promises";
 import net from "net";
 
+// Shared with supervision: this is the worker's existing attempt limit.
+export const MAIL_ATTACHMENT_SCAN_MAX_ATTEMPTS = Math.min(Math.max(Number(process.env.MAIL_ATTACHMENT_SCAN_MAX_ATTEMPTS || 6), 1), 20);
+
 export const MAIL_ATTACHMENT_SCAN_STATUSES = Object.freeze({
   PENDING: "PENDING",
   SCANNING: "SCANNING",

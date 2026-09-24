@@ -12,33 +12,45 @@ function uidFromAppendResult(result) {
 }
 
 export async function findSentMessageWithClient(client, p) {
-  await client.mailboxOpen(p.folderPath);
-  const uids = await client.search({}, { uid: true });
   const wanted = String(p.messageId || "").replace(/^<|>$/g, "");
-  for (const uid of (Array.isArray(uids) ? [...uids].sort((a, b) => Number(b) - Number(a)) : []).slice(0, p.limit || 500)) {
+  if (!wanted) throw new Error('Message-ID requis pour rechercher Envoyés');
+  const mailbox = await client.mailboxOpen(p.folderPath);
+  // HEADER search covers the whole folder. Verify exact identity because the
+  // server's header search may use substring matching.
+  const uids = await client.search({ header: { 'Message-ID': `<${wanted}>` } }, { uid: true });
+  if (!Array.isArray(uids)) throw new Error('Recherche Envoyés incomplète');
+  for (const uid of [...uids].sort((a, b) => Number(b) - Number(a))) {
+    let fetched = false;
     for await (const msg of client.fetch(String(uid), { uid: true, source: { maxLength: 12_000_000 }, flags: true, modseq: true }, { uid: true })) {
-      if (!msg?.source) continue;
+      if (!msg?.source || Number(msg.uid) !== Number(uid)) throw new Error('Réponse Envoyés incomplète');
+      fetched = true;
       const parsed = await simpleParser(msg.source);
       const mid = String(parsed.messageId || "").replace(/^<|>$/g, "");
       if (mid && mid === wanted) {
         return {
           uid: Number(msg.uid || uid),
+          uidValidity: mailbox?.uidValidity != null ? String(mailbox.uidValidity) : null,
           modseq: msg.modseq != null ? String(msg.modseq) : null,
           parsed,
         };
       }
     }
+    if (!fetched) throw new Error('Copie Envoyés non vérifiable');
   }
   return null;
 }
 
 export async function ensureSentMessageWithClient(client, p) {
+  const parsedMime = await simpleParser(p.mime);
+  if (String(parsedMime.messageId || '').replace(/^<|>$/g, '') !== String(p.messageId || '').replace(/^<|>$/g, '')) {
+    throw Object.assign(new Error('Message-ID différent dans le MIME Envoyés'), { code: 'SENT_IDENTITY_MISMATCH' });
+  }
   const before = await findSentMessageWithClient(client, {
     folderPath: p.folderPath,
     messageId: p.messageId,
     limit: p.searchLimit,
   });
-  if (before) return { action: "reconciled-existing", uid: before.uid, modseq: before.modseq };
+  if (before) return { action: "reconciled-existing", uid: before.uid, uidValidity: before.uidValidity, modseq: before.modseq };
   const mailbox = await client.mailboxOpen(p.folderPath);
   const result = await client.append(p.folderPath, p.mime, ["\\Seen"], p.sentAt || new Date());
   const appended = {

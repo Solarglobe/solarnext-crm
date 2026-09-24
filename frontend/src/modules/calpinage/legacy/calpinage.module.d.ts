@@ -3,11 +3,17 @@
  * Le fichier .js n'a pas de types ; ce .d.ts fournit la signature pour l'IDE et le compilateur.
  */
 
+import type { CalpinageGeometry, CalpinageLoadState } from "../calpinageLoadPolicy";
+
 export interface CalpinageInitOptions {
   studyId?: string | null;
   versionId?: string | null;
   /** Callback appelé à la validation du calpinage. Données flexibles (legacy). */
   onValidate?: (data: unknown) => void;
+  onLoadState?: (event: CalpinageLoadState) => void;
+  onDirty?: (geometry: CalpinageGeometry) => void;
+  /** Geometry-only harness; does not execute the persistence loader. */
+  __geometryEngineOnly?: boolean;
 }
 
 /**

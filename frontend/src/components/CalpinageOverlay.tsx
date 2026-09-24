@@ -10,11 +10,13 @@
 
 import React, { useEffect, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useBlocker, useNavigate } from "react-router-dom";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 import { apiFetch } from "../services/api";
 import CalpinageApp from "../modules/calpinage/CalpinageApp";
-import { setCalpinageItem } from "../modules/calpinage/calpinageStorage";
+import { getCalpinageItem, setCalpinageItem } from "../modules/calpinage/calpinageStorage";
+import { CalpinageSaveError, CalpinageSaveSession, type CalpinageGeometry } from "../modules/calpinage/calpinageSaveSession";
+import type { CalpinageLoadState } from "../modules/calpinage/calpinageLoadPolicy";
 
 const MAX_SNAPSHOT_WIDTH = 2200;
 
@@ -231,7 +233,12 @@ function showToast(message: string, success = true) {
   setTimeout(() => toast.remove(), 4000);
 }
 
-export default function CalpinageOverlay({
+export default function CalpinageOverlay(props: CalpinageOverlayProps) {
+  // A pending save retains its immutable identity when the route switches studies.
+  return <CalpinageOverlaySession key={JSON.stringify([props.studyId, props.versionId])} {...props} />;
+}
+
+function CalpinageOverlaySession({
   studyId,
   versionId,
   studyVersionId,
@@ -240,9 +247,137 @@ export default function CalpinageOverlay({
 }: CalpinageOverlayProps) {
   const navigate = useNavigate();
   const isValidatingRef = useRef(false);
+  const [validating, setValidating] = useState(false);
   const [hasActiveStudy, setHasActiveStudy] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const callbacks = useRef({ onClose, onSaved });
+  callbacks.current = { onClose, onSaved };
+  const mounted = useRef(true);
+  const allowLeave = useRef(false);
+  const [loadState, setLoadState] = useState<CalpinageLoadState | null>(null);
+  const [exitWarning, setExitWarning] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [session] = useState(() => {
+    const url = `${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/calpinage`;
+    return new CalpinageSaveSession({
+      scope: { studyId, versionId },
+      readLocal: () => {
+        const raw = getCalpinageItem("state", studyId, versionId);
+        return raw ? JSON.parse(raw) : null;
+      },
+      writeLocal: (geometry) => setCalpinageItem("state", studyId, versionId, JSON.stringify(geometry)),
+      readServer: async () => {
+        const response = await apiFetch(url, { skipErrorToast: true });
+        if (response.status === 404) return { geometry: null, serverRevision: null };
+        if (!response.ok) throw new CalpinageSaveError(`Lecture serveur échouée (${response.status}).`);
+        const body = await response.json();
+        const geometry = body.calpinageData?.geometry_json ?? null;
+        if (geometry && typeof body.serverRevision !== "string") throw new CalpinageSaveError("Version serveur non vérifiable. Gardez le brouillon ouvert.");
+        return { geometry, serverRevision: body.serverRevision ?? null };
+      },
+      post: async (geometry_json, expectedRevision) => {
+        const response = await apiFetch(url, {
+          method: "POST", skipErrorToast: true,
+          body: JSON.stringify({ geometry_json, expectedRevision }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (response.status === 409) throw new CalpinageSaveError(
+          "Conflit : une autre version a été enregistrée sur le serveur. Votre brouillon est conservé. Exportez-le puis rechargez pour comparer les versions.", true,
+        );
+        if (!response.ok) throw new CalpinageSaveError(body.error || `Sauvegarde serveur échouée (${response.status}).`);
+        return { geometry: body.calpinageData?.geometry_json ?? null, serverRevision: body.serverRevision ?? null };
+      },
+      onConfirmed: () => { if (mounted.current) callbacks.current.onSaved(); },
+    });
+  });
+  const [saveState, setSaveState] = useState(session.getState);
+  const blocker = useBlocker(useCallback(() => !allowLeave.current && (session.hasUnconfirmedChanges() || isValidatingRef.current), [session]));
+
+  const handleDirty = useCallback((geometry: CalpinageGeometry) => {
+    if (isValidatingRef.current) return;
+    if (session.capture(geometry) && session.getState().revision > 0) setIsDirty(true);
+  }, [session]);
+  const handleLoadState = useCallback((event: CalpinageLoadState) => {
+    if (event.scope.studyId !== studyId || String(event.scope.versionId) !== versionId) return;
+    setLoadState(event);
+    if (event.status === "ready") {
+      session.adopt(event.geometry ?? null, event.source ?? "empty", event.serverRevision, event.serverAvailable);
+      setIsDirty(event.source === "local");
+    } else session.pause(event.status === "conflict");
+  }, [session, studyId, versionId]);
+
+  useEffect(() => {
+    mounted.current = true;
+    const unsubscribe = session.subscribe(setSaveState);
+    const win = window as unknown as {
+      CALPINAGE_STUDY_ID?: string; CALPINAGE_VERSION_ID?: string;
+      notifyCalpinageDirty?: () => void;
+      getCalpinageGeometryForPersist?: () => { geometry_json?: CalpinageGeometry } | null;
+    };
+    const dirty = () => {
+      if (win.CALPINAGE_STUDY_ID !== studyId || String(win.CALPINAGE_VERSION_ID) !== versionId) return;
+      const geometry = win.getCalpinageGeometryForPersist?.()?.geometry_json;
+      if (geometry) handleDirty(geometry);
+    };
+    win.notifyCalpinageDirty = dirty;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!session.hasUnconfirmedChanges()) return;
+      void session.flush(); // Best effort only; the browser may terminate this request.
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => {
+      mounted.current = false;
+      unsubscribe();
+      if (win.notifyCalpinageDirty === dirty) delete win.notifyCalpinageDirty;
+      window.removeEventListener("beforeunload", beforeUnload);
+      // Captured data and identity remain valid even after the global editor has changed.
+      void session.flush();
+    };
+  }, [session, handleDirty, studyId, versionId]);
+
+  useEffect(() => {
+    if (blocker.state !== "blocked" || validating) return;
+    let cancelled = false;
+    setClosing(true);
+    void session.flush().then((saved) => {
+      if (cancelled || !mounted.current) return;
+      setClosing(false);
+      if (saved) blocker.proceed();
+      else setExitWarning(true);
+    });
+    return () => { cancelled = true; };
+  }, [blocker, session, validating]);
+
+  useEffect(() => {
+    if (saveState.server !== "confirmed" || saveState.confirmedRevision !== saveState.revision) return;
+    setExitWarning(false);
+    if (blocker.state === "blocked" && !validating) blocker.proceed();
+  }, [saveState.server, saveState.confirmedRevision, saveState.revision, blocker, validating]);
+
+  const requestClose = useCallback(async () => {
+    if (isValidatingRef.current) return;
+    setClosing(true);
+    const saved = await session.flush();
+    if (!mounted.current) return;
+    setClosing(false);
+    if (saved || (!session.hasUnconfirmedChanges() && loadState?.status !== "conflict")) {
+      allowLeave.current = true;
+      callbacks.current.onClose();
+    } else setExitWarning(true);
+  }, [session, loadState]);
+
+  const downloadDraft = (geometry: unknown = session.getGeometry(), suffix = "brouillon") => {
+    if (!geometry) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(geometry, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `calpinage-${studyId}-${versionId}-${suffix}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   // has-active-study au mount
   useEffect(() => {
@@ -262,88 +397,18 @@ export default function CalpinageOverlay({
     return () => { cancelled = true; };
   }, [studyId]);
 
-  /** Brouillon → API (silencieux) + localStorage ; déclenché en debounce sur notifyCalpinageDirty (CFIX-2). */
-  const persistDraftQuiet = useCallback(async () => {
-    const win = window as unknown as {
-      getCalpinageGeometryForPersist?: () => { geometry_json?: unknown } | null;
-    };
-    if (typeof win.getCalpinageGeometryForPersist !== "function") return;
-    const pack = win.getCalpinageGeometryForPersist();
-    const geometry_json = pack?.geometry_json;
-    if (!geometry_json || typeof geometry_json !== "object") return;
-    try {
-      const res = await apiFetch(
-        `${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/calpinage`,
-        { method: "POST", body: JSON.stringify({ geometry_json }) }
-      );
-      if (res.ok) {
-        try {
-          setCalpinageItem("state", studyId, versionId, JSON.stringify(geometry_json));
-        } catch {
-          /* ignore */
-        }
-        onSaved();
-      }
-    } catch {
-      /* autosave brouillon — pas de toast */
-    }
-  }, [studyId, versionId, onSaved]);
-
-  // Dirty + autosave debounced (legacy appelle notifyCalpinageDirty)
-  useEffect(() => {
-    let debounceId: ReturnType<typeof setTimeout> | undefined;
-    let cancelled = false;
-    (window as unknown as { notifyCalpinageDirty?: () => void }).notifyCalpinageDirty = () => {
-      setIsDirty(true);
-      if (debounceId) clearTimeout(debounceId);
-      debounceId = setTimeout(() => {
-        if (cancelled) return;
-        void persistDraftQuiet();
-      }, 3500);
-    };
-    return () => {
-      cancelled = true;
-      if (debounceId) clearTimeout(debounceId);
-      delete (window as unknown as { notifyCalpinageDirty?: () => void }).notifyCalpinageDirty;
-    };
-  }, [persistDraftQuiet]);
-
   const saveToBackend = useCallback(
     async (geometry_json: unknown, opts?: { silent?: boolean }) => {
-      if (!geometry_json || typeof geometry_json !== "object") {
+      if (!geometry_json || typeof geometry_json !== "object" || !session.capture(geometry_json as CalpinageGeometry)) {
         showToast("Données calpinage invalides", false);
         return false;
       }
-      try {
-        const res = await apiFetch(
-          `${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/calpinage`,
-          {
-            method: "POST",
-            body: JSON.stringify({ geometry_json }),
-          }
-        );
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
-        }
-        if (!opts?.silent) {
-          showToast("Calpinage enregistré");
-        }
-        /* CP-004 — Cache localStorage scopé via helper centralisé */
-        try {
-          setCalpinageItem("state", studyId, versionId, JSON.stringify(geometry_json));
-        } catch {
-          /* ignore */
-        }
-        onSaved();
-        return true;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Erreur sauvegarde";
-        showToast(msg, false);
-        return false;
-      }
+      const saved = await session.flush();
+      if (!saved) showToast(session.getState().error || "Sauvegarde serveur non confirmée", false);
+      else if (!opts?.silent) showToast("Révision courante enregistrée sur le serveur");
+      return saved;
     },
-    [studyId, versionId, onSaved]
+    [session]
   );
 
   useEffect(() => {
@@ -356,8 +421,9 @@ export default function CalpinageOverlay({
 
   const handleValidate = useCallback(
     async (data: unknown) => {
-      if (isValidatingRef.current) return;
+      if (isValidatingRef.current || !session.getState().ready || session.getState().server === "conflict") return;
       isValidatingRef.current = true;
+      setValidating(true);
       const btn = document.getElementById("btn-validate-calpinage");
       if (btn && "disabled" in btn) (btn as HTMLButtonElement).disabled = true;
       const debugValidate = typeof window !== "undefined" && !!(window as unknown as { CALPINAGE_VALIDATE_DEBUG?: boolean }).CALPINAGE_VALIDATE_DEBUG;
@@ -477,6 +543,7 @@ export default function CalpinageOverlay({
           console.log("[CALPINAGE] validated → redirect devis", { target });
         }
         if (debugValidate) console.log("[VALIDATE] redirect target", target);
+        allowLeave.current = true;
         navigate(target);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Erreur validation snapshot";
@@ -493,6 +560,7 @@ export default function CalpinageOverlay({
         showToast(msg, false);
       } finally {
         isValidatingRef.current = false;
+        if (mounted.current) setValidating(false);
         if (btn && "disabled" in btn) (btn as HTMLButtonElement).disabled = false;
         try {
           window.dispatchEvent(new Event("calpinage:validate-finished"));
@@ -501,13 +569,13 @@ export default function CalpinageOverlay({
         }
       }
     },
-    [saveToBackend, studyId, versionId, studyVersionId, navigate]
+    [saveToBackend, session, studyId, versionId, studyVersionId, navigate]
   );
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isValidatingRef.current) return;
     if (e.target === e.currentTarget) {
-      onClose();
+      void requestClose();
     }
   };
 
@@ -538,6 +606,11 @@ export default function CalpinageOverlay({
         .calpinage-active-study-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: #f59e0b; color: #1c1917; font-size: 13px; font-weight: 500; flex-shrink: 0; }
         .calpinage-active-study-banner button { background: none; border: none; cursor: pointer; padding: 4px; color: #1c1917; opacity: 0.8; line-height: 1; }
         .calpinage-active-study-banner button:hover { opacity: 1; }
+        .calpinage-save-status, .calpinage-persistence-warning { flex: 0 0 auto !important; height: auto !important; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; color: #f8fafc; background: #172033; font-size: 13px; }
+        .calpinage-persistence-warning { background: #713f12; }
+        .calpinage-save-status button, .calpinage-persistence-warning button { padding: 6px 10px; border: 1px solid #94a3b8; border-radius: 5px; background: #1e293b; color: #fff; cursor: pointer; }
+        .calpinage-save-status button:disabled, .calpinage-persistence-warning button:disabled { opacity: .5; cursor: wait; }
+        .calpinage-editor-content { position: relative; }
       `}</style>
       <div
         ref={wrapperRef}
@@ -556,17 +629,65 @@ export default function CalpinageOverlay({
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        <section className="calpinage-save-status" aria-label="État de sauvegarde du calpinage">
+          <span role="status" aria-live="polite">
+            Révision {saveState.revision} · Copie locale : {saveState.local === "saved" && saveState.localRevision === saveState.revision ? "enregistrée" : saveState.local === "failed" ? "échec — dernière copie conservée" : "non vérifiée"}
+            {" · "}Serveur : {saveState.server === "confirmed" && saveState.confirmedRevision === saveState.revision
+              ? "révision courante confirmée"
+              : ({ loading: "chargement", idle: "aucune modification", pending: "en attente", saving: "enregistrement en cours", confirmed: "révision courante non confirmée", failed: "échec — non confirmé", conflict: "conflit — sauvegarde suspendue" }[saveState.server])}
+          </span>
+          <button type="button" disabled={!saveState.ready || validating || saveState.server === "conflict" || saveState.server === "saving"} onClick={() => { void session.flush(); }}>Réessayer la sauvegarde</button>
+          <button type="button" disabled={!session.hasGeometry()} onClick={() => downloadDraft()}>Exporter le brouillon</button>
+          <button type="button" disabled={closing || validating} onClick={() => { void requestClose(); }}>Fermer le calpinage</button>
+        </section>
+        {(saveState.local === "failed" || saveState.error) && (
+          <section className="calpinage-persistence-warning" role="alert">
+            {saveState.local === "failed" && <span>La copie locale de cette révision n’a pas pu être enregistrée (stockage plein ou indisponible). La dernière copie disponible n’a pas été supprimée.</span>}
+            {saveState.error && <span>{saveState.error}</span>}
+          </section>
+        )}
+        {loadState?.status === "conflict" && loadState.conflict && (
+          <section className="calpinage-persistence-warning" role="alert">
+            <span>{loadState.conflict.reason === "geometry-load-failed"
+              ? "Le dessin n’a pas pu être restauré. La sauvegarde est suspendue pour préserver les copies. Exportez-les avant de quitter."
+              : "Conflit entre le brouillon local et la version serveur. Les deux versions sont conservées ; choisissez celle à reprendre. Aucune fusion automatique."}</span>
+            {loadState.conflict.reason === "unscoped-legacy-identity-unknown" && <span>Ce brouillon ancien ne précise pas son étude d’origine. Reprenez-le uniquement si vous reconnaissez le dessin de cette étude.</span>}
+            {loadState.conflict.reason.endsWith("scope-mismatch") && <span>Une copie appartient à une autre étude ou version : sa reprise est désactivée.</span>}
+            {loadState.conflict.reason === "local-json-unreadable" && <span>Le brouillon local est illisible. Ses données brutes restent disponibles dans l’export.</span>}
+            <button type="button" onClick={() => downloadDraft(loadState.conflict, "conflit-deux-versions")}>Exporter les deux versions</button>
+            <button type="button" disabled={!loadState.resolve || loadState.conflict.reason === "server-scope-mismatch"} onClick={() => loadState.resolve?.("server")}>Reprendre la version serveur</button>
+            <button type="button" disabled={!loadState.resolve || !loadState.conflict.local || loadState.conflict.reason === "local-scope-mismatch"} onClick={() => loadState.resolve?.("local")}>Reprendre le brouillon local</button>
+          </section>
+        )}
+        {exitWarning && (
+          <section className="calpinage-persistence-warning" role="alert">
+            <span>Les dernières modifications ne sont pas confirmées sur le serveur. {saveState.local === "failed" ? "La copie locale a aussi échoué : quitter peut les perdre. Exportez le brouillon avant de partir." : "Quitter maintenant laisse un brouillon local, sans garantie de synchronisation."}</span>
+            <button type="button" onClick={() => { setExitWarning(false); if (blocker.state === "blocked") blocker.reset(); }}>Rester dans le calpinage</button>
+            <button type="button" onClick={() => {
+              allowLeave.current = true;
+              if (blocker.state === "blocked") blocker.proceed();
+              else callbacks.current.onClose();
+            }}>Quitter sans confirmation serveur</button>
+          </section>
+        )}
         {hasActiveStudy && isDirty && !bannerDismissed && (
           <div className="calpinage-active-study-banner" role="alert">
             <span>⚠️ Une étude active existe. Toute modification nécessitera la création d'une nouvelle étude.</span>
             <button type="button" onClick={() => setBannerDismissed(true)} aria-label="Fermer">✕</button>
           </div>
         )}
-        <CalpinageApp
-          studyId={studyId}
-          versionId={versionId}
-          onValidate={handleValidate}
-        />
+        <div className="calpinage-editor-content"
+          style={{ pointerEvents: !saveState.ready || validating || closing ? "none" : undefined }}
+          onKeyDownCapture={(event) => { if (!saveState.ready || validating || closing) { event.preventDefault(); event.stopPropagation(); } }}
+          aria-disabled={!saveState.ready || validating || closing}>
+          <CalpinageApp
+            studyId={studyId}
+            versionId={versionId}
+            onValidate={handleValidate}
+            onDirty={handleDirty}
+            onLoadState={handleLoadState}
+          />
+        </div>
       </div>
     </div>,
     document.body

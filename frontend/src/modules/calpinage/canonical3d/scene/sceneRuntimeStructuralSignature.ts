@@ -9,11 +9,12 @@
  *
  * ## Rebuild obligatoire (signature change)
  *
- * - `state.pans`, `roof.roofPans` (miroir — la chaîne officielle resynchronise avant build)
+ * - `state.pans` et, en leur absence, `roof.roofPans` (miroir de compatibilité)
  * - `state.contours` (emprise / fallback)
- * - `state.structural` (ridges / traits)
- * - `state.obstacles`, `shadowVolumes`, `roofExtensions`
- * - Monde : `metersPerPixel`, `northAngleDeg`, `canonical3DWorldContract`
+ * - `state.ridges` et `state.traits` validés par le même résolveur que le builder ;
+ *   `state.structural` uniquement comme fallback de hauteurs si les tableaux racine sont absents
+ * - `state.obstacles`, `shadowVolumes`, `roofExtensions`, `parametricDormers`
+ * - Monde : échelle et nord sources ; le contrat 3D dérivé est resynchronisé avant build
  * - Panneaux : données retournées par `getAllPanels` (ou `pvPlacementEngine`) quand elles influencent le placement
  *
  * ## Rebuild à éviter
@@ -23,6 +24,9 @@
  * @see officialSolarScene3DGateway.ts — cache scène 3D indexé par `sceneRuntimeSignature`
  * @see integration/officialRoofModelNearShadingCache.ts — même clé pour le RoofTruth partagé (ombrage, etc.)
  */
+
+import { resolveCalpinageStructuralRoofForCanonicalChain } from "../../integration/calpinageStructuralRoofFromRuntime";
+import { resolvePanPolygonFor3D } from "../../integration/resolvePanPolygonFor3D";
 
 const FNV_OFFSET = 2166136261;
 const FNV_PRIME = 16777619;
@@ -59,13 +63,60 @@ export function stableStringifyForSignature(value: unknown): string {
   return JSON.stringify(String(value));
 }
 
-function pickRoofStructural(roof: unknown): unknown {
+/** Validated lines consumed by the official roof builder. Selection labels and
+ * order of distinctly identified lines cannot change a geometric cache key. */
+function structuralLinesForSignature(runtime: unknown): unknown {
+  const { payload } = resolveCalpinageStructuralRoofForCanonicalChain(runtime, undefined);
+  const point = (raw: unknown) => {
+    const p = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+    return { x: p.x, y: p.y, height: p.h ?? p.heightM ?? null };
+  };
+  const lines = (items: readonly unknown[], kind: "ridge" | "trait") => items.map((raw, index) => {
+    const line = raw as Record<string, unknown>;
+    // The builder derives IDs from the filtered array index when none is
+    // supplied. Reordering anonymous lines changes those observable IDs.
+    return { kind, id: line.id == null ? `${kind}-${index}` : String(line.id), a: point(line.a), b: point(line.b) };
+  }).sort((a, b) => {
+    const topology = (line: typeof a) => stableStringifyForSignature({ kind: line.kind,
+      a: { x: line.a.x, y: line.a.y }, b: { x: line.b.x, y: line.b.y } });
+    // Distinct lines form an unordered set. Coincident lines can compete for
+    // the same edge/height, so their original precedence must remain signed.
+    return topology(a).localeCompare(topology(b));
+  });
+  return { ridges: lines(payload.ridges, "ridge"), traits: lines(payload.traits, "trait") };
+}
+
+function panGeometryForSignature(raw: unknown, index: number): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const pan = raw as Record<string, unknown>;
+  const polygon = resolvePanPolygonFor3D(pan).raw;
+  const physical = pan.physical && typeof pan.physical === "object"
+    ? pan.physical as Record<string, unknown> : {};
+  const slope = physical.slope && typeof physical.slope === "object"
+    ? physical.slope as Record<string, unknown> : {};
+  const orientation = physical.orientation && typeof physical.orientation === "object"
+    ? physical.orientation as Record<string, unknown> : {};
+  return {
+    id: pan.id == null ? `pan-${index}` : String(pan.id),
+    polygon: polygon?.map(rawPoint => {
+      const p = rawPoint && typeof rawPoint === "object" ? rawPoint as Record<string, unknown> : {};
+      return { x: p.x, y: p.y, height: p.h ?? p.heightM ?? null };
+    }) ?? null,
+    roofType: pan.roofType ?? null,
+    tiltDegHint: slope.valueDeg ?? pan.tiltDeg ?? null,
+    azimuthDegHint: orientation.azimuthDeg ?? pan.azimuthDeg ?? null,
+  };
+}
+
+function pickRoofStructural(roof: unknown, hasRuntimePans: boolean): unknown {
   if (!roof || typeof roof !== "object") return null;
   const r = roof as Record<string, unknown>;
-  const scale = r.scale;
-  const roofBlock = r.roof;
-  const contract = r.canonical3DWorldContract;
-  const roofPans = r.roofPans;
+  const scale = r.scale && typeof r.scale === "object" ? r.scale as Record<string, unknown> : {};
+  const roofBlock = r.roof && typeof r.roof === "object" ? r.roof as Record<string, unknown> : {};
+  const north = roofBlock.north && typeof roofBlock.north === "object"
+    ? roofBlock.north as Record<string, unknown> : {};
+  const roofPans = !hasRuntimePans && Array.isArray(r.roofPans)
+    ? r.roofPans.map(panGeometryForSignature) : null;
   const imageMeta =
     r.image && typeof r.image === "object"
       ? {
@@ -73,7 +124,7 @@ function pickRoofStructural(roof: unknown): unknown {
           height: (r.image as { height?: unknown }).height,
         }
       : null;
-  return { scale, roofBlock, canonical3DWorldContract: contract, roofPans, imageMeta };
+  return { metersPerPixel: scale.metersPerPixel, northAngleDeg: north.angleDeg, roofPans, imageMeta };
 }
 
 /**
@@ -86,15 +137,21 @@ export function extractStructuralRuntimeSnapshot(runtime: unknown): Record<strin
   }
   const r = runtime as Record<string, unknown>;
   const roof = r.roof;
+  const structuralFallback = r.structural && typeof r.structural === "object"
+    ? r.structural as Record<string, unknown> : {};
   return {
-    pans: r.pans ?? null,
-    contours: r.contours ?? null,
-    structural: r.structural ?? null,
+    pans: Array.isArray(r.pans) ? r.pans.map(panGeometryForSignature) : null,
+    contours: Array.isArray(r.contours) ? r.contours : structuralFallback.contours ?? null,
+    structural: structuralLinesForSignature(runtime),
+    heightFallback: {
+      ridges: Array.isArray(r.ridges) ? null : structuralFallback.ridges ?? null,
+      traits: Array.isArray(r.traits) ? null : structuralFallback.traits ?? null,
+    },
     obstacles: r.obstacles ?? null,
     shadowVolumes: r.shadowVolumes ?? null,
     roofExtensions: r.roofExtensions ?? null,
     parametricDormers: r.parametricDormers ?? null,
-    roof: pickRoofStructural(roof),
+    roof: pickRoofStructural(roof, Array.isArray(r.pans) && r.pans.length > 0),
   };
 }
 
@@ -138,7 +195,7 @@ export function computeRuntimeSceneStructuralSignatures(
   },
 ): RuntimeSceneStructuralSignatures {
   const snap = extractStructuralRuntimeSnapshot(runtime);
-  const roofPayload = stableStringifyForSignature({ pans: snap.pans, roof: snap.roof, structural: snap.structural });
+  const roofPayload = stableStringifyForSignature({ pans: snap.pans, roof: snap.roof, structural: snap.structural, heightFallback: snap.heightFallback });
   const roofSignature = fnv1a32Hex(`roof:${roofPayload}`);
 
   const geometryPayload = stableStringifyForSignature({
@@ -151,13 +208,9 @@ export function computeRuntimeSceneStructuralSignatures(
   const geometrySignature = fnv1a32Hex(`geom:${geometryPayload}`);
 
   const roofRec = snap.roof as Record<string, unknown> | null;
-  const scale = roofRec?.scale as Record<string, unknown> | undefined;
-  const rb = roofRec?.roofBlock as Record<string, unknown> | undefined;
-  const north = rb?.north as Record<string, unknown> | undefined;
   const worldPayload = stableStringifyForSignature({
-    metersPerPixel: scale?.metersPerPixel,
-    northAngleDeg: north?.angleDeg ?? (north as { angleDeg?: unknown } | undefined)?.angleDeg,
-    canonical3DWorldContract: roofRec?.canonical3DWorldContract,
+    metersPerPixel: roofRec?.metersPerPixel,
+    northAngleDeg: roofRec?.northAngleDeg,
   });
   const worldSignature = fnv1a32Hex(`world:${worldPayload}`);
 

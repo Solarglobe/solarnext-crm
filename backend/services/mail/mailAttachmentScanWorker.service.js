@@ -3,12 +3,13 @@ import { getAbsolutePath, deleteFile } from "../localStorage.service.js";
 import logger from "../../app/core/logger.js";
 import {
   MAIL_ATTACHMENT_SCAN_STATUSES,
+  MAIL_ATTACHMENT_SCAN_MAX_ATTEMPTS,
   scanMailAttachmentFile,
   getMailAttachmentScanConfig,
 } from "./mailAttachmentScan.service.js";
 
 const DEFAULT_BATCH = 8;
-const MAX_ATTEMPTS = Math.min(Math.max(Number(process.env.MAIL_ATTACHMENT_SCAN_MAX_ATTEMPTS || 6), 1), 20);
+const MAX_ATTEMPTS = MAIL_ATTACHMENT_SCAN_MAX_ATTEMPTS;
 const STUCK_MINUTES = Math.min(Math.max(Number(process.env.MAIL_ATTACHMENT_SCAN_STUCK_MINUTES || 10), 2), 120);
 
 function delayMsAfterScanFailure(attempt) {

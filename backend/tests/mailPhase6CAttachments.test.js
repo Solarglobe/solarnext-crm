@@ -62,5 +62,7 @@ test("6C Sent retry uses frozen smtp_mime_rfc822", async () => {
   const fs = await import("node:fs");
   const src = fs.readFileSync(new URL("../services/mail/mailSentArchive.processor.js", import.meta.url), "utf8");
   assert.match(src, /smtp_mime_rfc822/);
-  assert.match(src, /fallbackMime/);
+  assert.match(src, /alignSentMimeIdentity/);
+  assert.match(src, /SENT_MIME_MISSING/);
+  assert.doesNotMatch(src, /fallbackMime/);
 });

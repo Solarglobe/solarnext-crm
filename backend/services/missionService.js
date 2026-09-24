@@ -7,27 +7,31 @@ import { pool } from "../config/db.js";
 
 /**
  * Vérifie qu'aucun user assigné n'a de conflit horaire.
- * @param {{ userIds: string[], startAt: string, endAt: string, excludeMissionId?: string }} params
+ * @param {{ userIds: string[], startAt: string, endAt: string, excludeMissionId?: string, organizationId?: string }} params
+ * @param {import("pg").Pool | import("pg").PoolClient} [queryable]
  * @throws {Error} SCHEDULE_CONFLICT si conflit
  */
-export async function checkScheduleConflicts({ userIds, startAt, endAt, excludeMissionId }) {
+export async function checkScheduleConflicts({ userIds, startAt, endAt, excludeMissionId, organizationId }, queryable = pool) {
   if (!userIds?.length) return;
 
   for (const uid of userIds) {
     const params = excludeMissionId
       ? [uid, endAt, startAt, excludeMissionId]
       : [uid, endAt, startAt];
+    const organizationClause = organizationId
+      ? ` AND m.organization_id = $${params.push(organizationId)}`
+      : "";
     const conflictQuery = excludeMissionId
       ? `SELECT 1 FROM mission_assignments ma
          JOIN missions m ON m.id = ma.mission_id
          WHERE ma.user_id = $1 AND m.id != $4
-         AND m.start_at < $2 AND m.end_at > $3`
+         AND m.start_at < $2 AND m.end_at > $3${organizationClause}`
       : `SELECT 1 FROM mission_assignments ma
          JOIN missions m ON m.id = ma.mission_id
          WHERE ma.user_id = $1
-         AND m.start_at < $2 AND m.end_at > $3`;
+         AND m.start_at < $2 AND m.end_at > $3${organizationClause}`;
 
-    const r = await pool.query(conflictQuery, params);
+    const r = await queryable.query(conflictQuery, params);
     if (r.rows.length > 0) {
       const err = new Error("Conflit horaire pour un utilisateur assigné");
       err.code = "SCHEDULE_CONFLICT";
@@ -138,41 +142,63 @@ export async function createMission(params) {
 /**
  * Met à jour uniquement start_at et end_at (drag & drop).
  * Ne modifie jamais les assignments.
- * @param {{ missionId: string, startAt: string, endAt: string }} params
+ * canUpdateAll vient exclusivement du middleware d'autorisation, jamais du body.
+ * @param {{ missionId: string, organizationId: string, actorUserId: string, canUpdateAll?: boolean, startAt: string, endAt: string }} params
  */
-export async function updateMissionTime({ missionId, startAt, endAt }) {
-  const missionRes = await pool.query(
-    "SELECT id, organization_id FROM missions WHERE id = $1",
-    [missionId]
-  );
-  if (missionRes.rows.length === 0) {
+export async function updateMissionTime({ missionId, organizationId, actorUserId, canUpdateAll = false, startAt, endAt }) {
+  const notFound = () => {
     const err = new Error("Mission non trouvée");
     err.code = "NOT_FOUND";
-    throw err;
+    return err;
+  };
+  if (!organizationId || !actorUserId) throw notFound();
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // Lock the scoped mission before checking assignments: neither a tenant
+    // change nor removal of the locked assignment can race the time update.
+    const missionRes = await client.query(
+      "SELECT id, organization_id FROM missions WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+      [missionId, organizationId]
+    );
+    if (missionRes.rows.length === 0) throw notFound();
+
+    const assignRes = await client.query(
+      `SELECT ma.user_id FROM mission_assignments ma
+       JOIN missions m ON m.id = ma.mission_id
+       WHERE m.id = $1 AND m.organization_id = $2
+       FOR UPDATE OF ma`,
+      [missionId, organizationId]
+    );
+    const userIds = assignRes.rows.map((r) => r.user_id);
+    if (canUpdateAll !== true && !userIds.includes(actorUserId)) throw notFound();
+    await checkScheduleConflicts({
+      userIds, startAt, endAt, excludeMissionId: missionId, organizationId,
+    }, client);
+
+    const up = await client.query(
+      `UPDATE missions SET start_at = $1, end_at = $2, updated_at = now()
+       WHERE id = $3 AND organization_id = $4
+       AND ($5::boolean OR EXISTS (
+         SELECT 1 FROM mission_assignments ma
+         WHERE ma.mission_id = missions.id AND ma.user_id = $6
+       ))
+       RETURNING *`,
+      [startAt, endAt, missionId, organizationId, canUpdateAll === true, actorUserId]
+    );
+    if (up.rows.length === 0) throw notFound();
+    await client.query("COMMIT");
+
+    // Google Sync V1 — Hook préparation
+    // TODO: if (user.google_sync_enabled) { enqueueGooglePush(missionId) }
+    return up.rows[0];
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
   }
-
-  const assignRes = await pool.query(
-    "SELECT user_id FROM mission_assignments WHERE mission_id = $1",
-    [missionId]
-  );
-  const userIds = assignRes.rows.map((r) => r.user_id);
-  await checkScheduleConflicts({
-    userIds,
-    startAt,
-    endAt,
-    excludeMissionId: missionId,
-  });
-
-  const up = await pool.query(
-    `UPDATE missions SET start_at = $1, end_at = $2, updated_at = now()
-     WHERE id = $3 RETURNING *`,
-    [startAt, endAt, missionId]
-  );
-
-  // Google Sync V1 — Hook préparation
-  // TODO: if (user.google_sync_enabled) { enqueueGooglePush(missionId) }
-
-  return up.rows[0];
 }
 
 /**

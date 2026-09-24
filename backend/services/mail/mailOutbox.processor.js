@@ -15,8 +15,9 @@ import {
   markOutboundMessageFailedInTransaction,
   markOutboundMessageQueuedInTransaction,
 } from "./mailSendFinalize.service.js";
-import { SENT_ARCHIVE_STATUSES, classifyAfterSmtpFailure, normalizeStableMessageId } from "./mailSentArchive.service.js";
+import { SENT_ARCHIVE_STATUSES, classifyAfterSmtpFailure } from "./mailSentArchive.service.js";
 import { buildSimpleRfc822Mime } from "./mailMimeBuilder.service.js";
+import { reserveSentMessageId, validSentMessageId, alignSentMimeIdentity, withMailOutboxLock } from "./mailSentIdentity.service.js";
 import { delayMsAfterFailedAttempt } from "./mailOutboxBackoff.service.js";
 import { emitEventAsync } from "../core/eventBus.service.js";
 import logger from "../../app/core/logger.js";
@@ -86,18 +87,22 @@ async function loadParticipants(messageId) {
  * @param {string} messageId
  * @param {string} organizationId
  */
-async function loadAttachmentBuffers(messageId, organizationId) {
+export async function loadAttachmentBuffers(messageId, organizationId) {
   const r = await pool.query(
     `SELECT file_name, mime_type, storage_path, size_bytes, scan_status
      FROM mail_attachments
-     WHERE mail_message_id = $1 AND organization_id = $2 AND storage_path IS NOT NULL
-       AND scan_status = 'CLEAN'`,
+     WHERE mail_message_id = $1 AND organization_id = $2`,
     [messageId, organizationId]
   );
   /** @type {import('nodemailer').SendMailOptions['attachments']} */
   const out = [];
   let total = 0;
   for (const a of r.rows) {
+    if (a.scan_status !== 'CLEAN' || !a.storage_path) {
+      const err = new Error(`Envoi suspendu : pièce jointe indisponible ou non validée par l'antivirus (${a.file_name}).`);
+      err.code = "MAIL_ATTACHMENT_NOT_READY";
+      throw err;
+    }
     try {
       const abs = getAbsolutePath(a.storage_path);
       const st = await fs.stat(abs);
@@ -145,7 +150,23 @@ async function loadAttachmentBuffersForFrozenMime(attachments) {
 /**
  * @param {Record<string, unknown>} job
  */
-async function deliverOutboxJob(job) {
+async function deliverOutboxJob(job, recordFailure = false) {
+  return withMailOutboxLock(pool, job, async () => {
+    const current = await pool.query('SELECT * FROM mail_outbox WHERE id = $1 AND organization_id = $2', [job.id, job.organization_id]);
+    const latest = current.rows[0];
+    if (!latest || latest.smtp_completed_at || latest.status !== 'sending') return { skipped: true, code: 'MAIL_OUTBOX_ALREADY_HANDLED' };
+    try {
+      return await deliverOutboxJobLocked(latest);
+    } catch (error) {
+      // Persist the failure before releasing ownership; a late failed attempt
+      // must not overwrite the result of another retry.
+      if (recordFailure) await handleOutboxDeliveryFailure(latest, error);
+      throw error;
+    }
+  });
+}
+
+async function deliverOutboxJobLocked(job) {
   const organizationId = String(job.organization_id);
   const mailAccountId = String(job.mail_account_id);
   const messageId = String(job.mail_message_id);
@@ -184,8 +205,9 @@ async function deliverOutboxJob(job) {
   const inReplyTo = msg.in_reply_to != null && String(msg.in_reply_to).trim() ? String(msg.in_reply_to).trim() : null;
   const subj = msg.subject?.trim() || "(sans objet)";
   const frozenAttachments = await loadAttachmentBuffersForFrozenMime(nodemailerAttachments);
-  const stableMime = buildSimpleRfc822Mime({
-    messageId: job.stable_message_id || null,
+  const reservedMessageId = reserveSentMessageId(job.stable_message_id);
+  let stableMime = job.smtp_mime_rfc822 ? alignSentMimeIdentity(job.smtp_mime_rfc822, reservedMessageId) : buildSimpleRfc822Mime({
+    messageId: reservedMessageId,
     from: fromHeader,
     to,
     cc,
@@ -202,6 +224,11 @@ async function deliverOutboxJob(job) {
       content: a.content,
     })),
   });
+
+  // Persist identity before any SMTP attempt, including attempts that fail.
+  await pool.query(`UPDATE mail_outbox SET stable_message_id = $2, smtp_mime_rfc822 = $3
+    WHERE id = $1 AND organization_id = $4 AND smtp_completed_at IS NULL`,
+    [job.id, reservedMessageId, stableMime, organizationId]);
 
   logger.info(
     {
@@ -230,9 +257,13 @@ async function deliverOutboxJob(job) {
     inReplyTo,
     references: refs.length ? refs : null,
     nodemailerAttachments,
+    messageId: reservedMessageId,
   });
 
-  const smtpMessageId = normalizeStableMessageId(info.messageId, job.stable_message_id || null);
+  // A provider queue token is not an RFC Message-ID. A valid reported replacement
+  // becomes the post-acceptance truth for local threading, lookup and APPEND.
+  const smtpMessageId = validSentMessageId(info.messageId) || reservedMessageId;
+  stableMime = alignSentMimeIdentity(stableMime, smtpMessageId);
   const providerResponse =
     typeof info.response === "string"
       ? info.response.slice(0, 8000)
@@ -240,15 +271,29 @@ async function deliverOutboxJob(job) {
 
   const sentAt = new Date();
 
-  const client = await pool.connect();
   try {
+    // Durable acceptance checkpoint, independent of metadata finalization below.
+    await pool.query(`UPDATE mail_outbox SET status = 'sent', smtp_completed_at = $2,
+      sent_at = $2, stable_message_id = $3, provider_message_id = $3, smtp_mime_rfc822 = $4,
+      sent_archive_status = 'pending', sent_archive_next_attempt_at = now(), updated_at = now()
+      WHERE id = $1 AND organization_id = $5`, [job.id, sentAt, smtpMessageId, stableMime, organizationId]);
+  } catch (error) {
+    error.code = 'SENT_ARCHIVE_FAILED';
+    error.smtpAccepted = true;
+    error.acceptedDelivery = { sentAt, smtpMessageId, stableMime };
+    throw error;
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
     await client.query("BEGIN");
     await client.query(
       `UPDATE mail_outbox SET
         status = 'sent',
         smtp_completed_at = COALESCE(smtp_completed_at, $4),
-        stable_message_id = COALESCE(stable_message_id, $3),
-        smtp_mime_rfc822 = COALESCE(smtp_mime_rfc822, $6),
+        stable_message_id = $3,
+        smtp_mime_rfc822 = $6,
         sent_archive_status = $5,
         sent_archive_next_attempt_at = CASE WHEN $5 = 'pending' THEN now() ELSE sent_archive_next_attempt_at END,
         sent_at = $2,
@@ -277,9 +322,11 @@ async function deliverOutboxJob(job) {
     } catch {
       /* ignore */
     }
+    e.code = 'SENT_ARCHIVE_FAILED';
+    e.smtpAccepted = true;
     throw e;
   } finally {
-    client.release();
+    client?.release();
   }
 
   emitEventAsync("MAIL_SENT", {
@@ -311,6 +358,13 @@ async function handleOutboxDeliveryFailure(job, err) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      if (err.acceptedDelivery) {
+        const accepted = err.acceptedDelivery;
+        await client.query(`UPDATE mail_outbox SET smtp_completed_at = $2, sent_at = $2,
+          stable_message_id = $3, provider_message_id = $3, smtp_mime_rfc822 = $4
+          WHERE id = $1 AND organization_id = $5`,
+          [job.id, accepted.sentAt, accepted.smtpMessageId, accepted.stableMime, job.organization_id]);
+      }
       await client.query(
         `UPDATE mail_outbox SET
            status = 'sent',
@@ -439,7 +493,9 @@ export async function reapStuckSendingJobs(maxMinutes = STUCK_SENDING_MINUTES) {
         next_attempt_at = now(),
         updated_at = now()
       WHERE status = 'sending'
+        AND smtp_completed_at IS NULL
         AND last_attempt_at < now() - ($1 * interval '1 minute')
+        AND pg_try_advisory_xact_lock(hashtextextended('mail-outbox:' || organization_id::text || ':' || id::text, 0))
       RETURNING id, status, organization_id, mail_message_id, mail_thread_id`,
     [maxMinutes]
   );
@@ -526,16 +582,9 @@ export async function processMailOutboxBatch() {
 
   for (const job of jobs) {
     try {
-      await deliverOutboxJob(job);
+      await deliverOutboxJob(job, true);
     } catch (err) {
-      try {
-        await handleOutboxDeliveryFailure(job, err);
-      } catch (e2) {
-        logger.error(
-          { evt: "MAIL_OUTBOX_FAILURE_PERSIST_ERR", outboxId: job.id },
-          e2 instanceof Error ? e2.message : String(e2)
-        );
-      }
+      logger.error({ evt: "MAIL_OUTBOX_DELIVERY_ERR", outboxId: job.id }, err instanceof Error ? err.message : String(err));
     }
   }
 

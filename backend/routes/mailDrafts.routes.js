@@ -115,8 +115,9 @@ router.delete("/drafts/:id", verifyJWT, requireMailUseStrict(), async (req, res)
     if (!ok) return res.status(404).json({ error: "NOT_FOUND" });
     return res.json({ success: true });
   } catch (err) {
-    console.error("DELETE /drafts/:id:", err);
-    return res.status(500).json({ error: "MAIL_DRAFTS_ERROR" });
+    const status = err?.statusCode ?? 500;
+    if (status >= 500) console.error("DELETE /drafts/:id:", err);
+    return res.status(status).json({ error: "MAIL_DRAFTS_ERROR", message: err?.message });
   }
 });
 

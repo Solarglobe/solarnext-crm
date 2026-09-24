@@ -451,6 +451,37 @@ function getObstaclePolygonPx(obstacle) {
   return pts.map((p) => ({ x: Number(p.x) || 0, y: Number(p.y) || 0 }));
 }
 
+/** Keep the cache key sensitive to roof and obstacle geometry changes. */
+export function buildSafeZoneGeometryKey(opts) {
+  const mpp = typeof opts?.metersPerPixel === "number" && opts.metersPerPixel > 0 ? opts.metersPerPixel : 1;
+  return JSON.stringify({
+    pans: (opts?.pans || []).map(p => ({
+      id: p?.id,
+      polygon: getPanPolygonPx(p),
+      roofType: p?.roofType,
+      flatRoofConfig: p?.roofType === "FLAT" ? p.flatRoofConfig : null,
+      margesCm: sanitizeMargesCmPartial(p?.margesCm),
+    })),
+    obstacles: (opts?.obstacles || []).map(getObstaclePolygonPx),
+    shadowVolumes: (opts?.shadowVolumes || []).map(sv => shadowVolumeToObstacle(sv, mpp)),
+    roofExtensions: (opts?.roofExtensions || []).map(roofExtensionToObstacle),
+    marginOuterCm: opts?.marginOuterCm ?? 0,
+    marginPxOverride: opts?.marginPxOverride,
+    metersPerPixel: mpp,
+    margesCm: sanitizeMargesCmPartial(opts?.margesCm),
+    structuralSegments: collectStructuralSegments(opts?.ridges, opts?.traits),
+  });
+}
+
+/** Capture the actual image-to-screen transform without rounding the zoom. */
+export function buildSafeZoneViewKey(imageToScreen) {
+  return JSON.stringify([
+    imageToScreen({ x: 0, y: 0 }),
+    imageToScreen({ x: 1, y: 0 }),
+    imageToScreen({ x: 0, y: 1 }),
+  ]);
+}
+
 /**
  * Adapte state calpinage et appelle computeSafeZones.
  * Fusionne obstacles + shadowVolumes (convertis) + roofExtensions (canonicalV1.footprintPx prioritaire, contour legacy en repli).

@@ -22,6 +22,7 @@ import type { BuildSolarScene3DFromCalpinageRuntimeOptions } from "../buildSolar
 import {
   buildPanelVisualShadingMapFromRuntime,
   extractRuntimeShadingSummary,
+  fingerprintPanelVisualShading,
 } from "../viewer/visualShading/resolvePanelVisualShading";
 import {
   computeRuntimeSceneStructuralSignatures,
@@ -84,23 +85,19 @@ function refreshSceneVisualShadingFromRuntime(
   const panelIds = scene.pvPanels.map((p) => String(p.id));
   const panelVisualShadingByPanelId = buildPanelVisualShadingMapFromRuntime(panelIds, runtime);
   const panelVisualShadingSummary = extractRuntimeShadingSummary(runtime);
-  // FIX-3 — Référence stable : si le résumé de shading n'a pas changé (cas courant — vue 3D
-  // sans modification du shading solaire), retourner le même objet pour éviter un re-render
-  // React inutile déclenché par le spread systématique sur chaque cache hit.
-  // Le résumé est un petit objet agrégé dérivé des mêmes données que panelVisualShadingByPanelId ;
-  // si le résumé est identique, les valeurs par panneau le sont aussi.
-  if (
-    JSON.stringify(panelVisualShadingSummary ?? null) ===
-    JSON.stringify(scene.panelVisualShadingSummary ?? null)
-  ) {
+  const visualSame = fingerprintPanelVisualShading(panelVisualShadingByPanelId) ===
+    fingerprintPanelVisualShading(scene.panelVisualShadingByPanelId);
+  const summarySame = JSON.stringify(panelVisualShadingSummary ?? null) ===
+    JSON.stringify(scene.panelVisualShadingSummary ?? null);
+  if (visualSame && summarySame) {
     return cached;
   }
   return {
     ...cached,
     scene: {
       ...scene,
-      panelVisualShadingByPanelId,
-      ...(panelVisualShadingSummary != null
+      panelVisualShadingByPanelId: visualSame ? scene.panelVisualShadingByPanelId : panelVisualShadingByPanelId,
+      ...(summarySame ? {} : panelVisualShadingSummary != null
         ? { panelVisualShadingSummary }
         : { panelVisualShadingSummary: undefined }),
     },

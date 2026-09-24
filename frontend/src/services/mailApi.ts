@@ -5,6 +5,7 @@
 import { apiFetch } from "./api";
 import { getCrmApiBase } from "../config/crmApiBase";
 import { assertDocumentDownloadOk } from "../utils/documentDownload";
+import { parseMailSyncResponse, type MailSyncRunResult } from "../pages/mail/mailSyncStatus";
 
 /** ID document CRM pour GET /api/documents/:id/download (Bearer). */
 export function getDocumentDownloadPath(documentId: string): string {
@@ -64,10 +65,24 @@ export interface MailAccountRow {
     lastErrorCode: string | null;
     lastErrorMessage: string | null;
     lastSuccessfulSyncAt: string | null;
+    lastSyncAttemptAt?: string | null;
+    syncSummary?: {
+      outcome: "SUCCESS" | "PARTIAL" | "FAILED" | "SKIPPED";
+      counts: { expected: number; processed: number; succeeded: number; failed: number; ignored: number; pending: number };
+      errors: Array<{ folderId: string | null; folderName: string | null; stage: string; code: string; message: string; at: string }>;
+      unresolvedErrors?: Array<{ folderId: string | null; folderName: string | null; stage: string; code: string; message: string; at: string }>;
+      message?: string | null;
+      completedAt: string;
+    } | null;
     nextSyncAttemptAt: string | null;
     reconnectRequired: boolean;
   };
   last_imap_sync_at?: string | null;
+  last_successful_sync_at?: string | null;
+  last_sync_attempt_at?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  imap_status?: string | null;
   sync_status?: string | null;
   last_imap_error_at?: string | null;
   last_imap_error_code?: string | null;
@@ -206,7 +221,7 @@ export async function searchMailInbox(q: string, params: GetInboxParams = {}, op
   return res.json() as Promise<InboxResponse>;
 }
 
-export async function runMailSync(opts?: { mailAccountId?: string | null; folderId?: string | null }): Promise<{ success: boolean }> {
+export async function runMailSync(opts?: { mailAccountId?: string | null; folderId?: string | null }): Promise<MailSyncRunResult> {
   const res = await apiFetch(apiUrl("/sync/run"), {
     method: "POST",
     body: JSON.stringify({
@@ -215,21 +230,7 @@ export async function runMailSync(opts?: { mailAccountId?: string | null; folder
     }),
   });
   const text = await res.text();
-  if (!res.ok) {
-    let msg = text;
-    try {
-      const j = JSON.parse(text) as { message?: string };
-      if (j.message) msg = j.message;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(msg || `sync ${res.status}`);
-  }
-  try {
-    return JSON.parse(text) as { success: boolean };
-  } catch {
-    return { success: true };
-  }
+  return parseMailSyncResponse(text, res.ok, res.status);
 }
 
 /** Autocomplétion client / lead (filtres mail). */
@@ -581,8 +582,22 @@ export async function fetchMailAccounts(): Promise<MailAccountRow[]> {
   return data.accounts ?? [];
 }
 
+export interface MailScanCounts {
+  pending: number; scanning: number; retryScheduled: number; exhausted: number; unavailable: number;
+  clean: number; infected: number; failedUnscheduled: number; unknown: number; total: number;
+}
+
+export interface MailJobCounts {
+  queued: number; retrying: number; running: number; completed: number; failed: number;
+  notStarted: number; unknown: number;
+}
+
 export interface MailHealthOverview {
   generatedAt: string;
+  scans?: { messages: MailScanCounts; drafts: MailScanCounts; maxAttempts: number };
+  jobs?: { drafts: MailJobCounts; sentArchive: MailJobCounts };
+  scanner?: { availability: 'available' | 'unavailable' | 'unknown' | 'disabled'; provider?: string;
+    required?: boolean; degraded?: boolean; errorCode?: string | null; status?: string; ok?: boolean };
   accounts: Array<{
     id: string;
     email: string;

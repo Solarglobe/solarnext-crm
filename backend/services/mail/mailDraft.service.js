@@ -5,6 +5,9 @@
 
 import { pool } from "../../config/db.js";
 import { randomUUID } from "crypto";
+import { assertDraftMailAccountAccess } from "./mailDraftAccess.service.js";
+import { lockDraftTransaction, draftJobFence } from "./mailDraftFence.service.js";
+import { adoptRemoteDraftAttachments } from "./mailDraftRemoteAttachments.service.js";
 import {
   DRAFT_SYNC_STATUSES,
   planDraftRemoteDelete,
@@ -129,6 +132,7 @@ export async function createDraft({ userId, organizationId, draft }) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await assertDraftMailAccountAccess(client, { userId, organizationId, mailAccountId: draft.mailAccountId });
     const msgId = stableDraftMessageId({ organizationId });
     const draftIdentity = randomUUID().replace(/-/g, "");
     const { rows } = await client.query(
@@ -164,7 +168,7 @@ export async function createDraft({ userId, organizationId, draft }) {
         mailAccountId: draft.mailAccountId,
         draftId: created.id,
         action: "save",
-        payload: planDraftRemoteSave({ draftId: created.id, previousUid: null, draftFolderPath: "Drafts" }),
+        payload: { ...planDraftRemoteSave({ draftId: created.id, previousUid: null, draftFolderPath: "Drafts" }), ...draftJobFence(created) },
         idempotencyKey: `draft-save:${created.id}:v1`,
       });
     }
@@ -187,8 +191,9 @@ export async function updateDraft({ id, userId, organizationId, draft }) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await lockDraftTransaction(client, { organizationId, draftId: id });
     const current = await client.query(
-      `SELECT local_version, remote_uid, sync_status FROM mail_drafts
+      `SELECT * FROM mail_drafts
        WHERE id = $1 AND organization_id = $2 AND user_id = $3
        FOR UPDATE`,
       [id, organizationId, userId]
@@ -197,6 +202,13 @@ export async function updateDraft({ id, userId, organizationId, draft }) {
       await client.query("ROLLBACK");
       return null;
     }
+    if (current.rows[0].abandoned_at) {
+      const error = new Error("Ce brouillon est en cours de suppression.");
+      error.statusCode = 409;
+      throw error;
+    }
+    await assertDraftMailAccountAccess(client, { userId, organizationId, mailAccountId: draft.mailAccountId });
+    const accountChanged = (current.rows[0].mail_account_id || null) !== (draft.mailAccountId || null);
     const nextVersion = Number(current.rows[0].local_version || 0) + 1;
     const { rows } = await client.query(
     `UPDATE mail_drafts
@@ -213,6 +225,16 @@ export async function updateDraft({ id, userId, organizationId, draft }) {
             local_dirty = true,
             last_local_saved_at = now(),
             sync_error = NULL,
+            draft_identity = CASE WHEN $13 THEN $14 ELSE draft_identity END,
+            message_id = CASE WHEN $13 THEN $15 ELSE message_id END,
+            remote_folder_id = CASE WHEN $13 THEN NULL ELSE remote_folder_id END,
+            remote_uid = CASE WHEN $13 THEN NULL ELSE remote_uid END,
+            remote_uid_validity = CASE WHEN $13 THEN NULL ELSE remote_uid_validity END,
+            remote_modseq = CASE WHEN $13 THEN NULL ELSE remote_modseq END,
+            remote_version = CASE WHEN $13 THEN NULL ELSE remote_version END,
+            last_remote_saved_at = CASE WHEN $13 THEN NULL ELSE last_remote_saved_at END,
+            conflict_of_draft_id = CASE WHEN $13 THEN NULL ELSE conflict_of_draft_id END,
+            conflict_reason = CASE WHEN $13 THEN NULL ELSE conflict_reason END,
             updated_at = now()
       WHERE id = $1 AND organization_id = $2 AND user_id = $3
       RETURNING id, mail_account_id, to_recipients, cc_recipients, bcc_recipients,
@@ -233,19 +255,31 @@ export async function updateDraft({ id, userId, organizationId, draft }) {
       draft.bodyHtml,
       JSON.stringify(draft.attachments),
       nextVersion,
+      accountChanged,
+      accountChanged ? randomUUID().replace(/-/g, "") : null,
+      accountChanged ? stableDraftMessageId({ organizationId }) : null,
     ]
   );
+    if (accountChanged) {
+      // Local attachment content follows its personal draft. Keep its account
+      // scope aligned so a later import can reconcile or detach it correctly.
+      await client.query(
+        `UPDATE mail_draft_attachments SET mail_account_id = $4, updated_at = now()
+         WHERE draft_id = $1 AND organization_id = $2 AND user_id = $3 AND cleanup_status <> 'deleted'`,
+        [id, organizationId, userId, draft.mailAccountId]
+      );
+    }
     if (draft.mailAccountId) {
       await enqueueDraftSyncJob(client, {
         organizationId,
         mailAccountId: draft.mailAccountId,
         draftId: id,
         action: "save",
-        payload: planDraftRemoteSave({
+        payload: { ...planDraftRemoteSave({
           draftId: id,
-          previousUid: current.rows[0].remote_uid,
+          previousUid: rows[0].remote_uid,
           draftFolderPath: "Drafts",
-        }),
+        }), ...draftJobFence(rows[0]) },
         idempotencyKey: `draft-save:${id}:v${nextVersion}`,
       });
     }
@@ -267,8 +301,9 @@ export async function deleteDraft({ id, userId, organizationId }) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await lockDraftTransaction(client, { organizationId, draftId: id });
     const current = await client.query(
-      `SELECT id, mail_account_id, remote_uid FROM mail_drafts
+      `SELECT * FROM mail_drafts
        WHERE id = $1 AND organization_id = $2 AND user_id = $3
        FOR UPDATE`,
       [id, organizationId, userId]
@@ -278,6 +313,7 @@ export async function deleteDraft({ id, userId, organizationId }) {
       return false;
     }
     const row = current.rows[0];
+    await assertDraftMailAccountAccess(client, { userId, organizationId, mailAccountId: row.mail_account_id });
     if (row.mail_account_id && row.remote_uid) {
       await client.query(
         `UPDATE mail_drafts SET sync_status = $4, abandoned_at = now(), updated_at = now()
@@ -289,8 +325,8 @@ export async function deleteDraft({ id, userId, organizationId }) {
         mailAccountId: row.mail_account_id,
         draftId: id,
         action: "delete",
-        payload: planDraftRemoteDelete({ draftId: id, remoteUid: row.remote_uid, draftFolderPath: "Drafts" }),
-        idempotencyKey: `draft-delete:${id}:${row.remote_uid}`,
+        payload: { ...planDraftRemoteDelete({ draftId: id, remoteUid: row.remote_uid, draftFolderPath: "Drafts" }), ...draftJobFence(row) },
+        idempotencyKey: `draft-delete:${id}:${row.draft_identity}:v${row.local_version}:${row.remote_uid}`,
       });
     } else {
       await client.query(`DELETE FROM mail_drafts WHERE id = $1 AND organization_id = $2 AND user_id = $3`, [
@@ -319,6 +355,22 @@ export async function resolveDraftConflict({ id, userId, organizationId, resolut
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    // Discover the second row, then acquire both draft fences in a stable order.
+    // Re-read the relation after locking: it may have changed while we waited.
+    const hint = await client.query(
+      `SELECT conflict_of_draft_id FROM mail_drafts WHERE id = $1 AND organization_id = $2 AND user_id = $3`,
+      [id, organizationId, userId]
+    );
+    const parentId = choice === "use_remote" ? hint.rows[0]?.conflict_of_draft_id : null;
+    for (const draftId of [...new Set([id, parentId].filter(Boolean))].sort()) {
+      await lockDraftTransaction(client, { organizationId, draftId });
+    }
+    // The remote importer locks the original before its conflict copy. Use the
+    // same row order even when this request was addressed to the copy.
+    const parentResult = parentId ? await client.query(
+      `SELECT * FROM mail_drafts WHERE id = $1 AND organization_id = $2 AND user_id = $3 FOR UPDATE`,
+      [parentId, organizationId, userId]
+    ) : null;
     const current = await client.query(
       `SELECT * FROM mail_drafts WHERE id = $1 AND organization_id = $2 AND user_id = $3 FOR UPDATE`,
       [id, organizationId, userId]
@@ -328,20 +380,41 @@ export async function resolveDraftConflict({ id, userId, organizationId, resolut
       await client.query("ROLLBACK");
       return null;
     }
+    await assertDraftMailAccountAccess(client, { userId, organizationId, mailAccountId: row.mail_account_id });
+    if (row.abandoned_at || (choice === "use_remote" && (row.conflict_of_draft_id || null) !== (parentId || null))) {
+      const error = new Error("Le brouillon a changé. Rechargez-le avant de résoudre le conflit.");
+      error.statusCode = 409;
+      throw error;
+    }
     if (choice === "keep_both") {
       await client.query(
-        `UPDATE mail_drafts SET sync_status = 'SYNCED', conflict_reason = NULL, conflict_of_draft_id = NULL, updated_at = now()
-         WHERE id = $1 AND organization_id = $2`,
-        [id, organizationId]
+        `UPDATE mail_drafts SET sync_status = CASE WHEN local_dirty THEN 'QUEUED' ELSE 'SYNCED' END,
+           local_version = local_version + 1, conflict_reason = NULL, conflict_of_draft_id = NULL, updated_at = now()
+         WHERE id = $1 AND organization_id = $2 AND user_id = $3`,
+        [id, organizationId, userId]
       );
     } else if (choice === "use_remote" && row.conflict_of_draft_id) {
       const remote = row;
+      const parent = parentResult?.rows[0];
+      if (!parent || parent.abandoned_at || parent.mail_account_id !== remote.mail_account_id ||
+          !parent.draft_identity || !remote.draft_identity?.startsWith(`${parent.draft_identity}-remote-`)) {
+        const error = new Error("Cette copie distante appartient à une ancienne boîte ou version du brouillon.");
+        error.statusCode = 409;
+        throw error;
+      }
+      const attachments = await adoptRemoteDraftAttachments(client, {
+        organizationId, userId, sourceDraftId: id, targetDraftId: parentId, mailAccountId: row.mail_account_id,
+      });
       await client.query(
         `UPDATE mail_drafts SET
            to_recipients = $4, cc_recipients = $5, bcc_recipients = $6,
            subject = $7, body_text = $8, body_html = $9,
            remote_uid = $10, remote_uid_validity = $11, remote_modseq = $12, remote_version = $13,
-           sync_status = 'SYNCED', local_dirty = false, conflict_reason = NULL, conflict_of_draft_id = NULL,
+           remote_folder_id = $14, message_id = $15, attachments_json = $16::jsonb,
+           local_version = local_version + 1, last_remote_saved_at = $17, sync_error = NULL,
+           sync_status = CASE WHEN $18 THEN 'QUEUED' ELSE 'SYNCED' END, local_dirty = $18,
+           last_local_saved_at = CASE WHEN $18 THEN $19 ELSE last_local_saved_at END,
+           conflict_reason = NULL, conflict_of_draft_id = NULL,
            updated_at = now()
          WHERE id = $1 AND organization_id = $2 AND user_id = $3`,
         [
@@ -358,26 +431,22 @@ export async function resolveDraftConflict({ id, userId, organizationId, resolut
           remote.remote_uid_validity,
           remote.remote_modseq,
           remote.remote_version,
+          remote.remote_folder_id,
+          remote.message_id,
+          JSON.stringify(attachments),
+          remote.last_remote_saved_at,
+          remote.local_dirty === true,
+          remote.last_local_saved_at,
         ]
       );
-      await client.query(`DELETE FROM mail_drafts WHERE id = $1 AND organization_id = $2`, [id, organizationId]);
+      await client.query(`DELETE FROM mail_drafts WHERE id = $1 AND organization_id = $2 AND user_id = $3`, [id, organizationId, userId]);
     } else {
       await client.query(
         `UPDATE mail_drafts SET sync_status = 'QUEUED', local_dirty = true,
-           conflict_reason = NULL, conflict_of_draft_id = NULL, updated_at = now()
+           local_version = local_version + 1, conflict_reason = NULL, conflict_of_draft_id = NULL, updated_at = now()
          WHERE id = $1 AND organization_id = $2 AND user_id = $3`,
         [id, organizationId, userId]
       );
-      if (row.mail_account_id) {
-        await enqueueDraftSyncJob(client, {
-          organizationId,
-          mailAccountId: row.mail_account_id,
-          draftId: id,
-          action: "save",
-          payload: planDraftRemoteSave({ draftId: id, previousUid: row.remote_uid, draftFolderPath: "Drafts" }),
-          idempotencyKey: `draft-save:${id}:resolve-${Date.now()}`,
-        });
-      }
     }
     const updated = await client.query(
       `SELECT id, mail_account_id, to_recipients, cc_recipients, bcc_recipients,
@@ -388,6 +457,14 @@ export async function resolveDraftConflict({ id, userId, organizationId, resolut
          FROM mail_drafts WHERE id = $1 AND organization_id = $2 AND user_id = $3`,
       [choice === "use_remote" && row.conflict_of_draft_id ? row.conflict_of_draft_id : id, organizationId, userId]
     );
+    const resolved = updated.rows[0];
+    if (resolved?.mail_account_id && resolved.local_dirty) {
+      await enqueueDraftSyncJob(client, {
+        organizationId, mailAccountId: resolved.mail_account_id, draftId: resolved.id, action: "save",
+        payload: { ...planDraftRemoteSave({ draftId: resolved.id, previousUid: resolved.remote_uid, draftFolderPath: "Drafts" }), ...draftJobFence(resolved) },
+        idempotencyKey: `draft-save:${resolved.id}:v${resolved.local_version}`,
+      });
+    }
     await client.query("COMMIT");
     return updated.rows[0] ? rowToDraft(updated.rows[0]) : null;
   } catch (e) {

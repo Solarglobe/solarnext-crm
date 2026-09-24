@@ -26,6 +26,7 @@ import { useNearShadingDivergence } from "./hooks/useNearShadingDivergence";
 import { clearGatewayCache } from "./canonical3d/scene/officialSolarScene3DGateway";
 import { getCalpinageRuntime } from "./runtime/calpinageRuntime";
 import { syncRoofPansMirrorFromPans } from "./legacy/phase2RoofDerivedModel";
+import type { CalpinageGeometry, CalpinageLoadState } from "./calpinageLoadPolicy";
 
 const DEV = typeof import.meta !== "undefined" && import.meta.env?.DEV;
 
@@ -33,12 +34,16 @@ type Props = {
   studyId: string;
   versionId: string;
   onValidate?: (data: unknown) => void;
+  onDirty?: (geometry: CalpinageGeometry) => void;
+  onLoadState?: (state: CalpinageLoadState) => void;
 };
 
 export default function CalpinageApp({
   studyId,
   versionId,
-  onValidate
+  onValidate,
+  onDirty,
+  onLoadState,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cancelledRef = useRef(false);
@@ -47,6 +52,10 @@ export default function CalpinageApp({
   const hasInitializedRef = useRef(false);
   const retryRequestedRef = useRef(false);
   const onValidateRef = useRef(onValidate);
+  const persistenceCallbacks = useRef({ onDirty, onLoadState });
+  persistenceCallbacks.current = { onDirty, onLoadState };
+  const generationRef = useRef(0);
+  const runInitRef = useRef<(isRetry?: boolean) => Promise<void>>();
 
   useEffect(() => {
     onValidateRef.current = onValidate;
@@ -155,6 +164,7 @@ export default function CalpinageApp({
       return;
     }
     initInFlightRef.current = true;
+    const generation = generationRef.current;
     setLoading(true);
     setError(null);
     if (DEV && typeof console !== "undefined") {
@@ -167,14 +177,14 @@ export default function CalpinageApp({
       }
       // Ne JAMAIS appeler initCalpinage avant ensureCalpinageDeps (garantit window.google)
       await ensureCalpinageDeps();
-      if (cancelledRef.current) return;
+      if (cancelledRef.current || generation !== generationRef.current) return;
       const container = containerRef.current;
       if (!container) {
         if (DEV && typeof console !== "undefined") {
           console.log("[CalpinageApp] init skipped: no container");
         }
         if (!isRetry) {
-          queueMicrotask(() => runInit(true));
+          queueMicrotask(() => { if (!cancelledRef.current) void runInitRef.current?.(true); });
         }
         return;
       }
@@ -182,7 +192,9 @@ export default function CalpinageApp({
       const teardown = initCalpinage(container, {
         studyId,
         versionId,
-        onValidate: (data: unknown) => onValidateRef.current?.(data)
+        onValidate: (data: unknown) => onValidateRef.current?.(data),
+        onDirty: onDirty ? (geometry: CalpinageGeometry) => persistenceCallbacks.current.onDirty?.(geometry) : undefined,
+        onLoadState: (state: CalpinageLoadState) => persistenceCallbacks.current.onLoadState?.(state),
       });
       // Phase 1 : bootstrap store Zustand depuis window.CALPINAGE_STATE
       // Doit être appelé APRÈS initCalpinage (le module legacy est monté).
@@ -197,18 +209,20 @@ export default function CalpinageApp({
         console.log("[CalpinageApp] init done");
       }
     } catch (e) {
+      if (cancelledRef.current || generation !== generationRef.current) return;
       const err = e instanceof Error ? e : new Error(String(e));
       setError(err);
       console.error("[CALPINAGE] Erreur chargement dépendances:", err.message, err);
     } finally {
       initInFlightRef.current = false;
-      if (!cancelledRef.current) setLoading(false);
-      if (retryRequestedRef.current) {
+      if (!cancelledRef.current && generation === generationRef.current) setLoading(false);
+      if (!cancelledRef.current && retryRequestedRef.current) {
         retryRequestedRef.current = false;
-        queueMicrotask(() => runInit(true));
+        queueMicrotask(() => { if (!cancelledRef.current) void runInitRef.current?.(true); });
       }
     }
-  }, [studyId, versionId]);
+  }, [studyId, versionId, !!onDirty]);
+  runInitRef.current = runInit;
 
   const handleRetry = useCallback(() => {
     hasInitializedRef.current = false;
@@ -219,6 +233,7 @@ export default function CalpinageApp({
   useEffect(() => {
     if (hasInitializedRef.current) return;
     hasInitializedRef.current = true;
+    generationRef.current += 1;
     cancelledRef.current = false;
     runInit();
     return () => {
@@ -226,6 +241,7 @@ export default function CalpinageApp({
         console.log("[CalpinageApp] unmount cleanup");
       }
       cancelledRef.current = true;
+      generationRef.current += 1;
       hasInitializedRef.current = false;
       retryRequestedRef.current = false;
       const dsm = getDsmOverlayManager();

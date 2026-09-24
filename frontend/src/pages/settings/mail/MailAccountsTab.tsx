@@ -20,6 +20,8 @@ import {
 import { getUserPermissions } from "../../../services/auth.service";
 import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { invalidateMailUnreadSummary } from "../../mail/mailUnreadStore";
+import { mailAccountSyncLabel } from "../../mail/mailSyncStatus";
+import MailHealthPanel from "./MailHealthPanel";
 import "../../mail/mail-accounts-page.css";
 
 type FormShape = {
@@ -74,19 +76,8 @@ function detailToForm(d: MailAccountDetail): FormShape {
   };
 }
 
-function statusLabel(s: MailAccountRow["connection_status"], row: MailAccountRow): string {
-  if (row.lifecycle_state && row.lifecycle_state !== "CONNECTED") {
-    if (row.lifecycle_state === "DEGRADED") return row.health?.lastErrorMessage || "Dégradé";
-    if (row.lifecycle_state === "AUTH_REQUIRED") return "Reconnexion requise";
-    if (row.lifecycle_state === "DISABLED") return "Synchronisation désactivée";
-    if (row.lifecycle_state === "DISCONNECTED") return "Compte déconnecté";
-    if (row.lifecycle_state === "REMOVED") return "Compte retiré";
-    if (row.lifecycle_state === "DELETION_PENDING") return "Purge locale en cours";
-    if (row.lifecycle_state === "DELETED") return "Données locales purgées";
-  }
-  if (s === "ok") return "Synchronisé";
-  if (s === "error") return row.last_imap_error_message?.slice(0, 80) || "Erreur de connexion / sync";
-  return "Jamais synchronisé";
+function statusLabel(_s: MailAccountRow["connection_status"], row: MailAccountRow): string {
+  return mailAccountSyncLabel(row);
 }
 
 /** ok → success, error → danger, sinon neutral (jamais testé / vide). */
@@ -378,11 +369,11 @@ export function MailAccountsTab() {
     setRowErr(null);
     try {
       await runMailSync({ mailAccountId: id });
-      await loadList();
-      invalidateMailUnreadSummary();
     } catch (e) {
       setRowErr(e instanceof Error ? e.message : String(e));
     } finally {
+      await loadList();
+      invalidateMailUnreadSummary();
       setRowBusy(null);
     }
   };
@@ -420,22 +411,7 @@ export function MailAccountsTab() {
 
       {listError ? <div className="mail-accts__error">{listError}</div> : null}
 
-      {health ? (
-        <section className="mail-accts__panel" aria-label="Santé Mail">
-          <h2 className="mail-accts__panel-title">Santé Mail</h2>
-          <div className="mail-accts__health-grid">
-            <span>Outbox: {health.queues.outboxDepth}</span>
-            <span>Sent en attente: {health.queues.sentArchivePending}</span>
-            <span>Draft jobs: {health.queues.draftJobsDepth}</span>
-            <span>Flags: {health.queues.flagJobsDepth}</span>
-            <span>Moves: {health.queues.moveJobsDepth}</span>
-            <span>Scans en attente: {health.queues.scanPending}</span>
-            <span>Infectés: {health.queues.scanInfected}</span>
-            <span>Conflits Draft: {health.queues.draftConflicts}</span>
-          </div>
-          <p className="mail-accts__hint">Vue supervisée, sans secrets ni payloads d’emails.</p>
-        </section>
-      ) : null}
+      {health ? <MailHealthPanel health={health} /> : null}
 
       {addOpen ? (
         <section className="mail-accts__panel mail-accts__panel--add" aria-label="Nouveau compte">
@@ -765,7 +741,7 @@ export function MailAccountsTab() {
                             <dt>Mot de passe SMTP</dt>
                             <dd>{detail.smtp_host ? (detail.has_smtp_password ? "••••••••" : "—") : "—"}</dd>
                             <dt>Statut</dt>
-                            <dd>{statusLabel(detail.connection_status, detail)}</dd>
+                            <dd>{statusLabel(acc.connection_status, acc)}</dd>
                             <dt>Compte d'envoi</dt>
                             <dd>{detail.is_default_send_account ? "Par défaut" : "Non"}</dd>
                             <dt>Provider</dt>

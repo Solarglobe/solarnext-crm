@@ -127,17 +127,25 @@ export async function refreshFolderHistoryStats(pg, p) {
 }
 
 export async function backfillMailFolderHistory({ organizationId, mailAccountId, folderId, batchSize = DEFAULT_BACKFILL_BATCH_SIZE }) {
-  const { acc, folder } = await loadAccountAndFolder({ organizationId, mailAccountId, folderId });
-  const path = folder.external_id || folder.name;
+  let { acc, folder } = await loadAccountAndFolder({ organizationId, mailAccountId, folderId });
   const lockClient = await pool.connect();
+  // Share the regular synchronizer's lock: both operate on the same UID namespace.
+  const lockKey = `mail-folder-sync:${folder.id}`;
+  let lockAcquired = false;
+  let lockAnswered = false;
   let imapClient;
   try {
     const lock = await lockClient.query(`SELECT pg_try_advisory_lock(hashtext($1)) AS locked`, [
-      `mail-history-backfill:${folder.id}`,
+      lockKey,
     ]);
+    lockAnswered = true;
     if (lock.rows[0]?.locked !== true) {
       return { folderId, imported: 0, skipped: 0, status: "LOCKED" };
     }
+    lockAcquired = true;
+    // Another sync may have completed between the first read and our lock.
+    ({ acc, folder } = await loadAccountAndFolder({ organizationId, mailAccountId, folderId }));
+    const path = folder.external_id || folder.name;
 
     await pool.query(
       `UPDATE mail_folders SET history_backfill_status = 'BACKFILLING',
@@ -160,23 +168,25 @@ export async function backfillMailFolderHistory({ organizationId, mailAccountId,
 
     const mailboxRaw = await imapClient.mailboxOpen(path);
     const uidValidity = mailboxRaw?.uidValidity != null ? String(mailboxRaw.uidValidity) : null;
-    const transition = resolveUidValidityTransition(folder.uid_validity, uidValidity);
-    if (transition.changed) {
+    if (!folder.uid_validity || !uidValidity || String(folder.uid_validity) !== uidValidity) {
+      const error = folder.uid_validity && uidValidity ? "UIDVALIDITY_CHANGED" : "UIDVALIDITY_UNVERIFIED";
+      const message = "UIDVALIDITY non confirme : relancez la synchronisation du dossier avant de charger son historique";
       await pool.query(
         `UPDATE mail_folders SET
-           uid_validity = $3,
-           history_backfill_status = 'NOT_STARTED',
+           history_backfill_status = 'FAILED',
            history_sync_status = 'PARTIAL',
-           history_backfill_cursor_uid = NULL,
-           oldest_imported_uid = NULL,
-           history_backfill_has_more = true,
+           history_backfill_last_error = $3,
+           message_sync_status = 'ACTION_REQUIRED',
+           last_message_sync_error_at = now(),
+           last_message_sync_error_code = $4,
+           last_message_sync_error_message = $3,
            updated_at = now()
          WHERE id = $1 AND organization_id = $2`,
-        [folder.id, organizationId, uidValidity]
+        [folder.id, organizationId, message, error]
       );
-      folder.history_backfill_cursor_uid = null;
-      folder.oldest_imported_uid = null;
-      folder.uid_validity = uidValidity;
+      // History never adopts a new namespace. The main sync invalidates incompatible
+      // occurrences and confirms its checkpoint only after its full pass succeeds.
+      return { folderId, imported: 0, skipped: 0, status: "ACTION_REQUIRED", error, message };
     }
 
     const searchRes = await imapClient.search({}, { uid: true });
@@ -255,7 +265,7 @@ export async function backfillMailFolderHistory({ organizationId, mailAccountId,
       localImportedCount: newStats.local_count,
     };
   } catch (err) {
-    await pool.query(
+    if (lockAcquired) await pool.query(
       `UPDATE mail_folders SET
          history_backfill_status = 'FAILED',
          history_sync_status = 'PARTIAL',
@@ -273,11 +283,18 @@ export async function backfillMailFolderHistory({ organizationId, mailAccountId,
         // ignore
       }
     }
-    try {
-      await lockClient.query(`SELECT pg_advisory_unlock(hashtext($1))`, [`mail-history-backfill:${folderId}`]);
-    } catch {
-      // ignore
+    let releaseError = lockAnswered ? undefined : new Error("History synchronization lock acquisition was not confirmed");
+    if (lockAcquired) {
+      try {
+        const unlocked = await lockClient.query(`SELECT pg_advisory_unlock(hashtext($1))`, [lockKey]);
+        if (unlocked.rows[0]?.pg_advisory_unlock !== true) {
+          releaseError = new Error("History synchronization lock release was not confirmed");
+        }
+      } catch (error) {
+        // A session lock must never return to the connection pool still held.
+        releaseError = error;
+      }
     }
-    lockClient.release();
+    lockClient.release(releaseError);
   }
 }

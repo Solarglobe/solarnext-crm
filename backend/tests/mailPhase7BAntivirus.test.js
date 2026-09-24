@@ -174,6 +174,7 @@ test("7B worker source uses SKIP LOCKED, retries, reaper and CLEAN gate", async 
   assert.match(worker, /scan_attempt_count/);
   assert.match(worker, /reapStuckAttachmentScans/);
   assert.match(worker, /MAIL_ATTACHMENT_SCAN_CONCURRENCY/);
-  assert.match(outbox, /scan_status = 'CLEAN'/);
-  assert.match(drafts, /scan_status = 'CLEAN'/);
+  assert.match(outbox, /SELECT file_name, mime_type, storage_path, size_bytes, scan_status/);
+  assert.match(outbox, /a\.scan_status !== 'CLEAN'/);
+  assert.match(drafts, /row\.scan_status !== MAIL_ATTACHMENT_SCAN_STATUSES\.CLEAN/);
 });

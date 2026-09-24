@@ -57,7 +57,8 @@ test("7 outbox streams SMTP attachments by path and bounds frozen MIME reads", a
   const src = fs.readFileSync(new URL("../services/mail/mailOutbox.processor.js", import.meta.url), "utf8");
   assert.match(src, /path: abs/);
   assert.match(src, /MIME_FREEZE_MAX_BYTES/);
-  assert.match(src, /scan_status = 'CLEAN'/);
+  assert.match(src, /SELECT file_name, mime_type, storage_path, size_bytes, scan_status/);
+  assert.match(src, /a\.scan_status !== 'CLEAN'/);
 });
 
 test("7 health endpoint exposes queue and scan diagnostics without secrets", async () => {

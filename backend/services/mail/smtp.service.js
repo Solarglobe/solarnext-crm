@@ -272,6 +272,7 @@ export async function loadActiveMailAccountWithSmtpCredentials(db, p) {
  *   inReplyTo?: string | null,
  *   references?: string[] | null,
  *   nodemailerAttachments?: import('nodemailer').SendMailOptions['attachments'],
+ *   messageId?: string,
  * }} opts
  */
 export async function sendMailNodemailerOnly(opts) {
@@ -291,6 +292,7 @@ export async function sendMailNodemailerOnly(opts) {
     inReplyTo,
     references,
     nodemailerAttachments,
+    messageId,
   } = opts;
 
   await assertSafeMailEndpoint({ host: acc.smtp_host, port: acc.smtp_port, protocol: "smtp" });
@@ -304,6 +306,7 @@ export async function sendMailNodemailerOnly(opts) {
   });
 
   const mailOpts = {
+    messageId: messageId || undefined,
     from: fromHeader,
     to: to.join(", "),
     cc: cc.length ? cc.join(", ") : undefined,

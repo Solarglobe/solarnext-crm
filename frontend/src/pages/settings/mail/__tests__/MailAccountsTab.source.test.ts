@@ -27,7 +27,8 @@ describe("Mail accounts UI source guards", () => {
   it("expose AUTH_REQUIRED et masque les credentials en clair", () => {
     const src = read("pages/settings/mail/MailAccountsTab.tsx");
     expect(src).toContain("AUTH_REQUIRED");
-    expect(src).toContain("Reconnexion requise");
+    expect(src).toContain("mailAccountSyncLabel");
+    expect(read("pages/mail/mailSyncStatus.ts")).toContain("Reconnexion requise");
     expect(src).toContain("••••••••");
     expect(src).not.toContain("encrypted_credentials");
   });

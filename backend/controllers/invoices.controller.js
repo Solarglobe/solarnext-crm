@@ -43,7 +43,7 @@ export async function create(req, res) {
     const msg = e.message || "";
     const code =
       msg.includes("obligatoire") || msg.includes("Invoice cannot have both client and lead") ? 400 : 500;
-    res.status(code).json({ error: msg });
+    res.status(e.statusCode ?? code).json({ error: msg, ...(e.code ? { code: e.code } : {}) });
   }
 }
 
@@ -55,7 +55,7 @@ export async function update(req, res) {
     res.json(data);
   } catch (e) {
     const status = e.message?.includes("interdite") ? 403 : 400;
-    res.status(status).json({ error: e.message });
+    res.status(e.statusCode ?? status).json({ error: e.message, ...(e.code ? { code: e.code } : {}) });
   }
 }
 
@@ -71,7 +71,7 @@ export async function patchStatus(req, res) {
     res.json(data);
   } catch (e) {
     const status = e.message?.includes("interdite") ? 403 : e.message?.includes("requis") ? 400 : 500;
-    res.status(status).json({ error: e.message });
+    res.status(e.statusCode ?? status).json({ error: e.message, ...(e.code ? { code: e.code } : {}) });
   }
 }
 

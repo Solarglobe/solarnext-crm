@@ -203,6 +203,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "brace-expansion": "^1.1.18",
     "nock": "^14.0.11",
     "nodemon": "^3.1.11",

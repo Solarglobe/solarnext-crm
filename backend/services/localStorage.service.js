@@ -78,7 +78,14 @@ export async function uploadMailAttachmentFile(buffer, organizationId, originalN
   const dirPath = path.join(STORAGE_ROOT, organizationId, "mail", yyyy, mm);
   await fs.mkdir(dirPath, { recursive: true });
   const filePath = path.join(dirPath, fileName);
-  await fs.writeFile(filePath, buffer);
+  try {
+    await fs.writeFile(filePath, buffer);
+  } catch (error) {
+    // This UUID path belongs exclusively to the failed upload, never to an existing user file.
+    try { await fs.unlink(filePath); }
+    catch (cleanupError) { if (cleanupError.code !== "ENOENT") error.cleanupError = cleanupError; }
+    throw error;
+  }
   const storage_path = [organizationId, "mail", yyyy, mm, fileName].join("/");
   return { storage_path, file_name: fileName };
 }

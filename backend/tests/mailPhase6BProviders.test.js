@@ -62,7 +62,7 @@ test("6B Draft provider finds and deletes targeted draft only", async () => {
   await appendDraftWithClient(client, { folderPath: "Drafts", mime, draftIdentity: "target" });
   const found = await findDraftByIdentityWithClient(client, { folderPath: "Drafts", draftIdentity: "target" });
   assert.equal(found.uid, 1);
-  const del = await deleteDraftWithClient(client, { folderPath: "Drafts", uid: 1 });
+  const del = await deleteDraftWithClient(client, { folderPath: "Drafts", uid: 1, expectedUidValidity: "uv1", draftIdentity: "target" });
   assert.equal(del.deleted, true);
   assert.deepEqual(client.deleted, [1]);
 });
@@ -83,4 +83,3 @@ test("6B Sent provider appends and marks Seen when provider did not create Sent"
   assert.match(r.action, /appended/);
   assert.deepEqual(client.mailboxes.get("Sent")[0].flags, ["\\Seen"]);
 });
-

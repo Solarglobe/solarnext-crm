@@ -25,6 +25,7 @@ async function openFolder(client, folderPath) {
 
 export async function appendDraftWithClient(client, p) {
   const mailbox = await openFolder(client, p.folderPath);
+  await p.beforeAppend?.();
   const result = await client.append(p.folderPath, p.mime, ["\\Draft"], p.internalDate || new Date());
   let uid = uidFromAppendResult(result);
   let requiresReconciliation = !Number.isFinite(uid);
@@ -79,11 +80,34 @@ export async function fetchDraftWithClient(client, p) {
 }
 
 export async function deleteDraftWithClient(client, p) {
-  const mailbox = await openFolder(client, p.folderPath);
+  // A UID is meaningful only inside one mailbox generation. Never delete an
+  // unrelated message after an account switch, mailbox reset or stale job.
+  const refuse = (reason) => {
+    const error = new Error(`Suppression du brouillon refusée : ${reason}`);
+    error.code = "DRAFT_REMOTE_REFERENCE_MISMATCH";
+    error.permanent = true;
+    throw error;
+  };
+  if (typeof p.folderPath !== "string" || !p.folderPath.trim() || !Number.isSafeInteger(Number(p.uid)) || Number(p.uid) <= 0 || !p.expectedUidValidity || (!p.draftIdentity && !p.messageId)) {
+    refuse("référence distante incomplète");
+  }
   const found = await fetchDraftWithClient(client, p);
-  if (!found) return { deleted: false, alreadyGone: true, uidValidity: mailbox.uidValidity };
+  // fetchDraftWithClient opens the folder and returns the UIDVALIDITY from that
+  // selection together with the fetched message; no second SELECT can replace it.
+  if (!found) {
+    const mailbox = client.mailbox;
+    if (mailbox?.uidValidity != null && String(mailbox.uidValidity) !== String(p.expectedUidValidity)) refuse("UIDVALIDITY modifiée");
+    return { deleted: false, alreadyGone: true, uidValidity: mailbox?.uidValidity == null ? null : String(mailbox.uidValidity) };
+  }
+  if (String(found.uidValidity) !== String(p.expectedUidValidity)) refuse("UIDVALIDITY modifiée");
+  const identity = String(found.parsed.headers?.get("x-solarglobe-draft-id") || "").trim();
+  const messageId = String(found.parsed.messageId || "").trim();
+  if (!(p.draftIdentity && identity === String(p.draftIdentity)) && !(p.messageId && messageId === String(p.messageId).trim())) {
+    refuse("identité du message différente");
+  }
+  await p.beforeDelete?.();
   await client.messageDelete(String(p.uid), { uid: true });
-  return { deleted: true, alreadyGone: false, uidValidity: mailbox.uidValidity };
+  return { deleted: true, alreadyGone: false, uidValidity: found.uidValidity };
 }
 
 export async function withDraftImapClient(db, p, fn) {
@@ -114,4 +138,3 @@ export async function withDraftImapClient(db, p, fn) {
     }
   }
 }
-

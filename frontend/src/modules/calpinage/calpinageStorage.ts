@@ -50,9 +50,8 @@ export function getCalpinageScopedKey(
 }
 
 /**
- * Lit depuis localStorage avec migration legacy.
- * 1. Lit la clé scopée
- * 2. Si vide, lit la clé legacy, migre, supprime legacy
+ * Lecture seule. Une ancienne clé globale ne peut être rattachée à une étude
+ * que si son contenu en prouve l'identité. Aucune migration/destruction implicite.
  */
 export function getCalpinageItem(
   baseKey: CalpinageBaseKey,
@@ -60,6 +59,7 @@ export function getCalpinageItem(
   versionId: string | null | undefined
 ): string | null {
   const scopedKey = getCalpinageScopedKey(baseKey, studyId, versionId);
+  if (!scopedKey) return null;
   if (scopedKey) {
     const raw = localStorage.getItem(scopedKey);
     if (raw) return raw;
@@ -68,15 +68,19 @@ export function getCalpinageItem(
   if (!legacyKey) return null;
   const legacyRaw = localStorage.getItem(legacyKey);
   if (!legacyRaw) return null;
-  if (scopedKey) {
-    try {
-      localStorage.setItem(scopedKey, legacyRaw);
-      localStorage.removeItem(legacyKey);
-    } catch {
-      /* ignore migration error */
-    }
+  try {
+    const data = JSON.parse(legacyRaw);
+    const identity = data?.persistence ?? data;
+    if (String(identity?.studyId ?? "") === String(studyId) && String(identity?.versionId ?? "") === String(versionId)) return legacyRaw;
+  } catch {
+    // Keep unreadable legacy data untouched for recovery.
   }
-  return legacyRaw;
+  return null;
+}
+
+/** Candidate for explicit recovery only; never automatically assigned to a study. */
+export function getUnscopedCalpinageState(): string | null {
+  return localStorage.getItem(LEGACY_KEYS.state);
 }
 
 /**

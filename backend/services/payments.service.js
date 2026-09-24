@@ -3,9 +3,9 @@
  */
 
 import { pool } from "../config/db.js";
-import { validatePaymentInput } from "./finance/invoiceBalance.js";
+import { withTx } from "../db/tx.js";
+import { readInvoiceFinancialBalance, refreshInvoiceFinancialBalance, validatePaymentInput } from "./finance/invoiceBalance.js";
 import { MONEY_EPSILON, roundMoney2, toFiniteNumber } from "./finance/moneyRounding.js";
-import { recalculateInvoiceStatusFromAmounts } from "./invoices.service.js";
 
 function httpError(message, statusCode = 400) {
   const e = new Error(message);
@@ -45,18 +45,6 @@ async function loadInvoiceForPayment(invoiceId, organizationId) {
 }
 
 /**
- * Somme des paiements RECORDED pour une facture (alignée trigger).
- */
-async function sumRecordedPayments(client, invoiceId) {
-  const r = await client.query(
-    `SELECT COALESCE(SUM(amount), 0)::numeric AS s FROM payments
-     WHERE invoice_id = $1 AND (status IS NULL OR status = 'RECORDED')`,
-    [invoiceId]
-  );
-  return roundMoney2(toFiniteNumber(r.rows[0]?.s));
-}
-
-/**
  * @param {string} organizationId
  * @param {string} invoiceId
  * @param {object} body
@@ -65,34 +53,36 @@ async function sumRecordedPayments(client, invoiceId) {
 export async function recordPayment(organizationId, invoiceId, body) {
   const { amount, payment_date, payment_method, reference, notes } = body || {};
 
-  const inv = await loadInvoiceForPayment(invoiceId, organizationId);
-  if (!inv) throw httpError("Facture non trouvée", 404);
-  assertInvoiceEligibleForPayment(inv);
-
   const v = validatePaymentInput({ invoice_id: invoiceId, amount, status: "RECORDED" });
   if (!v.ok) throw httpError(v.error);
 
   const amt = roundMoney2(toFiniteNumber(amount));
-  const totalTtc = roundMoney2(toFiniteNumber(inv.total_ttc));
-  const currentPaid = await sumRecordedPayments(pool, invoiceId);
-  const projected = roundMoney2(currentPaid + amt);
-  if (projected > totalTtc + MONEY_EPSILON) {
-    throw httpError("Le paiement dépasse le montant TTC de la facture");
-  }
-
+  if (amt <= 0) throw httpError("Le montant doit être strictement positif après arrondi au centime");
   if (!payment_date) throw httpError("payment_date requis");
 
-  const ins = await pool.query(
-    `INSERT INTO payments (
-      organization_id, invoice_id, amount, payment_date, payment_method, reference, notes, status, created_at
-    ) VALUES ($1,$2,$3,$4::date,$5,$6,$7,'RECORDED', now())
-    RETURNING *`,
-    [organizationId, invoiceId, amt, payment_date, payment_method ?? null, reference ?? null, notes ?? null]
-  );
-
-  await recalculateInvoiceStatusFromAmounts(invoiceId, organizationId);
-
-  return ins.rows[0];
+  return withTx(pool, async (client) => {
+    // All payment/credit mutations take the invoice lock first. The subsequent
+    // aggregate query gets a fresh snapshot after any competing writer commits.
+    const locked = await client.query(
+      `SELECT id FROM invoices WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL FOR UPDATE`,
+      [invoiceId, organizationId]
+    );
+    if (!locked.rows[0]) throw httpError("Facture non trouvée", 404);
+    const inv = await readInvoiceFinancialBalance(client, { invoiceId, organizationId });
+    assertInvoiceEligibleForPayment(inv);
+    if (amt > inv.amount_due + MONEY_EPSILON) {
+      throw httpError("Le paiement dépasse le reste à payer de la facture après avoirs et paiements enregistrés");
+    }
+    const ins = await client.query(
+      `INSERT INTO payments (
+        organization_id, invoice_id, amount, payment_date, payment_method, reference, notes, status, created_at
+      ) VALUES ($1,$2,$3,$4::date,$5,$6,$7,'RECORDED', now())
+      RETURNING *`,
+      [organizationId, invoiceId, amt, payment_date, payment_method ?? null, reference ?? null, notes ?? null]
+    );
+    await refreshInvoiceFinancialBalance(client, { invoiceId, organizationId });
+    return ins.rows[0];
+  });
 }
 
 /**
@@ -101,26 +91,35 @@ export async function recordPayment(organizationId, invoiceId, body) {
  * @param {string|null} userId
  */
 export async function cancelPayment(organizationId, paymentId, userId = null) {
-  const r = await pool.query(
-    `SELECT * FROM payments WHERE id = $1 AND organization_id = $2`,
-    [paymentId, organizationId]
-  );
-  if (r.rows.length === 0) throw httpError("Paiement non trouvé", 404);
-  const p = r.rows[0];
-  if (String(p.status).toUpperCase() !== "RECORDED") {
-    throw httpError("Seul un paiement enregistré peut être annulé");
-  }
-
-  await pool.query(
-    `UPDATE payments SET status = 'CANCELLED', cancelled_at = now(), cancelled_by = $2, updated_at = now()
-     WHERE id = $1`,
-    [paymentId, userId ?? null]
-  );
-
-  await recalculateInvoiceStatusFromAmounts(p.invoice_id, organizationId);
-
-  const u = await pool.query(`SELECT * FROM payments WHERE id = $1`, [paymentId]);
-  return u.rows[0];
+  return withTx(pool, async (client) => {
+    const initial = await client.query(
+      `SELECT invoice_id FROM payments WHERE id = $1 AND organization_id = $2`,
+      [paymentId, organizationId]
+    );
+    const invoiceId = initial.rows[0]?.invoice_id;
+    if (!invoiceId) throw httpError("Paiement non trouvé", 404);
+    const locked = await client.query(
+      `SELECT id FROM invoices WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL FOR UPDATE`,
+      [invoiceId, organizationId]
+    );
+    if (!locked.rows[0]) throw httpError("Facture non trouvée", 404);
+    const r = await client.query(
+      `SELECT * FROM payments WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
+      [paymentId, organizationId]
+    );
+    const p = r.rows[0];
+    if (!p || p.invoice_id !== invoiceId) throw httpError("Paiement non trouvé", 404);
+    if (String(p.status).toUpperCase() !== "RECORDED") {
+      throw httpError("Seul un paiement enregistré peut être annulé");
+    }
+    const result = await client.query(
+      `UPDATE payments SET status = 'CANCELLED', cancelled_at = now(), cancelled_by = $2, updated_at = now()
+       WHERE id = $1 AND organization_id = $3 RETURNING *`,
+      [paymentId, userId ?? null, organizationId]
+    );
+    await refreshInvoiceFinancialBalance(client, { invoiceId, organizationId });
+    return result.rows[0];
+  });
 }
 
 /**

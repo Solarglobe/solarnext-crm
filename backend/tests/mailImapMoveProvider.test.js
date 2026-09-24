@@ -86,6 +86,7 @@ describe("mail IMAP move provider", () => {
         applyMoveWithClient(client, {
           sourcePath: "INBOX",
           sourceUid: 123,
+          expectedUidValidity: "42",
           hardDelete: true,
           sourceIsTrash: false,
         }),
@@ -100,6 +101,7 @@ describe("mail IMAP move provider", () => {
         applyMoveWithClient(client, {
           sourcePath: "Trash",
           sourceUid: 123,
+          expectedUidValidity: "42",
           hardDelete: true,
           sourceIsTrash: true,
         }),
@@ -113,6 +115,7 @@ describe("mail IMAP move provider", () => {
     const result = await applyMoveWithClient(client, {
       sourcePath: "Trash",
       sourceUid: 123,
+      expectedUidValidity: "42",
       hardDelete: true,
       sourceIsTrash: true,
     });

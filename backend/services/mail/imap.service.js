@@ -220,8 +220,6 @@ export async function persistDiscoveredMailFolders(db, p) {
          subscribed = EXCLUDED.subscribed,
          is_active = true,
          last_discovered_at = now(),
-         uid_validity = COALESCE(EXCLUDED.uid_validity, mail_folders.uid_validity),
-         highest_modseq = COALESCE(EXCLUDED.highest_modseq, mail_folders.highest_modseq),
          remote_message_count = EXCLUDED.remote_message_count,
          remote_unread_count = EXCLUDED.remote_unread_count,
          message_sync_status = CASE
@@ -232,9 +230,9 @@ export async function persistDiscoveredMailFolders(db, p) {
          END,
          history_sync_status = 'PARTIAL',
          sync_priority = EXCLUDED.sync_priority,
-         last_message_sync_error_at = EXCLUDED.last_message_sync_error_at,
-         last_message_sync_error_code = EXCLUDED.last_message_sync_error_code,
-         last_message_sync_error_message = EXCLUDED.last_message_sync_error_message,
+         last_message_sync_error_at = COALESCE(EXCLUDED.last_message_sync_error_at, mail_folders.last_message_sync_error_at),
+         last_message_sync_error_code = COALESCE(EXCLUDED.last_message_sync_error_code, mail_folders.last_message_sync_error_code),
+         last_message_sync_error_message = COALESCE(EXCLUDED.last_message_sync_error_message, mail_folders.last_message_sync_error_message),
          updated_at = now()`,
       [
         organizationId,
@@ -249,8 +247,10 @@ export async function persistDiscoveredMailFolders(db, p) {
         box.special_use ?? null,
         box.selectable !== false,
         typeof box.subscribed === "boolean" ? box.subscribed : null,
-        box.uidValidity ?? null,
-        box.highestModseq ?? null,
+        // Discovery observes remote metadata; only a completed folder sync may
+        // establish or advance the confirmed UID namespace and MODSEQ.
+        null,
+        null,
         Number.isFinite(Number(box.remoteMessageCount)) ? Number(box.remoteMessageCount) : null,
         Number.isFinite(Number(box.remoteUnreadCount)) ? Number(box.remoteUnreadCount) : null,
         status,

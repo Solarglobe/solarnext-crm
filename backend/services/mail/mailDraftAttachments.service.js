@@ -4,6 +4,8 @@ import { pool } from "../../config/db.js";
 import { getAbsolutePath, uploadMailAttachmentFile, deleteFile } from "../localStorage.service.js";
 import { OUTBOUND_ATTACHMENT_LIMITS, sanitizeAttachmentFileName, validateOutboundAttachmentBatch } from "./mailAttachmentPolicy.service.js";
 import { MAIL_ATTACHMENT_SCAN_STATUSES, scanMailAttachmentBuffer } from "./mailAttachmentScan.service.js";
+import { lockDraftTransaction } from "./mailDraftFence.service.js";
+import { assertDraftMailAccountAccess } from "./mailDraftAccess.service.js";
 
 export function sha256Buffer(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
@@ -29,21 +31,23 @@ export async function attachUploadedFileToDraft({ organizationId, userId, draftI
     { filename: file.originalname || "attachment", size: file.buffer.length },
   ])[0];
   const fileName = sanitizeAttachmentFileName(normalized.filename);
-  const scan = await scanMailAttachmentBuffer({
-    buffer: file.buffer,
-    filename: fileName,
-    mimeType: file.mimetype || "application/octet-stream",
-  });
   const client = await pool.connect();
   let storagePath = null;
   try {
     await client.query("BEGIN");
+    await lockDraftTransaction(client, { organizationId, draftId });
     const draft = await ensureDraftAccess(client, { organizationId, userId, draftId });
     if (!draft) {
       const err = new Error("Brouillon introuvable");
       err.statusCode = 404;
       throw err;
     }
+    await assertDraftMailAccountAccess(client, { organizationId, userId, mailAccountId: draft.mail_account_id });
+    const scan = await scanMailAttachmentBuffer({
+      buffer: file.buffer,
+      filename: fileName,
+      mimeType: file.mimetype || "application/octet-stream",
+    });
     const stored = await uploadMailAttachmentFile(file.buffer, organizationId, fileName);
     storagePath = stored.storage_path;
     const sha = sha256Buffer(file.buffer);
@@ -130,14 +134,18 @@ export async function loadDraftAttachmentBuffers({ organizationId, draftId, expe
       JOIN mail_drafts d ON d.id = a.draft_id AND d.organization_id = a.organization_id
      WHERE a.organization_id = $1 AND a.draft_id = $2 ${userClause}
        AND a.cleanup_status <> 'deleted'
-       AND a.upload_status = 'uploaded'
-       AND a.scan_status = 'CLEAN'
      ORDER BY a.created_at ASC`,
     params
   );
   const out = [];
   let totalBytes = 0;
   for (const row of r.rows) {
+    if (row.upload_status !== "uploaded" || row.scan_status !== MAIL_ATTACHMENT_SCAN_STATUSES.CLEAN || !row.storage_path) {
+      const err = new Error(`Envoi impossible : pièce jointe indisponible ou non validée par l'antivirus (${row.file_name}). Réessayez après son contrôle.`);
+      err.code = "MAIL_ATTACHMENT_NOT_READY";
+      err.statusCode = 423;
+      throw err;
+    }
     const abs = getAbsolutePath(row.storage_path);
     let buf;
     try {
@@ -183,6 +191,10 @@ export async function deleteDraftAttachment({ organizationId, userId, draftId, a
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await lockDraftTransaction(client, { organizationId, draftId });
+    const draft = await ensureDraftAccess(client, { organizationId, userId, draftId });
+    if (!draft) throw Object.assign(new Error("Brouillon introuvable"), { statusCode: 404 });
+    await assertDraftMailAccountAccess(client, { organizationId, userId, mailAccountId: draft.mail_account_id });
     const r = await client.query(
       `UPDATE mail_draft_attachments a SET cleanup_status = 'orphaned', updated_at = now()
         FROM mail_drafts d

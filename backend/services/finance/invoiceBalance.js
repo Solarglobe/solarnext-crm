@@ -18,10 +18,7 @@ import { MONEY_EPSILON, roundMoney2, toFiniteNumber } from "./moneyRounding.js";
  * @param {InvoiceBalanceInput} inv
  */
 export function computeInvoiceAmountDue(inv) {
-  const ttc = roundMoney2(toFiniteNumber(inv?.total_ttc));
-  const paid = roundMoney2(toFiniteNumber(inv?.total_paid));
-  const cred = roundMoney2(toFiniteNumber(inv?.total_credited));
-  return roundMoney2(Math.max(0, ttc - paid - cred));
+  return computeInvoiceBalance(inv).amount_due;
 }
 
 /**
@@ -39,6 +36,60 @@ export function computeInvoiceBalance(inv) {
     total_credited: totalCredited,
     amount_due: amountDue,
   };
+}
+
+/**
+ * Reads the existing financial records, not the invoice's cached movement totals.
+ * Caller supplies its transaction client. This read does not acquire a lock: a
+ * caller using it to authorize a write must already hold the invoice FOR UPDATE.
+ * Returns the invoice row with normalized live balance fields, or null.
+ */
+export async function readInvoiceFinancialBalance(client, { invoiceId, organizationId }) {
+  const result = await client.query(
+    `SELECT i.*,
+       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p
+        WHERE p.invoice_id = i.id AND p.organization_id = i.organization_id
+          AND (p.status IS NULL OR p.status = 'RECORDED')) AS recorded_payments_total,
+       (SELECT COALESCE(SUM(cn.total_ttc), 0) FROM credit_notes cn
+        WHERE cn.invoice_id = i.id AND cn.organization_id = i.organization_id
+          AND cn.status = 'ISSUED' AND cn.archived_at IS NULL) AS issued_credits_total
+     FROM invoices i
+     WHERE i.id = $1 AND i.organization_id = $2 AND i.archived_at IS NULL`,
+    [invoiceId, organizationId]
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  const { recorded_payments_total, issued_credits_total, ...invoice } = row;
+  return {
+    ...invoice,
+    ...computeInvoiceBalance({ ...invoice, total_paid: recorded_payments_total, total_credited: issued_credits_total }),
+  };
+}
+
+/**
+ * Refreshes the existing cached totals and status in the caller's transaction.
+ * The lock must be a separate statement before reading aggregates: after waiting
+ * for a competing writer, READ COMMITTED must take a fresh statement snapshot.
+ * Every payment/credit mutation must hold this same invoice lock until COMMIT.
+ */
+export async function refreshInvoiceFinancialBalance(client, { invoiceId, organizationId }) {
+  const locked = await client.query(
+    `SELECT id FROM invoices WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL FOR UPDATE`,
+    [invoiceId, organizationId]
+  );
+  if (!locked.rows[0]) return null;
+  const invoice = await readInvoiceFinancialBalance(client, { invoiceId, organizationId });
+  if (!invoice) return null;
+  const status = suggestInvoiceStatusFromAmounts(invoice);
+  const result = await client.query(
+    `UPDATE invoices SET total_paid = $3, total_credited = $4, amount_due = $5,
+       status = $6, paid_at = CASE WHEN $6 = 'PAID' THEN COALESCE(paid_at, now()) ELSE NULL END,
+       updated_at = now()
+     WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL RETURNING *`,
+    [invoiceId, organizationId, invoice.total_paid, invoice.total_credited, invoice.amount_due, status]
+  );
+  const row = result.rows[0];
+  return row ? { ...row, ...computeInvoiceBalance(row) } : null;
 }
 
 /**

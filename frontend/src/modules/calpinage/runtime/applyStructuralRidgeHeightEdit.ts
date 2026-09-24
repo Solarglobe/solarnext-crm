@@ -52,7 +52,7 @@ function getLegacyApplyStructuralHeight(): LegacyApplyFn | null {
  *
  *   Undo/redo : capturé au niveau des appelants (`handleStructuralRidgeHeightCommit` et
  *   `handleRoofHeightAssistantApply` dans Inline3DViewerBridge.tsx) via
- *   `pushRoofModelingPastSnapshot(pansBefore)` après chaque mutation réussie. NE PAS déplacer
+ *   `pushRoofModelingPastSnapshot(geometryBefore)` après chaque mutation réussie. NE PAS déplacer
  *   la capture ici : (1) double-capture dans handleStructuralRidgeHeightCommit, (2) N captures
  *   distinctes pour une seule commande assistant (qui appelle cette fn en boucle sur N points).
  */

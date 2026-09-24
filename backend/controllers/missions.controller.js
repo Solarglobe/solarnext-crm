@@ -219,6 +219,9 @@ export async function remove(req, res) {
  */
 export async function updateTime(req, res) {
   try {
+    const org = orgId(req);
+    const uid = userId(req);
+    const access = req.missionUpdateAccess;
     const { id } = req.params;
     const { start_at, end_at } = req.body;
 
@@ -228,6 +231,9 @@ export async function updateTime(req, res) {
 
     const mission = await missionService.updateMissionTime({
       missionId: id,
+      organizationId: org,
+      actorUserId: uid,
+      canUpdateAll: access?.organizationId === org && access?.userId === uid && access?.canUpdateAll === true,
       startAt: start_at,
       endAt: end_at,
     });

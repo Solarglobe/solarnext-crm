@@ -104,10 +104,12 @@ export async function applyMoveWithClient(imapClient, p) {
   const mailboxRaw = await imapClient.mailboxOpen(p.sourcePath);
   const sourceUidValidity = mailboxRaw?.uidValidity != null ? String(mailboxRaw.uidValidity) : null;
   const sourceHighestModseq = mailboxRaw?.highestModseq != null ? String(mailboxRaw.highestModseq) : null;
-  if (p.expectedUidValidity && sourceUidValidity && String(p.expectedUidValidity) !== sourceUidValidity) {
+  // Queued legacy references cannot identify a message after UID reuse.
+  // Refuse unknown namespaces before MOVE, COPY or targeted deletion.
+  if (!p.expectedUidValidity || !sourceUidValidity || String(p.expectedUidValidity) !== sourceUidValidity) {
     throw providerError(
       MailMoveProviderErrorCodes.UIDVALIDITY_CHANGED,
-      "UIDVALIDITY distant modifie pour le dossier source"
+      "UIDVALIDITY source absent ou modifie : synchronisez le dossier avant de relancer le déplacement ou la suppression"
     );
   }
 

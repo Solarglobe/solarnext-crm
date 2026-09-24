@@ -76,7 +76,7 @@ export async function findExistingMessageId(client, p) {
   const byUid = await client.query(
     `SELECT id FROM mail_messages
      WHERE organization_id = $1 AND mail_account_id = $2 AND folder_id = $3 AND external_uid = $4
-       AND (external_uid_validity IS NULL OR $5::text IS NULL OR external_uid_validity = $5::text)
+       AND external_uid_validity IS NOT DISTINCT FROM $5::text
      LIMIT 1`,
     [organizationId, mailAccountId, folderId, externalUid, externalUidValidity ?? null]
   );
@@ -89,13 +89,14 @@ export async function findExistingMessageId(client, p) {
       const q = await client.query(
         `SELECT id FROM mail_messages
          WHERE organization_id = $1 AND mail_account_id = $2 AND folder_id = $6
+           AND (external_uid IS NULL OR external_uid_validity IS NOT DISTINCT FROM $7::text)
            AND message_id IS NOT NULL
            AND (
              message_id = $3 OR message_id = $4
              OR TRIM(BOTH '<>' FROM message_id) = $5
          )
          LIMIT 1`,
-        [organizationId, mailAccountId, mid, `<${bare}>`, bare, folderId]
+        [organizationId, mailAccountId, mid, `<${bare}>`, bare, folderId, externalUidValidity ?? null]
       );
       if (q.rows[0]) return q.rows[0].id;
     }

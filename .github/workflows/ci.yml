@@ -63,6 +63,9 @@ jobs:
       - name: Run pure unit tests (no DB)
         run: npm run ci:unit
 
+      - name: Calpinage persistence revision contract (no DB)
+        run: node --test backend/tests/controllers/calpinagePersistenceRevision.test.mjs
+
       - name: Critical calculator coverage gate
         working-directory: backend
         run: npm run test:critical-calculators
@@ -192,6 +195,18 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Calpinage save and reload regressions (isolated)
+        working-directory: frontend
+        run: npx vitest run --config vitest.calpinage-persistence.config.ts
+
+      - name: Calpinage 3D geometry history and shading coherence (isolated)
+        working-directory: frontend
+        run: npx vitest run --config vitest.3d-coherence.config.ts
+
+      - name: Mail synchronization, health and signature regressions (no network)
+        working-directory: frontend
+        run: node --test tests/mailSyncStatus.test.mjs tests/mailHealthPanel.test.mjs tests/mailSignatureRoundTrip.test.mjs tests/mailSignatureComposer.test.mjs
 
       - name: Vite build
         working-directory: frontend

@@ -93,12 +93,15 @@ export function buildSimpleRfc822Mime(p) {
   for (const att of attachments) {
     const name = foldHeaderValue(att.filename || att.file_name || "attachment");
     const type = foldHeaderValue(att.contentType || att.mime_type || "application/octet-stream");
+    const disposition = att.is_inline === true || att.isInline === true ? "inline" : "attachment";
+    const contentId = foldHeaderValue(att.content_id || att.contentId || att.cid || "").replace(/^<|>$/g, "");
     const content = Buffer.isBuffer(att.content) ? att.content : Buffer.from(String(att.content || ""), "utf8");
     parts.push(
       `--${mixed}`,
       `Content-Type: ${type}; name="${name}"`,
       "Content-Transfer-Encoding: base64",
-      `Content-Disposition: attachment; filename="${name}"`,
+      `Content-Disposition: ${disposition}; filename="${name}"`,
+      ...(contentId ? [`Content-ID: <${contentId}>`] : []),
       "",
       content.toString("base64").replace(/(.{76})/g, "$1\r\n")
     );
@@ -106,4 +109,3 @@ export function buildSimpleRfc822Mime(p) {
   parts.push(`--${mixed}--`, "");
   return Buffer.from(parts.join("\r\n"), "utf8");
 }
-

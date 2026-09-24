@@ -11,6 +11,7 @@ import { MailThreadOverlay } from "./MailThreadOverlay";
 import { MailDraftsList } from "./MailDraftsList";
 import { invalidateMailUnreadSummary } from "./mailUnreadStore";
 import { formatMailAccountLabel, formatMailFolderLabel } from "./mailFolderLabels";
+import { mailAccountSyncLabel } from "./mailSyncStatus";
 import {
   parseMailInboxUrlState,
   serializeMailInboxUrlState,
@@ -562,16 +563,17 @@ export default function MailInboxPage() {
     setSyncBusy(true);
     try {
       await runMailSync({ mailAccountId: null });
-      setSyncMsg("Synchronisation lancée.");
+      setSyncMsg("Synchronisation terminée.");
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      // Even a partial run may have imported messages and changed account health.
       await reloadAccounts();
       await reloadFolders();
       setPage(0);
       setThreads([]);
       setReloadKey((k) => k + 1);
       refreshUnreadCounters();
-    } catch (e) {
-      setSyncMsg(e instanceof Error ? e.message : String(e));
-    } finally {
       setSyncBusy(false);
     }
   }, [reloadAccounts, reloadFolders, refreshUnreadCounters]);
@@ -1100,12 +1102,7 @@ export default function MailInboxPage() {
   }, []);
 
   const accountStatusLabel = useCallback((accountId: string) => {
-    const account = accountById.get(accountId);
-    if (!account) return "Compte mail";
-    if (account.capabilities?.needsReconnect || account.lifecycle_state === "AUTH_REQUIRED") return "Reconnexion requise";
-    if (account.lifecycle_state === "DEGRADED") return "Erreur temporaire";
-    if (account.sync_enabled === false || account.lifecycle_state === "DISABLED") return "Synchronisation désactivée";
-    return "Synchronisé";
+    return mailAccountSyncLabel(accountById.get(accountId));
   }, [accountById]);
 
   return (
@@ -1154,7 +1151,7 @@ export default function MailInboxPage() {
                       {formatMailAccountLabel(account.displayName, account.email)}
                     </span>
                   </span>
-                  <span className="mail-inbox__account-health" title={accountStatusLabel(account.id)}>
+                  <span className="mail-inbox__account-health" title={accountById.get(account.id)?.health?.lastErrorMessage || accountStatusLabel(account.id)}>
                     {accountStatusLabel(account.id)}
                   </span>
                 </button>

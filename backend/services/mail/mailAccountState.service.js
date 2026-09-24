@@ -2,6 +2,8 @@
  * Etat central des comptes mail et capabilities applicatives.
  */
 
+import { parseMailSyncOutcome } from "./mailSyncOutcome.service.js";
+
 export const MailAccountLifecycleStates = {
   CONNECTED: "CONNECTED",
   DEGRADED: "DEGRADED",
@@ -66,8 +68,11 @@ export function assertMailAccountCapability(row, capability) {
 
 export function publicMailAccount(row = {}) {
   const caps = deriveMailAccountCapabilities(row);
+  const syncSummary = parseMailSyncOutcome(row.last_error_message);
+  const lastErrorMessage = syncSummary ? syncSummary.message || row.last_imap_error_message || "Synchronisation incomplète" : row.last_error_message || row.last_imap_error_message || null;
   return {
     ...row,
+    last_error_message: lastErrorMessage,
     lifecycle_state: caps.state,
     capabilities: caps,
     health: {
@@ -75,8 +80,10 @@ export function publicMailAccount(row = {}) {
       imap: row.imap_status || row.sync_status || null,
       smtp: row.smtp_status || null,
       lastErrorCode: row.last_error_code || row.last_imap_error_code || null,
-      lastErrorMessage: row.last_error_message || row.last_imap_error_message || null,
-      lastSuccessfulSyncAt: row.last_successful_sync_at || row.last_imap_sync_at || row.last_sync_at || null,
+      lastErrorMessage,
+      syncSummary,
+      lastSuccessfulSyncAt: row.last_successful_sync_at || null,
+      lastSyncAttemptAt: row.last_sync_attempt_at || null,
       nextSyncAttemptAt: row.next_sync_attempt_at || null,
       reconnectRequired: caps.needsReconnect,
     },

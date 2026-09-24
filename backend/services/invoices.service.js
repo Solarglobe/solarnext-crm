@@ -3,8 +3,8 @@
  */
 
 import { pool } from "../config/db.js";
+import { isDeepStrictEqual } from "node:util";
 import { withTx } from "../db/tx.js";
-import { assertOrgEntity } from "../services/guards.service.js";
 import { logMutationDiff, readTrackedFields, TRACKED_INVOICE_FIELDS } from "./mutationLog.service.js";
 import {
   isInvoiceEditable,
@@ -14,6 +14,7 @@ import { normalizeBillingParty, BILLING_PARTY_INSTALLER_RGE } from "../services/
 import {
   computeInvoiceBalance,
   suggestInvoiceStatusFromAmounts,
+  refreshInvoiceFinancialBalance,
 } from "../services/finance/invoiceBalance.js";
 import { MONEY_EPSILON } from "../services/finance/moneyRounding.js";
 import { normalizeInvoiceStatusInput } from "../utils/financialDocumentStatus.js";
@@ -42,10 +43,83 @@ import {
 } from "./documents.service.js";
 import { ensureClientForQuote } from "./ensureClientForQuote.service.js";
 
-/** Tolérance TTC (€) : somme des factures liées au devis (hors annulées, brouillons inclus) ne doit pas dépasser total devis + cette marge. */
+/** Marge historique uniquement pour les factures sans base de préparation figée. */
 const QUOTE_INVOICE_SUM_TOLERANCE_TTC = 5;
 const DEFAULT_INVOICE_DUE_DAYS = 30;
 const SAFE_ISSUED_EDIT_WINDOW_HOURS = 24;
+
+const PREPARATION_METADATA_KEYS = [
+  "prepared_total_ht_reference", "prepared_total_vat_reference", "prepared_total_ttc_reference",
+  "quote_billing", "quote_billing_role", "created_from_quote_id",
+];
+
+function invoiceBusinessConflict(code, message) {
+  const error = new Error(message);
+  error.statusCode = 409;
+  error.code = code;
+  return error;
+}
+
+function preparationConflict() {
+  return invoiceBusinessConflict("INVOICE_PREPARATION_CHANGED",
+    "La référence ou le montant de la préparation a changé. Une nouvelle préparation validée est requise.");
+}
+
+function invoiceMetadata(invoice) {
+  const raw = invoice?.metadata_json;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try { const parsed = JSON.parse(raw); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed; } catch { /* legacy malformed metadata */ }
+  }
+  return {};
+}
+
+function isPreparedInvoice(invoice) {
+  const meta = invoiceMetadata(invoice);
+  return ["ht", "vat", "ttc"].some(key => Object.hasOwn(meta, `prepared_total_${key}_reference`)) ||
+    Boolean(meta.quote_billing?.invoice_preparation_source);
+}
+
+function moneyCents(value) {
+  if (value == null || value === "" || !Number.isFinite(Number(value))) return null;
+  return Math.round(Number(value) * 100);
+}
+
+/** All linked writers lock quotes in the same order, then the invoice. */
+async function lockInvoiceForBilling(client, invoiceId, organizationId, nextQuoteId) {
+  const hint = (await client.query(
+    "SELECT quote_id FROM invoices WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL",
+    [invoiceId, organizationId]
+  )).rows[0];
+  if (!hint) { const error = new Error("Facture non trouvée"); error.statusCode = 404; throw error; }
+  const quoteIds = [...new Set([normalizeId(hint.quote_id), normalizeId(nextQuoteId)].filter(Boolean))].sort();
+  for (const quoteId of quoteIds) {
+    await client.query("SELECT id FROM quotes WHERE id = $1 AND organization_id = $2 FOR UPDATE", [quoteId, organizationId]);
+  }
+  const row = (await client.query(
+    "SELECT * FROM invoices WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL FOR UPDATE",
+    [invoiceId, organizationId]
+  )).rows[0];
+  if (!row) { const error = new Error("Facture non trouvée"); error.statusCode = 404; throw error; }
+  if (normalizeId(row.quote_id) !== normalizeId(hint.quote_id)) {
+    throw invoiceBusinessConflict("INVOICE_STATUS_CONFLICT", "Le rattachement de la facture a changé. Rechargez la facture avant de réessayer.");
+  }
+  return row;
+}
+
+function mergeInvoiceMetadataPatch(invoice, incoming) {
+  const original = invoiceMetadata(invoice);
+  const next = incoming && typeof incoming === "object" && !Array.isArray(incoming) ? { ...incoming } : {};
+  for (const key of PREPARATION_METADATA_KEYS) {
+    if (Object.hasOwn(next, key) && !isDeepStrictEqual(next[key], original[key])) throw preparationConflict();
+    if (Object.hasOwn(original, key)) next[key] = original[key];
+  }
+  if (isPreparedInvoice(invoice)) {
+    if (Object.hasOwn(next, "billing_mode") && next.billing_mode !== original.billing_mode) throw preparationConflict();
+    if (Object.hasOwn(original, "billing_mode")) next.billing_mode = original.billing_mode;
+  }
+  return next;
+}
 
 function parseDateOnly(value) {
   if (value == null) return null;
@@ -331,6 +405,7 @@ export async function createInvoice(organizationId, body) {
     currency = "EUR",
   } = body || {};
 
+  if (PREPARATION_METADATA_KEYS.some(key => Object.hasOwn(metadata_json ?? {}, key))) throw preparationConflict();
   if (!client_id && !lead_id) throw new Error("client_id ou lead_id obligatoire pour une facture");
   if (client_id && lead_id) throw new Error("Invoice cannot have both client and lead");
   if (client_id) await assertClientInOrg(client_id, organizationId);
@@ -348,6 +423,12 @@ export async function createInvoice(organizationId, body) {
   const issueDateVal = issue_date != null && String(issue_date).trim() !== "" ? issue_date : new Date().toISOString().slice(0, 10);
 
   const newId = await withTx(pool, async (client) => {
+    if (quote_id) {
+      const lockedQuote = await client.query(
+        "SELECT id FROM quotes WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL FOR UPDATE", [quote_id, organizationId]
+      );
+      if (!lockedQuote.rows[0]) throw new Error("Devis source introuvable");
+    }
     const defaultDueDays = await getOrganizationDefaultInvoiceDueDays(client, organizationId);
     const dueDateVal = resolveInvoiceDueDate({
       explicitDueDate: due_date,
@@ -466,7 +547,7 @@ async function recalcInvoiceTotals(client, organizationId, invoiceId) {
 function normalizeId(value) {
   if (value == null) return null;
   const s = String(value).trim();
-  return s === "" ? null : s;
+  return s === "" ? null : s.toLowerCase();
 }
 
 /**
@@ -484,7 +565,8 @@ export async function updateInvoice(invoiceId, organizationId, body) {
     organization_id: organizationId,
   });
   await withTx(pool, async (client) => {
-    const row = await assertOrgEntity(client, "invoices", invoiceId, organizationId);
+    const row = await lockInvoiceForBilling(client, invoiceId, organizationId, body.quote_id);
+    const prepared = isPreparedInvoice(row);
     const paymentRes = await client.query(
       `SELECT status, cancelled_at FROM payments WHERE invoice_id = $1 AND organization_id = $2`,
       [invoiceId, organizationId]
@@ -495,6 +577,8 @@ export async function updateInvoice(invoiceId, organizationId, body) {
     }
 
     const { lines, client_id, lead_id, quote_id, due_date, notes, payment_terms, issue_date, metadata_json, currency } = body;
+
+    if (prepared && quote_id !== undefined && normalizeId(quote_id) !== normalizeId(row.quote_id)) throw preparationConflict();
 
     if (row.quote_id) {
       if (client_id !== undefined && normalizeId(client_id) !== normalizeId(row.client_id)) {
@@ -539,7 +623,7 @@ export async function updateInvoice(invoiceId, organizationId, body) {
     }
     if (metadata_json !== undefined) {
       await client.query(`UPDATE invoices SET metadata_json = $1::jsonb, updated_at = now() WHERE id = $2`, [
-        JSON.stringify(metadata_json),
+        JSON.stringify(mergeInvoiceMetadataPatch(row, metadata_json)),
         invoiceId,
       ]);
     }
@@ -555,6 +639,10 @@ export async function updateInvoice(invoiceId, organizationId, body) {
     if (Array.isArray(lines)) {
       await replaceInvoiceLines(client, organizationId, invoiceId, lines);
       await recalcInvoiceTotals(client, organizationId, invoiceId);
+      if (prepared) {
+        const changed = (await client.query("SELECT total_ht, total_vat, total_ttc FROM invoices WHERE id = $1 AND organization_id = $2", [invoiceId, organizationId])).rows[0];
+        if (["total_ht", "total_vat", "total_ttc"].some(key => moneyCents(changed?.[key]) !== moneyCents(row[key]))) throw preparationConflict();
+      }
     }
     if (canSafeEditIssued) {
       await persistInvoiceOfficialDocumentSnapshot(client, invoiceId, organizationId, {
@@ -610,14 +698,15 @@ export async function patchInvoiceStatus(invoiceId, organizationId, newStatusRaw
   if (!normalized) throw new Error("Statut invalide");
 
   await withTx(pool, async (client) => {
-    const row = await assertOrgEntity(client, "invoices", invoiceId, organizationId);
+    const row = await lockInvoiceForBilling(client, invoiceId, organizationId);
     const cur = String(row.status).toUpperCase();
     const allowed = INVOICE_TRANSITIONS[cur] || [];
     if (!allowed.includes(normalized)) {
-      throw new Error(`Transition interdite : ${cur} → ${normalized}`);
+      throw invoiceBusinessConflict("INVOICE_STATUS_CONFLICT", `Transition interdite : ${cur} → ${normalized}. Rechargez la facture.`);
     }
 
     if (normalized === "ISSUED") {
+      if (isPreparedInvoice(row) && !row.quote_id) throw preparationConflict();
       if (!row.client_id && !row.lead_id) throw new Error("Client ou lead requis pour émettre la facture");
       const lc = await client.query(
         "SELECT COUNT(*)::int AS n FROM invoice_lines WHERE invoice_id = $1 AND organization_id = $2",
@@ -630,10 +719,10 @@ export async function patchInvoiceStatus(invoiceId, organizationId, newStatusRaw
       const { fullNumber } = await allocateNextDocumentNumber(client, organizationId, "INVOICE");
 
       const quoteRow = row.quote_id
-        ? (await client.query("SELECT * FROM quotes WHERE id = $1", [row.quote_id])).rows[0]
+        ? (await client.query("SELECT * FROM quotes WHERE id = $1 AND organization_id = $2", [row.quote_id, organizationId])).rows[0]
         : null;
 
-      const fullRow = (await client.query("SELECT * FROM invoices WHERE id = $1 FOR UPDATE", [invoiceId])).rows[0];
+      const fullRow = row;
       const { issuer_snapshot, recipient_snapshot } = await buildInvoiceIssuerRecipientSnapshots(fullRow, organizationId);
       const source_quote_snapshot = quoteRow ? buildSourceQuoteSnapshot(quoteRow) : {};
 
@@ -649,7 +738,7 @@ export async function patchInvoiceStatus(invoiceId, organizationId, newStatusRaw
           source_quote_snapshot = $4::jsonb,
           locked_at             = COALESCE(locked_at, now()),
           updated_at            = now()
-        WHERE id = $5 AND organization_id = $6`,
+        WHERE id = $5 AND organization_id = $6 AND status = 'DRAFT'`,
         [fullNumber, JSON.stringify(issuer_snapshot), JSON.stringify(recipient_snapshot), JSON.stringify(source_quote_snapshot), invoiceId, organizationId]
       );
 
@@ -717,29 +806,9 @@ export async function patchInvoiceStatus(invoiceId, organizationId, newStatusRaw
 /**
  * Recalcule le statut depuis les montants (après paiements / triggers).
  */
-export async function recalculateInvoiceStatusFromAmounts(invoiceId, organizationId) {
-  const r = await pool.query(
-    "SELECT * FROM invoices WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)",
-    [invoiceId, organizationId]
-  );
-  if (r.rows.length === 0) return null;
-  const inv = r.rows[0];
-  const cur = String(inv.status).toUpperCase();
-  if (cur === "DRAFT" || cur === "CANCELLED") return inv;
-
-  const next = suggestInvoiceStatusFromAmounts(inv);
-  if (next === cur) return inv;
-
-  if (next === "PAID") {
-    await pool.query(
-      `UPDATE invoices SET status = $1, paid_at = COALESCE(paid_at, now()), updated_at = now() WHERE id = $2`,
-      [next, invoiceId]
-    );
-  } else {
-    await pool.query(`UPDATE invoices SET status = $1, updated_at = now() WHERE id = $2`, [next, invoiceId]);
-  }
-  const u = await pool.query("SELECT * FROM invoices WHERE id = $1", [invoiceId]);
-  return u.rows[0];
+export async function recalculateInvoiceStatusFromAmounts(invoiceId, organizationId, client = null) {
+  if (client) return refreshInvoiceFinancialBalance(client, { invoiceId, organizationId });
+  return withTx(pool, tx => refreshInvoiceFinancialBalance(tx, { invoiceId, organizationId }));
 }
 
 function roundMoney2(n) {
@@ -970,11 +1039,36 @@ function applyOfficialQuoteTotals(quote) {
 /**
  * Plafond TTC des factures liées au devis (hors annulées, brouillons inclus).
  * @param {import("pg").PoolClient} client
- * @param {string|null} [excludeInvoiceId] — réservé (cohérence API) ; le plafond compare la somme TTC des factures actives au total TTC du devis.
+ * La base préparée figée est prioritaire. Les avoirs ne rouvrent pas le plafond brut.
+ * @param {string|null} [excludeInvoiceId] — conservé pour compatibilité ; les brouillons réservent aussi le plafond.
  */
 async function assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, excludeInvoiceId = null) {
   if (!quoteId) return;
   void excludeInvoiceId;
+  const q = await client.query(
+    `SELECT * FROM quotes WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL FOR UPDATE`,
+    [quoteId, organizationId]
+  );
+  if (!q.rows[0]) throw preparationConflict();
+  const quote = q.rows[0];
+  const locked = readLockedBillingTotals(quote);
+  const linked = await client.query(
+    `SELECT metadata_json FROM invoices WHERE quote_id = $1 AND organization_id = $2
+     AND UPPER(COALESCE(status, '')) != 'CANCELLED'`, [quoteId, organizationId]
+  );
+  for (const invoice of linked.rows) {
+    if (!isPreparedInvoice(invoice)) continue;
+    const meta = invoiceMetadata(invoice);
+    if (!locked || ["ht", "vat", "ttc"].some(key => {
+      const reference = moneyCents(meta[`prepared_total_${key}_reference`]);
+      const validated = moneyCents(quote[`billing_total_${key}`]);
+      return reference == null || validated == null || reference !== validated;
+    })) throw preparationConflict();
+    if ((meta.created_from_quote_id && normalizeId(meta.created_from_quote_id) !== normalizeId(quoteId)) ||
+        (meta.quote_billing?.source_quote_id && normalizeId(meta.quote_billing.source_quote_id) !== normalizeId(quoteId))) {
+      throw preparationConflict();
+    }
+  }
   const agg = await client.query(
     `SELECT COALESCE(SUM(CASE WHEN UPPER(COALESCE(status, '')) != 'CANCELLED' THEN total_ttc ELSE 0 END), 0)::numeric AS full_sum
      FROM invoices
@@ -983,11 +1077,14 @@ async function assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationI
   );
   const fullSum = roundMoney2(Number(agg.rows[0]?.full_sum) || 0);
 
-  const q = await client.query(
-    `SELECT id FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
-    [quoteId, organizationId]
-  );
-  if (q.rows.length === 0) return;
+  if (locked) {
+    if (moneyCents(fullSum) > moneyCents(locked.total_ttc)) {
+      throw invoiceBusinessConflict("INVOICE_PREPARED_CAP_EXCEEDED",
+        `Le total des factures (${fullSum} € TTC, brouillons inclus) dépasse le plafond de préparation validé (${locked.total_ttc} € TTC).`);
+    }
+    return;
+  }
+  // Legacy invoices without any prepared base retain their original quote rule.
   const recomputed = await recomputeQuoteTotalsFromLines(client, quoteId, organizationId);
   const quoteTtc = recomputed.total_ttc;
 
@@ -1404,10 +1501,10 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
       if (sliceTtc < 0.01) {
         throw new Error("Montant d'acompte nul ou supérieur au reste à facturer.");
       }
-      if (sliceTtc > prepRefTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
+      if (moneyCents(sliceTtc) > moneyCents(prepRefTtc)) {
         throw new Error(`Impossible : le montant d'acompte dépasse la base de préparation (${prepRefTtc} € TTC).`);
       }
-      if (reservedTtc + sliceTtc > prepRefTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
+      if (moneyCents(reservedTtc) + moneyCents(sliceTtc) > moneyCents(prepRefTtc)) {
         throw new Error(
           `Impossible : cette facture ferait dépasser la base de préparation (${prepRefTtc} € TTC).`
         );
@@ -1443,9 +1540,9 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
       if (sliceTtc < 0.01) {
         throw new Error("Montant de solde nul ou non utilisable.");
       }
-      if (reservedTtc + sliceTtc > quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
+      if (moneyCents(reservedTtc) + moneyCents(sliceTtc) > moneyCents(quoteTtc)) {
         throw new Error(
-          `Impossible : cette facture ferait dépasser la base de facturation préparée (plafond ${quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC} EUR TTC avec tolérance).`
+          `Impossible : cette facture ferait dépasser la base de facturation préparée (plafond ${quoteTtc} EUR TTC).`
         );
       }
       const label = balanceInvoiceLineLabel();
@@ -1503,7 +1600,7 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         [invoiceId, organizationId]
       );
       const invTtc = roundMoney2(Number(tr.rows[0]?.total_ttc) || 0);
-      if (invTtc > depositPrepRefTtcAssert + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
+      if (moneyCents(invTtc) > moneyCents(depositPrepRefTtcAssert)) {
         throw new Error("Incohérence : le total TTC de la facture dépasse la base de préparation.");
       }
     }
@@ -1512,7 +1609,7 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         ? prepBillingSliceBase.total_ttc
         : quoteTtc;
     const linkedSum = await sumQuoteInvoiceTtcNonCancelled(client, quoteId, organizationId);
-    if (linkedSum > capTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
+    if (moneyCents(linkedSum) > moneyCents(capTtc)) {
       throw new Error(
         `Montant total des factures liées au devis (${linkedSum} € TTC) dépasse la préparation validée (${capTtc} €).`
       );
@@ -1675,7 +1772,7 @@ export async function createPreparedStandardInvoiceFromQuote(quoteId, organizati
     await recalcInvoiceTotals(client, organizationId, invoiceId);
 
     const fullSum = await sumQuoteInvoiceTtcNonCancelled(client, quoteId, organizationId);
-    if (fullSum > billingTotals.total_ttc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
+    if (moneyCents(fullSum) > moneyCents(billingTotals.total_ttc)) {
       throw new Error(
         `Montant total des factures liées au devis (${fullSum} € TTC) dépasse la préparation validée (${billingTotals.total_ttc} €).`
       );
@@ -1710,6 +1807,9 @@ export async function duplicateInvoice(invoiceId, organizationId) {
   const rawMeta = inv.metadata_json;
   const meta =
     rawMeta && typeof rawMeta === "object" && !Array.isArray(rawMeta) ? { ...rawMeta } : {};
+  // A duplicate is an independent draft; it does not inherit a validated preparation.
+  for (const key of PREPARATION_METADATA_KEYS) delete meta[key];
+  delete meta.billing_mode;
   meta.duplicated_from_invoice_id = inv.id;
   let dupClient = inv.client_id || null;
   let dupLead = inv.lead_id || null;

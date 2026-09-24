@@ -284,20 +284,8 @@ async function finalizeFlagMutationSuccess(job, result) {
         result.confirmed.modseq,
       ]
     );
-    if (job.folder_id) {
-      await client.query(
-        `UPDATE mail_folders SET
-           uid_validity = COALESCE($2, uid_validity),
-           highest_modseq = COALESCE($3, highest_modseq),
-           last_flag_sync_at = now(),
-           flag_sync_error_code = NULL,
-           flag_sync_error_message = NULL,
-           flag_sync_error_at = NULL,
-           updated_at = now()
-         WHERE id = $1 AND organization_id = $4`,
-        [job.folder_id, result.mailbox.uidValidity, result.mailbox.highestModseq, job.organization_id]
-      );
-    }
+    // A confirmed STORE covers one message, not every intervening mailbox change.
+    // Only a successful folder sync may confirm its UIDVALIDITY/MODSEQ checkpoint.
     await client.query(
       `UPDATE mail_flag_mutations SET
          status = 'SUCCEEDED'::mail_flag_mutation_status,
@@ -501,9 +489,10 @@ export async function applyRemoteReadObservationInTransaction(client, p) {
        AND mail_account_id = $2
        AND folder_id = $3
        AND external_uid = $4
+       AND external_uid_validity IS NOT DISTINCT FROM $5::text
        AND status IN ('PENDING', 'PROCESSING', 'RETRYING')
      LIMIT 1`,
-    [p.organizationId, p.mailAccountId, p.folderId, p.uid]
+    [p.organizationId, p.mailAccountId, p.folderId, p.uid, p.uidValidity]
   );
   if (pending.rows.length > 0) return { applied: false, reason: "LOCAL_INTENT_PENDING" };
 
@@ -521,7 +510,7 @@ export async function applyRemoteReadObservationInTransaction(client, p) {
        AND mail_account_id = $2
        AND folder_id = $3
        AND external_uid = $4
-       AND (external_uid_validity IS NULL OR $5::text IS NULL OR external_uid_validity = $5::text)
+       AND external_uid_validity IS NOT DISTINCT FROM $5::text
        AND (
          is_read IS DISTINCT FROM $6
          OR external_flags IS DISTINCT FROM $7::jsonb

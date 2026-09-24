@@ -10,6 +10,7 @@ import { TableKit } from "@tiptap/extension-table";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { sanitizeMailHtmlComposer } from "./mailHtmlSanitize";
+import { MailSignatureNode } from "./mailSignatureNode";
 import {
   colorToHexForInput,
   COLOR_SWATCHES,
@@ -46,6 +47,7 @@ export type MailHtmlEditorProps = {
   /** Barre d’outils secondaire (ex. ligne « Importer »). */
   extraToolbar?: React.ReactNode;
   onBlur?: () => void;
+  onReady?: () => void;
 };
 
 function ToolbarButton({
@@ -76,7 +78,7 @@ function ToolbarButton({
 }
 
 export const MailHtmlEditor = forwardRef<MailHtmlEditorHandle, MailHtmlEditorProps>(function MailHtmlEditor(
-  { variant, docKey, initialHtml, placeholder = "…", editable = true, onChange, className = "", extraToolbar, onBlur },
+  { variant, docKey, initialHtml, placeholder = "…", editable = true, onChange, className = "", extraToolbar, onBlur, onReady },
   ref
 ) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,6 +106,7 @@ export const MailHtmlEditor = forwardRef<MailHtmlEditorHandle, MailHtmlEditorPro
 
   const editor = useEditor({
     extensions: [
+      MailSignatureNode,
       StarterKit.configure({
         heading: false,
         code: false,
@@ -160,6 +163,7 @@ export const MailHtmlEditor = forwardRef<MailHtmlEditorHandle, MailHtmlEditorPro
       getHTML: () => editor?.getHTML() ?? "",
       setHTML: (html: string, opts?: { silent?: boolean }) => {
         const h = html?.trim() ? html : "<p></p>";
+        if (editor?.getHTML() === h) return;
         editor?.chain().focus().setContent(h, { emitUpdate: !opts?.silent }).run();
       },
       focus: () => {
@@ -177,7 +181,8 @@ export const MailHtmlEditor = forwardRef<MailHtmlEditorHandle, MailHtmlEditorPro
     editor.commands.setContent(h, { emitUpdate: false });
     emitSize(h);
     setHtmlMode(false);
-  }, [docKey, initialHtml, editor, emitSize]);
+    onReady?.();
+  }, [docKey, initialHtml, editor, emitSize, onReady]);
 
   useEffect(() => {
     editor?.setEditable(editable);

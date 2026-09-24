@@ -52,8 +52,6 @@ export async function canAccessMissionRead(req, res, next) {
  */
 export async function canAccessMissionUpdate(req, res, next) {
   try {
-    if (req.user?.role === "SUPER_ADMIN") return next();
-
     const org = orgId(req);
     const uid = userId(req);
     const missionId = req.params.id;
@@ -62,8 +60,15 @@ export async function canAccessMissionUpdate(req, res, next) {
       return res.status(403).json({ error: "FORBIDDEN", code: "INVALID_USER_CONTEXT" });
     }
 
+    const allow = (canUpdateAll) => {
+      // Internal authorization context consumed by the time-update service.
+      req.missionUpdateAccess = { organizationId: org, userId: uid, canUpdateAll };
+      return next();
+    };
+    if (req.user?.role === "SUPER_ADMIN") return allow(true);
+
     const perms = await getUserPermissions({ userId: uid, organizationId: org });
-    if (perms.has("mission.update.all")) return next();
+    if (perms.has("mission.update.all")) return allow(true);
 
     if (perms.has("mission.update.self")) {
       const r = await pool.query(
@@ -72,7 +77,7 @@ export async function canAccessMissionUpdate(req, res, next) {
          WHERE m.id = $1 AND m.organization_id = $2 AND ma.user_id = $3`,
         [missionId, org, uid]
       );
-      if (r.rows.length > 0) return next();
+      if (r.rows.length > 0) return allow(false);
     }
 
     return res.status(403).json({ error: "FORBIDDEN", code: "MISSING_PERMISSION" });

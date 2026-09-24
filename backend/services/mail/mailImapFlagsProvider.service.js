@@ -174,10 +174,12 @@ export async function fetchRemoteFlagsByUid(imapClient, uid) {
  */
 export async function applyReadStateWithClient(p) {
   const mailbox = await openMailboxForFlags(p.imapClient, p.folderPath);
-  if (p.expectedUidValidity && mailbox.uidValidity && String(p.expectedUidValidity) !== String(mailbox.uidValidity)) {
+  // An old job without a confirmed namespace must never STORE a reused UID.
+  // Resynchronization establishes the current occurrence before another intent.
+  if (!p.expectedUidValidity || !mailbox.uidValidity || String(p.expectedUidValidity) !== String(mailbox.uidValidity)) {
     throw createMailFlagProviderError(
       MailFlagProviderErrorCodes.UIDVALIDITY_CHANGED,
-      "UIDVALIDITY du dossier distant modifie"
+      "UIDVALIDITY absent ou modifie : synchronisez le dossier avant de relancer la modification lu/non lu"
     );
   }
 
