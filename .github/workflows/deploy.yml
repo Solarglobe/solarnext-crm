@@ -10,6 +10,10 @@ on:
         description: "Optional previous Vercel deployment URL/ID to rollback instead of deploying"
         required: false
         type: string
+      audit_public_cert:
+        description: "Temporary public certificate for encrypted VPS audit capture"
+        required: false
+        type: string
 
 concurrency:
   group: deploy-main
@@ -24,7 +28,7 @@ jobs:
   rollback-vercel:
     name: Rollback Frontend on Vercel
     runs-on: ubuntu-latest
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' && inputs.rollback_vercel_deployment != '' && inputs.rollback_vercel_deployment != 'diagnose' && inputs.rollback_vercel_deployment != 'diagnose-vps') }}
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' && inputs.rollback_vercel_deployment != '' && inputs.rollback_vercel_deployment != 'diagnose' && inputs.rollback_vercel_deployment != 'diagnose-vps' && inputs.rollback_vercel_deployment != 'capture-vps') }}
     steps:
       - name: Rollback requested deployment
         env:
@@ -93,6 +97,43 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           ssh "$VPS_USER@$VPS_HOST" 'git -C /home/ubuntu/solarnext-crm rev-parse HEAD && git -C /home/ubuntu/solarnext-crm status --short --untracked-files=no && git -C /home/ubuntu/solarnext-crm diff --ignore-space-at-eol --shortstat && git -C /home/ubuntu/solarnext-crm diff --ignore-space-at-eol --name-only && git -C /home/ubuntu/solarnext-crm diff --cached --stat'
+
+  capture-vps:
+    name: Capture encrypted VPS code differences
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.rollback_vercel_deployment == 'capture-vps' }}
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_DEPLOY_SSH_KEY: ${{ secrets.VPS_DEPLOY_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$VPS_DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+      - name: Capture and encrypt tracked code differences
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          AUDIT_PUBLIC_CERT: ${{ inputs.audit_public_cert }}
+        run: |
+          set -euo pipefail
+          test -n "$AUDIT_PUBLIC_CERT"
+          printf '%s' "$AUDIT_PUBLIC_CERT" | base64 -d > audit-cert.pem
+          ssh "$VPS_USER@$VPS_HOST" 'cd /home/ubuntu/solarnext-crm && git diff --binary HEAD' > vps.diff
+          ssh "$VPS_USER@$VPS_HOST" 'cd /home/ubuntu/solarnext-crm && git diff --name-only -z HEAD | tar --null -T - -czf -' > vps-files.tar.gz
+          ssh "$VPS_USER@$VPS_HOST" 'cd /home/ubuntu/solarnext-crm && git log -5 --format="%H %ad %s" --date=iso-strict' > vps-history.txt
+          tar -czf vps-audit.tar.gz vps.diff vps-files.tar.gz vps-history.txt
+          openssl cms -encrypt -aes256 -binary -in vps-audit.tar.gz -out vps-audit.cms -outform DER audit-cert.pem
+          rm -f vps.diff vps-files.tar.gz vps-history.txt vps-audit.tar.gz audit-cert.pem
+          echo "Encrypted VPS audit artifact ready."
+      - name: Upload encrypted audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: vps-code-audit-encrypted
+          path: vps-audit.cms
+          retention-days: 1
 
   vercel-preview:
     name: Build Preview on Vercel
