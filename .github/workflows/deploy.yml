@@ -30,10 +30,17 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           ROLLBACK_DEPLOYMENT: ${{ inputs.rollback_vercel_deployment }}
         run: |
           test -n "$ROLLBACK_DEPLOYMENT"
-          npx vercel rollback "$ROLLBACK_DEPLOYMENT" --yes --token="$VERCEL_TOKEN"
+          if [ "$ROLLBACK_DEPLOYMENT" = "previous" ]; then
+            mkdir -p .vercel
+            printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+            npx vercel rollback --yes --token="$VERCEL_TOKEN"
+          else
+            npx vercel rollback "$ROLLBACK_DEPLOYMENT" --yes --token="$VERCEL_TOKEN"
+          fi
 
   vercel-preview:
     name: Build Preview on Vercel
@@ -125,35 +132,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
-      - name: Detect backend changes
-        id: backend-changes
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [ "${{ github.event_name }}" != "push" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          BEFORE="${{ github.event.before }}"
-          AFTER="${{ github.sha }}"
-
-          git fetch --no-tags origin "$BEFORE" || true
-
-          CHANGED="$(git diff --name-only "$BEFORE" "$AFTER" || true)"
-
-          printf '%s\n' "$CHANGED"
-
-          if printf '%s\n' "$CHANGED" | grep -Eq '^(backend/|shared/)'; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Frontend-only change: VPS backend deployment skipped."
-          fi
-
       - name: Run remote deploy command
-        if: ${{ steps.backend-changes.outputs.changed == 'true' }}
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -169,7 +148,7 @@ jobs:
       - quality-gates
       - preview-smoke-tests
       - deploy-vps
-    if: ${{ always() && vars.DEPLOY_ENABLED == 'true' && (github.event_name != 'workflow_dispatch' || inputs.rollback_vercel_deployment == '') && needs.quality-gates.result == 'success' && (needs.preview-smoke-tests.result == 'success' || needs.preview-smoke-tests.result == 'skipped') && (needs.deploy-vps.result == 'success' || needs.deploy-vps.result == 'skipped') }}
+    if: ${{ always() && vars.DEPLOY_ENABLED == 'true' && (github.event_name != 'workflow_dispatch' || inputs.rollback_vercel_deployment == '') && needs.quality-gates.result == 'success' && needs.preview-smoke-tests.result == 'success' && needs.deploy-vps.result == 'success' }}
     env:
       API_BASE_URL: ${{ secrets.PRODUCTION_API_BASE_URL }}
     steps:
@@ -190,7 +169,7 @@ jobs:
       - preview-smoke-tests
       - deploy-vps
       - smoke-tests
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.DEPLOY_FRONTEND == 'vercel' && (github.event_name != 'workflow_dispatch' || inputs.rollback_vercel_deployment == '') && needs.preview-smoke-tests.result == 'success' && (needs.deploy-vps.result == 'success' || needs.deploy-vps.result == 'skipped') && needs.smoke-tests.result == 'success' }}
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.DEPLOY_FRONTEND == 'vercel' && (github.event_name != 'workflow_dispatch' || inputs.rollback_vercel_deployment == '') && needs.preview-smoke-tests.result == 'success' && needs.deploy-vps.result == 'success' && needs.smoke-tests.result == 'success' }}
     steps:
       - name: Promote exact validated Preview
         env:
