@@ -97,6 +97,25 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           ssh "$VPS_USER@$VPS_HOST" 'git -C /home/ubuntu/solarnext-crm rev-parse HEAD && git -C /home/ubuntu/solarnext-crm status --short --untracked-files=no && git -C /home/ubuntu/solarnext-crm diff --ignore-space-at-eol --shortstat && git -C /home/ubuntu/solarnext-crm diff --ignore-space-at-eol --name-only && git -C /home/ubuntu/solarnext-crm diff --cached --stat'
+      - name: Inspect runtime layout without exposing environment values
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh "$VPS_USER@$VPS_HOST" 'bash -s' <<'VPS'
+          for path in /home/ubuntu/solarnext-crm/.env.dev /home/ubuntu/solarnext-crm/backend/.env; do
+            if test -f "$path"; then echo "$path: present"; else echo "$path: absent"; fi
+          done
+          pm2 jlist | node -e '
+            const fs = require("fs");
+            const processes = JSON.parse(fs.readFileSync(0, "utf8"));
+            const api = processes.find((item) => item.name === "solarnext-api");
+            console.log("pm2_backend_cwd", api?.pm2_env?.pm_cwd ?? "absent");
+            for (const key of ["DATABASE_URL", "JWT_SECRET", "MAIL_ENCRYPTION_KEY"]) {
+              console.log("pm2_env_" + key, Boolean(api?.pm2_env?.[key]));
+            }
+          '
+          VPS
 
   capture-vps:
     name: Capture encrypted VPS code differences
