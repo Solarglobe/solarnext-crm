@@ -48,9 +48,14 @@ restart_from() {
   local backend_dir="$1"
   test -f "$backend_dir/server.js"
   test -f "$backend_dir/ecosystem.config.cjs"
+  # PM2's startOrReload retains the existing process cwd even when the
+  # ecosystem file points elsewhere. Replace only this API process to switch code.
+  if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
+    pm2 delete "$SERVICE_NAME"
+  fi
   (
     cd "$backend_dir"
-    SOLARNEXT_BACKEND_CWD="$backend_dir" pm2 startOrReload "$backend_dir/ecosystem.config.cjs" --env production --update-env
+    SOLARNEXT_BACKEND_CWD="$backend_dir" pm2 start "$backend_dir/ecosystem.config.cjs" --env production --update-env
   )
 }
 
