@@ -5,6 +5,7 @@
  */
 
 import logger from "../app/core/logger.js";
+import { assertStudySnapshotExportable } from "../services/studyExportValidation.service.js";
 import * as studiesService from "../routes/studies/service.js";
 import * as pdfGenService from "../services/pdfGeneration.service.js";
 import { createPdfRenderToken } from "../services/pdfRenderToken.service.js";
@@ -105,6 +106,7 @@ export async function generatePdfForVersion(params, options = {}) {
       e.blocking_warnings = economicBlockingWarnings;
       throw e;
     }
+    assertStudySnapshotExportable(ephemeralSnapshot);
     const previewKey = putEphemeralSnapshot(ephemeralSnapshot, sid);
     renderToken = createPdfRenderToken(studyId, versionId, organizationId, {
       snapshotPreviewKey: previewKey,
@@ -124,13 +126,15 @@ export async function generatePdfForVersion(params, options = {}) {
       e.blocking_warnings = economicBlockingWarnings;
       throw e;
     }
-    renderToken = createPdfRenderToken(studyId, versionId, organizationId);
+    assertStudySnapshotExportable(snapshot);
+    const previewKey = putEphemeralSnapshot(snapshot, snapshot.scenario_type ?? version.selected_scenario_id);
+    renderToken = createPdfRenderToken(studyId, versionId, organizationId, {snapshotPreviewKey:previewKey});
   }
 
   console.log("STEP 5 BEFORE: build renderer URL (pdf-render.html / Playwright)");
   const rendererUrl = getRendererUrl(studyId, versionId, renderToken);
   console.log("STEP 5 OK: renderer URL ready");
-  logger.info("PDF generation started", { rendererUrl, studyId, versionId, ephemeral: !!ephemeralSnapshot });
+  logger.info("PDF generation started", { studyId, versionId, ephemeral: !!ephemeralSnapshot });
 
   console.log("STEP 6 BEFORE: Playwright generatePdfFromRendererUrl (PDF buffer)");
   let pdfBuffer = await generatePdfFromRendererUrl(rendererUrl);
@@ -205,6 +209,7 @@ export async function generatePdf(req, res, nextOrOptions) {
       downloadUrl,
     });
   } catch (e) {
+    if (e.code === "STUDY_EXPORT_INCONSISTENT") return res.status(409).json({error:e.code,message:e.message,details:e.details});
     if (e.code === "VERSION_NOT_FOUND") {
       return res.status(404).json({ error: "VERSION_NOT_FOUND" });
     }

@@ -36,6 +36,8 @@ export function buildMeterSnapshotRecord(ctx) {
     elec_price_base_eur_kwh: energyLead.elec_price_base_eur_kwh ?? null,
     elec_price_hp_eur_kwh: energyLead.elec_price_hp_eur_kwh ?? null,
     elec_price_hc_eur_kwh: energyLead.elec_price_hc_eur_kwh ?? null,
+    electricity_subscription_ttc_month: energyLead.electricity_subscription_ttc_month ?? null,
+    electricity_annual_bill_ttc: energyLead.electricity_annual_bill_ttc ?? null,
     energy_profile_has_hourly: hasHourly,
     equipement_actuel: energyLead.equipement_actuel ?? null,
     equipements_a_venir_json,
@@ -123,6 +125,12 @@ export function buildMeterCalcDiffLinesFr(prev, next) {
   }
   if (!snapSame(prev.elec_price_hc_eur_kwh, next.elec_price_hc_eur_kwh)) {
     lines.push(`Prix élec HC modifié : ${fmtFrNum(prev.elec_price_hc_eur_kwh)} → ${fmtFrNum(next.elec_price_hc_eur_kwh)} €/kWh`);
+  }
+  if (!snapSame(prev.electricity_subscription_ttc_month, next.electricity_subscription_ttc_month)) {
+    lines.push(`Abonnement électricité TTC modifié : ${fmtFrNum(prev.electricity_subscription_ttc_month)} → ${fmtFrNum(next.electricity_subscription_ttc_month)} €/mois`);
+  }
+  if (!snapSame(prev.electricity_annual_bill_ttc, next.electricity_annual_bill_ttc)) {
+    lines.push(`Facture annuelle électricité TTC modifiée : ${fmtFrNum(prev.electricity_annual_bill_ttc)} → ${fmtFrNum(next.electricity_annual_bill_ttc)} € (abonnement compris)`);
   }
   if (!snapSame(prev.energy_profile_has_hourly, next.energy_profile_has_hourly)) {
     lines.push(

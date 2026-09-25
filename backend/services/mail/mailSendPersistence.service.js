@@ -200,12 +200,18 @@ export async function persistOutboundInTransaction(client, p) {
   await syncCrmLinkForNewMessage({ messageId: persistedMessageId, dbClient: client });
 
   if (attachmentRows.length > 0) {
-    await processAttachmentsFromBufferRows({
+    const attachmentResult = await processAttachmentsFromBufferRows({
       dbClient: client,
       messageId: persistedMessageId,
       organizationId,
       bufferItems: attachmentRows,
     });
+    if (attachmentResult.skippedReasons.error || attachmentResult.skippedReasons.too_large) {
+      const err = new Error("Envoi impossible : une pièce jointe n'a pas pu être enregistrée. Réessayez l'envoi.");
+      err.code = "MAIL_ATTACHMENT_PERSIST_FAILED";
+      err.statusCode = 422;
+      throw err;
+    }
   }
 
   await rebuildThreadMetadata({ client, threadId });

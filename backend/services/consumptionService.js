@@ -1,3 +1,5 @@
+import { powerIntervalsToHourly } from "./intervalEnergy.service.js";
+import { estimateFutureEquipment } from "../../shared/equipmentEnergy.js";
 // ======================================================================
 // SMARTPITCH — CONSUMPTION SERVICE V7 (Solarglobe 2025)
 // ======================================================================
@@ -304,9 +306,12 @@ function parseHourlyCSV(lines) {
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].replace(/;/g, ",").split(",");
     const d = cols[idxDate];
+    if (!cols[idxPow]?.trim()) throw new Error("Valeur de puissance manquante dans le CSV");
+    if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(d.trim())) throw new Error("Fuseau horaire absent du CSV : timestamps avec decalage UTC requis");
     const w = Number(cols[idxPow]);
     const ts = new Date(d).getTime();
-    if (!isNaN(ts) && !isNaN(w)) rows.push({ ts, w });
+    if (!Number.isFinite(ts) || !Number.isFinite(w) || w < 0) throw new Error("Mesure horaire CSV invalide");
+    rows.push({ ts, w });
   }
 
   rows.sort((a, b) => a.ts - b.ts);
@@ -456,27 +461,14 @@ function buildFromFullYearHourly(rows, base8760) {
 
   if (filtered.length < 8000) return null;
 
-  const realKwhByIdx = new Array(HOURS_PER_YEAR).fill(undefined);
-
-  for (let i = 0; i < filtered.length - 1; i++) {
-    const r1 = filtered[i];
-    const r2 = filtered[i + 1];
-
-    const deltaH = (r2.ts - r1.ts) / 3600000;
-
-    if (deltaH <= 0 || deltaH > 3) continue;
-
-    const kwh = (r1.w / 1000) * deltaH;
-    const idx = canonicalHourIndexUTC(r1.ts);
-    if (idx != null) realKwhByIdx[idx] = kwh;
-  }
-
-  const { hourly } = fillMissingHourlyCalendar(realKwhByIdx, base8760);
+  const observed = powerIntervalsToHourly(filtered);
+  const { hourly, estimatedKwh, realHours } = fillMissingHourlyCalendar(observed.hourly, base8760);
   const annual = hourly.reduce((a, b) => a + b, 0);
 
   return {
     hourly,
     annual_kwh: annual,
+    provenance: { ...observed, hourly: undefined, estimated_kwh: estimatedKwh, measured_hours: realHours },
   };
 }
 
@@ -488,13 +480,9 @@ function buildFromFullYearHourly(rows, base8760) {
 
 function rebuildHourlyIncomplete(rows, base8760) {
   // Heures réelles posées à leur position calendaire (dernière valeur gagne si doublon)
-  const realKwhByIdx = new Array(HOURS_PER_YEAR).fill(undefined);
-  const deltas = [];
-  for (let i = 0; i < rows.length; i++) {
-    if (i > 0) deltas.push(rows[i].ts - rows[i - 1].ts);
-    const idx = canonicalHourIndexUTC(rows[i].ts);
-    if (idx != null) realKwhByIdx[idx] = rows[i].w / 1000; // W moyens sur 1 h → kWh
-  }
+  const observed = powerIntervalsToHourly(rows);
+  const realKwhByIdx = observed.hourly;
+  const deltas = rows.slice(1).map((r,i)=>r.ts-rows[i].ts);
   deltas.sort((a, b) => a - b);
   const medianStepH = deltas.length ? deltas[Math.floor(deltas.length / 2)] / 3600000 : 1;
 
@@ -564,7 +552,10 @@ function parseDailyCSV(lines) {
     let v   = Number(cols[idxVal]);
     if (!d || isNaN(v)) continue;
 
-    if (v > 2000) v = v / 1000; // Wh → kWh
+    const unitIndex = header.indexOf("unit");
+    const unit = unitIndex >= 0 ? cols[unitIndex]?.trim().toLowerCase() : null;
+    if (unit === "wh") v /= 1000;
+    else if (unit !== "kwh") throw new Error("Unite journaliere requise : colonne unit Wh ou kWh");
 
     const ts = new Date(d).getTime();
     if (!isNaN(ts)) days.push({ ts, date: d.slice(0, 10), kwh: v });
@@ -578,7 +569,12 @@ function rebuildDaily(days, base8760) {
   if (!days || days.length === 0) return null;
 
   const realDailyByIdx = new Array(365).fill(undefined);
-  days.forEach((d) => {
+  const lastTs=Math.max(...days.map(d=>d.ts));
+  const windowDays=days.filter(d=>d.ts>=lastTs-364*24*3600000);
+  const seen=new Map();
+  windowDays.forEach((d) => {
+    if(seen.has(d.ts)&&seen.get(d.ts)!==d.kwh) throw new Error("Doublon quotidien contradictoire");
+    seen.set(d.ts,d.kwh);
     const idx = canonicalDayIndexUTC(d.ts);
     if (idx != null) realDailyByIdx[idx] = d.kwh;
   });
@@ -604,6 +600,7 @@ function rebuildDaily(days, base8760) {
     hourly: hourly.slice(0, 8760),
     annual_kwh: totalAnnual,
     monthly_kwh_ref: monthlyRef,
+    provenance: {source:"R65_DAILY_REBUILT",reconstructed:true,input_resolution:"day",simulation_resolution:"hour",period_start:new Date(lastTs-364*24*3600000).toISOString().slice(0,10),period_end:new Date(lastTs).toISOString().slice(0,10),timezone:null,observed_days:seen.size,estimated_days:365-realDailyByIdx.filter(v=>v!==undefined).length,method:"daily_energy_preserved_hourly_shape_estimated_missing_days_neighbour_profile"},
   };
 }
 
@@ -659,7 +656,10 @@ function parseMonthlyCSV(lines) {
 
     let raw = (cols[idxMonth] || "").trim().toLowerCase();
     let v   = Number(cols[idxVal]);
-    if (v > 2000) v = v / 1000;
+    const unit = header[idxVal].includes("kwh") ? "kwh" : (header.includes("unit") ? cols[header.indexOf("unit")]?.trim().toLowerCase() : null);
+    if (unit === "wh") v /= 1000;
+    else if (unit !== "kwh") throw new Error("CSV mensuel : unité Wh ou kWh requise");
+    if (!Number.isFinite(v) || v < 0 || cols[idxVal]?.trim() === "") throw new Error("CSV mensuel : énergie manquante ou invalide");
 
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
       const mm = Number(raw.split("-")[1]);
@@ -691,7 +691,7 @@ function rebuildMonthly(months, base8760) {
       const scaled = scaleProfile(slice, totalMonth);
       for (let h = 0; h < monthHours; h++) hourly.push(scaled[h]);
     } else {
-      for (let h = 0; h < monthHours; h++) hourly.push(0.1);
+      throw new Error(`CSV mensuel incomplet : mois ${m + 1} absent ; compléter ou choisir explicitement un profil estimatif`);
     }
 
     pointer += monthHours;
@@ -815,6 +815,33 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
     puissance_kva: params.puissance_kva ?? conso.puissance_kva,
     reseau_type:   params.reseau_type   ?? conso.reseau_type,
   };
+
+  // Étude CRM : le total a déjà été établi dans le compteur sélectionné.
+  // Le CSV reste réservé à l'import de la fiche, jamais à une seconde annualisation.
+  if (merged.meter_consumption_authoritative === true) {
+    const annual = Number(merged.annuelle_kwh);
+    if (merged.annuelle_kwh == null || !Number.isFinite(annual) || annual < 0) {
+      throw new Error("SELECTED_METER_CONSUMPTION_MISSING");
+    }
+    let hourly;
+    if (Array.isArray(merged.hourly) && merged.hourly.length === HOURS_PER_YEAR) {
+      hourly = merged.hourly.map(Number);
+      if (hourly.some((v) => !Number.isFinite(v) || v < 0)) {
+        throw new Error("SELECTED_METER_CONSUMPTION_INVALID_PROFILE");
+      }
+    } else {
+      // Saisie annuelle/mensuelle sans courbe : répartir le total connu, sans l'estimer.
+      const base = buildFallbackBase8760(normalizeProfilKeyForConsumption(merged.profil));
+      hourly = rebuildManual(merged, base)?.hourly ?? scaleProfile(base, annual);
+    }
+    // Aligne uniquement la répartition sur le total enregistré (arrondis / ancien profil).
+    const preserved = Math.abs(sumHourly(hourly) - annual) < 1e-9
+      ? hourly.slice() : scaleProfile(hourly, annual);
+    return ensureConsumptionConsistent(tagEngineConsumptionSource(attachReference(
+      { hourly: preserved, annual_kwh: annual },
+      { sourceMode: "PROFILE_8760", monthlyRef: monthlySumsFrom8760(preserved) }
+    ), "PROFILE_8760_PREBUILT"));
+  }
 
   const profilKey = normalizeProfilKeyForConsumption(merged.profil);
   const fallbackBase8760 = buildFallbackBase8760(profilKey);
@@ -1318,6 +1345,28 @@ function _hourlyShapeActuelItem(item) {
  */
 function _hourlyShapeAvenirItem(item) {
   if (!item || typeof item !== "object") return null;
+  const estimate = estimateFutureEquipment(item);
+  if (estimate) {
+    if (!estimate.complete) throw new Error(`Équipement à venir incomplet : ${estimate.warnings.join(" ; ")}`);
+    let hourly;
+    if (item.kind === "ve") {
+      hourly = _buildFlat8760(item.mode_charge === "jour" ? _EQ_VE_JOUR_24H : _EQ_VE_NUIT_24H, estimate.added_kwh);
+    } else {
+      hourly = _buildPac8760WithRole(estimate.heating_kwh, item);
+      const rawCooling = [];
+      const start = Number(item.cooling_start_month ?? 6) - 1;
+      const count = Number(item.cooling_months ?? 0);
+      for (let m = 0; m < 12; m++) {
+        const used = ((m - start + 12) % 12) < count;
+        for (let d = 0; d < _DAYS_IN_MONTH[m]; d++) {
+          for (let h = 0; h < 24; h++) rawCooling.push(used ? _PAC_AIR_AIR_COOL_24H[h] : 0);
+        }
+      }
+      const cooling = estimate.cooling_kwh > 0 ? scaleProfile(rawCooling, estimate.cooling_kwh) : new Array(8760).fill(0);
+      hourly = hourly.map((v, i) => v + cooling[i]);
+    }
+    return { kwh: estimate.added_kwh, hourly, removed_kwh: estimate.removed_kwh };
+  }
   const kind = String(item.kind || "").toLowerCase();
   if (kind === "ve") {
     const kwh = _calcVeKwh(item);
@@ -1474,7 +1523,7 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {
   // ----------------------------------------------------------------
   // 1a) ACTUEL + CSV — micro-reshape somme nulle (opt-in env)
   // ----------------------------------------------------------------
-  if (hasCsv && _equipmentCurrentReshapeWithCsvEnabled() && actuels.items.length > 0) {
+  if (!merged.meter_consumption_authoritative && hasCsv && _equipmentCurrentReshapeWithCsvEnabled() && actuels.items.length > 0) {
     const mergedShape = _mergeNormalizedActuelShapes8760(actuels.items);
     if (mergedShape) {
       const lam = _lambdaCsvActuelBlend(mergedShape.contributingCount);
@@ -1485,7 +1534,7 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {
   // ----------------------------------------------------------------
   // 1b) ACTUEL — reshape (synthétique uniquement) — multi-équipements V1/V2
   // ----------------------------------------------------------------
-  if (!hasCsv && actuels.items.length > 0) {
+  if (!merged.meter_consumption_authoritative && !hasCsv && actuels.items.length > 0) {
     const curves = [];
     let equipKwhSum = 0;
     for (const item of actuels.items) {
@@ -1531,20 +1580,35 @@ export function applyEquipmentShape(result, merged = {}, hasCsv = false) {
   if (avenir.items.length > 0) {
     let avenirH   = new Array(8760).fill(0);
     let avenirKwh = 0;
+    let removedKwh = 0;
+    const impacts = [];
 
     for (const item of avenir.items) {
       const sh = _hourlyShapeAvenirItem(item);
       if (!sh || !sh.hourly) continue;
       avenirKwh += sh.kwh;
+      removedKwh += sh.removed_kwh || 0;
+      impacts.push({ id: item.id, added_kwh: sh.kwh, removed_kwh: sh.removed_kwh || 0 });
       for (let i = 0; i < 8760; i++) {
         avenirH[i] += sh.hourly[i] || 0;
       }
     }
 
+    if (removedKwh > annual_kwh + 1e-6) throw new Error("La consommation électrique remplacée dépasse la consommation actuelle du compteur.");
+    const currentAnnual = annual_kwh;
+    if (removedKwh > 0) {
+      // L'ancien usage n'est pas sous-compté : retrait proportionnel, jamais de kWh négatifs.
+      const ratio = currentAnnual > 0 ? Math.max(0, (currentAnnual - removedKwh) / currentAnnual) : 0;
+      hourly = hourly.map(v => v * ratio);
+      annual_kwh -= removedKwh;
+    }
     if (avenirKwh > 0) {
       hourly     = hourly.map((v, i) => v + (avenirH[i] || 0));
       annual_kwh = annual_kwh + avenirKwh;
     }
+    result = { ...result, equipment_impact: { current_kwh: currentAnnual, removed_kwh: removedKwh,
+      added_kwh: avenirKwh, future_kwh: annual_kwh, items: impacts,
+      replacement_profile_method: removedKwh > 0 ? "proportional_estimate" : null } };
   }
 
   return ensureConsumptionConsistent(attachReference(

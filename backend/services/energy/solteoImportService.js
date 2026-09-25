@@ -202,15 +202,17 @@ export function parseR65Json(input) {
     grandeurs[0];
   if (!g || !Array.isArray(g.points)) return null;
 
-  const unit = String(g.unite || "Wh").toLowerCase();
+  const unit = String(g.unite ?? "").toLowerCase();
+  if (!["wh","kwh"].includes(unit)) throw new Error("R65 : unité Wh ou kWh obligatoire");
   const factor = unit === "kwh" ? 1 : 1 / 1000; // unité EXPLICITE (pas d'heuristique par ligne)
 
   const byDate = new Map();
   for (const p of g.points) {
     const v = numOrNull(p?.v);
     const d = typeof p?.d === "string" ? p.d.slice(0, 10) : null;
-    if (v == null || !d || !dateToTs(d)) continue;
-    byDate.set(d, v * factor); // doublon : dernière valeur gagne
+    if (v == null || v < 0 || !d || !dateToTs(d)) throw new Error("R65 : mesure quotidienne invalide");
+    if (byDate.has(d) && byDate.get(d) !== v * factor) throw new Error("R65 : doublon contradictoire");
+    byDate.set(d, v * factor);
   }
   const points = [...byDate.entries()]
     .map(([date, kwh]) => ({ date, kwh }))
@@ -223,7 +225,7 @@ export function parseR65Json(input) {
  * Unité par MÉDIANE globale (médiane ≥ 1000 → Wh), pas par ligne — évite qu'un jour
  * d'absence à 1 800 Wh soit lu 1 800 kWh.
  */
-export function parseDailyCsv(text) {
+export function parseDailyCsv(text, { unit = null } = {}) {
   if (typeof text !== "string" || !text.trim()) return null;
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return null;
@@ -275,9 +277,13 @@ export function parseDailyCsv(text) {
   }
   if (!raw.length) return null;
 
-  const factor = enedisDailyKwh ? 1 : median(raw.map((r) => r.v)) >= 1000 ? 1 / 1000 : 1; // Wh → kWh
+  if (!enedisDailyKwh && !["wh","kwh"].includes(String(unit).toLowerCase())) throw new Error("CSV quotidien : unité absente ; préciser Wh ou kWh");
+  const factor = enedisDailyKwh || String(unit).toLowerCase() === "kwh" ? 1 : 0.001;
   const byDate = new Map();
-  for (const r of raw) byDate.set(r.date, r.v * factor);
+  for (const r of raw) {
+    if (r.v < 0 || (byDate.has(r.date) && byDate.get(r.date) !== r.v * factor)) throw new Error("CSV quotidien : valeur invalide ou doublon contradictoire");
+    byDate.set(r.date, r.v * factor);
+  }
   const points = [...byDate.entries()]
     .map(([date, kwh]) => ({ date, kwh }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
@@ -288,7 +294,7 @@ export function parseDailyCsv(text) {
  * Parse un CSV mensuel (`Mensuel.csv` : mois/month/date + kwh/value).
  * @returns {{ months: Map<string, number> }|null} clés 'YYYY-MM'
  */
-export function parseMonthlyCsv(text) {
+export function parseMonthlyCsv(text, { unit = null } = {}) {
   if (typeof text !== "string" || !text.trim()) return null;
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return null;
@@ -306,9 +312,14 @@ export function parseMonthlyCsv(text) {
     raw.push({ m, v });
   }
   if (!raw.length) return null;
-  const factor = median(raw.map((r) => r.v)) >= 100000 ? 1 / 1000 : 1; // Wh mensuel → kWh
+  const resolvedUnit = header[idxV].includes("kwh") ? "kwh" : String(unit).toLowerCase();
+  if (!["wh","kwh"].includes(resolvedUnit)) throw new Error("CSV mensuel : unité absente ; préciser Wh ou kWh");
+  const factor = resolvedUnit === "wh" ? 0.001 : 1;
   const months = new Map();
-  for (const r of raw) months.set(r.m, (months.get(r.m) ?? 0) + r.v * factor);
+  for (const r of raw) {
+    if (r.v < 0 || (months.has(r.m) && months.get(r.m) !== r.v * factor)) throw new Error("CSV mensuel : valeur invalide ou doublon contradictoire");
+    months.set(r.m, r.v * factor);
+  }
   return { months };
 }
 

@@ -11,12 +11,15 @@
  * Ces p_eff remplacent le prix plat dans financeService — UNIQUEMENT quand sc.pricing existe
  * (contrat HPHC + prix HP/HC saisis fiche compteur). Sinon : comportement historique inchangé.
  *
- * Les p_eff restent exacts sur 25 ans : HP et HC croissent du même elec_growth_pct, donc la
- * pondération horaire est invariante dans le temps (pas besoin de refondre buildCashflows).
+ * Les p_eff décrivent les flux de l'année simulée. La projection financière applique ensuite
+ * les hypothèses de variation des prix et de production du moteur financier.
  */
 
-import { resolveHpHcHourlyMask } from "./hphcMask.service.js";
-import { resolveP2ContractType } from "../virtualBatteryP2Finance.service.js";
+import {
+  buildHpHcHourlyMask,
+  buildHpHcHourlyFractions,
+  resolveCurrentOffPeakPeriods,
+} from "./hphcMask.service.js";
 
 const H8760 = 8760;
 
@@ -25,8 +28,9 @@ function round5(n) {
 }
 
 function numOrNull(v) {
+  if (v == null || v === "") return null;
   const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 /**
@@ -34,21 +38,27 @@ function numOrNull(v) {
  * À appeler une fois par calcul, après construction de ctx.form/ctx.virtual_battery_input.
  *
  * @param {object} ctx contexte moteur (form.params.elec_price_hp/hc_eur_kwh injectés par le Lot 2)
- * @returns {{ hourlyIsHp: boolean[], priceHp: number, priceHc: number } | null}
+ * @returns {{ hourlyIsHp: boolean[], hourlyHpFraction: number[], priceHp: number, priceHc: number } | null}
  */
 export function resolveHpHcPricingContext(ctx) {
   const params = ctx?.form?.params ?? {};
-  const priceHp = numOrNull(params.elec_price_hp_eur_kwh);
-  const priceHc = numOrNull(params.elec_price_hc_eur_kwh);
+  const lead = ctx?.form?.lead ?? {};
+  const priceHp = numOrNull(params.elec_price_hp_eur_kwh ?? lead.elec_price_hp_eur_kwh);
+  const priceHc = numOrNull(params.elec_price_hc_eur_kwh ?? lead.elec_price_hc_eur_kwh);
   if (priceHp == null || priceHc == null) return null;
 
-  const contractType = resolveP2ContractType(ctx?.virtual_battery_input ?? {}, ctx);
-  if (contractType !== "HPHC") return null;
+  // Le contrat de référence est celui du compteur, indépendamment du contrat de la BV.
+  const hpHc = params.hp_hc ?? lead.hp_hc;
+  const tariffType = params.tariff_type ?? lead.tariff_type;
+  const isHpHc = tariffType != null && String(tariffType).trim() !== ""
+    ? ["hp_hc", "hphc"].includes(String(tariffType).trim().toLowerCase())
+    : hpHc === true || String(hpHc).toLowerCase() === "oui";
+  if (!isHpHc) return null;
 
-  const hourlyIsHp = resolveHpHcHourlyMask(ctx?.virtual_battery_input ?? {}, ctx);
-  if (!Array.isArray(hourlyIsHp) || hourlyIsHp.length !== H8760) return null;
-
-  return { hourlyIsHp, priceHp, priceHc };
+  const periods = resolveCurrentOffPeakPeriods(ctx);
+  const hourlyIsHp = buildHpHcHourlyMask(periods);
+  const hourlyHpFraction = buildHpHcHourlyFractions(periods);
+  return { hourlyIsHp, hourlyHpFraction, priceHp, priceHc };
 }
 
 /**
@@ -59,14 +69,19 @@ export function resolveHpHcPricingContext(ctx) {
  */
 export function effectivePriceForHourlyWeights(weightsHourly, pricingCtx) {
   if (!pricingCtx || !Array.isArray(weightsHourly) || weightsHourly.length !== H8760) return null;
-  const { hourlyIsHp, priceHp, priceHc } = pricingCtx;
+  const { hourlyIsHp, hourlyHpFraction, priceHp, priceHc } = pricingCtx;
+  const hasFractions = Array.isArray(hourlyHpFraction) && hourlyHpFraction.length === H8760;
+  if (!hasFractions && (!Array.isArray(hourlyIsHp) || hourlyIsHp.length !== H8760)) return null;
   let sumW = 0;
   let sumWp = 0;
   for (let h = 0; h < H8760; h++) {
     const w = Number(weightsHourly[h]) || 0;
     if (w <= 0) continue;
     sumW += w;
-    sumWp += w * (hourlyIsHp[h] === true || hourlyIsHp[h] === 1 ? priceHp : priceHc);
+    const hpFraction = hasFractions
+      ? Math.max(0, Math.min(1, Number(hourlyHpFraction[h]) || 0))
+      : hourlyIsHp[h] === true || hourlyIsHp[h] === 1 ? 1 : 0;
+    sumWp += w * (hpFraction * priceHp + (1 - hpFraction) * priceHc);
   }
   if (sumW <= 0) return null;
   return round5(sumWp / sumW);
@@ -120,6 +135,7 @@ export function buildScenarioPricing({ pricingCtx, consoHourly, autoHourly, impo
     p_eff_conso,
     p_eff_auto: effectivePriceForHourlyWeights(autoHourly, pricingCtx),
     p_eff_import: effectivePriceForHourlyWeights(importHourly, pricingCtx),
+    p_eff_import_current: effectivePriceForHourlyWeights(importHourly, pricingCtx),
     p_eff_vb: effectivePriceForHourlyWeights(vbDischargeHourly, pricingCtx),
   };
 }

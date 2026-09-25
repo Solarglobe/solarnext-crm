@@ -152,21 +152,23 @@ export function selectMySmartTier(requiredKwh) {
  * Ventilation décharge HP/HC depuis un masque optionnel 8760 (1 = HP, 0 = HC).
  * @returns {{ ok: boolean, discharged_hp_kwh?: number, discharged_hc_kwh?: number, status: string }}
  */
-export function splitDischargeHpHc(hourlyDischarge, hourlyIsHp) {
+export function splitDischargeHpHc(hourlyDischarge, hourlyIsHp, hourlyHpFraction = null) {
   const d = hourlyDischarge;
   if (!Array.isArray(d) || d.length !== 8760) {
     return { ok: false, status: "PARTIAL_HPHC_ALLOCATION" };
   }
-  if (!Array.isArray(hourlyIsHp) || hourlyIsHp.length !== 8760) {
+  const fractions = Array.isArray(hourlyHpFraction) && hourlyHpFraction.length === 8760 ? hourlyHpFraction : null;
+  if (!fractions && (!Array.isArray(hourlyIsHp) || hourlyIsHp.length !== 8760)) {
     return { ok: false, status: "PARTIAL_HPHC_ALLOCATION" };
   }
   let hp = 0;
   let hc = 0;
   for (let i = 0; i < 8760; i++) {
     const x = Number(d[i]) || 0;
-    const isHp = hourlyIsHp[i] === true || hourlyIsHp[i] === 1;
-    if (isHp) hp += x;
-    else hc += x;
+    const share = fractions ? Number(fractions[i]) : hourlyIsHp[i] === true || hourlyIsHp[i] === 1 ? 1 : 0;
+    if (!Number.isFinite(share) || share < 0 || share > 1) return { ok: false, status: "PARTIAL_HPHC_ALLOCATION" };
+    hp += x * share;
+    hc += x * (1 - share);
   }
   return {
     ok: true,
@@ -274,7 +276,7 @@ export function computeVirtualBatteryP2Finance(input) {
 
   if (contractType === "HPHC") {
     hphc_allocation_status = "PARTIAL_HPHC_ALLOCATION";
-    const split = splitDischargeHpHc(input.hourlyDischargeKwh || [], input.hphcHourlyIsHp || null);
+    const split = splitDischargeHpHc(input.hourlyDischargeKwh || [], input.hphcHourlyIsHp || null, input.hphcHourlyHpFraction);
     if (split.ok) {
       hphc_allocation_status = "OK";
       discharged_hp_kwh = split.discharged_hp_kwh;

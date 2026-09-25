@@ -1,3 +1,4 @@
+import { assertEnergyProfile } from "./energyReference.service.js";
 // ======================================================================
 // SMARTPITCH — Batterie virtuelle 8760h (compte kWh contractuel, pas de physique)
 // ======================================================================
@@ -71,10 +72,10 @@ export function aggregateVirtualBatteryMonthly(gridImportHourly, chargeHourly, d
     }
     const bankEnd = socEndHourly[endIdx] != null ? Number(socEndHourly[endIdx]) : 0;
     out.push({
-      billable_import: Math.round(billable * 100) / 100,
-      credited: Math.round(credited * 100) / 100,
-      used_credit: Math.round(used * 100) / 100,
-      bank_end: Math.round(bankEnd * 100) / 100,
+      billable_import: billable,
+      credited: credited,
+      used_credit: used,
+      bank_end: bankEnd,
     });
   }
   return out;
@@ -98,6 +99,8 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
     return { ok: false, reason: "INVALID_CONSO_HOURLY" };
   }
 
+  try { assertEnergyProfile(pv_hourly,"production"); assertEnergyProfile(conso_hourly,"consommation"); }
+  catch(error){return {ok:false,reason:"INVALID_ENERGY_VALUE",message:error.message};}
   const capacity_kwh = resolveVirtualBatteryCapacityKwh(config);
   if (capacity_kwh == null) {
     return { ok: false, reason: "MISSING_VIRTUAL_CAPACITY_KWH" };
@@ -107,7 +110,8 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
   const creditRatio = 1;
 
   const initialCredit = config?.initial_credit_kwh ?? config?.initialCreditKwh ?? 0;
-  let SOC = Math.max(0, Math.min(capacity_kwh, Number(initialCredit) || 0));
+  if (!Number.isFinite(Number(initialCredit)) || Number(initialCredit)<0 || Number(initialCredit)>capacity_kwh) return {ok:false,reason:"INVALID_INITIAL_CREDIT"};
+  let SOC = Number(initialCredit);
   const SOC_initial = SOC;
   const hourlyCharge = [];
   const hourlyDischarge = [];
@@ -180,11 +184,11 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
   return {
     ok: true,
     virtual_battery_capacity_kwh: capacity_kwh,
-    virtual_battery_credit_start_kwh: Math.round(SOC_initial * 1000) / 1000,
-    virtual_battery_credit_end_kwh: Math.round(SOC * 1000) / 1000,
-    virtual_battery_total_charged_kwh: Math.round(totalCharged * 1000) / 1000,
-    virtual_battery_total_discharged_kwh: Math.round(totalDischarged * 1000) / 1000,
-    virtual_battery_overflow_export_kwh: Math.round(totalOverflowExport * 1000) / 1000,
+    virtual_battery_credit_start_kwh: SOC_initial,
+    virtual_battery_credit_end_kwh: SOC,
+    virtual_battery_total_charged_kwh: totalCharged,
+    virtual_battery_total_discharged_kwh: totalDischarged,
+    virtual_battery_overflow_export_kwh: totalOverflowExport,
     virtual_battery_hourly_charge_kwh: hourlyCharge,
     virtual_battery_hourly_discharge_kwh: hourlyDischarge,
     virtual_battery_hourly_credit_balance_kwh: hourlyCreditBalance,
@@ -196,12 +200,12 @@ export function simulateVirtualBattery8760({ pv_hourly, conso_hourly, config }) 
     auto_hourly: autoHourly,
     surplus_hourly: surplusHourly,
     batt_discharge_hourly: hourlyDischarge,
-    prod_kwh: Math.round(pvTotal),
-    auto_kwh: Math.round(autoTotal),
-    direct_self_consumption_kwh: Math.round(totalDirect),
-    surplus_before_virtual_battery_kwh: Math.round(totalSurplusBeforeVirtual),
-    surplus_kwh: Math.round(surplusTotal),
-    grid_import_kwh: Math.round(importTotal),
+    prod_kwh: pvTotal,
+    auto_kwh: autoTotal,
+    direct_self_consumption_kwh: totalDirect,
+    surplus_before_virtual_battery_kwh: totalSurplusBeforeVirtual,
+    surplus_kwh: surplusTotal,
+    grid_import_kwh: importTotal,
     /** Bilans bruts (non arrondis) pour tests */
     _balance: {
       sum_pv: pvTotal,

@@ -476,7 +476,8 @@ router.post(
     let conso;
     try {
       const _consoBase = loadConsumption(mergedConso, csvPath);
-      conso = applyEquipmentShape(_consoBase, mergedConso, Boolean(csvPath));
+      // Le profil compteur reste mesuré ; les projets sont appliqués dans l'étude.
+      conso = applyEquipmentShape(_consoBase, { ...mergedConso, equipements_a_venir: null }, Boolean(csvPath));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const status = message.includes("CSV_CONSUMPTION") ? 400 : 500;
@@ -659,7 +660,7 @@ router.post(
       else warnings.push("r65.json fourni mais structure non reconnue");
     }
     if (!dailyPoints && files.r65Csv) {
-      const r = parseDailyCsv(files.r65Csv);
+      const r = parseDailyCsv(files.r65Csv, { unit: "Wh" });
       if (r) dailyPoints = r.points;
       else warnings.push("r65.csv fourni mais format non reconnu");
     }
@@ -740,7 +741,7 @@ router.post(
     if (csvPath) {
       try {
         const base = loadConsumption(mergedConso, csvPath);
-        engine = applyEquipmentShape(base, mergedConso, true);
+        engine = applyEquipmentShape(base, { ...mergedConso, equipements_a_venir: null }, true);
       } catch (err) {
         warnings.push(`Courbe de charge illisible : ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -782,7 +783,7 @@ router.post(
         warnings.push("Impossible de construire un profil synthétique");
       }
     }
-    if (hourly && dailyMonthlyRef) {
+    if (hourly && dailyMonthlyRef && engine?.engine_consumption_source === "R65_DAILY_REBUILT") {
       hourly = scaleHourlyToMonthly(hourly, dailyMonthlyRef);
       scaleFactor = null;
       hourlyScaledTo = Math.round(dailyMonthlyRef.reduce((a, b) => a + b, 0));
@@ -795,7 +796,12 @@ router.post(
     }
 
     const engineSumRaw = engine ? sumHourly(engine.hourly) : null;
-    const annualFinal = priority.annual_kwh != null ? Math.round(priority.annual_kwh) : null;
+    const annualFinal = hourly ? sumHourly(hourly) : priority.annual_kwh;
+    if(engine?.engine_consumption_source === "CSV_HOURLY_FULL_YEAR") {
+      if(priority.annual_kwh!=null&&Math.abs(priority.annual_kwh-annualFinal)>1e-6) warnings.push("Écart entre relevés quotidiens et courbe horaire : les intervalles horaires mesurés sont conservés sans redistribution.");
+      priority.source="CSV_HOURLY_FULL_YEAR";
+      priority.source_label="Courbe de charge horaire complète ; intervalles mesurés conservés";
+    }
 
     // Stats loadcurve brutes (points, période, annualisation brute) pour le debug
     let loadcurveStats = null;
@@ -854,12 +860,13 @@ router.post(
       },
       warnings,
     };
-    console.log(JSON.stringify({ tag: "SOLTEO_IMPORT_DEBUG", leadId, ...importDebug }));
+    // Detailed import diagnostics are retained with the authorized record, not logged with client identifiers.
 
     // --- 7) Mise à jour du lead (C68 écrase — choix produit 01/07/2026) ---
     const leadUpdates = {};
     if (annualFinal != null) {
-      leadUpdates.consumption_annual_kwh = annualFinal;
+      // Le champ historique leads est un entier ; le profil conserve le total précis.
+      leadUpdates.consumption_annual_kwh = Math.round(annualFinal);
       leadUpdates.consumption_mode = "PDL";
     }
     if (contract) {
@@ -901,6 +908,11 @@ router.post(
           hourly,
           engine_consumption_source: engine.engine_consumption_source ?? null,
           annual_source_label: priority.source_label,
+          period_start: daily?.window_start ?? engine?.provenance?.period_start ?? null,
+          period_end: daily?.window_end ?? engine?.provenance?.period_end ?? null,
+          timezone: engine?.provenance?.timezone ?? null,
+          provenance: engine?.provenance ?? null,
+          monthly_kwh_ref: dailyMonthlyRef ?? null,
           contract_summary: contractSummary,
           phase_detection: contract?.phase_detection ?? null,
           debug: {

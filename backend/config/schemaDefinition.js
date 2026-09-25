@@ -33,6 +33,8 @@ export const EXPECTED_SCHEMA = {
     "consumption_csv_path",
     "energy_profile",
     "consumption_mode",
+    "electricity_subscription_ttc_month",
+    "electricity_annual_bill_ttc",
     "consumption_annual_kwh",
     "consumption_annual_calculated_kwh",
     "birth_date",
@@ -58,6 +60,8 @@ export const EXPECTED_SCHEMA = {
     "name",
     "is_default",
     "consumption_mode",
+    "electricity_subscription_ttc_month",
+    "electricity_annual_bill_ttc",
     "created_at",
   ],
 
