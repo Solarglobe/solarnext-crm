@@ -56,7 +56,6 @@ restart_from() {
 
 log "Preparing isolated backend release $DEPLOY_REF"
 test -d "$APP_DIR/.git"
-test -f "$APP_DIR/backend/.env"
 test -d "$RELEASES_DIR"
 previous_backend_dir="$(pm2_backend_dir)"
 test -f "$previous_backend_dir/server.js"
@@ -81,8 +80,20 @@ release_dir="$RELEASES_DIR/isolated-${DEPLOY_REF:0:12}-$(date +%Y%m%d%H%M%S)"
 mkdir "$release_dir"
 git -C "$APP_DIR" archive "$DEPLOY_REF" | tar -xf - -C "$release_dir"
 test -f "$release_dir/backend/server.js"
-ln -s "$APP_DIR/backend/.env" "$release_dir/backend/.env"
 backend_dir="$release_dir/backend"
+env_sources=0
+if test -f "$(dirname "$previous_backend_dir")/.env.dev"; then
+  ln -s "$(dirname "$previous_backend_dir")/.env.dev" "$release_dir/.env.dev"
+  env_sources=$((env_sources + 1))
+fi
+if test -f "$previous_backend_dir/.env"; then
+  ln -s "$previous_backend_dir/.env" "$backend_dir/.env"
+  env_sources=$((env_sources + 1))
+fi
+if [[ "$env_sources" -eq 0 ]]; then
+  log "The existing backend has no local environment file to reuse."
+  exit 1
+fi
 (
   cd "$backend_dir"
   npm ci --omit=dev --prefer-offline
