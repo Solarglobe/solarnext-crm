@@ -8,6 +8,7 @@
 import { pool } from "../config/db.js";
 import * as quotePrepService from "./quotePrep/quotePrep.service.js";
 import { repairScenarioV2DisplayKpis } from "./scenarioV2DisplayRepair.service.js";
+import { buildScenarioElectricitySnapshotFields } from "./scenarioElectricitySnapshot.service.js";
 
 /**
  * Construit le snapshot complet pour selected_scenario_snapshot.
@@ -32,6 +33,8 @@ export async function buildSelectedScenarioSnapshot({
   if (!scenario) {
     throw new Error(`Scénario ${scenarioId} introuvable dans scenarios_v2`);
   }
+  const electricitySnapshot = buildScenarioElectricitySnapshotFields(scenario);
+  const electricityBilling = electricitySnapshot.electricity_billing;
 
   console.log("STEP 1b BEFORE: load study row from studies table");
   const studyRes = await pool.query(
@@ -340,6 +343,7 @@ export async function buildSelectedScenarioSnapshot({
         ? scenario.monthly.slice(0, 12)
         : null,
     total_pv_used_on_site_kwh: scenario.energy?.total_pv_used_on_site_kwh ?? null,
+    reference: scenario.energy?.reference ?? null,
     exported_kwh: scenario.energy?.exported_kwh ?? null,
     pv_self_consumption_pct: scenario.energy?.pv_self_consumption_pct ?? null,
     site_autonomy_pct: scenario.energy?.site_autonomy_pct ?? null,
@@ -375,13 +379,17 @@ export async function buildSelectedScenarioSnapshot({
   const setupBillingPolicy =
     oneTimeSetupFeeTtc > 0 ? "outside_pv_investment" : activationTtc > 0 ? "billed_extra" : "none";
   const residualBillVirtualBreakdown =
-    scenarioId === "BATTERY_VIRTUAL" && vf
+    ["BATTERY_VIRTUAL", "BATTERY_HYBRID", "VEHICLE_V2H_VIRTUAL", "VEHICLE_V2H_PHYSICAL_VIRTUAL"].includes(scenarioId) && vf
       ? {
           grid_import_kwh: Number.isFinite(impKwh) ? impKwh : null,
           energy_purchase_from_grid_eur:
-            impKwh > 0 && priceImplied != null ? Math.round(impKwh * priceImplied * 100) / 100 : null,
+            electricityBilling
+              ? electricityBilling.scenario_energy_purchase_eur ?? null
+              : impKwh > 0 && priceImplied != null ? Math.round(impKwh * priceImplied * 100) / 100 : null,
           virtual_battery_subscription_ttc: vf.annual_subscription_ttc ?? null,
-          virtual_battery_autoproducer_contribution_ttc: vf.annual_autoproducer_contribution_ttc ?? null,
+          virtual_battery_autoproducer_contribution_ttc:
+            electricityBilling?.scenario_contract?.subscription_includes_autoproducer_contribution
+              ? 0 : vf.annual_autoproducer_contribution_ttc ?? null,
           virtual_battery_discharge_fees_ttc: vf.annual_virtual_discharge_cost_ttc ?? null,
           virtual_battery_activation_ttc: activationTtc,
           virtualStorageSetupFee: activationTtc,
@@ -392,18 +400,22 @@ export async function buildSelectedScenarioSnapshot({
             ? Number(scenario.pvInstallationPrice)
             : null,
           virtualSetupFee: oneTimeSetupFeeTtc,
-          virtualAnnualFees: Number.isFinite(Number(vf.annual_total_virtual_cost_ttc))
-            ? Number(vf.annual_total_virtual_cost_ttc)
-            : null,
+          virtualAnnualFees: electricityBilling
+            ? electricityBilling.virtual_service_cost_eur ?? null
+            : Number.isFinite(Number(vf.annual_total_virtual_cost_ttc)) ? Number(vf.annual_total_virtual_cost_ttc) : null,
           virtualStorageFeesIndexationNote:
             "Les frais de gestion et de restitution du crédit virtuel sont maintenus constants dans cette projection.",
           activation_applies_note:
             activationTtc > 0
               ? "Frais d'activation : première année contractuelle (TTC), ajouté aux coûts de service."
               : null,
-          supplier_subscription_eur: null,
+          supplier_subscription_eur: electricityBilling?.scenario_supplier_subscription_eur ?? null,
           supplier_subscription_note:
-            "Abonnement fournisseur (accès réseau, puissance souscrite) : non ventilé dans le moteur (hors hypothèse kWh projet).",
+            electricityBilling
+              ? electricityBilling.scenario_supplier_subscription_eur == null
+                ? "Abonnement du fournisseur à compléter."
+                : "Abonnement du fournisseur inclus dans la facture estimée."
+              : "Abonnement fournisseur (accès réseau, puissance souscrite) : non ventilé dans le moteur (hors hypothèse kWh projet).",
           discharge_fees_note:
             "Ligne « restitution stockage virtuel » : coûts associés aux kWh restitués (composantes fournisseur agrégées TTC).",
         }
@@ -411,6 +423,7 @@ export async function buildSelectedScenarioSnapshot({
 
   const finance = {
     capex_ttc: scenario.finance?.capex_ttc ?? null,
+    lcoe: scenario.finance?.lcoe ?? null,
     prime_eur:
       scenario.finance?.prime_eur ??
       scenario.finance?.finance_meta?.economic_snapshot?.prime_eur ??
@@ -439,6 +452,7 @@ export async function buildSelectedScenarioSnapshot({
     residual_bill_virtual_breakdown: residualBillVirtualBreakdown,
     anti_oversell_flags: Array.isArray(scenario.anti_oversell_flags) ? scenario.anti_oversell_flags : [],
     oversell_risk_score: Number.isFinite(Number(scenario.oversell_risk_score)) ? Number(scenario.oversell_risk_score) : 0,
+    ...electricitySnapshot.finance,
   };
   const economic_snapshot =
     scenario.finance?.finance_meta?.economic_snapshot &&
@@ -451,8 +465,9 @@ export async function buildSelectedScenarioSnapshot({
     monthly_kwh: scenario.production?.monthly_kwh ?? null,
   };
 
-  const flows = Array.isArray(scenario.finance?.annual_cashflows)
+  const flows = electricityBilling?.status !== "INCOMPLETE" && Array.isArray(scenario.finance?.annual_cashflows)
     ? scenario.finance.annual_cashflows.map((f) => ({
+        ...f,
         year: f.year ?? null,
         gain: f.total_eur ?? f.gain_auto ?? f.gain_oa ?? null,
         cumul: f.cumul_eur ?? null,
@@ -507,6 +522,9 @@ export async function buildSelectedScenarioSnapshot({
 
   return {
     scenario_type: scenarioId,
+    scenario_result: structuredClone(scenario),
+    results_trace: scenario.results_trace ?? null,
+    grid_contract: scenario.grid_contract ?? null,
     created_at,
     consumption_trace,
 
@@ -518,6 +536,7 @@ export async function buildSelectedScenarioSnapshot({
 
     energy,
     finance,
+    electricity_billing: electricityBilling,
     economic_snapshot,
     production,
     production_assumptions,

@@ -504,11 +504,18 @@ export async function replaceTariffCatalog({ organizationId, installerId, tariff
 }
 
 export async function computeInstallationCost({ organizationId, installerId, payload, context }) {
+  const requestedVatRate = payload?.vat_rate_percent == null ? null : Number(payload.vat_rate_percent);
+  if (requestedVatRate != null && requestedVatRate !== 20 && requestedVatRate !== 5.5) {
+    throw installerError("INVALID_VAT_RATE", "Le taux de TVA installateur doit être de 20 % ou 5,5 %", 400, {
+      vat_rate_percent: payload.vat_rate_percent,
+    });
+  }
+
   const result = await withTx(pool, async (client) => {
     const catalog = await loadTariffVersionCatalog(client, organizationId, installerId, payload?.tariff_version_id || null);
     const calculated = computeInstallationCostFromCatalog(catalog, payload);
     const defaultVatRate = await getOrgDefaultVatRate(client, organizationId);
-    return enrichInstallerCostWithVat(calculated, defaultVatRate);
+    return enrichInstallerCostWithVat(calculated, requestedVatRate ?? defaultVatRate);
   });
 
   if (payload?.save_to_quote_prep === true && payload?.study_id && payload?.study_version_id) {

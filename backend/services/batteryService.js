@@ -9,6 +9,8 @@
 /**
  * Pass-through sans batterie : auto = min(pv, load), surplus = max(0, pv - load).
  */
+import { assertEnergyProfile } from "./energyReference.service.js";
+
 function passThroughNoBattery(pv_hourly, conso_hourly) {
   const auto_hourly = [];
   const surplus_hourly = [];
@@ -36,11 +38,11 @@ function passThroughNoBattery(pv_hourly, conso_hourly) {
     batt_charge_input_hourly: Array(8760).fill(0),
     batt_charge_hourly: Array(8760).fill(0),
     battery_soc_hourly: Array(8760).fill(0),
-    prod_kwh: Math.round(pv_total),
-    auto_kwh: Math.round(auto_total),
-    direct_self_consumption_kwh: Math.round(auto_total),
-    surplus_before_battery_kwh: Math.round(surplus_total),
-    surplus_kwh: Math.round(surplus_total),
+    prod_kwh: pv_total,
+    auto_kwh: auto_total,
+    direct_self_consumption_kwh: auto_total,
+    surplus_before_battery_kwh: surplus_total,
+    surplus_kwh: surplus_total,
     grid_import_kwh: Math.round(conso_hourly.reduce((a, b) => a + (b || 0), 0) - auto_total),
     auto_pct: pv_total > 0 ? Math.round((auto_total / pv_total) * 100) : 0,
     annual_charge_from_surplus_kwh: 0,
@@ -72,6 +74,12 @@ export function simulateBattery8760({
   if (!Array.isArray(conso_hourly) || conso_hourly.length !== 8760) {
     return { ok: false, reason: "INVALID_CONSO_HOURLY" };
   }
+  try {
+    assertEnergyProfile(pv_hourly, "production");
+    assertEnergyProfile(conso_hourly, "consommation");
+  } catch (error) {
+    return { ok: false, reason: "INVALID_ENERGY_VALUE", message: error.message };
+  }
 
   if (!battery || battery.enabled !== true) {
     const pass = passThroughNoBattery(pv_hourly, conso_hourly);
@@ -83,11 +91,11 @@ export function simulateBattery8760({
     return { ok: false, reason: "MISSING_BATTERY_CAPACITY" };
   }
 
-  const roundtrip = battery.roundtrip_efficiency != null
-    ? Math.max(0, Math.min(1, Number(battery.roundtrip_efficiency)))
-    : 1;
-  const effCh = roundtrip > 0 ? Math.sqrt(roundtrip) : 1;
-  const effDis = roundtrip > 0 ? Math.sqrt(roundtrip) : 1;
+  for(const key of ["max_charge_kw","max_discharge_kw"]) if(battery[key]!=null && (!Number.isFinite(Number(battery[key]))||Number(battery[key])<0)) return {ok:false,reason:"INVALID_BATTERY_POWER"};
+  const roundtrip = Number(battery.roundtrip_efficiency ?? 1);
+  if (!Number.isFinite(roundtrip) || roundtrip <= 0 || roundtrip > 1) return { ok: false, reason: "INVALID_BATTERY_EFFICIENCY" };
+  const effCh = Math.sqrt(roundtrip);
+  const effDis = Math.sqrt(roundtrip);
 
   const pCh = battery.max_charge_kw != null && Number.isFinite(Number(battery.max_charge_kw))
     ? Math.max(0, Number(battery.max_charge_kw))
@@ -99,7 +107,7 @@ export function simulateBattery8760({
   // --- Phase 3 V2H : paramètres optionnels à défauts NEUTRES ---
   const minSOCpct = (v2h && Number.isFinite(Number(v2h.min_soc_pct)))
     ? Math.max(0, Math.min(100, Number(v2h.min_soc_pct)))
-    : 10;
+    : Number(battery.min_soc_pct ?? (battery.depth_of_discharge_pct != null ? 100 - Number(battery.depth_of_discharge_pct) : 10));
   const availability = (v2h && Array.isArray(v2h.availability_hourly) && v2h.availability_hourly.length === 8760)
     ? v2h.availability_hourly
     : null;
@@ -111,7 +119,11 @@ export function simulateBattery8760({
     : 7;
 
   const SOC_min = capacity_kwh * (minSOCpct / 100);
-  let SOC = Math.max(capacity_kwh * 0.45, SOC_min);
+  // Start at the unavailable reserve: no free discharge from an invented 45% stock.
+  const maxSOC = capacity_kwh * Number(battery.max_soc_pct ?? 100) / 100;
+  let SOC = Number(battery.initial_soc_kwh ?? SOC_min);
+  if (![SOC_min, maxSOC, SOC].every(Number.isFinite) || SOC_min < 0 || maxSOC > capacity_kwh || maxSOC < SOC_min || SOC < SOC_min || SOC > maxSOC) return { ok: false, reason: "INVALID_BATTERY_SOC" };
+  if (SOC > SOC_min && battery.initial_stock_origin !== "solar") return { ok: false, reason: "INITIAL_BATTERY_STOCK_ORIGIN_REQUIRED" };
   const SOC_start = SOC;
 
   let auto_total = 0;
@@ -138,6 +150,7 @@ export function simulateBattery8760({
   const batt_charge_input_hourly = [];
   const batt_charge_hourly = [];
   const battery_soc_hourly = [];
+  const battery_losses_hourly = [];
 
   for (let h = 0; h < 8760; h++) {
     const pv = pv_hourly[h] || 0;
@@ -162,11 +175,11 @@ export function simulateBattery8760({
 
     if (available) {
       // Charge depuis le surplus solaire (logique historique inchangée).
-      if (surplus > 0.15) {
+      if (surplus > 0) {
         charge_in = Math.min(surplus, pCh);
       }
       charge_eff = charge_in * effCh;
-      const room = capacity_kwh - SOC;
+      const room = maxSOC - SOC;
       if (charge_eff > room) {
         charge_eff = room;
         charge_in = effCh > 0 ? charge_eff / effCh : 0;
@@ -215,6 +228,7 @@ export function simulateBattery8760({
     batt_charge_input_hourly.push(charge_in);
     batt_charge_hourly.push(charge_eff);
     battery_soc_hourly.push(SOC);
+    battery_losses_hourly.push(Math.max(0, loss_h));
   }
 
   // Mobilité V2H : trajets = énergie RÉSEAU séparée (ne touche pas le service maison).
@@ -224,14 +238,10 @@ export function simulateBattery8760({
   }
 
   const pv_total = pv_hourly.reduce((a, b) => a + (b || 0), 0);
-  const battery_losses_kwh = Math.max(0, charge_in_total - discharge_total);
+  const battery_losses_kwh = battery_losses_hourly.reduce((a, b) => a + b, 0);
 
-  const annual_charge_kwh = Math.round(
-    batt_charge_hourly.reduce((a, b) => a + (Number(b) || 0), 0)
-  );
-  const annual_discharge_kwh = Math.round(
-    batt_discharge_hourly.reduce((a, b) => a + (Number(b) || 0), 0)
-  );
+  const annual_charge_kwh = batt_charge_hourly.reduce((a, b) => a + b, 0);
+  const annual_discharge_kwh = batt_discharge_hourly.reduce((a, b) => a + b, 0);
   const annual_throughput_kwh = annual_charge_kwh + annual_discharge_kwh;
   const equivalent_cycles =
     capacity_kwh > 0 ? annual_discharge_kwh / capacity_kwh : 0;
@@ -251,17 +261,22 @@ export function simulateBattery8760({
     batt_charge_input_hourly,
     batt_charge_hourly,
     battery_soc_hourly,
-    prod_kwh: Math.round(pv_total),
-    auto_kwh: Math.round(auto_total),
-    direct_self_consumption_kwh: Math.round(direct_total),
-    surplus_before_battery_kwh: Math.round(surplus_before_battery_total),
-    surplus_kwh: Math.round(surplus_total),
-    grid_import_kwh: Math.round(grid_total),
+    battery_losses_hourly,
+    soc_start_kwh: SOC_start,
+    soc_end_kwh: SOC,
+    stock_change_kwh: SOC - SOC_start,
+    resolved_parameters: { complete_input: ["roundtrip_efficiency","max_charge_kw","max_discharge_kw"].every(k=>battery[k]!=null), capacity_kwh, usable_capacity_kwh: maxSOC - SOC_min, min_soc_kwh: SOC_min, max_soc_kwh: maxSOC, initial_soc_kwh: SOC_start, initial_stock_origin: battery.initial_stock_origin ?? "unavailable_reserve", charge_efficiency: effCh, discharge_efficiency: effDis, roundtrip_efficiency: roundtrip, max_charge_kw: Number.isFinite(pCh) ? pCh : null, max_discharge_kw: Number.isFinite(pDis) ? pDis : null, grid_charging: false, standby_modelled: false },
+    prod_kwh: pv_total,
+    auto_kwh: auto_total,
+    direct_self_consumption_kwh: direct_total,
+    surplus_before_battery_kwh: surplus_before_battery_total,
+    surplus_kwh: surplus_total,
+    grid_import_kwh: grid_total,
     auto_pct: pv_total > 0 ? Math.round((auto_total / pv_total) * 100) : 0,
-    battery_losses_kwh: Math.round(battery_losses_kwh),
+    battery_losses_kwh: battery_losses_kwh,
     annual_charge_kwh,
-    annual_charge_from_surplus_kwh: Math.round(charge_in_total),
-    annual_charge_to_soc_kwh: Math.round(charge_to_soc_total),
+    annual_charge_from_surplus_kwh: charge_in_total,
+    annual_charge_to_soc_kwh: charge_to_soc_total,
     annual_discharge_kwh,
     annual_throughput_kwh,
     equivalent_cycles,

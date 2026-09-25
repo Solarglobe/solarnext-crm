@@ -197,6 +197,8 @@ test("PDF keeps frozen financing when current quote financing changes", async ()
   const financing = vm.fullReport.p11.data.financing;
 
   assert.equal(financing.enabled, true);
+  assert.match(vm.fullReport.p11.data.financial_scope_note, /hors assurance et frais de dossier/);
+  assert.match(vm.fullReport.p11.data.financial_scope_note, /TAEG et conditions définitives à confirmer/);
   assert.equal(financing.duration_months, 120);
   assert.equal(financing.taeg_display, "5,0 %");
   assert.equal(financing.montant_finance_display, "10\u202f000 \u20ac");

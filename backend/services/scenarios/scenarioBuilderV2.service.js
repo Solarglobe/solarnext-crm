@@ -5,6 +5,7 @@
 // ======================================================================
 
 import { aggregateMonthly } from "../monthlyAggregator.js";
+import { buildEnergyReference } from "../energyReference.service.js";
 import {
   resolvePanelPowerWc,
   computeInstalledKwcRounded2,
@@ -22,12 +23,12 @@ const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
  */
 export function buildScenarioBaseV2(ctx) {
   const pvHourly = Array.isArray(ctx?.pv?.hourly) && ctx.pv.hourly.length === HOURS_PER_YEAR
-    ? ctx.pv.hourly.map(v => Number(v) || 0)
+    ? ctx.pv.hourly.slice()
     : null;
   const consoHourly = Array.isArray(ctx?.conso?.hourly) && ctx.conso.hourly.length === HOURS_PER_YEAR
-      ? ctx.conso.hourly.map(v => Number(v) || 0)
+      ? ctx.conso.hourly.slice()
       : Array.isArray(ctx?.conso?.clamped) && ctx.conso.clamped.length === HOURS_PER_YEAR
-        ? ctx.conso.clamped.map(v => Number(v) || 0)
+        ? ctx.conso.clamped.slice()
         : null;
 
   if (!pvHourly || !consoHourly) {
@@ -43,21 +44,23 @@ export function buildScenarioBaseV2(ctx) {
   }
 
   const months = aggregateMonthly(pvHourly, consoHourly);
+  const reference = buildEnergyReference({ pv: pvHourly, load: consoHourly, provenance: ctx.meta?.consumption_provenance ?? null, injectionLimitKw: ctx.simulation_contract?.injection_limit_kw ?? null });
 
   const prod = months.reduce((a, m) => a + m.prod_kwh, 0);
   // Consommation maison = SUM(load_8760) uniquement ; jamais recalculée (import, auto, surplus ne la remplacent pas)
   const load8760Sum = typeof ctx?.conso?.annual_kwh === "number" && Number.isFinite(ctx.conso.annual_kwh) && ctx.conso.annual_kwh >= 0
     ? ctx.conso.annual_kwh
     : months.reduce((a, m) => a + m.conso_kwh, 0);
-  const conso = load8760Sum;
+  const conso = reference.annual.consumption_kwh;
   const auto = months.reduce((a, m) => a + m.auto_kwh, 0);
-  const surplus = months.reduce((a, m) => a + m.surplus_kwh, 0);
+  const surplus = reference.annual.physical_export_kwh;
   const importKwh = months.reduce((a, m) => a + m.import_kwh, 0);
 
   const kwc = resolveKwc(ctx);
   const nbPanneaux = resolveNbPanneaux(ctx);
 
   const energy = {
+    reference,
     prod,
     auto,
     surplus,
@@ -67,11 +70,11 @@ export function buildScenarioBaseV2(ctx) {
     surplus_before_battery_kwh: surplus,
     surplus_available_pct: prod > 0 ? Math.round((surplus / prod) * 10000) / 100 : null,
     direct_self_consumption_pct: prod > 0 ? Math.round((auto / prod) * 10000) / 100 : null,
-    monthly: months.map(m => ({
+    monthly: months.map((m,i) => ({
       prod: m.prod_kwh,
       conso: m.conso_kwh,
       auto: m.auto_kwh,
-      surplus: m.surplus_kwh,
+      surplus: reference.monthly[i].physical_export_kwh,
       import: m.import_kwh,
       direct_self_consumption_kwh: m.auto_kwh,
       surplus_before_battery_kwh: m.surplus_kwh,

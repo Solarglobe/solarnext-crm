@@ -11,10 +11,11 @@ import {
 
 function round2(x) {
   if (x == null || !Number.isFinite(Number(x))) return null;
-  return Math.round(Number(x) * 100) / 100;
+  return Number(x);
 }
 
 function num(v) {
+  if (v == null || v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
@@ -41,6 +42,31 @@ export function attachNormalizedEnergyKpiFields(scenario) {
   if (!scenario || scenario._skipped === true) return;
 
   const e = scenario.energy && typeof scenario.energy === "object" ? { ...scenario.energy } : {};
+  const ref = e.reference;
+  if (ref?.scenario_id === (scenario.name ?? scenario.scenario_type ?? scenario.id) && ref.validation?.status === "verified") {
+    const a = ref.annual;
+    scenario.prod_kwh=a.production_kwh;
+    scenario.conso_kwh=a.consumption_kwh;
+    scenario.auto_kwh=a.direct_kwh+a.battery_discharge_solar_kwh;
+    scenario.surplus_kwh=a.physical_export_kwh;
+    scenario.import_kwh=a.grid_to_load_kwh;
+    const useful = a.direct_kwh + a.battery_discharge_solar_kwh;
+    Object.assign(e, {
+      prod: a.production_kwh, production_kwh: a.production_kwh,
+      conso: a.consumption_kwh, consumption_kwh: a.consumption_kwh,
+      auto: useful, autoconsumption_kwh: useful, total_pv_used_on_site_kwh: useful,
+      direct_self_consumption_kwh: a.direct_kwh,
+      physical_battery_discharge_kwh: a.battery_discharge_solar_kwh,
+      battery_discharge_kwh: a.battery_discharge_solar_kwh,
+      physical_battery_charge_from_surplus_kwh: a.battery_charge_solar_kwh,
+      battery_losses_kwh: a.storage_losses_kwh, battery_stock_change_kwh: a.stock_change_kwh,
+      surplus: a.physical_export_kwh, exported_kwh: a.physical_export_kwh,
+      import: a.grid_to_load_kwh, grid_import_kwh: a.grid_to_load_kwh,
+      physical_grid_import_kwh: a.grid_to_load_kwh, physical_grid_export_kwh: a.physical_export_kwh,
+      curtailment_kwh: a.curtailment_kwh,
+      captured_pv_before_storage_losses_pct: ref.ratios.captured_pv_before_storage_losses == null ? null : ref.ratios.captured_pv_before_storage_losses * 100,
+    });
+  }
   const name = scenario.name ?? scenario.scenario_type;
 
   const prod =
@@ -134,7 +160,7 @@ export function attachNormalizedEnergyKpiFields(scenario) {
   e.battery_discharge_kwh = round2(battOut) ?? 0;
   e.total_pv_used_on_site_kwh = round2(totalPvUsed) ?? 0;
   e.energy_solar_used_kwh = round2(totalPvUsed) ?? 0;
-  e.site_solar_or_credit_used_kwh = round2(siteSolarOrCreditUsed) ?? 0;
+  e.site_solar_or_credit_used_kwh = ref?.virtual_credit ? totalPvUsed + ref.virtual_credit.used_kwh : (round2(siteSolarOrCreditUsed) ?? 0);
   e.grid_import_kwh = round2(gridImport) ?? 0;
   e.exported_kwh = round2(exported) ?? 0;
   if (prod > 0) {

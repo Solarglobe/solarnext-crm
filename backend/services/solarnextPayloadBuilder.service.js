@@ -7,9 +7,13 @@
 
 import { pool } from "../config/db.js";
 import { computeProjectEconomicTotalsFromConfig } from "./projectEconomicTotals.service.js";
+import { resolveConsumptionProvenance } from "./consumptionProvenance.service.js";
+import { resolveSimulationContract } from "./simulationContract.service.js";
 import { resolveVirtualBatteryActivationFeeTtcFromOrgDb } from "./virtualBatteryQuoteCalculator.service.js";
 import * as studiesService from "../routes/studies/service.js";
 import { computeCalpinageShading } from "./shading/calpinageShading.service.js";
+import { resolveMeterAnnualConsumptionKwh } from "./meterAnnualConsumption.service.js";
+import { buildCurrentMeterContractInputs } from "./solarnextAdapter.service.js";
 import {
   buildStructuredShading,
   hasPanelsInGeometry,
@@ -33,9 +37,7 @@ import {
   ensureRoofPansCarryProductionShading,
 } from "./shading/weightedShadingKpi.js";
 import { auditMultiPanShadingMismatch } from "./shading/shadingCommercialAudit.service.js";
-import { resolveConsumptionCsv } from "./consumptionCsvResolver.service.js";
 import { extractPvInverterFromCalpinagePayload } from "./pv/inverterFinanceContext.js";
-import { parseEnedisOffPeakLabel } from "./pv/hphcMask.service.js";
 import { resolvePvInverterEngineFields } from "./pv/resolveInverterFromDb.service.js";
 import {
   METER_FIELDS_FROM_LEAD,
@@ -61,6 +63,8 @@ import {
   DEFAULT_ECONOMICS_FALLBACK,
   mergeOrgEconomicsPartial,
   pickExplicitProjectTariffKwh,
+  resolveCurrentMeterTariffKwh,
+  resolveCurrentMeterOffPeakPeriods,
 } from "./economicsResolve.service.js";
 
 // ======================================================================
@@ -118,7 +122,6 @@ function buildEnergyLeadRow(baseLead, meterRow) {
   for (const key of METER_FIELDS_FROM_LEAD) {
     if (!Object.prototype.hasOwnProperty.call(meterRow, key)) continue;
     const v = meterRow[key];
-    if (v === null || v === undefined) continue;
     out[key] = v;
   }
   return out;
@@ -152,8 +155,10 @@ export async function resolveStudyVersionMeterContext(pool, { studyId, versionNu
     `SELECT l.id, l.full_name, l.first_name, l.last_name, l.site_address_id,
             l.consumption_mode, l.consumption_annual_kwh, l.consumption_annual_calculated_kwh,
             l.consumption_profile, l.grid_type, l.meter_power_kva, l.energy_profile,
-            l.hp_hc, l.tariff_type,
+            l.hp_hc, l.tariff_type, l.supplier_name,
             l.elec_price_base_eur_kwh, l.elec_price_hp_eur_kwh, l.elec_price_hc_eur_kwh,
+            l.electricity_subscription_ttc_month,
+            l.electricity_annual_bill_ttc,
             l.equipement_actuel, l.equipement_actuel_params, l.equipements_a_venir
      FROM leads l
      WHERE l.id = $1 AND l.organization_id = $2 AND (l.archived_at IS NULL)`,
@@ -176,6 +181,7 @@ export async function resolveStudyVersionMeterContext(pool, { studyId, versionNu
       [requestedMeterId, leadId, orgId]
     );
     meterRow = mRes.rows[0] ?? null;
+    if (!meterRow) throw new Error("SELECTED_METER_NOT_FOUND");
   }
   if (!meterRow) {
     meterRow = await getDefaultMeterRow(pool, leadId, orgId);
@@ -553,8 +559,8 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     studyData,
   });
   // LOT2-PRIX-COMPTEUR : prix client saisis dans la fiche compteur (facture fournisseur —
-  // JAMAIS présents dans les flux Enedis). Priorité tarif projet : étude/devis explicite >
-  // prix compteur > réglages org. Pour un contrat HP/HC sans prix BASE, le tarif « plat » de
+  // JAMAIS présents dans les flux Enedis). Priorité tarif actuel : prix compteur >
+  // étude/devis explicite > réglages org. Pour un contrat HP/HC, le tarif « plat » de
   // repli est la moyenne pondérée temps (16 h HP / 8 h HC) ; la valorisation fine heure par
   // heure est faite par p_eff (Lot 3) à partir de elec_price_hp/hc transmis ci-dessous.
   const numOrNullPrice = (v) => {
@@ -564,18 +570,21 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
   const meterPriceBase = numOrNullPrice(energyLead.elec_price_base_eur_kwh);
   const meterPriceHp = numOrNullPrice(energyLead.elec_price_hp_eur_kwh);
   const meterPriceHc = numOrNullPrice(energyLead.elec_price_hc_eur_kwh);
-  const meterPriceFlat =
-    meterPriceBase != null
-      ? meterPriceBase
-      : meterPriceHp != null && meterPriceHc != null
-        ? Math.round(((meterPriceHp * 16 + meterPriceHc * 8) / 24) * 100000) / 100000
-        : null;
-  const tarifKwh =
-    explicitTariffKwh != null
-      ? explicitTariffKwh
-      : meterPriceFlat != null
-        ? meterPriceFlat
-        : (params.economics?.price_eur_kwh ?? DEFAULT_ECONOMICS_FALLBACK.price_eur_kwh);
+  const tarifKwh = resolveCurrentMeterTariffKwh({
+    meter: energyLead,
+    explicitPriceKwh: explicitTariffKwh,
+    defaultPriceKwh: params.economics?.price_eur_kwh,
+  });
+  const subscriptionRaw = energyLead.electricity_subscription_ttc_month;
+  const currentSupplierSubscriptionTtcMonth =
+    subscriptionRaw != null && subscriptionRaw !== "" && Number.isFinite(Number(subscriptionRaw)) && Number(subscriptionRaw) >= 0
+      ? Number(subscriptionRaw)
+      : null;
+  const annualBillRaw = energyLead.electricity_annual_bill_ttc;
+  const electricityAnnualBillTtc =
+    annualBillRaw != null && annualBillRaw !== "" && Number.isFinite(Number(annualBillRaw)) && Number(annualBillRaw) >= 0
+      ? Number(annualBillRaw)
+      : null;
 
   // Prix batterie physique : uniquement depuis config_json (devis technique), jamais settings.pricing
   const batteryPhysicalConfig = economicSnapshot?.battery_physical ?? economicSnapshot?.batteries?.physical;
@@ -631,8 +640,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       : null) ?? energyProfile?.summary?.annual_kwh;
 
   const officialConsumptionMode = String(energyLead.consumption_mode || "ANNUAL").toUpperCase();
-  let annuelleKwh =
-    energyLead.consumption_annual_kwh ?? energyLead.consumption_annual_calculated_kwh ?? 0;
+  let annuelleKwh = resolveMeterAnnualConsumptionKwh({ meter: energyLead, profileAnnualKwh });
   let mensuelle = null;
   if (officialConsumptionMode === "MONTHLY") {
     const cmRes =
@@ -653,10 +661,13 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     for (let m = 1; m <= 12; m++) {
       mensuelle.push(Number(byMonth[m]) || 0);
     }
-    annuelleKwh = mensuelle.reduce((a, b) => a + b, 0);
-  } else if (profileHourly) {
-    annuelleKwh = profileAnnualKwh ?? profileHourly.reduce((a, b) => a + (Number(b) || 0), 0);
+    annuelleKwh = resolveMeterAnnualConsumptionKwh({
+      meter: energyLead,
+      profileAnnualKwh,
+      monthlyKwh: Array.from({ length: 12 }, (_, i) => byMonth[i + 1] ?? null),
+    });
   }
+  if (annuelleKwh == null) throw new Error("SELECTED_METER_CONSUMPTION_MISSING");
 
   const options = studyData.options || {};
 
@@ -965,15 +976,10 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
   // resolveOffPeakPeriods (hphcMask.service) lit vbInput.off_peak_periods en premier candidat ;
   // sans cette injection, le masque HP/HC tourne sur le défaut 23h-07h même quand la vraie
   // fenêtre du client est connue (ex. Bedouelle : 22h30-06h30, futures plages HC de jour).
-  // Priorité : plages déjà parsées à l'import Solteo ; sinon re-parse du libellé brut
-  // (couvre les leads importés avant le Lot 1, energy_profile.contract.plage_hc persisté).
-  if (virtual_battery_input && typeof virtual_battery_input === "object" && virtual_battery_input.off_peak_periods == null) {
-    const contractHc = energyProfileEarly?.contract;
-    const offPeakFromImport =
-      Array.isArray(contractHc?.off_peak_periods) && contractHc.off_peak_periods.length
-        ? contractHc.off_peak_periods
-        : null;
-    const offPeak = offPeakFromImport ?? parseEnedisOffPeakLabel(contractHc?.plage_hc);
+  // Priorité : contrat structuré, puis libellé courant, puis résumé d'import ancien.
+  // Le helper ne lit jamais les futures plages et ne crée aucun horaire par défaut.
+  if (virtual_battery_input && typeof virtual_battery_input === "object" && virtual_battery_input.off_peak_periods == null && virtual_battery_input.offPeakPeriods == null) {
+    const offPeak = resolveCurrentMeterOffPeakPeriods(energyProfileEarly);
     if (offPeak) virtual_battery_input.off_peak_periods = offPeak;
   }
   if (
@@ -1003,28 +1009,9 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
 
   const roofPans = roofPansForKpi;
 
-  // CSV prioritaire : résolution via entity_documents (lead puis study). On ne dépend PAS de form.conso.csv_path frontend.
-  const { csvPath: resolvedCsvPath } = await resolveConsumptionCsv({
-    db: pool,
-    organizationId: orgId,
-    leadId,
-    studyId,
-  });
-  const csvPath = resolvedCsvPath ?? null;
-
-  // Log temporaire — décision source conso (sera affiché avant calc)
-  if (process.env.NODE_ENV !== "production") {
-    console.log(JSON.stringify({
-      tag: "CONSO_SOURCE_DECISION",
-      source: csvPath ? "CSV" : "SYNTHETIC",
-      csvPath: csvPath ?? null,
-    }));
-  } else {
-    console.log(JSON.stringify({
-      tag: "CONSO_SOURCE_DECISION",
-      source: csvPath ? "CSV" : "SYNTHETIC",
-    }));
-  }
+  // La fiche compteur a déjà résolu l'import : ne jamais relire les documents CSV ici.
+  const csvPath = null;
+  const useProfileHourlyAsAuthoritativeShape = Boolean(profileHourly);
 
   // Phase 3C V2H — vehicle_v2h_input depuis economic_snapshot.vehicleV2h (option de simulation).
   // Normalise la grille de presence 7x24 (lundi..dimanche x 0..23) -> booleens ; null si invalide.
@@ -1062,6 +1049,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
   }
 
   const payload = {
+    simulation_contract: resolveSimulationContract(studyData.simulation_contract ?? {}),
     studyId,
     versionId: versionNum,
     leadId,
@@ -1071,6 +1059,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       lat,
       lon,
       puissance_kva: Number(energyLead.meter_power_kva) || 9,
+      ...buildCurrentMeterContractInputs(energyLead),
       tarif_kwh: tarifKwh,
       // LOT2-PRIX-COMPTEUR : contrat + prix client vers le moteur (hint HPHC + valorisation p_eff Lot 3).
       hp_hc: energyLead.hp_hc === true,
@@ -1078,8 +1067,15 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       elec_price_base_eur_kwh: meterPriceBase,
       elec_price_hp_eur_kwh: meterPriceHp,
       elec_price_hc_eur_kwh: meterPriceHc,
+      electricity_subscription_ttc_month: currentSupplierSubscriptionTtcMonth,
+      electricity_annual_bill_ttc: electricityAnnualBillTtc,
+      current_off_peak_periods: resolveCurrentMeterOffPeakPeriods(energyProfileEarly),
+      supplier_name: energyLead.supplier_name ?? null,
     },
     consommation: {
+      provenance: resolveConsumptionProvenance(energyProfile?.engine ?? {}),
+      meter_consumption_authoritative: true,
+      selected_meter_id: meterRow?.id ?? null,
       mode: mapConsumptionMode(energyLead.consumption_mode),
       annuelle_kwh: annuelleKwh,
       mensuelle: mensuelle,
@@ -1088,7 +1084,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
         csvPath ? "CSV" : officialConsumptionMode === "MONTHLY" ? "MONTHLY" : profileHourly ? "PROFILE_8760" : "ANNUAL",
       profil: mapConsumptionProfile(energyLead.consumption_profile),
       csv_path: csvPath,
-      ...(profileHourly && !csvPath && officialConsumptionMode !== "MONTHLY" ? { hourly: profileHourly } : {}),
+      ...(useProfileHourlyAsAuthoritativeShape ? { hourly: profileHourly } : {}),
       // Équipements énergétiques (V8)
       equipement_actuel: energyLead.equipement_actuel ?? null,
       equipement_actuel_params:

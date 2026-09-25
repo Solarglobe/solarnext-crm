@@ -154,6 +154,11 @@ async function getDetail(req, res) {
       supplier_name: leadRow.supplier_name,
       consumption_profile: leadRow.consumption_profile,
       tariff_type: leadRow.tariff_type,
+      elec_price_base_eur_kwh: leadRow.elec_price_base_eur_kwh,
+      elec_price_hp_eur_kwh: leadRow.elec_price_hp_eur_kwh,
+      elec_price_hc_eur_kwh: leadRow.elec_price_hc_eur_kwh,
+      electricity_subscription_ttc_month: leadRow.electricity_subscription_ttc_month,
+      electricity_annual_bill_ttc: leadRow.electricity_annual_bill_ttc,
       grid_type: leadRow.grid_type,
       meter_power_kva: leadRow.meter_power_kva,
       property_type: leadRow.property_type,
@@ -348,11 +353,11 @@ async function patchStage(req, res) {
 
     const stageCode = stageCheck.rows[0].code;
 
-    if (stageCode === "FOLLOW_UP") {
+    if (stageCode === "FOLLOW_UP" || stageCode === "LONG_TERM_FOLLOW_UP") {
       if (!nextFollowUpAt || Number.isNaN(new Date(nextFollowUpAt).getTime())) {
         await client.query("ROLLBACK");
         return res.status(400).json({
-          error: "Une date de prochaine relance est obligatoire pour passer en FOLLOW_UP",
+          error: "Une date de prochaine relance est obligatoire pour cette étape de relance",
           code: "FOLLOW_UP_DUE_AT_REQUIRED",
         });
       }
@@ -408,7 +413,7 @@ async function patchStage(req, res) {
           archived_reason: "LOST"
         });
       }
-      if (stageCode === "FOLLOW_UP") {
+      if (stageCode === "FOLLOW_UP" || stageCode === "LONG_TERM_FOLLOW_UP") {
         await createFollowUpStageTask({
           organizationId: org,
           leadId: id,

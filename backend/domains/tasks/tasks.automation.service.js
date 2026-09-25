@@ -89,7 +89,7 @@ export async function createFollowUpStageTask({
     assigned_user_id: assigned,
     type: "CALL",
     title: "Relance commerciale à effectuer",
-    description: "Relance obligatoire liée au passage du dossier en étape FOLLOW_UP.",
+    description: "Relance prévue à la date convenue lors du changement d’étape du dossier.",
     due_at: dueAt,
     priority: "HIGH",
     created_from: "STAGE_RULE",

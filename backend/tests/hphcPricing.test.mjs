@@ -42,13 +42,52 @@ test("resolveHpHcPricingContext : ok si HPHC (hint fiche compteur) + prix saisis
   assert.equal(pc.priceHp, HP);
   assert.equal(pc.priceHc, HC);
   assert.equal(pc.hourlyIsHp.length, 8760);
+  assert.equal(pc.hourlyHpFraction.length, 8760);
 });
 
-test("resolveHpHcPricingContext : contract_type devis prioritaire sur le hint", () => {
+test("un contrat BV HP/HC ne transforme pas le contrat actuel BASE", () => {
   const ctx = ctxHphc();
   ctx.virtual_battery_input = { contract_type: "HPHC" };
-  ctx.form.params.hp_hc = false; // le devis fixe HPHC → hint ignoré
+  ctx.form.params.hp_hc = false;
+  assert.equal(resolveHpHcPricingContext(ctx), null);
+});
+
+test("un contrat BV BASE ne désactive pas les tarifs HP/HC du compteur", () => {
+  const ctx = ctxHphc();
+  const current = resolveHpHcPricingContext(ctx);
+  ctx.virtual_battery_input = { contract_type: "BASE", off_peak_periods: [{ start: "12:00", end: "20:00" }] };
+  assert.deepEqual(resolveHpHcPricingContext(ctx), current);
+});
+
+test("le type de tarif explicite est prioritaire sur l'ancien booléen HP/HC", () => {
+  const ctx = ctxHphc();
+  ctx.form.params.tariff_type = "base";
+  assert.equal(resolveHpHcPricingContext(ctx), null);
+  ctx.form.params.tariff_type = "hp_hc";
+  delete ctx.form.params.hp_hc;
   assert.ok(resolveHpHcPricingContext(ctx));
+  ctx.form.params.elec_price_hc_eur_kwh = 0;
+  assert.equal(resolveHpHcPricingContext(ctx).priceHc, 0);
+});
+
+test("le contrat actuel et ses tarifs se résolvent depuis le lead, avec priorité params", () => {
+  const ctx = { form: { lead: ctxHphc().form.params } };
+  assert.ok(resolveHpHcPricingContext(ctx));
+  ctx.form.params = { hp_hc: false };
+  assert.equal(resolveHpHcPricingContext(ctx), null);
+});
+
+test("les prix effectifs pondèrent les heures mixtes du contrat actuel à la minute", () => {
+  const ctx = ctxHphc();
+  ctx.form.params.off_peak_periods = [{ start: "22:30", end: "06:30" }];
+  ctx.virtual_battery_input = { contract_type: "BASE", off_peak_periods: [{ start: "12:00", end: "20:00" }] };
+  const pc = resolveHpHcPricingContext(ctx);
+  const hourly = new Array(8760).fill(1);
+  assert.equal(effectivePriceForHourlyWeights(hourly, pc), Math.round(((16 * HP + 8 * HC) / 24) * 100000) / 100000);
+  const mixedHours = new Array(8760).fill(0);
+  mixedHours[22] = 2;
+  mixedHours[6] = 3;
+  assert.equal(effectivePriceForHourlyWeights(mixedHours, pc), Math.round(((HP + HC) / 2) * 100000) / 100000);
 });
 
 test("effectivePriceForHourlyWeights : flux 100% HP → priceHp ; 100% HC → priceHc", () => {
@@ -99,6 +138,7 @@ test("attachHpHcPricingToScenarios : PV de jour + conso de nuit → p_eff_auto=H
   assert.equal(p.mode, "HPHC");
   assert.equal(p.p_eff_auto, HP, "autoconso 100% à midi → prix HP");
   assert.equal(p.p_eff_import, HC, "import 100% à 2h → prix HC");
+  assert.equal(p.p_eff_import_current, HC, "référence conservée pour comparer le contrat fournisseur");
   // p_eff_conso = (1×HP + 3×HC)/4
   assert.equal(p.p_eff_conso, Math.round(((1 * HP + 3 * HC) / 4) * 100000) / 100000);
   // residual_bill recalculée au prix effectif d'import

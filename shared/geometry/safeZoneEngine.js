@@ -405,7 +405,8 @@ export function computeSafeZones(opts) {
     const filtered = safeZonePaths.filter((path) => {
       const polyPx = fromClipperPath(path);
       const area = polygonAreaAbs(polyPx);
-      return area >= epsAreaPx2;
+      // Les trous sont des obstacles : leur petite taille ne les rend pas posables.
+      return ClipperLib.Clipper.Area(path) < 0 || area >= epsAreaPx2;
     });
 
     let safeZonePolygonsPx;

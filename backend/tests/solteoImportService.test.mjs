@@ -123,12 +123,12 @@ test("parseR65Json + computeAnnualFromDaily : 608 jours Wh → fenêtre 365 j co
   assert.ok(Math.abs(daily.sum_kwh - 12234.07) < 0.1, `sum=${daily.sum_kwh}`);
 });
 
-test("parseDailyCsv : unité par médiane globale — un jour d'absence à 1 800 Wh reste 1,8 kWh", () => {
+test("parseDailyCsv : unité explicite Wh — un jour d'absence à 1 800 Wh reste 1,8 kWh", () => {
   const lines = ["date,value"];
   for (let i = 1; i <= 30; i++) {
     lines.push(`2026-06-${String(i).padStart(2, "0")},${i === 15 ? 1800 : 35000}`);
   }
-  const r = parseDailyCsv(lines.join("\n"));
+  const r = parseDailyCsv(lines.join("\n"), {unit:"Wh"});
   assert.ok(r);
   const low = r.points.find((p) => p.date === "2026-06-15");
   assert.ok(Math.abs(low.kwh - 1.8) < 0.001, `kwh=${low.kwh}`);
@@ -189,7 +189,7 @@ test("parseMonthlyCsv + computeAnnualFromMonthly : 12 mois complets → MONTHLY_
   const lines = ["date,value"];
   const months = ["2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04","2026-05","2026-06"];
   for (const m of months) lines.push(`${m},1000`);
-  const parsed = parseMonthlyCsv(lines.join("\n"));
+  const parsed = parseMonthlyCsv(lines.join("\n"), {unit:"kWh"});
   assert.ok(parsed);
   const monthly = computeAnnualFromMonthly(parsed.months);
   assert.equal(monthly.complete_12, true);

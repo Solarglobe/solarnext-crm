@@ -12,6 +12,7 @@
  */
 
 import { ORG_ECONOMICS_ENGINE_DEFAULTS, ORG_ECONOMICS_NUMERIC_KEYS } from "../config/orgEconomics.common.js";
+import { resolveKnownCurrentOffPeakPeriods } from "./pv/hphcMask.service.js";
 
 /** @deprecated Import direct préféré : `ORG_ECONOMICS_ENGINE_DEFAULTS` depuis `config/orgEconomics.common.js` */
 export const DEFAULT_ECONOMICS_FALLBACK = { ...ORG_ECONOMICS_ENGINE_DEFAULTS };
@@ -96,6 +97,29 @@ export function pickExplicitProjectTariffKwh({ energyProfile, economicSnapshot, 
     if (Number.isFinite(n) && n > 0) return n;
   }
   return null;
+}
+
+/** Customer contract first; project/org prices only fill a missing customer tariff. */
+export function resolveCurrentMeterTariffKwh({ meter = {}, explicitPriceKwh, defaultPriceKwh }) {
+  const positive = (value) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const base = positive(meter.elec_price_base_eur_kwh);
+  const hp = positive(meter.elec_price_hp_eur_kwh);
+  const hc = positive(meter.elec_price_hc_eur_kwh);
+  // Flat fallback only: hourly HP/HC pricing values each flow when available.
+  const hphcFallback = hp != null && hc != null
+    ? Math.round(((hp * 16 + hc * 8) / 24) * 100000) / 100000
+    : null;
+  const isHpHc = meter.hp_hc === true || ["hp_hc", "hphc"].includes(String(meter.tariff_type ?? "").toLowerCase());
+  const customerPrice = isHpHc ? hphcFallback ?? base : base ?? hphcFallback;
+  return customerPrice ?? positive(explicitPriceKwh) ?? positive(defaultPriceKwh) ?? DEFAULT_ECONOMICS_FALLBACK.price_eur_kwh;
+}
+
+/** Existing meter schedule from Enedis; never derived from the future BV option. */
+export function resolveCurrentMeterOffPeakPeriods(energyProfile) {
+  return resolveKnownCurrentOffPeakPeriods(energyProfile);
 }
 
 function mergedEconomicsFromCtx(ctx) {

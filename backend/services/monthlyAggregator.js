@@ -127,12 +127,12 @@ export function aggregateMonthly(prodHourly, consoHourly, battSummary = null) {
     }));
   }
   return months.map(m => ({
-    prod_kwh: Math.round(m.prod_kwh),
-    conso_kwh: Math.round(m.conso_kwh),
-    auto_kwh: Math.round(m.auto_kwh),
-    surplus_kwh: Math.round(m.surplus_kwh),
-    import_kwh: Math.round(m.import_kwh),
-    batt_kwh: Math.round(m.batt_kwh),
+    prod_kwh: m.prod_kwh,
+    conso_kwh: m.conso_kwh,
+    auto_kwh: m.auto_kwh,
+    surplus_kwh: m.surplus_kwh,
+    import_kwh: m.import_kwh,
+    batt_kwh: m.batt_kwh,
     auto_pct: m.prod_kwh > 0 ? Math.round((m.auto_kwh / m.prod_kwh) * 100) : 0
   }));
 }

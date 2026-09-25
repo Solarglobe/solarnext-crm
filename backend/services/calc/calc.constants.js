@@ -4,7 +4,7 @@
  */
 
 /** Identifiant de version du moteur — apparaît dans ctx.meta.version du payload de réponse. */
-export const CALC_ENGINE_VERSION = "SmartPitch V-LIGHT V14";
+export const CALC_ENGINE_VERSION = "SmartPitch V-LIGHT V19-preserved-hc-contract";
 
 /**
  * Nombre d'heures dans une année — utilisé pour valider les profils horaires 8760h.

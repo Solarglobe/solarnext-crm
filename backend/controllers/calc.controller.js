@@ -31,6 +31,8 @@ import { aggregateMonthly } from "../services/monthlyAggregator.js";
 import { buildScenario } from "../services/scenarioService.js";
 import { buildScenarioBaseV2 } from "../services/scenarios/scenarioBuilderV2.service.js";
 import { simulateBattery8760 } from "../services/batteryService.js";
+import { buildEnergyReference, validateEnergyBalance } from "../services/energyReference.service.js";
+import { resolveSimulationContract } from "../services/simulationContract.service.js";
 import { computeVirtualBatteryAnnualCost } from "../services/virtualBatteryCreditModel.service.js";
 import {
   simulateVirtualBattery8760,
@@ -46,10 +48,10 @@ import {
   resolveP2ContractType,
 } from "../services/virtualBatteryP2Finance.service.js";
 import { resolveP2VirtualBatterySimulationCapacityKwh } from "../services/virtualBatteryP2CapacityResolve.service.js";
-import { resolveHpHcHourlyMask } from "../services/pv/hphcMask.service.js";
+import { resolveHpHcHourlyMask, resolveHpHcHourlyFractions } from "../services/pv/hphcMask.service.js";
+import { attachScenarioElectricityBilling, resolveVirtualSupplyPricing } from "../services/scenarioElectricityBilling.service.js";
 import {
   resolveHpHcPricingContext,
-  effectivePriceForHourlyWeights,
   attachHpHcPricingToScenarios,
 } from "../services/pv/hphcPricing.service.js";
 import { mapScenarioToV2 } from "../services/scenarioV2Mapper.service.js";
@@ -201,7 +203,7 @@ function monthlySumsFromHourly(values) {
   for (const days of daysPerMonth) {
     let sum = 0;
     for (let h = 0; h < days * 24; h++, index++) sum += Number(values[index]) || 0;
-    out.push(Math.round(sum));
+    out.push(sum);
   }
   return out;
 }
@@ -236,8 +238,9 @@ function attachVirtualBatteryFinanceForV2hScenario({ ctx, scenario, energyResult
       selectedCapacityKwh: virtualCapacityKwh,
       hourlyDischargeKwh: vbSim.virtual_battery_hourly_discharge_kwh,
       hphcHourlyIsHp: contractType === "HPHC" ? (vbInput.hphc_hourly_slot_is_hp ?? resolveHpHcHourlyMask(vbInput, ctx)) : null,
+      hphcHourlyHpFraction: contractType === "HPHC" ? resolveHpHcHourlyFractions(vbInput, ctx) : null,
       tariffElectricityPerKwh:
-        effectivePriceForHourlyWeights(vbSim.virtual_battery_hourly_grid_import_kwh, ctx._hphcPricingCtx) ?? tariffKwh,
+        resolveVirtualSupplyPricing(ctx, vbSim, contractType).priceImport,
       oaRatePerKwh: oaRate,
       virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
     });
@@ -369,6 +372,7 @@ export async function calculateSmartpitch(req, res) {
     // 0) Contexte global
     // ------------------------------------------------------------
     const ctx = buildContext(form, settings);
+    ctx.simulation_contract = resolveSimulationContract(form.simulation_contract ?? {});
     ctx.form = form;
     if (
       solarnextPayloadForLog?.shading_commercial_audit &&
@@ -465,6 +469,7 @@ ctx.conso = {
 // META
 ctx.meta.conso_annuelle_kwh = annualExact;
 ctx.meta.engine_consumption_source = conso.engine_consumption_source ?? "UNKNOWN";
+ctx.meta.consumption_provenance = mergedConso.provenance ?? conso.provenance ?? null;
 ctx.meta.consumption_source_mode = conso.consumption_source_mode ?? null;
 // OPTIMISATION SOLAIRE DES USAGES — option explicite (defaut NON). Jamais deduite du statut client ni des equipements.
 ctx.solar_piloting_enabled = (form?.params?.solar_piloting_enabled === true) || (form?.solar_piloting_enabled === true);
@@ -1089,6 +1094,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           const monthlySurplusBefore = monthlySumsFromHourly(batt.surplus_before_battery_hourly);
           const monthlyChargeInput = monthlySumsFromHourly(batt.batt_charge_input_hourly);
           batteryScenario.energy = {
+            reference: buildEnergyReference({ pv: ctx.pv.hourly, load: consoHourly, battery: batt, scenarioId: "BATTERY_PHYSICAL", provenance: ctx.meta?.consumption_provenance ?? null, injectionLimitKw: ctx.simulation_contract?.injection_limit_kw ?? null }),
             prod: baseScenario.energy.prod,
             auto: batt.auto_kwh,
             surplus: batt.surplus_kwh,
@@ -1173,7 +1179,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       }
     }
 
-    if (ctx.virtual_battery_input?.enabled === true) {
+    if (ctx.virtual_battery_input?.enabled === true && ctx.simulation_contract.virtual_credit_eligibility !== false && ctx.simulation_contract.injection_mode !== "none") {
       const virtualScenario = JSON.parse(JSON.stringify(baseScenario));
       virtualScenario.name = "BATTERY_VIRTUAL";
       virtualScenario.battery = "virtual";
@@ -1563,13 +1569,10 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 null,
               hourlyDischargeKwh: vbSim.virtual_battery_hourly_discharge_kwh,
               hphcHourlyIsHp: contractType === "HPHC" ? (vbInput.hphc_hourly_slot_is_hp ?? resolveHpHcHourlyMask(vbInput, ctx)) : null,
-              // LOT3-HPHC-VALO : l'import résiduel VB est facturé à son prix effectif HP/HC
-              // (pondéré par les heures d'import réelles) quand le contexte existe, sinon prix plat.
+              hphcHourlyHpFraction: contractType === "HPHC" ? resolveHpHcHourlyFractions(vbInput, ctx) : null,
+              // Purchases outside virtual credit use the selected supplier's contract.
               tariffElectricityPerKwh:
-                effectivePriceForHourlyWeights(
-                  vbSim.virtual_battery_hourly_grid_import_kwh,
-                  ctx._hphcPricingCtx
-                ) ?? tariffKwh,
+                resolveVirtualSupplyPricing(ctx, vbSim, contractType, meterKva).priceImport,
               oaRatePerKwh: oaRate,
               virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
             });
@@ -1682,7 +1685,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     // Condition : batterie physique simulée avec succès ET batterie virtuelle activée.
     // Principe : la VB ne voit que le surplus que la batterie physique n'a pas absorbé.
     // -----------------------------------------------------------------------
-    if (battPhysicalResult !== null && ctx.virtual_battery_input?.enabled === true) {
+    if (battPhysicalResult !== null && ctx.virtual_battery_input?.enabled === true && ctx.simulation_contract?.virtual_credit_eligibility !== false && ctx.simulation_contract?.injection_mode !== "none") {
       const consoHourlyHybrid = resolveRawScenarioConsumptionHourly(ctx);
       const hasSurplus8760H = Array.isArray(battPhysicalResult.surplus_hourly) && battPhysicalResult.surplus_hourly.length === 8760;
       const hasConso8760H = Array.isArray(consoHourlyHybrid) && consoHourlyHybrid.length === 8760;
@@ -1862,12 +1865,10 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 selectedCapacityKwh: simCapacityKwhH,
                 hourlyDischargeKwh: vbSimHEffective.virtual_battery_hourly_discharge_kwh,
                 hphcHourlyIsHp: contractTypeH === "HPHC" ? (vbInputH.hphc_hourly_slot_is_hp ?? resolveHpHcHourlyMask(vbInputH, ctx)) : null,
+                hphcHourlyHpFraction: contractTypeH === "HPHC" ? resolveHpHcHourlyFractions(vbInputH, ctx) : null,
                 // LOT3-HPHC-VALO : import résiduel hybride au prix effectif HP/HC (cf. scénario virtuel).
                 tariffElectricityPerKwh:
-                  effectivePriceForHourlyWeights(
-                    vbSimHEffective.virtual_battery_hourly_grid_import_kwh,
-                    ctx._hphcPricingCtx
-                  ) ?? tariffKwhH,
+                  resolveVirtualSupplyPricing(ctx, vbSimHEffective, contractTypeH).priceImport,
                 oaRatePerKwh: oaRateH,
                 virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
               });
@@ -2036,6 +2037,8 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       }
     }
 
+    } // End physical + virtual scenario; finance and response apply to every configuration.
+
 
     // -----------------------------------------------------------------------
     // VEHICLE_V2H* — Voiture V2H (Phase 3B-2b). Gaté par vehicle_v2h_input.enabled.
@@ -2095,6 +2098,12 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               annual: { prod_kwh: e.production_kwh, conso_kwh: e.consumption_kwh, auto_kwh: e.auto_kwh, surplus_kwh: e.surplus_kwh },
             };
             const v2hTrace = e._hourlyTrace && typeof e._hourlyTrace === "object" ? e._hourlyTrace : null;
+            if (v2hTrace) sc._electricityHourly = {
+              auto: Array.isArray(v2hTrace.direct_self_consumption_hourly)
+                ? v2hTrace.direct_self_consumption_hourly.map((v, h) => v + (v2hTrace.physical_battery_discharge_hourly?.[h] ?? 0) + (v2hTrace.vehicle_v2h_discharge_hourly?.[h] ?? 0))
+                : null,
+              import: v2hTrace.grid_import_hourly ?? null,
+            };
             if (
               v2hTrace &&
               Array.isArray(v2hTrace.auto_hourly) &&
@@ -2205,6 +2214,22 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     }
 
     for (const _sk of Object.keys(scenarios)) {
+      if (_sk === "BATTERY_VIRTUAL" || _sk === "BATTERY_HYBRID") {
+        const sc = scenarios[_sk];
+        if (!sc._skipped) {
+          sc.energy.reference = buildEnergyReference({ pv: ctx.pv.hourly, load: resolveRawScenarioConsumptionHourly(ctx), battery: _sk === "BATTERY_HYBRID" ? battPhysicalResult : null, scenarioId: _sk, provenance: ctx.meta?.consumption_provenance ?? null });
+          const vb = sc._virtualBattery8760;
+          if (Array.isArray(vb?.virtual_battery_hourly_charge_kwh)) sc.energy.reference.virtual_credit = {
+            accounting_only: true,
+            credited_kwh: vb.virtual_battery_total_charged_kwh,
+            used_kwh: vb.virtual_battery_total_discharged_kwh,
+            opening_kwh: vb.virtual_battery_credit_start_kwh,
+            closing_kwh: vb.virtual_battery_credit_end_kwh,
+            overflow_kwh: vb.virtual_battery_overflow_export_kwh,
+            monthly: aggregateVirtualBatteryMonthly(vb.virtual_battery_hourly_grid_import_kwh, vb.virtual_battery_hourly_charge_kwh, vb.virtual_battery_hourly_discharge_kwh, vb.virtual_battery_hourly_credit_balance_kwh),
+          };
+        }
+      }
       attachNormalizedEnergyKpiFields(scenarios[_sk]);
     }
 
@@ -2214,6 +2239,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     if (ctx._hphcPricingCtx) {
       attachHpHcPricingToScenarios(scenarios, ctx, battPhysicalResult, ctx._hphcPricingCtx);
     }
+    attachScenarioElectricityBilling(scenarios, ctx, battPhysicalResult);
 
     // ======================================================================
     // SECTION 6 — Finance · impact CO₂ · construction réponse HTTP
@@ -2232,7 +2258,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       console.error("[SMARTPITCH ERROR] Missing params", { someObject: ctx.form });
       throw new Error("SMARTPITCH_PARAMS_MISSING");
     }
-    if (!ctx.form.params.tarif_kwh && ctx.form.params.tarif_actuel) {
+    if (ctx.form.params.tarif_kwh == null && ctx.form.params.tarif_actuel != null) {
       ctx.form.params.tarif_kwh = ctx.form.params.tarif_actuel;
     }
 
@@ -2266,6 +2292,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     // Contrôle équilibre énergétique : CONSOMMATION = auto + import ; PRODUCTION = auto + surplus
     for (const [key, sc] of Object.entries(scenariosFinal)) {
       if (!sc) continue;
+      if(sc.energy?.reference){const issues=validateEnergyBalance(sc.energy.reference.annual);if(issues.length)throw new Error(issues.join("; "));continue;}
 
       const consumption =
         sc.conso_kwh ?? sc.energy?.conso ?? 0;
@@ -2339,7 +2366,6 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
 
     return res.json(ctxFinal);
 
-  }
   } catch (err) {
     console.error("❌ ERREUR SMARTPITCH :", err);
     if (err instanceof CalcEngineValidationError && err.code === CALC_INVALID_8760_PROFILE) {
