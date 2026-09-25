@@ -130,9 +130,9 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          # Stream the checked-in script from this exact commit. The server's older
-          # checkout cannot enforce this release's no-DB guard before its git pull.
-          ssh "$VPS_USER@$VPS_HOST" "DEPLOY_REF=$GITHUB_SHA bash -s -- --skip-db" < infrastructure/scripts/deploy.sh
+          # Stream the checked-in script from this exact commit. It leaves the
+          # VPS working tree intact and starts the verified commit from a new release directory.
+          ssh "$VPS_USER@$VPS_HOST" "DEPLOY_REF=$GITHUB_SHA bash -s -- --skip-db" < infrastructure/scripts/deploy-isolated.sh
 
   smoke-tests:
     name: Post-backend Smoke Tests
